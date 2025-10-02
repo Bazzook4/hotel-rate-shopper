@@ -1,0 +1,47 @@
+{
+    "type": "hotel",
+    "name": "Muscatel Springburn",
+    "address": "Plot No, 70, Gandhi Rd, Limbugaon, Darjeeling, West Bengal 734101, India",
+    "phone": "+91 97320 81111",
+    "phone_link": "tel:+919732081111",
+    "overall_rating": 4.4,
+    "reviews": 526,
+    "deal": "30% less than usual",
+    "deal_description": "Great Deal",
+    "check_in_time": "2:00 PM",
+    "check_out_time": "11:00 AM",
+    "rate_per_night": {
+      "extracted_lowest": 2284,
+      "extracted_before_taxes_fees": 2163
+    },
+    "prices": [
+      {
+        "source": "EaseMyTrip.com",
+        "link": "https://www.easemytrip.com",
+        "rate_per_night": {
+          "extracted_lowest": 2284,
+          "extracted_before_taxes_fees": 2163
+        }
+      },
+      {
+        "source": "Expedia.com",
+        "link": "https://www.expedia.com",
+        "rate_per_night": {
+          "extracted_lowest": 6010,
+          "extracted_before_taxes_fees": 5718
+        }
+      }
+    ],
+    "images": [
+      {
+        "original_image": "https://images.trvl-media.com/lodging/90000000/89800000/89794100/89794006/068dc5ef_z.jpg"
+      }
+    ],
+    "amenities_detailed": {
+      "popular": [
+        { "title": "Wi-Fi", "label": "free", "available": true },
+        { "title": "Breakfast", "label": "extra charge", "available": true },
+        { "title": "Parking", "label": "extra charge", "available": true }
+      ]
+    }
+  }
