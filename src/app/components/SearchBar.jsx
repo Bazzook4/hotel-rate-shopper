@@ -8,7 +8,7 @@ export default function SearchBar({ onResult }) {
   const defaultIn = useMemo(() => formatDateISO(today), [today]);
   const defaultOut = useMemo(() => formatDateISO(addDays(today, 1)), [today]);
 
-  const [q, setQ] = useState("Muscatel Springburn");
+  const [q, setQ] = useState("Your Hotel");
   const [checkIn, setCheckIn] = useState(defaultIn);
   const [checkOut, setCheckOut] = useState(defaultOut);
   const [adults, setAdults] = useState(2);
@@ -60,7 +60,7 @@ export default function SearchBar({ onResult }) {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Muscatel Springburn"
+            placeholder="Your Hotel"
             className={inputClasses}
           />
         </div>

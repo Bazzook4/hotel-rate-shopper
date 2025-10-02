@@ -81,7 +81,7 @@ export default function DisparityChecker() {
   const defaultOut = useMemo(() => formatDateISO(addDays(today, 1)), [today]);
 
   // form state
-  const [q, setQ] = useState("Muscatel Springburn");
+  const [q, setQ] = useState("Your Hotel");
   const [checkIn, setCheckIn] = useState(defaultIn);
   const [checkOut, setCheckOut] = useState(defaultOut);
   const [adults, setAdults] = useState(2);
