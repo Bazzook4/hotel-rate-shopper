@@ -7,7 +7,7 @@ const PUBLIC_PATHS = new Set([
   "/api/auth/logout",
 ]);
 
-export function middleware(request) {
+export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
   if (process.env.DISABLE_AUTH === "true") {
@@ -21,7 +21,7 @@ export function middleware(request) {
 
   if (["GET", "POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
     const sessionCookie = request.cookies.get("rate_session")?.value;
-    const session = decodeSession(sessionCookie);
+    const session = await decodeSession(sessionCookie);
     const isPublic = PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/auth/");
 
     if (!session && !isPublic) {

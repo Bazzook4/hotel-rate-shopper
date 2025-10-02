@@ -3,7 +3,7 @@ import { getSessionFromRequest } from "@/lib/session";
 import { getUserById, getPropertyById } from "@/lib/airtable";
 
 export async function GET(request) {
-  const session = getSessionFromRequest(request);
+  const session = await getSessionFromRequest(request);
   if (!session?.userId) {
     return NextResponse.json({ user: null }, { status: 401 });
   }

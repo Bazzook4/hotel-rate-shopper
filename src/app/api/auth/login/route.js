@@ -41,7 +41,7 @@ export async function POST(request) {
     },
   });
 
-  setSessionCookie(response, {
+  await setSessionCookie(response, {
     userId: user.id,
     email: user.Email,
     role: user.Role || null,
