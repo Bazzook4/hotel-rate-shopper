@@ -80,9 +80,13 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
     }
   }
 
-  async function handleCreateHotel(e) {
+  async function handleCreateHotel(e, name = null, loc = null) {
     e.preventDefault();
-    if (!hotelName || !location) {
+
+    const finalName = name || hotelName;
+    const finalLocation = loc || location;
+
+    if (!finalName || !finalLocation) {
       setError("Hotel name and location are required");
       return;
     }
@@ -95,8 +99,8 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hotelName,
-          location,
+          hotelName: finalName,
+          location: finalLocation,
         }),
       });
 
@@ -104,6 +108,8 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
 
       if (res.ok) {
         onHotelCreated(data.hotel);
+        // Reload the page to show the new hotel
+        window.location.reload();
       } else {
         setError(data.error || "Failed to create hotel");
       }
@@ -355,28 +361,61 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
 
   if (!hotel) {
     return (
-      <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-6 text-center">
-        <h3 className="text-lg font-bold text-white mb-3">No Hotel Found</h3>
-        <p className="text-slate-400 text-sm mb-4">
-          {loading ? "Loading your hotel..." : "You need to create a hotel property first."}
-        </p>
-        {!loading && (
-          <button
-            onClick={() => {
-              // Show create hotel modal/form
-              const name = prompt("Enter Hotel Name:");
-              const loc = prompt("Enter Location:");
-              if (name && loc) {
-                setHotelName(name);
-                setLocation(loc);
-                handleCreateHotel({ preventDefault: () => {} });
-              }
-            }}
-            className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold text-sm transition-all"
-          >
-            Create Your First Property
-          </button>
-        )}
+      <div className="max-w-2xl mx-auto">
+        <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-8">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-4">🏨</div>
+            <h3 className="text-2xl font-bold text-white mb-3">Welcome to Dynamic Pricing</h3>
+            <p className="text-slate-400 text-sm mb-6">
+              {loading ? "Loading your hotel..." : "Let's get started by creating your first hotel property"}
+            </p>
+          </div>
+
+          {!loading && (
+            <>
+              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-4 mb-6">
+                <h4 className="text-white font-semibold text-sm mb-3">📋 What you'll set up:</h4>
+                <ul className="text-slate-300 text-sm space-y-2">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span><strong>Hotel Details:</strong> Name and location</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span><strong>Room Types:</strong> Different room categories with base prices</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span><strong>Rate Plans:</strong> Meal plans (EP, CP, MAP, AP)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-400">✓</span>
+                    <span><strong>Occupancy Pricing:</strong> Pricing for different guest counts</span>
+                  </li>
+                </ul>
+              </div>
+
+              {error && (
+                <div className="mb-4 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
+                  <p className="text-rose-400 text-sm">⚠️ {error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={() => {
+                  const name = prompt("Enter Hotel Name:");
+                  if (!name) return;
+                  const loc = prompt("Enter Location (City, State):");
+                  if (!loc) return;
+                  handleCreateHotel({ preventDefault: () => {} }, name, loc);
+                }}
+                className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold transition-all shadow-lg shadow-indigo-500/20"
+              >
+                🚀 Create Your First Property
+              </button>
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -417,12 +456,10 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
             <button
               onClick={() => {
                 const name = prompt("Enter Hotel Name for New Property:");
+                if (!name) return;
                 const loc = prompt("Enter Location:");
-                if (name && loc) {
-                  setHotelName(name);
-                  setLocation(loc);
-                  handleCreateHotel({ preventDefault: () => {} });
-                }
+                if (!loc) return;
+                handleCreateHotel({ preventDefault: () => {} }, name, loc);
               }}
               className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all"
             >
