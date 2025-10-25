@@ -1,0 +1,428 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+
+export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplete, onBack }) {
+  const [ratePlanRows, setRatePlanRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Generate initial rate plan rows based on room types, occupancy, and meal plans
+  useEffect(() => {
+    if (roomTypes.length > 0) {
+      generateRatePlanRows();
+    }
+  }, [roomTypes, ratePlans]);
+
+  function generateRatePlanRows() {
+    const rows = [];
+    let rowId = 1;
+
+    roomTypes.forEach((room) => {
+      const occupancyPricing = room.occupancyPricing || {};
+      const adultPricing = occupancyPricing.adultPricing || {};
+      const numAdults = occupancyPricing.numAdultOptions || 0;
+
+      // If no occupancy pricing defined, create basic row
+      if (numAdults === 0) {
+        ratePlans.forEach((plan) => {
+          rows.push({
+            id: rowId++,
+            roomType: room.roomTypeName,
+            roomTypeId: room.id,
+            occupancy: "Standard",
+            occupancyType: "standard",
+            mealPlan: plan.planName,
+            mealPlanId: plan.id,
+            numMeals: 0,
+            baseRate: room.basePrice,
+            additionalCost: 0,
+            totalRate: room.basePrice * plan.multiplier,
+            ratio: plan.multiplier,
+            isActive: true,
+          });
+        });
+      } else {
+        // Create rows for each adult occupancy level
+        for (let adultCount = 1; adultCount <= numAdults; adultCount++) {
+          const occupancyLabel = getOccupancyLabel(adultCount);
+          const basePrice = adultPricing[adultCount] || room.basePrice;
+
+          ratePlans.forEach((plan) => {
+            // Calculate meal cost based on plan name
+            const mealCost = getMealCostFromPlan(plan.planName);
+
+            rows.push({
+              id: rowId++,
+              roomType: room.roomTypeName,
+              roomTypeId: room.id,
+              occupancy: occupancyLabel,
+              occupancyType: adultCount === 1 ? "Single (S)" : adultCount === 2 ? "Double (D)" : `${adultCount} Adults`,
+              mealPlan: plan.planName,
+              mealPlanId: plan.id,
+              numMeals: getMealCount(plan.planName, adultCount),
+              baseRate: basePrice,
+              additionalCost: mealCost * adultCount,
+              totalRate: basePrice + (mealCost * adultCount),
+              ratio: 1.0,
+              isActive: true,
+            });
+          });
+        }
+      }
+    });
+
+    setRatePlanRows(rows);
+  }
+
+  function getOccupancyLabel(count) {
+    const labels = {
+      1: "Single (S)",
+      2: "Double (D)",
+      3: "Triple (T)",
+      4: "Quad (Q)",
+    };
+    return labels[count] || `${count} Adults`;
+  }
+
+  function getMealCostFromPlan(planName) {
+    const costs = {
+      "EP": 0,
+      "CP": 350,
+      "MAP": 1000,
+      "AP": 1650,
+    };
+    return costs[planName] || 0;
+  }
+
+  function getMealCount(planName, adultCount) {
+    const mealCounts = {
+      "EP": 0,
+      "CP": 1,
+      "MAP": 2,
+      "AP": 3,
+    };
+    return (mealCounts[planName] || 0) * adultCount;
+  }
+
+  function handleRowChange(rowId, field, value) {
+    setRatePlanRows(ratePlanRows.map(row => {
+      if (row.id === rowId) {
+        const updatedRow = { ...row, [field]: value };
+
+        // Recalculate total rate based on changes
+        if (field === "baseRate" || field === "additionalCost") {
+          updatedRow.totalRate = parseFloat(updatedRow.baseRate || 0) + parseFloat(updatedRow.additionalCost || 0);
+        } else if (field === "ratio") {
+          updatedRow.totalRate = updatedRow.baseRate * parseFloat(value || 1);
+        }
+
+        return updatedRow;
+      }
+      return row;
+    }));
+  }
+
+  function addRow() {
+    const newRow = {
+      id: Math.max(...ratePlanRows.map(r => r.id), 0) + 1,
+      roomType: roomTypes[0]?.roomTypeName || "",
+      roomTypeId: roomTypes[0]?.id || "",
+      occupancy: "Single (S)",
+      occupancyType: "Single (S)",
+      mealPlan: ratePlans[0]?.planName || "EP",
+      mealPlanId: ratePlans[0]?.id || "",
+      numMeals: 0,
+      baseRate: roomTypes[0]?.basePrice || 0,
+      additionalCost: 0,
+      totalRate: roomTypes[0]?.basePrice || 0,
+      ratio: 1.0,
+      isActive: true,
+    };
+    setRatePlanRows([...ratePlanRows, newRow]);
+  }
+
+  function deleteRow(rowId) {
+    setRatePlanRows(ratePlanRows.filter(row => row.id !== rowId));
+  }
+
+  function duplicateRow(rowId) {
+    const rowToDuplicate = ratePlanRows.find(row => row.id === rowId);
+    if (rowToDuplicate) {
+      const newRow = {
+        ...rowToDuplicate,
+        id: Math.max(...ratePlanRows.map(r => r.id), 0) + 1,
+      };
+      setRatePlanRows([...ratePlanRows, newRow]);
+    }
+  }
+
+  async function handleSave() {
+    try {
+      setLoading(true);
+      setError("");
+
+      // Here you would save the rate plan configuration to your backend
+      // For now, we'll just show a success message
+      console.log("Saving rate plans:", ratePlanRows);
+
+      alert("Rate plans saved successfully!");
+      onComplete && onComplete(ratePlanRows);
+    } catch (err) {
+      setError("Failed to save rate plans: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const activeRows = ratePlanRows.filter(row => row.isActive);
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-white">📋 Configure Rate Plans</h3>
+            <p className="text-sm text-slate-400 mt-1">
+              Fine-tune pricing for all combinations of room types, occupancy, and meal plans
+            </p>
+            <p className="text-xs text-slate-500 mt-2">
+              Hotel: <span className="text-white font-medium">{hotel.hotelName}</span> •
+              {roomTypes.length} room types • {ratePlans.length} meal plans • {activeRows.length} rate plan variations
+            </p>
+          </div>
+          <button
+            onClick={onBack}
+            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all"
+          >
+            ← Back to Setup
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-4">
+          <p className="text-rose-400 text-sm">⚠️ {error}</p>
+        </div>
+      )}
+
+      {/* Rate Plans Table */}
+      <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between">
+          <h4 className="text-white font-semibold">Rate Plans (in increasing order of intended rack rates)</h4>
+          <button
+            onClick={addRow}
+            className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-all"
+          >
+            + Add Row
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-white/5 border-b border-white/10">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">✓</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Actions</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Room</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Occupancy</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider"># Meals</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Base Rate</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">+</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Add. Cost</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">=</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Total</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Ratio</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {ratePlanRows.map((row) => (
+                <tr key={row.id} className="hover:bg-white/5 transition-colors">
+                  {/* Active Checkbox */}
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={row.isActive}
+                      onChange={(e) => handleRowChange(row.id, "isActive", e.target.checked)}
+                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </td>
+
+                  {/* Actions (Add/Remove) */}
+                  <td className="px-3 py-3">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => duplicateRow(row.id)}
+                        className="p-1 rounded bg-green-600 hover:bg-green-500 text-white text-xs"
+                        title="Duplicate row"
+                      >
+                        +
+                      </button>
+                      <button
+                        onClick={() => deleteRow(row.id)}
+                        className="p-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs"
+                        title="Delete row"
+                      >
+                        −
+                      </button>
+                    </div>
+                  </td>
+
+                  {/* Room Type */}
+                  <td className="px-3 py-3">
+                    <select
+                      value={row.roomType}
+                      onChange={(e) => {
+                        const selectedRoom = roomTypes.find(r => r.roomTypeName === e.target.value);
+                        handleRowChange(row.id, "roomType", e.target.value);
+                        handleRowChange(row.id, "roomTypeId", selectedRoom?.id || "");
+                        handleRowChange(row.id, "baseRate", selectedRoom?.basePrice || 0);
+                      }}
+                      className="w-full px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                    >
+                      {roomTypes.map((room) => (
+                        <option key={room.id} value={room.roomTypeName}>
+                          {room.roomTypeName}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+
+                  {/* Occupancy */}
+                  <td className="px-3 py-3">
+                    <select
+                      value={row.occupancyType}
+                      onChange={(e) => handleRowChange(row.id, "occupancyType", e.target.value)}
+                      className="w-full px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="Single (S)">Single (S)</option>
+                      <option value="Double (D)">Double (D)</option>
+                      <option value="Triple (T)">Triple (T)</option>
+                      <option value="Quad (Q)">Quad (Q)</option>
+                    </select>
+                  </td>
+
+                  {/* Meal Plan ID */}
+                  <td className="px-3 py-3">
+                    <select
+                      value={row.mealPlan}
+                      onChange={(e) => {
+                        handleRowChange(row.id, "mealPlan", e.target.value);
+                        const numMeals = getMealCount(e.target.value, 1);
+                        handleRowChange(row.id, "numMeals", numMeals);
+                      }}
+                      className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                    >
+                      {ratePlans.map((plan) => (
+                        <option key={plan.id} value={plan.planName}>
+                          {plan.planName}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+
+                  {/* Number of Meals */}
+                  <td className="px-3 py-3">
+                    <input
+                      type="number"
+                      value={row.numMeals}
+                      onChange={(e) => handleRowChange(row.id, "numMeals", e.target.value)}
+                      className="w-20 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+                    />
+                  </td>
+
+                  {/* Base Rate (Master) */}
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-1">
+                      <span className="text-green-400 text-xs px-1.5 py-0.5 rounded bg-green-500/10 border border-green-500/20">Master</span>
+                      <input
+                        type="number"
+                        value={row.baseRate}
+                        onChange={(e) => handleRowChange(row.id, "baseRate", e.target.value)}
+                        className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                  </td>
+
+                  {/* Plus sign */}
+                  <td className="px-3 py-3 text-center text-slate-400">+</td>
+
+                  {/* Additional Cost */}
+                  <td className="px-3 py-3">
+                    <input
+                      type="number"
+                      value={row.additionalCost}
+                      onChange={(e) => handleRowChange(row.id, "additionalCost", e.target.value)}
+                      className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                    />
+                  </td>
+
+                  {/* Equals sign */}
+                  <td className="px-3 py-3 text-center text-slate-400">=</td>
+
+                  {/* Total Rate */}
+                  <td className="px-3 py-3">
+                    <div className="px-2 py-1.5 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-sm text-right font-semibold">
+                      {Math.round(row.totalRate)}
+                    </div>
+                  </td>
+
+                  {/* Ratio */}
+                  <td className="px-3 py-3">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={row.ratio}
+                      onChange={(e) => handleRowChange(row.id, "ratio", e.target.value)}
+                      className="w-20 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+                    />
+                  </td>
+
+                  {/* Row Actions */}
+                  <td className="px-3 py-3">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => duplicateRow(row.id)}
+                        className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs"
+                        title="Duplicate"
+                      >
+                        ⬆
+                      </button>
+                      <button
+                        onClick={() => duplicateRow(row.id)}
+                        className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs"
+                        title="Copy"
+                      >
+                        ⬇
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 justify-end">
+        <button
+          onClick={() => setRatePlanRows([])}
+          className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all"
+        >
+          Reset All
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={loading || ratePlanRows.length === 0}
+          className="px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold disabled:opacity-50 transition-all"
+        >
+          {loading ? "💾 Saving..." : "✅ Save Rate Plans & Continue"}
+        </button>
+      </div>
+    </div>
+  );
+}

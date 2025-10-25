@@ -22,21 +22,23 @@ export default function SearchBar({ onResult }) {
     setErr("");
     setLoading(true);
     try {
-      const params = new URLSearchParams({
+      const requestParams = {
         q,
         check_in_date: checkIn,
         check_out_date: checkOut,
         adults: String(adults),
         children: String(children),
         currency,
-      });
+      };
+
+      const params = new URLSearchParams(requestParams);
 
       const res = await fetch(`/api/hotel?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) {
         setErr(json?.error || "Failed to fetch");
       } else {
-        onResult?.(json);
+        onResult?.(json, { query: q, params: requestParams });
       }
     } catch {
       setErr("Network error");

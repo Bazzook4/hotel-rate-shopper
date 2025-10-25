@@ -3,7 +3,7 @@ import { createSnapshotRecords, getCompsetById, listSnapshotsForCompset } from "
 import { getSessionFromRequest } from "@/lib/session";
 
 export async function GET(req, { params }) {
-  const session = getSessionFromRequest(req);
+  const session = await getSessionFromRequest(req);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -23,7 +23,7 @@ export async function GET(req, { params }) {
 }
 
 export async function POST(req, { params }) {
-  const session = getSessionFromRequest(req);
+  const session = await getSessionFromRequest(req);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

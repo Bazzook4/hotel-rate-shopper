@@ -1,0 +1,129 @@
+import { NextResponse } from 'next/server';
+import {
+  createRatePlan,
+  listRatePlans,
+  updateRatePlan,
+  deleteRatePlan,
+} from '@/lib/airtable';
+import { getSessionFromRequest } from '@/lib/session';
+
+export async function GET(request) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const hotelId = searchParams.get('hotelId');
+
+    if (!hotelId) {
+      return NextResponse.json(
+        { error: 'hotelId is required' },
+        { status: 400 }
+      );
+    }
+
+    const ratePlans = await listRatePlans(hotelId);
+
+    return NextResponse.json({ ratePlans });
+  } catch (error) {
+    console.error('Error fetching rate plans:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch rate plans' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { hotelId, planName, multiplier, description } = body;
+
+    if (!hotelId || !planName || multiplier === undefined) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    const ratePlan = await createRatePlan({
+      hotelId,
+      planName,
+      multiplier,
+      description,
+    });
+
+    return NextResponse.json({ ratePlan }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating rate plan:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to create rate plan' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { recordId, ...updates } = body;
+
+    if (!recordId) {
+      return NextResponse.json(
+        { error: 'recordId is required' },
+        { status: 400 }
+      );
+    }
+
+    const ratePlan = await updateRatePlan(recordId, updates);
+
+    return NextResponse.json({ ratePlan });
+  } catch (error) {
+    console.error('Error updating rate plan:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update rate plan' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const recordId = searchParams.get('recordId');
+
+    if (!recordId) {
+      return NextResponse.json(
+        { error: 'recordId is required' },
+        { status: 400 }
+      );
+    }
+
+    await deleteRatePlan(recordId);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting rate plan:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete rate plan' },
+      { status: 500 }
+    );
+  }
+}

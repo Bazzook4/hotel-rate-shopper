@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 // Adjust paths if your folder structure differs
 import SearchBar from "./components/SearchBar";
@@ -12,13 +12,236 @@ import LocationResults from "./components/LocationResults";
 import DisparityChecker from "./components/DisparityChecker";
 import LogoutButton from "./components/LogoutButton";
 import AdminUserManager from "./components/AdminUserManager";
+import DynamicPricing from "./components/DynamicPricing";
 
 function SingleSearchPanel() {
   const [data, setData] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [history, setHistory] = useState([]);
+  const [expandedId, setExpandedId] = useState(null);
+  const [refreshingId, setRefreshingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }),
+    []
+  );
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const res = await fetch("/api/searchHistory");
+      if (res.status === 401) {
+        setHistory([]);
+        setHistoryError("History is available after you sign in.");
+        return;
+      }
+      if (!res.ok) {
+        throw new Error(`History request failed (${res.status})`);
+      }
+      const json = await res.json();
+      setHistory(Array.isArray(json.history) ? json.history : []);
+    } catch (err) {
+      console.error("Failed to load search history", err);
+      setHistoryError("Could not load history right now.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  const toggleHistory = useCallback(() => {
+    setHistoryOpen((prev) => {
+      const next = !prev;
+      if (next) {
+        loadHistory();
+      }
+      return next;
+    });
+  }, [loadHistory]);
+
+  const handleResult = async (result, context) => {
+    setData(result);
+    if (!context?.query) return;
+    try {
+      const res = await fetch("/api/searchHistory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: context.query,
+          params: context.params,
+          payload: result,
+        }),
+      });
+      if (!res.ok) return;
+      const body = await res.json();
+      if (body?.history) {
+        setHistory((prev) => {
+          const filtered = prev.filter((item) => item.id !== body.history.id);
+          return [body.history, ...filtered];
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save search snapshot", err);
+    }
+  };
+
+  const handleRefresh = async (entry) => {
+    if (!entry?.params) return;
+    setRefreshingId(entry.id);
+    try {
+      const params = new URLSearchParams(entry.params);
+      const res = await fetch(`/api/hotel?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || "Refresh failed");
+      }
+      setData(json);
+
+      const updateRes = await fetch(`/api/searchHistory/${entry.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          payload: json,
+          params: entry.params,
+        }),
+      });
+
+      if (updateRes.ok) {
+        const updatedBody = await updateRes.json();
+        if (updatedBody?.history) {
+          setHistory((prev) => {
+            const filtered = prev.filter((item) => item.id !== updatedBody.history.id);
+            return [updatedBody.history, ...filtered];
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh snapshot", err);
+    } finally {
+      setRefreshingId(null);
+    }
+  };
+
+  const handleDelete = async (entry) => {
+    setDeletingId(entry.id);
+    try {
+      await fetch(`/api/searchHistory/${entry.id}`, { method: "DELETE" });
+      setHistory((prev) => prev.filter((item) => item.id !== entry.id));
+      if (expandedId === entry.id) {
+        setExpandedId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete snapshot", err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
-      <SearchBar onResult={setData} />
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={toggleHistory}
+          className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/30 hover:bg-white/15"
+        >
+          {historyOpen ? "Hide History" : "History"}
+        </button>
+      </div>
+
+      {historyOpen && (
+        <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-200/70">
+              Saved searches
+            </h3>
+            <button
+              type="button"
+              onClick={loadHistory}
+              className="text-xs text-slate-300/70 hover:text-white"
+              disabled={historyLoading}
+            >
+              {historyLoading ? "Refreshing..." : "Refresh list"}
+            </button>
+          </div>
+
+          {historyError && (
+            <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+              {historyError}
+            </div>
+          )}
+
+          {!historyLoading && history.length === 0 && !historyError && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200/70">
+              No saved searches yet.
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {history.map((entry) => {
+              const formattedDate = entry.snapshotDate
+                ? dateFormatter.format(new Date(entry.snapshotDate))
+                : "";
+              const isExpanded = expandedId === entry.id;
+              const isRefreshing = refreshingId === entry.id;
+              const isDeleting = deletingId === entry.id;
+
+              return (
+                <div
+                  key={entry.id}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-100"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-col">
+                      <span className="font-medium text-white">{entry.query || "Untitled search"}</span>
+                      <span className="text-xs text-slate-300/70">{formattedDate}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                        className="rounded-full border border-white/15 px-3 py-1 text-slate-100 transition hover:border-white/30"
+                      >
+                        {isExpanded ? "Hide" : "View"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRefresh(entry)}
+                        disabled={isRefreshing}
+                        className="rounded-full border border-blue-400/40 px-3 py-1 text-blue-200 transition hover:border-blue-300 hover:text-blue-100 disabled:opacity-50"
+                      >
+                        {isRefreshing ? "Refreshing..." : "Refresh"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(entry)}
+                        disabled={isDeleting}
+                        className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 transition hover:border-rose-300 hover:text-rose-100 disabled:opacity-50"
+                      >
+                        {isDeleting ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <pre className="mt-3 max-h-64 overflow-auto rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-200">
+                      {JSON.stringify(entry.payload ?? null, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <SearchBar onResult={handleResult} />
       {data ? (
         <HotelRateShopper data={data} />
       ) : (
@@ -48,7 +271,7 @@ function LocationSearchPanel() {
 }
 
 export default function Page() {
-  // "search" | "compare" | "location" | "disparity" | "users"
+  // "search" | "compare" | "location" | "disparity" | "pricing" | "users"
   const [active, setActive] = useState("search");
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
@@ -87,6 +310,7 @@ export default function Page() {
       { id: "compare", label: "Compare Hotels", icon: "📊" },
       { id: "location", label: "Search by Location", icon: "📍" },
       { id: "disparity", label: "Disparity Checker", icon: "🧭" },
+      { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
     ];
     if (session?.role === "Admin") {
       items.push({ id: "users", label: "Manage Users", icon: "👥" });
@@ -196,6 +420,12 @@ export default function Page() {
                   </div>
                 </div>
                 <DisparityChecker />
+              </div>
+            )}
+
+            {active === "pricing" && (
+              <div className="space-y-4">
+                <DynamicPricing />
               </div>
             )}
 

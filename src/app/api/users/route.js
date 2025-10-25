@@ -4,7 +4,7 @@ import { createUser, findUserByEmail } from "@/lib/airtable";
 import { hashPassword } from "@/lib/password";
 
 export async function POST(request) {
-  const session = getSessionFromRequest(request);
+  const session = await getSessionFromRequest(request);
   if (!session || session.role !== "Admin") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
