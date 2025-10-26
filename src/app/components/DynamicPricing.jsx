@@ -45,11 +45,33 @@ export default function DynamicPricing() {
   async function loadHotel() {
     try {
       setLoading(true);
+
+      // Try to load from localStorage first for instant load
+      if (typeof window !== 'undefined') {
+        const cachedHotel = localStorage.getItem('dynamicPricing_hotel');
+        if (cachedHotel) {
+          try {
+            const parsedHotel = JSON.parse(cachedHotel);
+            setHotel(parsedHotel);
+            loadRoomTypesAndRatePlans(parsedHotel.hotelId);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.error('Error parsing cached hotel:', e);
+          }
+        }
+      }
+
+      // If no cache, fetch from API
       const res = await fetch("/api/dynamicPricing/hotels");
       const data = await res.json();
       if (res.ok && data.hotels?.length > 0) {
         const firstHotel = data.hotels[0];
         setHotel(firstHotel);
+        // Cache the hotel
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('dynamicPricing_hotel', JSON.stringify(firstHotel));
+        }
         loadRoomTypesAndRatePlans(firstHotel.hotelId);
       }
     } catch (err) {
@@ -61,6 +83,10 @@ export default function DynamicPricing() {
 
   function handleHotelCreated(newHotel) {
     setHotel(newHotel);
+    // Cache the new hotel
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dynamicPricing_hotel', JSON.stringify(newHotel));
+    }
     // Load room types and rate plans for the new hotel
     if (newHotel?.hotelId) {
       loadRoomTypesAndRatePlans(newHotel.hotelId);
