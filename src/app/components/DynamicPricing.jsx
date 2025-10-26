@@ -61,6 +61,10 @@ export default function DynamicPricing() {
 
   function handleHotelCreated(newHotel) {
     setHotel(newHotel);
+    // Load room types and rate plans for the new hotel
+    if (newHotel?.hotelId) {
+      loadRoomTypesAndRatePlans(newHotel.hotelId);
+    }
   }
 
   async function loadRoomTypesAndRatePlans(hotelId) {

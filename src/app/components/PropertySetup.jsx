@@ -107,9 +107,9 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
       const data = await res.json();
 
       if (res.ok) {
+        // Call parent callback to update hotel state
         onHotelCreated(data.hotel);
-        // Reload the page to show the new hotel
-        window.location.reload();
+        // Don't reload - the parent component will update automatically
       } else {
         setError(data.error || "Failed to create hotel");
       }
