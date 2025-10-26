@@ -295,15 +295,12 @@ export async function deleteSnapshotById(id) {
 }
 
 // Dynamic Pricing Hotel Functions
-export async function createDynamicPricingHotel({ templateName, hotelName, location, propertyId, copyFromTemplateId }) {
+export async function createDynamicPricingHotel({ hotelName, location }) {
   const hotelId = `hotel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const fields = {
     hotelId,
-    templateName: templateName || hotelName,
     hotelName,
     location,
-    propertyId: propertyId || "",
-    copyFromTemplateId: copyFromTemplateId || "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
