@@ -15,6 +15,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
     roomTypeName: room.roomTypeName,
     basePrice: room.basePrice,
     numberOfRooms: room.numberOfRooms,
+    maxAdults: room.maxAdults || 2,
     description: room.description || "",
   });
 
@@ -41,6 +42,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
       roomTypeName: room.roomTypeName,
       basePrice: room.basePrice,
       numberOfRooms: room.numberOfRooms,
+      maxAdults: room.maxAdults || 2,
       description: room.description || "",
     });
     setIsEditing(false);
@@ -92,7 +94,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
             <div className="flex-1 flex items-center gap-4">
               <h5 className="text-white font-semibold text-sm">🏠 {room.roomTypeName}</h5>
               <span className="text-xs text-slate-400">
-                ₹{room.basePrice} • {room.numberOfRooms} rooms
+                ₹{room.basePrice} • {room.numberOfRooms} rooms • Max {room.maxAdults || 2} adults
               </span>
               {room.description && (
                 <span className="text-xs text-slate-500 italic truncate max-w-xs">{room.description}</span>
@@ -165,6 +167,20 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               </div>
 
               <div>
+                <label className="block text-xs text-slate-300 mb-1">Max Adults *</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={editData.maxAdults}
+                  onChange={(e) => setEditData({ ...editData, maxAdults: e.target.value })}
+                  className={inputClass}
+                  placeholder="2"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
                 <label className="block text-xs text-slate-300 mb-1">Description (Optional)</label>
                 <input
                   type="text"

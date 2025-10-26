@@ -194,11 +194,15 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
           }
         }
 
-        return onSave(room, {
+        const dataToSave = {
           ...roomData,
           pricingMode,
           adultPricing: finalAdultPricing, // Save the calculated final prices
-        });
+          extraAdult: roomData.extraAdult || 0,
+          extraChild: roomData.extraChild || 0,
+        };
+        console.log(`Saving occupancy pricing for ${room.roomTypeName}:`, dataToSave);
+        return onSave(room, dataToSave);
       });
 
       await Promise.all(savePromises);

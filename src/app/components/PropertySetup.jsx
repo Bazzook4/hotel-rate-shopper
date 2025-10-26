@@ -31,6 +31,7 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
     roomTypeName: "",
     basePrice: "",
     numberOfRooms: "",
+    maxAdults: "",
     description: "",
     amenities: [],
   });
@@ -591,6 +592,20 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
               </div>
 
               <div>
+                <label className={controlLabel}>Max Adults</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={newRoom.maxAdults}
+                  onChange={(e) => setNewRoom({ ...newRoom, maxAdults: e.target.value })}
+                  className={inputClass}
+                  placeholder="2"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
                 <label className={controlLabel}>Description (Optional)</label>
                 <input
                   type="text"
