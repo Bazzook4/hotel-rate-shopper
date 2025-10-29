@@ -297,7 +297,6 @@ export async function deleteSnapshotById(id) {
 export async function updateProperty(recordId, updates) {
   const fields = {
     ...updates,
-    updatedAt: new Date().toISOString(),
   };
 
   const data = await airtableRequest(recordPath(TABLES.properties, recordId), {
@@ -320,8 +319,14 @@ export async function createRoomType({ propertyId, roomTypeName, basePrice, numb
     maxAdults: maxAdults ? Number(maxAdults) : undefined,
     description: description || "",
     amenities: amenities || [],
-    createdAt: new Date().toISOString(),
   };
+
+  // Remove undefined values
+  Object.keys(fields).forEach(key => {
+    if (fields[key] === undefined) {
+      delete fields[key];
+    }
+  });
 
   const data = await airtableRequest(tablePath(TABLES.roomTypes), {
     method: "POST",
@@ -376,7 +381,6 @@ export async function createRatePlan({ propertyId, planName, multiplier, descrip
     planName,
     multiplier: Number(multiplier),
     description: description || "",
-    createdAt: new Date().toISOString(),
   };
 
   const data = await airtableRequest(tablePath(TABLES.ratePlans), {
