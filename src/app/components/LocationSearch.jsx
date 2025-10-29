@@ -3,13 +3,13 @@
 import { useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
-export default function LocationSearch({ onResult }) {
+export default function LocationSearch({ onResult, defaultLocation }) {
   const today = useMemo(() => new Date(), []);
   const defaultIn = useMemo(() => formatDateISO(today), [today]);
   const defaultOut = useMemo(() => formatDateISO(addDays(today, 1)), [today]);
 
   // ── form state ────────────────────────────────────────────────────────────────
-  const [location, setLocation] = useState("Darjeeling");
+  const [location, setLocation] = useState(defaultLocation || "Darjeeling");
   const [checkIn, setCheckIn] = useState(defaultIn);
   const [checkOut, setCheckOut] = useState(defaultOut);
   const [adults, setAdults] = useState(2);

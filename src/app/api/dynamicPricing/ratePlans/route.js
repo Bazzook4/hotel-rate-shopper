@@ -14,17 +14,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const hotelId = searchParams.get('hotelId');
-
-    if (!hotelId) {
-      return NextResponse.json(
-        { error: 'hotelId is required' },
-        { status: 400 }
-      );
+    if (!session.propertyId) {
+      return NextResponse.json({ ratePlans: [] });
     }
 
-    const ratePlans = await listRatePlans(hotelId);
+    const ratePlans = await listRatePlans(session.propertyId);
 
     return NextResponse.json({ ratePlans });
   } catch (error) {
@@ -43,10 +37,17 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { hotelId, planName, multiplier, description } = body;
+    if (!session.propertyId) {
+      return NextResponse.json(
+        { error: 'No property associated with user' },
+        { status: 400 }
+      );
+    }
 
-    if (!hotelId || !planName || multiplier === undefined) {
+    const body = await request.json();
+    const { planName, multiplier, description } = body;
+
+    if (!planName || multiplier === undefined) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -54,7 +55,7 @@ export async function POST(request) {
     }
 
     const ratePlan = await createRatePlan({
-      hotelId,
+      propertyId: session.propertyId,
       planName,
       multiplier,
       description,

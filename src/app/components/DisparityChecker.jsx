@@ -74,14 +74,14 @@ function PriceRow({ row, lowest }) {
   );
 }
 
-export default function DisparityChecker() {
+export default function DisparityChecker({ defaultHotelName }) {
   // sensible defaults
   const today = useMemo(() => new Date(), []);
   const defaultIn = useMemo(() => formatDateISO(today), [today]);
   const defaultOut = useMemo(() => formatDateISO(addDays(today, 1)), [today]);
 
   // form state
-  const [q, setQ] = useState("Your Hotel");
+  const [q, setQ] = useState(defaultHotelName || "Your Hotel");
   const [checkIn, setCheckIn] = useState(defaultIn);
   const [checkOut, setCheckOut] = useState(defaultOut);
   const [adults, setAdults] = useState(2);

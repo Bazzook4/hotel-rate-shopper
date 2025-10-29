@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
-export default function CompSetEditor({ value, onChange }) {
+export default function CompSetEditor({ value, onChange, session }) {
   // each entry: { name, check_in_date, check_out_date, adults, children, currency }
   const today = useMemo(() => new Date(), []);
   const defaultIn = useMemo(() => formatDateISO(today), [today]);
@@ -12,7 +12,7 @@ export default function CompSetEditor({ value, onChange }) {
   const defaultRows = useMemo(
     () => [
       {
-        name: "Your Hotel",
+        name: session?.propertyName || "Your Hotel",
         check_in_date: defaultIn,
         check_out_date: defaultOut,
         adults: 2,
@@ -28,7 +28,7 @@ export default function CompSetEditor({ value, onChange }) {
         currency: "INR",
       },
     ],
-    [defaultIn, defaultOut]
+    [defaultIn, defaultOut, session?.propertyName]
   );
 
   const initialRows = useMemo(() => {

@@ -14,7 +14,7 @@ import LogoutButton from "./components/LogoutButton";
 import AdminUserManager from "./components/AdminUserManager";
 import DynamicPricing from "./components/DynamicPricing";
 
-function SingleSearchPanel() {
+function SingleSearchPanel({ session }) {
   const [data, setData] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -241,7 +241,7 @@ function SingleSearchPanel() {
         </div>
       )}
 
-      <SearchBar onResult={handleResult} />
+      <SearchBar onResult={handleResult} defaultHotelName={session?.propertyName} />
       {data ? (
         <HotelRateShopper data={data} />
       ) : (
@@ -253,12 +253,12 @@ function SingleSearchPanel() {
   );
 }
 
-function LocationSearchPanel() {
+function LocationSearchPanel({ session }) {
   const [results, setResults] = useState(null);
 
   return (
     <div className="space-y-4">
-      <LocationSearch onResult={setResults} />
+      <LocationSearch onResult={setResults} defaultLocation={session?.propertyLocation} />
       {results ? (
         <LocationResults data={results} />
       ) : (
@@ -376,7 +376,7 @@ export default function Page() {
                     </p>
                   </div>
                 </div>
-                <SingleSearchPanel />
+                <SingleSearchPanel session={session} />
               </div>
             )}
 
@@ -390,7 +390,7 @@ export default function Page() {
                     </p>
                   </div>
                 </div>
-                <CompSetEditor value={compSet} onChange={setCompSet} />
+                <CompSetEditor value={compSet} onChange={setCompSet} session={session} />
                 <ComparePanel compSet={compSet} />
               </div>
             )}
@@ -405,7 +405,7 @@ export default function Page() {
                     </p>
                   </div>
                 </div>
-                <LocationSearchPanel />
+                <LocationSearchPanel session={session} />
               </div>
             )}
 
@@ -419,7 +419,7 @@ export default function Page() {
                     </p>
                   </div>
                 </div>
-                <DisparityChecker />
+                <DisparityChecker defaultHotelName={session?.propertyName} />
               </div>
             )}
 

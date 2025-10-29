@@ -6,9 +6,9 @@ import RoomTypeCard from "./RoomTypeCard";
 import OccupancyConfig from "./OccupancyConfig";
 import OccupancyPricingTable from "./OccupancyPricingTable";
 
-export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, ratePlans: initialRatePlans, onRoomTypesChange, onRatePlansChange, onHotelCreated, onCalculate, loading: parentLoading }) {
-  const [hotelName, setHotelName] = useState(hotel?.hotelName || "");
-  const [location, setLocation] = useState(hotel?.location || "");
+export default function PropertySetup({ property, roomTypes: initialRoomTypes, ratePlans: initialRatePlans, onRoomTypesChange, onRatePlansChange, onPropertyUpdated, onCalculate, loading: parentLoading }) {
+  const [propertyName, setPropertyName] = useState(property?.Name || "");
+  const [location, setLocation] = useState(property?.Location || "");
   const [roomTypes, setRoomTypes] = useState(initialRoomTypes || []);
   const [ratePlans, setRatePlans] = useState(initialRatePlans || []);
   const [loading, setLoading] = useState(false);
@@ -42,15 +42,15 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
   });
 
   useEffect(() => {
-    if (hotel) {
+    if (property) {
       loadRoomTypes();
       loadRatePlans();
     }
-  }, [hotel]);
+  }, [property]);
 
   async function loadRoomTypes() {
     try {
-      const res = await fetch(`/api/dynamicPricing/roomTypes?hotelId=${hotel.hotelId}`);
+      const res = await fetch(`/api/dynamicPricing/roomTypes`);
       const data = await res.json();
       if (res.ok) {
         console.log("Loaded room types:", data.roomTypes);
@@ -71,7 +71,7 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
 
   async function loadRatePlans() {
     try {
-      const res = await fetch(`/api/dynamicPricing/ratePlans?hotelId=${hotel.hotelId}`);
+      const res = await fetch(`/api/dynamicPricing/ratePlans`);
       const data = await res.json();
       if (res.ok) {
         setRatePlans(data.ratePlans || []);
@@ -81,14 +81,9 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
     }
   }
 
-  async function handleCreateHotel(e, name = null, loc = null) {
-    e.preventDefault();
-
-    const finalName = name || hotelName;
-    const finalLocation = loc || location;
-
-    if (!finalName || !finalLocation) {
-      setError("Hotel name and location are required");
+  async function handleUpdateProperty(name, loc) {
+    if (!name || !loc) {
+      setError("Property name and location are required");
       return;
     }
 
@@ -96,23 +91,24 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
       setLoading(true);
       setError("");
 
-      const res = await fetch("/api/dynamicPricing/hotels", {
-        method: "POST",
+      const res = await fetch("/api/dynamicPricing/property", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hotelName: finalName,
-          location: finalLocation,
+          Name: name,
+          Location: loc,
         }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        // Call parent callback to update hotel state
-        onHotelCreated(data.hotel);
-        // Don't reload - the parent component will update automatically
+        // Call parent callback to update property state
+        onPropertyUpdated(data.property);
+        setPropertyName(name);
+        setLocation(loc);
       } else {
-        setError(data.error || "Failed to create hotel");
+        setError(data.error || "Failed to update property");
       }
     } catch (err) {
       setError("Network error");
@@ -137,7 +133,6 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hotelId: hotel.hotelId,
           ...newRoom,
         }),
       });
@@ -152,6 +147,7 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
           roomTypeName: "",
           basePrice: "",
           numberOfRooms: "",
+          maxAdults: "",
           description: "",
           amenities: [],
         });
@@ -310,7 +306,6 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hotelId: hotel.hotelId,
           ...newPlan,
         }),
       });
@@ -360,26 +355,26 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
   const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70 mb-2";
   const inputClass = "w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all";
 
-  if (!hotel) {
+  if (!property) {
     return (
       <div className="max-w-2xl mx-auto">
         <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-8">
           <div className="text-center mb-6">
             <div className="text-5xl mb-4">🏨</div>
-            <h3 className="text-2xl font-bold text-white mb-3">Welcome to Dynamic Pricing</h3>
+            <h3 className="text-2xl font-bold text-white mb-3">Dynamic Pricing</h3>
             <p className="text-slate-400 text-sm mb-6">
-              {loading ? "Loading your hotel..." : "Let's get started by creating your first hotel property"}
+              {loading ? "Loading your property..." : "No property found. Please contact your administrator to set up your property."}
             </p>
           </div>
 
           {!loading && (
             <>
               <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-4 mb-6">
-                <h4 className="text-white font-semibold text-sm mb-3">📋 What you'll set up:</h4>
+                <h4 className="text-white font-semibold text-sm mb-3">📋 What you can configure:</h4>
                 <ul className="text-slate-300 text-sm space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
-                    <span><strong>Hotel Details:</strong> Name and location</span>
+                    <span><strong>Property Details:</strong> Name and location</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
@@ -401,19 +396,6 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
                   <p className="text-rose-400 text-sm">⚠️ {error}</p>
                 </div>
               )}
-
-              <button
-                onClick={() => {
-                  const name = prompt("Enter Hotel Name:");
-                  if (!name) return;
-                  const loc = prompt("Enter Location (City, State):");
-                  if (!loc) return;
-                  handleCreateHotel({ preventDefault: () => {} }, name, loc);
-                }}
-                className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold transition-all shadow-lg shadow-indigo-500/20"
-              >
-                🚀 Create Your First Property
-              </button>
             </>
           )}
         </div>
@@ -423,48 +405,25 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
 
   return (
     <div className="space-y-4">
-      {/* Hotel Info - Compact Header */}
+      {/* Property Info - Compact Header */}
       <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-white">{hotel.hotelName}</h3>
-            <p className="text-xs text-slate-400">{hotel.location}</p>
+            <h3 className="text-base font-semibold text-white">{property.Name}</h3>
+            <p className="text-xs text-slate-400">{property.Location}</p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => {
-                const name = prompt("Enter New Hotel Name:", hotel.hotelName);
-                const loc = prompt("Enter New Location:", hotel.location);
+                const name = prompt("Enter New Property Name:", property.Name);
+                const loc = prompt("Enter New Location:", property.Location);
                 if (name && loc) {
-                  setHotelName(name);
-                  setLocation(loc);
-                  // Auto-save
-                  fetch(`/api/dynamicPricing/hotels/${hotel.hotelId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ hotelName: name, location: loc }),
-                  }).then(res => {
-                    if (res.ok) {
-                      window.location.reload();
-                    }
-                  });
+                  handleUpdateProperty(name, loc);
                 }
               }}
               className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-all"
             >
               ✏️ Edit Property
-            </button>
-            <button
-              onClick={() => {
-                const name = prompt("Enter Hotel Name for New Property:");
-                if (!name) return;
-                const loc = prompt("Enter Location:");
-                if (!loc) return;
-                handleCreateHotel({ preventDefault: () => {} }, name, loc);
-              }}
-              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all"
-            >
-              + Add New Property
             </button>
           </div>
         </div>
@@ -517,7 +476,7 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
                       const res = await fetch('/api/dynamicPricing/initializeRanks', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ hotelId: hotel.hotelId }),
+                        body: JSON.stringify({}),
                       });
                       const data = await res.json();
                       if (res.ok) {
@@ -666,7 +625,7 @@ export default function PropertySetup({ hotel, roomTypes: initialRoomTypes, rate
             <h4 className="text-base font-semibold text-white">Meal Plans / Rate Plans</h4>
           </div>
           <MealPlanConfig
-            hotel={hotel}
+            property={property}
             ratePlans={ratePlans}
             onPlansUpdated={(plans) => {
               setRatePlans(plans);

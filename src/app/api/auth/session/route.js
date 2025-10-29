@@ -24,6 +24,7 @@ export async function GET(request) {
       status: user.Status || null,
       propertyId,
       propertyName: property?.Name || null,
+      propertyLocation: property?.Location || null,
     },
   });
 }

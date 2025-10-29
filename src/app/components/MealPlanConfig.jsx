@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function MealPlanConfig({ hotel, ratePlans, onPlansUpdated, loading, setLoading }) {
+export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, loading, setLoading }) {
   const [showAddPlan, setShowAddPlan] = useState(false);
   const [selectedMealPlans, setSelectedMealPlans] = useState({
     EP: false,
@@ -60,7 +60,6 @@ export default function MealPlanConfig({ hotel, ratePlans, onPlansUpdated, loadi
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            hotelId: hotel.hotelId,
             planName,
             multiplier,
             description: `${description} | Cost: ₹${cost || 0}${ratio ? ` | Ratio: ${ratio}` : ''}`,

@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import {
-  getDynamicPricingHotelById,
+  getPropertyById,
   listRoomTypes,
   listRatePlans,
   getPricingFactors,
   createPricingSnapshot,
-  listDynamicPricingHotels,
 } from '@/lib/airtable';
 import { calculateDynamicPrice, calculateWeeklyPrices, calculateRevenueMetrics, formatPricingForExport } from '@/lib/pricingEngine';
 import { getSessionFromRequest } from '@/lib/session';
@@ -17,43 +16,49 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!session.propertyId) {
+      return NextResponse.json(
+        { error: 'No property associated with user' },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const {
-      hotelId,
       checkInDate,
       checkOutDate,
       currentOccupancy,
       includeCompetitors = false,
     } = body;
 
-    if (!hotelId || !checkInDate || !checkOutDate) {
+    if (!checkInDate || !checkOutDate) {
       return NextResponse.json(
-        { error: 'Missing required fields: hotelId, checkInDate, checkOutDate' },
+        { error: 'Missing required fields: checkInDate, checkOutDate' },
         { status: 400 }
       );
     }
 
-    // Fetch hotel data
-    const hotel = await getDynamicPricingHotelById(hotelId);
-    if (!hotel) {
-      return NextResponse.json({ error: 'Hotel not found' }, { status: 404 });
+    // Fetch property data
+    const property = await getPropertyById(session.propertyId);
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
 
     // Fetch room types and rate plans
     const [roomTypes, ratePlans] = await Promise.all([
-      listRoomTypes(hotelId),
-      listRatePlans(hotelId)
+      listRoomTypes(session.propertyId),
+      listRatePlans(session.propertyId)
     ]);
 
     if (!roomTypes || roomTypes.length === 0) {
       return NextResponse.json(
-        { error: 'No room types configured for this hotel' },
+        { error: 'No room types configured for this property' },
         { status: 400 }
       );
     }
 
     // Fetch pricing factors or use defaults
-    let pricingFactors = await getPricingFactors(hotelId);
+    let pricingFactors = await getPricingFactors(session.propertyId);
     if (!pricingFactors) {
       // Use default pricing factors
       pricingFactors = {
@@ -72,25 +77,9 @@ export async function POST(request) {
     }
 
     // Get competitor prices if requested
+    // Note: For now, competitors are disabled until we implement cross-property comparison
     let competitorPrices = [];
-    if (includeCompetitors && (pricingFactors.competitorPricingWeight || 0) > 0) {
-      try {
-        const allHotels = await listDynamicPricingHotels({ propertyId: hotel.propertyId });
-        const competitors = allHotels.filter(h => h.hotelId !== hotelId);
-
-        // Get average base price from competitor hotels
-        for (const competitor of competitors) {
-          const competitorRooms = await listRoomTypes(competitor.hotelId);
-          if (competitorRooms.length > 0) {
-            const avgPrice = competitorRooms.reduce((sum, room) => sum + room.basePrice, 0) / competitorRooms.length;
-            competitorPrices.push(avgPrice);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching competitor prices:', error);
-        // Continue without competitor pricing
-      }
-    }
+    // TODO: Implement competitor pricing by comparing with other properties
 
     // Calculate pricing for each room type
     const recommendations = roomTypes.map(room => {
@@ -129,13 +118,13 @@ export async function POST(request) {
     });
 
     // Format for export
-    const exportData = formatPricingForExport(hotel, roomTypes, recommendations, metrics);
+    const exportData = formatPricingForExport(property, roomTypes, recommendations, metrics);
 
     // Save snapshot
     try {
       for (let i = 0; i < roomTypes.length; i++) {
         await createPricingSnapshot({
-          hotelId,
+          propertyId: session.propertyId,
           roomTypeId: roomTypes[i].roomTypeId,
           checkInDate,
           checkOutDate,
@@ -151,7 +140,7 @@ export async function POST(request) {
     }
 
     return NextResponse.json({
-      hotel,
+      property,
       roomTypes,
       ratePlans,
       recommendations,

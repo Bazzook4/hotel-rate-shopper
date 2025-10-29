@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
-export default function SearchBar({ onResult }) {
+export default function SearchBar({ onResult, defaultHotelName }) {
   const today = useMemo(() => new Date(), []);
   const defaultIn = useMemo(() => formatDateISO(today), [today]);
   const defaultOut = useMemo(() => formatDateISO(addDays(today, 1)), [today]);
 
-  const [q, setQ] = useState("Your Hotel");
+  const [q, setQ] = useState(defaultHotelName || "Your Hotel");
   const [checkIn, setCheckIn] = useState(defaultIn);
   const [checkOut, setCheckOut] = useState(defaultOut);
   const [adults, setAdults] = useState(2);

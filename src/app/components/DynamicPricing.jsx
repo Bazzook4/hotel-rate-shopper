@@ -9,7 +9,7 @@ export default function DynamicPricing() {
   const [step, setStep] = useState("setup"); // setup, results
   const [roomTypes, setRoomTypes] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
-  const [hotel, setHotel] = useState(null);
+  const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [comparisons, setComparisons] = useState([]);
@@ -39,65 +39,38 @@ export default function DynamicPricing() {
   const [pricingResults, setPricingResults] = useState(null);
 
   useEffect(() => {
-    loadHotel();
+    loadProperty();
   }, []);
 
-  async function loadHotel() {
+  async function loadProperty() {
     try {
       setLoading(true);
 
-      // Try to load from localStorage first for instant load
-      if (typeof window !== 'undefined') {
-        const cachedHotel = localStorage.getItem('dynamicPricing_hotel');
-        if (cachedHotel) {
-          try {
-            const parsedHotel = JSON.parse(cachedHotel);
-            setHotel(parsedHotel);
-            loadRoomTypesAndRatePlans(parsedHotel.hotelId);
-            setLoading(false);
-            return;
-          } catch (e) {
-            console.error('Error parsing cached hotel:', e);
-          }
-        }
-      }
-
-      // If no cache, fetch from API
-      const res = await fetch("/api/dynamicPricing/hotels");
+      // Fetch property from API
+      const res = await fetch("/api/dynamicPricing/property");
       const data = await res.json();
-      if (res.ok && data.hotels?.length > 0) {
-        const firstHotel = data.hotels[0];
-        setHotel(firstHotel);
-        // Cache the hotel
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('dynamicPricing_hotel', JSON.stringify(firstHotel));
-        }
-        loadRoomTypesAndRatePlans(firstHotel.hotelId);
+      if (res.ok && data.property) {
+        setProperty(data.property);
+        loadRoomTypesAndRatePlans();
       }
     } catch (err) {
-      setError("Network error loading hotel");
+      setError("Network error loading property");
     } finally {
       setLoading(false);
     }
   }
 
-  function handleHotelCreated(newHotel) {
-    setHotel(newHotel);
-    // Cache the new hotel
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('dynamicPricing_hotel', JSON.stringify(newHotel));
-    }
-    // Load room types and rate plans for the new hotel
-    if (newHotel?.hotelId) {
-      loadRoomTypesAndRatePlans(newHotel.hotelId);
-    }
+  function handlePropertyUpdated(updatedProperty) {
+    setProperty(updatedProperty);
+    // Reload room types and rate plans
+    loadRoomTypesAndRatePlans();
   }
 
-  async function loadRoomTypesAndRatePlans(hotelId) {
+  async function loadRoomTypesAndRatePlans() {
     try {
       const [roomTypesRes, ratePlansRes] = await Promise.all([
-        fetch(`/api/dynamicPricing/roomTypes?hotelId=${hotelId}`),
-        fetch(`/api/dynamicPricing/ratePlans?hotelId=${hotelId}`)
+        fetch(`/api/dynamicPricing/roomTypes`),
+        fetch(`/api/dynamicPricing/ratePlans`)
       ]);
 
       if (roomTypesRes.ok) {
@@ -120,7 +93,7 @@ export default function DynamicPricing() {
   }
 
   async function calculatePricing() {
-    if (!hotel) return;
+    if (!property) return;
 
     try {
       setLoading(true);
@@ -130,7 +103,6 @@ export default function DynamicPricing() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hotelId: hotel.hotelId,
           ...pricingParams,
         }),
       });
@@ -211,12 +183,12 @@ export default function DynamicPricing() {
       {/* Content based on step */}
       {step === "setup" && (
         <PropertySetup
-          hotel={hotel}
+          property={property}
           roomTypes={roomTypes}
           ratePlans={ratePlans}
           onRoomTypesChange={setRoomTypes}
           onRatePlansChange={setRatePlans}
-          onHotelCreated={handleHotelCreated}
+          onPropertyUpdated={handlePropertyUpdated}
           onCalculate={calculatePricing}
           loading={loading}
         />

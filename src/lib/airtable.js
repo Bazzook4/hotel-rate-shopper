@@ -18,7 +18,6 @@ const TABLES = {
   properties: process.env.AIRTABLE_PROPERTIES_TABLE || "Properties",
   compsets: process.env.AIRTABLE_COMPSETS_TABLE || "CompSets",
   snapshots: process.env.AIRTABLE_SNAPSHOTS_TABLE || "Snapshots",
-  dynamicPricingHotels: process.env.AIRTABLE_DYNAMIC_PRICING_HOTELS_TABLE || "DynamicPricingHotels",
   roomTypes: process.env.AIRTABLE_ROOM_TYPES_TABLE || "RoomTypes",
   ratePlans: process.env.AIRTABLE_RATE_PLANS_TABLE || "RatePlans",
   pricingFactors: process.env.AIRTABLE_PRICING_FACTORS_TABLE || "PricingFactors",
@@ -294,60 +293,14 @@ export async function deleteSnapshotById(id) {
   await airtableRequest(recordPath(TABLES.snapshots, id), { method: "DELETE" });
 }
 
-// Dynamic Pricing Hotel Functions
-export async function createDynamicPricingHotel({ hotelName, location }) {
-  const hotelId = `hotel_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const fields = {
-    hotelId,
-    hotelName,
-    location,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  const data = await airtableRequest(tablePath(TABLES.dynamicPricingHotels), {
-    method: "POST",
-    body: {
-      records: [{ fields }],
-    },
-  });
-
-  return normaliseRecord(data.records?.[0]);
-}
-
-export async function getDynamicPricingHotelById(hotelId) {
-  if (!hotelId) return null;
-  const formula = `{hotelId}='${escapeFormulaValue(hotelId)}'`;
-  const data = await airtableRequest(tablePath(TABLES.dynamicPricingHotels), {
-    params: {
-      filterByFormula: formula,
-      maxRecords: 1,
-    },
-  });
-  return normaliseRecord(data.records?.[0]);
-}
-
-export async function listDynamicPricingHotels({ propertyId } = {}) {
-  const params = {
-    "sort[0][field]": "createdAt",
-    "sort[0][direction]": "desc",
-  };
-
-  if (propertyId) {
-    params.filterByFormula = `{propertyId}='${escapeFormulaValue(propertyId)}'`;
-  }
-
-  const data = await airtableRequest(tablePath(TABLES.dynamicPricingHotels), { params });
-  return (data.records || []).map(normaliseRecord);
-}
-
-export async function updateDynamicPricingHotel(recordId, updates) {
+// Property Functions for Dynamic Pricing
+export async function updateProperty(recordId, updates) {
   const fields = {
     ...updates,
     updatedAt: new Date().toISOString(),
   };
 
-  const data = await airtableRequest(recordPath(TABLES.dynamicPricingHotels, recordId), {
+  const data = await airtableRequest(recordPath(TABLES.properties, recordId), {
     method: "PATCH",
     body: { fields },
   });
@@ -356,14 +309,15 @@ export async function updateDynamicPricingHotel(recordId, updates) {
 }
 
 // Room Type Functions
-export async function createRoomType({ hotelId, roomTypeName, basePrice, numberOfRooms, description, amenities }) {
+export async function createRoomType({ propertyId, roomTypeName, basePrice, numberOfRooms, maxAdults, description, amenities }) {
   const roomTypeId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const fields = {
     roomTypeId,
-    hotelId,
+    propertyId,
     roomTypeName,
     basePrice: Number(basePrice),
     numberOfRooms: Number(numberOfRooms),
+    maxAdults: maxAdults ? Number(maxAdults) : undefined,
     description: description || "",
     amenities: amenities || [],
     createdAt: new Date().toISOString(),
@@ -379,8 +333,8 @@ export async function createRoomType({ hotelId, roomTypeName, basePrice, numberO
   return normaliseRecord(data.records?.[0]);
 }
 
-export async function listRoomTypes(hotelId) {
-  const formula = `{hotelId}='${escapeFormulaValue(hotelId)}'`;
+export async function listRoomTypes(propertyId) {
+  const formula = `{propertyId}='${escapeFormulaValue(propertyId)}'`;
   const data = await airtableRequest(tablePath(TABLES.roomTypes), {
     params: {
       filterByFormula: formula,
@@ -414,11 +368,11 @@ export async function deleteRoomType(recordId) {
 }
 
 // Rate Plan Functions
-export async function createRatePlan({ hotelId, planName, multiplier, description }) {
+export async function createRatePlan({ propertyId, planName, multiplier, description }) {
   const ratePlanId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const fields = {
     ratePlanId,
-    hotelId,
+    propertyId,
     planName,
     multiplier: Number(multiplier),
     description: description || "",
@@ -435,8 +389,8 @@ export async function createRatePlan({ hotelId, planName, multiplier, descriptio
   return normaliseRecord(data.records?.[0]);
 }
 
-export async function listRatePlans(hotelId) {
-  const formula = `{hotelId}='${escapeFormulaValue(hotelId)}'`;
+export async function listRatePlans(propertyId) {
+  const formula = `{propertyId}='${escapeFormulaValue(propertyId)}'`;
   const data = await airtableRequest(tablePath(TABLES.ratePlans), {
     params: {
       filterByFormula: formula,
@@ -458,9 +412,9 @@ export async function deleteRatePlan(recordId) {
 }
 
 // Pricing Factors Functions
-export async function createOrUpdatePricingFactors(hotelId, factors) {
-  // Check if factors already exist for this hotel
-  const formula = `{hotelId}='${escapeFormulaValue(hotelId)}'`;
+export async function createOrUpdatePricingFactors(propertyId, factors) {
+  // Check if factors already exist for this property
+  const formula = `{propertyId}='${escapeFormulaValue(propertyId)}'`;
   const existing = await airtableRequest(tablePath(TABLES.pricingFactors), {
     params: {
       filterByFormula: formula,
@@ -469,13 +423,13 @@ export async function createOrUpdatePricingFactors(hotelId, factors) {
   });
 
   const fields = {
-    hotelId,
+    propertyId,
     ...factors,
   };
 
   if (existing.records?.[0]) {
-    // Update existing - remove hotelId and factorId from updates
-    const { hotelId: _hId, factorId: _fId, ...updateFields } = fields;
+    // Update existing - remove propertyId and factorId from updates
+    const { propertyId: _pId, factorId: _fId, ...updateFields } = fields;
     const data = await airtableRequest(recordPath(TABLES.pricingFactors, existing.records[0].id), {
       method: "PATCH",
       body: { fields: updateFields },
@@ -496,8 +450,8 @@ export async function createOrUpdatePricingFactors(hotelId, factors) {
   }
 }
 
-export async function getPricingFactors(hotelId) {
-  const formula = `{hotelId}='${escapeFormulaValue(hotelId)}'`;
+export async function getPricingFactors(propertyId) {
+  const formula = `{propertyId}='${escapeFormulaValue(propertyId)}'`;
   const data = await airtableRequest(tablePath(TABLES.pricingFactors), {
     params: {
       filterByFormula: formula,
@@ -526,8 +480,8 @@ export async function createPricingSnapshot(snapshotData) {
   return normaliseRecord(data.records?.[0]);
 }
 
-export async function listPricingSnapshots(hotelId, { limit = 50 } = {}) {
-  const formula = `{hotelId}='${escapeFormulaValue(hotelId)}'`;
+export async function listPricingSnapshots(propertyId, { limit = 50 } = {}) {
+  const formula = `{propertyId}='${escapeFormulaValue(propertyId)}'`;
   const data = await airtableRequest(tablePath(TABLES.pricingSnapshots), {
     params: {
       filterByFormula: formula,
