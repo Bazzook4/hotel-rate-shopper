@@ -204,10 +204,11 @@ export async function createSearchSnapshot({
     "Request Params": paramsString,
   };
 
-  // Only add Snapshot Date if it's explicitly provided AND Airtable field is not auto-managed
-  if (snapshotDate) {
-    fields["Snapshot Date"] = snapshotDate;
-  }
+  // Don't send Snapshot Date - let Airtable auto-manage it as "Created time" field
+  // If you need to set it manually, uncomment below:
+  // if (snapshotDate) {
+  //   fields["Snapshot Date"] = snapshotDate;
+  // }
 
   if (userId) {
     fields["Saved By"] = [userId];
