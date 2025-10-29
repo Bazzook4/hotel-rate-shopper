@@ -4,6 +4,7 @@ import { useState } from "react";
 
 export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, loading, setLoading }) {
   const [showAddPlan, setShowAddPlan] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
   const [selectedMealPlans, setSelectedMealPlans] = useState({
     EP: false,
     CP: false,
@@ -104,6 +105,35 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
       } else {
         const data = await res.json();
         setError(data.error || "Failed to delete rate plan");
+      }
+    } catch (err) {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleEditRatePlan(plan) {
+    const newMultiplier = prompt(`Edit multiplier for ${plan.planName}:`, plan.multiplier);
+    if (!newMultiplier || newMultiplier === plan.multiplier.toString()) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/dynamicPricing/ratePlans`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recordId: plan.id,
+          multiplier: parseFloat(newMultiplier),
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        onPlansUpdated(ratePlans.map((p) => p.id === plan.id ? data.ratePlan : p));
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to update rate plan");
       }
     } catch (err) {
       setError("Network error");
@@ -238,12 +268,20 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                     <p className="text-xs text-slate-400 mt-1 italic">{plan.description}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => handleDeleteRatePlan(plan)}
-                  className="ml-4 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium transition-colors border border-rose-500/20"
-                >
-                  🗑️ Delete
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEditRatePlan(plan)}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium transition-colors border border-indigo-500/20"
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    onClick={() => handleDeleteRatePlan(plan)}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium transition-colors border border-rose-500/20"
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
               </div>
             </div>
           ))}

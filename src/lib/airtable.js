@@ -202,8 +202,12 @@ export async function createSearchSnapshot({
     "Search Query": query,
     Payload: payloadString,
     "Request Params": paramsString,
-    "Snapshot Date": snapshotDate || new Date().toISOString(),
   };
+
+  // Only add Snapshot Date if it's explicitly provided AND Airtable field is not auto-managed
+  if (snapshotDate) {
+    fields["Snapshot Date"] = snapshotDate;
+  }
 
   if (userId) {
     fields["Saved By"] = [userId];
