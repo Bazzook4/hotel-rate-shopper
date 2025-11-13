@@ -58,27 +58,44 @@ export default function PricingRecommendations({
       // Get occupancy pricing if available
       let occupancyTypes = [];
 
+      // Debug: Log room data to check field names
+      if (roomIndex === 0) {
+        console.log('Room data for debugging:', {
+          roomTypeName: room.roomTypeName,
+          maxAdults: room.maxAdults,
+          'MAX_ADULTS': room['MAX_ADULTS'],
+          'Max Adults': room['Max Adults'],
+          occupancyPricing: room.occupancyPricing,
+          allFields: Object.keys(room)
+        });
+      }
+
       if (room.occupancyPricing?.adultPricing && Object.keys(room.occupancyPricing.adultPricing).length > 0) {
         // Use configured occupancy pricing
         occupancyTypes = Object.keys(room.occupancyPricing.adultPricing).map(key => ({
           type: key === '1' ? 'Single' : key === '2' ? 'Double' : key === '3' ? 'Triple' : key === '4' ? 'Quad' : `${key} Adults`,
           basePrice: room.occupancyPricing.adultPricing[key]
         }));
-      } else if (room.maxAdults && room.maxAdults > 0) {
-        // Use maxAdults to generate occupancy types
-        const labels = ['Single', 'Double', 'Triple', 'Quad'];
-        for (let i = 1; i <= room.maxAdults; i++) {
-          occupancyTypes.push({
-            type: i <= 4 ? labels[i - 1] : `${i} Adults`,
-            basePrice: room.basePrice
-          });
-        }
       } else {
-        // Default to Single and Double
-        occupancyTypes = [
-          { type: 'Single', basePrice: room.basePrice },
-          { type: 'Double', basePrice: room.basePrice }
-        ];
+        // Try different possible field names for maxAdults
+        const maxAdultsValue = room.maxAdults || room['MAX_ADULTS'] || room['Max Adults'] || 0;
+
+        if (maxAdultsValue && maxAdultsValue > 0) {
+          // Use maxAdults to generate occupancy types
+          const labels = ['Single', 'Double', 'Triple', 'Quad'];
+          for (let i = 1; i <= maxAdultsValue; i++) {
+            occupancyTypes.push({
+              type: i <= 4 ? labels[i - 1] : `${i} Adults`,
+              basePrice: room.basePrice
+            });
+          }
+        } else {
+          // Default to Single and Double
+          occupancyTypes = [
+            { type: 'Single', basePrice: room.basePrice },
+            { type: 'Double', basePrice: room.basePrice }
+          ];
+        }
       }
 
       // Add extra adult/child if configured
