@@ -13,7 +13,7 @@ export default function PricingRecommendations({
   loading
 }) {
   const [viewMode, setViewMode] = useState("pricing"); // "pricing" or "comparison"
-  const [dynamicExtraRates, setDynamicExtraRates] = useState(true);
+  const [dynamicExtraRates, setDynamicExtraRates] = useState(false); // Default: OFF - Extra rates stay fixed
   const [copyStatus, setCopyStatus] = useState({});
   const [roomNameDisplay, setRoomNameDisplay] = useState("abbreviation"); // "full" or "abbreviation"
 
