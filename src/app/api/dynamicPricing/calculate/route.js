@@ -139,7 +139,15 @@ export async function POST(request) {
       // Continue even if snapshot fails
     }
 
+    // Normalize property to hotel format for backward compatibility with frontend
+    const hotel = {
+      ...property,
+      hotelName: property.Name,
+      location: property.Location,
+    };
+
     return NextResponse.json({
+      hotel,
       property,
       roomTypes,
       ratePlans,

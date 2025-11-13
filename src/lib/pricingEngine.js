@@ -356,8 +356,8 @@ export function calculateWeeklyPrices({
 export function formatPricingForExport(hotelData, roomTypes, recommendations, metrics) {
   const exportData = {
     hotel: {
-      name: hotelData.hotelName,
-      location: hotelData.location,
+      name: hotelData.Name || hotelData.propertyName,
+      location: hotelData.Location || hotelData.location,
       generatedAt: new Date().toISOString(),
     },
     summary: {

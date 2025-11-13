@@ -13,6 +13,8 @@ import DisparityChecker from "./components/DisparityChecker";
 import LogoutButton from "./components/LogoutButton";
 import AdminUserManager from "./components/AdminUserManager";
 import DynamicPricing from "./components/DynamicPricing";
+import SavedSearchTable from "./components/SavedSearchTable";
+import RateHistory from "./components/RateHistory";
 
 function SingleSearchPanel({ session }) {
   const [data, setData] = useState(null);
@@ -20,7 +22,6 @@ function SingleSearchPanel({ session }) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [history, setHistory] = useState([]);
-  const [expandedId, setExpandedId] = useState(null);
   const [refreshingId, setRefreshingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
@@ -152,7 +153,7 @@ function SingleSearchPanel({ session }) {
           onClick={toggleHistory}
           className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/30 hover:bg-white/15"
         >
-          {historyOpen ? "Hide History" : "History"}
+          {historyOpen ? "Hide Rate History" : "Rate History"}
         </button>
       </div>
 
@@ -160,7 +161,7 @@ function SingleSearchPanel({ session }) {
         <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-200/70">
-              Saved searches
+              Rate Tracking History
             </h3>
             <button
               type="button"
@@ -178,66 +179,15 @@ function SingleSearchPanel({ session }) {
             </div>
           )}
 
-          {!historyLoading && history.length === 0 && !historyError && (
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-200/70">
-              No saved searches yet.
-            </div>
+          {!historyLoading && (
+            <SavedSearchTable
+              history={history}
+              onRefresh={handleRefresh}
+              onDelete={handleDelete}
+              refreshingId={refreshingId}
+              deletingId={deletingId}
+            />
           )}
-
-          <div className="space-y-3">
-            {history.map((entry) => {
-              const formattedDate = entry.snapshotDate
-                ? dateFormatter.format(new Date(entry.snapshotDate))
-                : "";
-              const isExpanded = expandedId === entry.id;
-              const isRefreshing = refreshingId === entry.id;
-              const isDeleting = deletingId === entry.id;
-
-              return (
-                <div
-                  key={entry.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-100"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-white">{entry.query || "Untitled search"}</span>
-                      <span className="text-xs text-slate-300/70">{formattedDate}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                        className="rounded-full border border-white/15 px-3 py-1 text-slate-100 transition hover:border-white/30"
-                      >
-                        {isExpanded ? "Hide" : "View"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRefresh(entry)}
-                        disabled={isRefreshing}
-                        className="rounded-full border border-blue-400/40 px-3 py-1 text-blue-200 transition hover:border-blue-300 hover:text-blue-100 disabled:opacity-50"
-                      >
-                        {isRefreshing ? "Refreshing..." : "Refresh"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(entry)}
-                        disabled={isDeleting}
-                        className="rounded-full border border-rose-400/40 px-3 py-1 text-rose-200 transition hover:border-rose-300 hover:text-rose-100 disabled:opacity-50"
-                      >
-                        {isDeleting ? "Deleting..." : "Delete"}
-                      </button>
-                    </div>
-                  </div>
-                  {isExpanded && (
-                    <pre className="mt-3 max-h-64 overflow-auto rounded-2xl border border-white/10 bg-slate-900/70 p-3 text-xs text-slate-200">
-                      {JSON.stringify(entry.payload ?? null, null, 2)}
-                    </pre>
-                  )}
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
 
@@ -246,7 +196,7 @@ function SingleSearchPanel({ session }) {
         <HotelRateShopper data={data} />
       ) : (
         <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200/70">
-          Enter a hotel and dates, then hit <span className="text-white font-semibold">Search</span>.
+          Select your dates and click <span className="text-white font-semibold">Track My Rates</span> to get started.
         </div>
       )}
     </div>
@@ -271,8 +221,8 @@ function LocationSearchPanel({ session }) {
 }
 
 export default function Page() {
-  // "search" | "compare" | "location" | "disparity" | "pricing" | "users"
-  const [active, setActive] = useState("search");
+  // "ratetracker" | "compare" | "location" | "disparity" | "pricing" | "users"
+  const [active, setActive] = useState("ratetracker");
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -306,8 +256,9 @@ export default function Page() {
 
   const navItems = useMemo(() => {
     const items = [
-      { id: "search", label: "Search a Hotel", icon: "🔎" },
-      { id: "compare", label: "Compare Hotels", icon: "📊" },
+      { id: "ratetracker", label: "Rate Tracker", icon: "📊" },
+      { id: "history", label: "Rate History", icon: "📈" },
+      { id: "compare", label: "Compare Hotels", icon: "🔎" },
       { id: "location", label: "Search by Location", icon: "📍" },
       { id: "disparity", label: "Disparity Checker", icon: "🧭" },
       { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
@@ -366,17 +317,31 @@ export default function Page() {
 
           {/* Main content */}
           <section className="space-y-6">
-            {active === "search" && (
+            {active === "ratetracker" && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-3xl font-semibold text-white">Search a Hotel</h2>
+                    <h2 className="text-3xl font-semibold text-white">Rate Tracker</h2>
                     <p className="text-sm text-slate-300/80">
-                      Quick parity snapshot for a single property and date range.
+                      Track your property's rates across multiple OTAs over time.
                     </p>
                   </div>
                 </div>
                 <SingleSearchPanel session={session} />
+              </div>
+            )}
+
+            {active === "history" && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-3xl font-semibold text-white">Rate History</h2>
+                    <p className="text-sm text-slate-300/80">
+                      View and compare historical rate searches grouped by check-in date.
+                    </p>
+                  </div>
+                </div>
+                <RateHistory session={session} />
               </div>
             )}
 

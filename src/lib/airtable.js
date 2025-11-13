@@ -204,11 +204,8 @@ export async function createSearchSnapshot({
     "Request Params": paramsString,
   };
 
-  // Don't send Snapshot Date - let Airtable auto-manage it as "Created time" field
-  // If you need to set it manually, uncomment below:
-  // if (snapshotDate) {
-  //   fields["Snapshot Date"] = snapshotDate;
-  // }
+  // Don't set Snapshot Date - it's a computed field in Airtable
+  // The snapshotDate parameter is kept for backwards compatibility but not used
 
   if (userId) {
     fields["Saved By"] = [userId];
@@ -275,9 +272,8 @@ export async function updateSearchSnapshot(id, { payload, params, snapshotDate }
     }
   }
 
-  if (snapshotDate) {
-    fields["Snapshot Date"] = snapshotDate;
-  }
+  // Don't set Snapshot Date - it's a computed field in Airtable
+  // The snapshotDate parameter is kept for backwards compatibility but not used
 
   if (Object.keys(fields).length === 0) {
     return getSnapshotById(id);
