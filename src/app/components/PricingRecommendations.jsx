@@ -65,10 +65,10 @@ export default function PricingRecommendations({
       if (hasOccupancyPricing) {
         // Use configured occupancy pricing, but extend to maxAdults if needed
         const configuredAdults = Object.keys(room.occupancyPricing.adultPricing).map(Number).sort((a, b) => a - b);
-        const maxConfigured = Math.max(...configuredAdults);
+        const maxConfigured = configuredAdults.length > 0 ? Math.max(...configuredAdults) : 0;
 
         // Determine how many adult occupancies to show (use the larger of maxAdults or configured)
-        const maxToShow = maxAdultsValue > 0 ? Math.max(maxAdultsValue, maxConfigured) : maxConfigured;
+        const maxToShow = Math.max(maxAdultsValue, maxConfigured, 2); // At least show Single and Double
 
         // Generate occupancy types up to maxToShow
         const labels = ['Single', 'Double', 'Triple', 'Quad'];
