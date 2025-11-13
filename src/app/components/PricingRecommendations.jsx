@@ -125,8 +125,30 @@ export default function PricingRecommendations({
           weekdays.forEach(day => {
             let price = occupancy.basePrice;
 
-            // Apply meal plan multiplier
-            price *= mealPlan.multiplier;
+            // Apply meal plan cost - add per adult for all adults
+            if (mealPlan.planName !== 'EP') {
+              // Extract number of adults from occupancy type
+              let numAdults = 1;
+              if (occupancy.type === 'Single') numAdults = 1;
+              else if (occupancy.type === 'Double') numAdults = 2;
+              else if (occupancy.type === 'Triple') numAdults = 3;
+              else if (occupancy.type === 'Quad') numAdults = 4;
+              else {
+                // Extract number from "X Adults" format
+                const match = occupancy.type.match(/(\d+)\s+Adults?/);
+                if (match) numAdults = parseInt(match[1]);
+              }
+
+              // For CP, MAP, AP: add meal cost per adult
+              // Use multiplier field to calculate meal cost per adult
+              // Example: If multiplier is 1.25, meal cost = base * 0.25 = 250 per adult
+              const mealCostPerAdult = mealPlan.multiplier
+                ? (occupancy.basePrice * (mealPlan.multiplier - 1))
+                : 0;
+
+              // Add meal cost for all adults
+              price += mealCostPerAdult * numAdults;
+            }
 
             // Apply real-time factors only if it's not Extra Adult/Child OR if dynamic is enabled
             const isExtraRate = occupancy.type === 'Extra Adult' || occupancy.type === 'Extra Child';
