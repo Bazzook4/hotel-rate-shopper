@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy": "git add . && git commit -m 'Deploy update' && git push && npm run build"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",

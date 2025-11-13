@@ -323,7 +323,7 @@ export default function Page() {
                   <div>
                     <h2 className="text-3xl font-semibold text-white">Rate Tracker</h2>
                     <p className="text-sm text-slate-300/80">
-                      Track your property's rates across multiple OTAs over time.
+                      Track your property&apos;s rates across multiple OTAs over time.
                     </p>
                   </div>
                 </div>
