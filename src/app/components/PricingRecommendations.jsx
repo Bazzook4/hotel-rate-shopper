@@ -56,12 +56,30 @@ export default function PricingRecommendations({
       const baseRecommended = rec.recommendedPrice;
 
       // Get occupancy pricing if available
-      const occupancyTypes = room.occupancyPricing?.adultPricing
-        ? Object.keys(room.occupancyPricing.adultPricing).map(key => ({
-            type: key === '1' ? 'Single' : key === '2' ? 'Double' : `${key} Adults`,
-            basePrice: room.occupancyPricing.adultPricing[key]
-          }))
-        : [{ type: 'Single', basePrice: room.basePrice }, { type: 'Double', basePrice: room.basePrice }];
+      let occupancyTypes = [];
+
+      if (room.occupancyPricing?.adultPricing && Object.keys(room.occupancyPricing.adultPricing).length > 0) {
+        // Use configured occupancy pricing
+        occupancyTypes = Object.keys(room.occupancyPricing.adultPricing).map(key => ({
+          type: key === '1' ? 'Single' : key === '2' ? 'Double' : key === '3' ? 'Triple' : key === '4' ? 'Quad' : `${key} Adults`,
+          basePrice: room.occupancyPricing.adultPricing[key]
+        }));
+      } else if (room.maxAdults && room.maxAdults > 0) {
+        // Use maxAdults to generate occupancy types
+        const labels = ['Single', 'Double', 'Triple', 'Quad'];
+        for (let i = 1; i <= room.maxAdults; i++) {
+          occupancyTypes.push({
+            type: i <= 4 ? labels[i - 1] : `${i} Adults`,
+            basePrice: room.basePrice
+          });
+        }
+      } else {
+        // Default to Single and Double
+        occupancyTypes = [
+          { type: 'Single', basePrice: room.basePrice },
+          { type: 'Double', basePrice: room.basePrice }
+        ];
+      }
 
       // Add extra adult/child if configured
       if (room.occupancyPricing?.extraAdult) {

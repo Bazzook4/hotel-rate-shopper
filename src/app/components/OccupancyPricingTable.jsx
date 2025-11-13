@@ -12,6 +12,8 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
   useEffect(() => {
     if (roomTypes && roomTypes.length > 0) {
       const initialData = {};
+      let foundPricingMode = null;
+      let foundBaseRoom = null;
 
       roomTypes.forEach(room => {
         // Preserve existing occupancy pricing data
@@ -33,15 +35,35 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
           ratioMultiplier: existingPricing.ratioMultiplier || {},
         };
 
+        // Remember the pricing mode from the first room (they should all be the same)
+        if (!foundPricingMode && existingPricing.pricingMode) {
+          foundPricingMode = existingPricing.pricingMode;
+        }
+
         if (existingPricing.isBase) {
-          setBaseRoomId(room.id);
+          foundBaseRoom = room.id;
         }
       });
 
       setOccupancyData(initialData);
 
-      // If no base room is set, set the first room as base
-      if (!baseRoomId && roomTypes.length > 0) {
+      // Set the pricing mode from saved data
+      if (foundPricingMode) {
+        // Map stored value to component state
+        const modeMapping = {
+          'room': 'flat_room',
+          'flat_room': 'flat_room',
+          'occupancy': 'occupancy',
+          'per_adult': 'per_adult',
+        };
+        setPricingMode(modeMapping[foundPricingMode] || foundPricingMode);
+      }
+
+      // Set base room
+      if (foundBaseRoom) {
+        setBaseRoomId(foundBaseRoom);
+      } else if (roomTypes.length > 0) {
+        // If no base room is set, set the first room as base
         const firstRoom = roomTypes[0].id;
         setBaseRoomId(firstRoom);
         initialData[firstRoom].isBase = true;
