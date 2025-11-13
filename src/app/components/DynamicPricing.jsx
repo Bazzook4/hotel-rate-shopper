@@ -38,9 +38,37 @@ export default function DynamicPricing() {
 
   const [pricingResults, setPricingResults] = useState(null);
 
+  // Load saved pricing settings from localStorage on mount
   useEffect(() => {
+    const savedSettings = localStorage.getItem('dynamicPricingSettings');
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        setPricingParams(prev => ({
+          ...prev,
+          ...parsed,
+          // Keep dates as they were (always use default for freshness)
+          checkInDate: prev.checkInDate,
+          checkOutDate: prev.checkOutDate,
+        }));
+      } catch (err) {
+        console.error('Error loading saved pricing settings:', err);
+      }
+    }
     loadProperty();
   }, []);
+
+  // Save pricing settings to localStorage whenever they change
+  useEffect(() => {
+    const settingsToSave = {
+      demandMultiplier: pricingParams.demandMultiplier,
+      seasonalMultiplier: pricingParams.seasonalMultiplier,
+      competitorAdjustment: pricingParams.competitorAdjustment,
+      weekdayMultipliers: pricingParams.weekdayMultipliers,
+      currentOccupancy: pricingParams.currentOccupancy,
+    };
+    localStorage.setItem('dynamicPricingSettings', JSON.stringify(settingsToSave));
+  }, [pricingParams]);
 
   async function loadProperty() {
     try {
