@@ -214,9 +214,10 @@ export default function PricingRecommendations({
             // Debug logging for Triple and Quad
             if ((occupancy.type === 'Triple' || occupancy.type === 'Quad') && day === 'Monday') {
               console.log(`[${room.roomTypeName}] ${occupancy.type} - ${mealPlan.planName}:`, {
-                basePrice: startPrice,
-                afterMeal: priceBeforeMultipliers,
-                afterMultipliers: price,
+                originalBase: originalBasePrice,
+                adjustedBase: basePrice,
+                mealCost: mealCost,
+                finalPrice: price,
                 isExtraRate,
                 demandMult: pricingParams.demandMultiplier,
                 seasonalMult: pricingParams.seasonalMultiplier,
