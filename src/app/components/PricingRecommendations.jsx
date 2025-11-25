@@ -62,6 +62,10 @@ export default function PricingRecommendations({
       const maxAdultsValue = room.maxAdults || 0;
       const hasOccupancyPricing = room.occupancyPricing?.adultPricing && Object.keys(room.occupancyPricing.adultPricing).length > 0;
 
+      // For EP: all occupancies should use room base price
+      // For CP/MAP/AP: meal costs will be added later based on number of adults
+      // Always use room.basePrice as the starting point for all occupancy types
+
       if (hasOccupancyPricing) {
         // Use configured occupancy pricing, but extend to maxAdults if needed
         const configuredAdults = Object.keys(room.occupancyPricing.adultPricing).map(Number).sort((a, b) => a - b);
@@ -74,9 +78,14 @@ export default function PricingRecommendations({
         const labels = ['Single', 'Double', 'Triple', 'Quad'];
         for (let i = 1; i <= maxToShow; i++) {
           const configuredPrice = room.occupancyPricing.adultPricing[i];
+          // Always use configured price if available, otherwise use room base price
+          // This allows flexibility: if you configure different EP rates per occupancy, use those
+          // If not configured, fall back to base price (meal costs added later for CP/MAP/AP)
+          const finalPrice = configuredPrice !== undefined ? configuredPrice : room.basePrice;
+
           occupancyTypes.push({
             type: i <= 4 ? labels[i - 1] : `${i} Adults`,
-            basePrice: configuredPrice !== undefined ? configuredPrice : room.basePrice
+            basePrice: finalPrice
           });
         }
       } else if (maxAdultsValue && maxAdultsValue > 0) {
@@ -124,6 +133,7 @@ export default function PricingRecommendations({
           // Calculate price for each day of the week
           weekdays.forEach(day => {
             let price = occupancy.basePrice;
+            const startPrice = price; // Debug
 
             // Apply meal plan cost - add per adult for all adults
             if (mealPlan.planName !== 'EP') {
@@ -150,6 +160,8 @@ export default function PricingRecommendations({
               price += mealCostPerAdult * numAdults;
             }
 
+            const priceBeforeMultipliers = price; // Debug
+
             // Apply real-time factors only if it's not Extra Adult/Child OR if dynamic is enabled
             const isExtraRate = occupancy.type === 'Extra Adult' || occupancy.type === 'Extra Child';
             if (!isExtraRate || dynamicExtraRates) {
@@ -157,6 +169,19 @@ export default function PricingRecommendations({
               price *= pricingParams.seasonalMultiplier || 1.0;
               price *= pricingParams.weekdayMultipliers?.[day] || 1.0;
               price += (pricingParams.competitorAdjustment || 0);
+            }
+
+            // Debug logging for Triple and Quad
+            if ((occupancy.type === 'Triple' || occupancy.type === 'Quad') && day === 'Monday') {
+              console.log(`[${room.roomTypeName}] ${occupancy.type} - ${mealPlan.planName}:`, {
+                basePrice: startPrice,
+                afterMeal: priceBeforeMultipliers,
+                afterMultipliers: price,
+                isExtraRate,
+                demandMult: pricingParams.demandMultiplier,
+                seasonalMult: pricingParams.seasonalMultiplier,
+                weekdayMult: pricingParams.weekdayMultipliers?.[day]
+              });
             }
 
             row.prices[day] = price;
