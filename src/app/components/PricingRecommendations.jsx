@@ -151,10 +151,21 @@ export default function PricingRecommendations({
 
           // Calculate price for each day of the week
           weekdays.forEach(day => {
-            let price = occupancy.basePrice;
-            const startPrice = price; // Debug
+            const originalBasePrice = occupancy.basePrice;
+            let basePrice = originalBasePrice;
 
-            // Apply meal plan cost - add per adult for all adults
+            // STEP 1: Apply dynamic pricing multipliers to BASE PRICE ONLY
+            // (multipliers should NOT affect meal costs - those are fixed operational costs)
+            const isExtraRate = occupancy.type === 'Extra Adult' || occupancy.type === 'Extra Child';
+            if (!isExtraRate || dynamicExtraRates) {
+              basePrice *= pricingParams.demandMultiplier || 1.0;
+              basePrice *= pricingParams.seasonalMultiplier || 1.0;
+              basePrice *= pricingParams.weekdayMultipliers?.[day] || 1.0;
+              basePrice += (pricingParams.competitorAdjustment || 0);
+            }
+
+            // STEP 2: Calculate meal costs (based on number of adults)
+            let mealCost = 0;
             if (mealPlan.planName !== 'EP') {
               // Extract number of adults from occupancy type
               let numAdults = 1;
@@ -168,13 +179,12 @@ export default function PricingRecommendations({
                 if (match) numAdults = parseInt(match[1]);
               }
 
-              // For CP, MAP, AP: add meal cost per adult based on pricing type
+              // For CP, MAP, AP: calculate meal cost per adult based on pricing type
               // NO LEGACY SUPPORT - pricingType MUST be configured
               let mealCostPerAdult = 0;
 
               if (!mealPlan.pricingType) {
                 console.error(`[${mealPlan.planName}] ERROR: Rate plan missing pricingType. Please reconfigure in Rate Plans tab.`);
-                // Don't calculate any meal cost if pricingType is missing
                 mealCostPerAdult = 0;
               } else if (mealPlan.pricingType === 'flat') {
                 // Flat rate: add fixed cost per adult
@@ -185,29 +195,21 @@ export default function PricingRecommendations({
                   mealCostPerAdult = mealPlan.costPerAdult;
                 }
               } else if (mealPlan.pricingType === 'multiplier') {
-                // Multiplier: calculate as percentage of base price
+                // Multiplier: calculate as percentage of ORIGINAL base price (before dynamic multipliers)
                 if (!mealPlan.multiplier) {
                   console.error(`[${mealPlan.planName}] ERROR: Multiplier pricing selected but multiplier is missing`);
                   mealCostPerAdult = 0;
                 } else {
-                  mealCostPerAdult = occupancy.basePrice * (mealPlan.multiplier - 1);
+                  mealCostPerAdult = originalBasePrice * (mealPlan.multiplier - 1);
                 }
               }
 
-              // Add meal cost for all adults
-              price += mealCostPerAdult * numAdults;
+              // Total meal cost for all adults
+              mealCost = mealCostPerAdult * numAdults;
             }
 
-            const priceBeforeMultipliers = price; // Debug
-
-            // Apply real-time factors only if it's not Extra Adult/Child OR if dynamic is enabled
-            const isExtraRate = occupancy.type === 'Extra Adult' || occupancy.type === 'Extra Child';
-            if (!isExtraRate || dynamicExtraRates) {
-              price *= pricingParams.demandMultiplier || 1.0;
-              price *= pricingParams.seasonalMultiplier || 1.0;
-              price *= pricingParams.weekdayMultipliers?.[day] || 1.0;
-              price += (pricingParams.competitorAdjustment || 0);
-            }
+            // STEP 3: Final price = adjusted base price + meal costs
+            const price = basePrice + mealCost;
 
             // Debug logging for Triple and Quad
             if ((occupancy.type === 'Triple' || occupancy.type === 'Quad') && day === 'Monday') {
@@ -363,12 +365,11 @@ export default function PricingRecommendations({
                   <label className="text-sm font-medium text-slate-300">Demand Multiplier</label>
                   <input
                     type="number"
-                    min="0.5"
-                    max="2.0"
-                    step="0.05"
+                    step="0.01"
                     value={pricingParams.demandMultiplier}
                     onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
                     className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                    placeholder="1.0"
                   />
                 </div>
                 <input
@@ -393,12 +394,11 @@ export default function PricingRecommendations({
                   <label className="text-sm font-medium text-slate-300">Seasonal Multiplier</label>
                   <input
                     type="number"
-                    min="0.7"
-                    max="1.5"
-                    step="0.05"
+                    step="0.01"
                     value={pricingParams.seasonalMultiplier}
                     onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
                     className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                    placeholder="1.0"
                   />
                 </div>
                 <input
