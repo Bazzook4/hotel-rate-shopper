@@ -169,22 +169,29 @@ export default function PricingRecommendations({
               }
 
               // For CP, MAP, AP: add meal cost per adult based on pricing type
+              // NO LEGACY SUPPORT - pricingType MUST be configured
               let mealCostPerAdult = 0;
 
-              if (mealPlan.pricingType === 'flat' && mealPlan.costPerAdult) {
+              if (!mealPlan.pricingType) {
+                console.error(`[${mealPlan.planName}] ERROR: Rate plan missing pricingType. Please reconfigure in Rate Plans tab.`);
+                // Don't calculate any meal cost if pricingType is missing
+                mealCostPerAdult = 0;
+              } else if (mealPlan.pricingType === 'flat') {
                 // Flat rate: add fixed cost per adult
-                mealCostPerAdult = mealPlan.costPerAdult;
-              } else if (mealPlan.pricingType === 'multiplier' && mealPlan.multiplier) {
+                if (mealPlan.costPerAdult === undefined || mealPlan.costPerAdult === null) {
+                  console.error(`[${mealPlan.planName}] ERROR: Flat pricing selected but costPerAdult is missing`);
+                  mealCostPerAdult = 0;
+                } else {
+                  mealCostPerAdult = mealPlan.costPerAdult;
+                }
+              } else if (mealPlan.pricingType === 'multiplier') {
                 // Multiplier: calculate as percentage of base price
-                mealCostPerAdult = occupancy.basePrice * (mealPlan.multiplier - 1);
-              } else {
-                // Fallback to hardcoded values if rate plan doesn't have pricing configured
-                const defaultMealCosts = {
-                  'CP': 250,
-                  'MAP': 1000,
-                  'AP': 1650
-                };
-                mealCostPerAdult = defaultMealCosts[mealPlan.planName] || 0;
+                if (!mealPlan.multiplier) {
+                  console.error(`[${mealPlan.planName}] ERROR: Multiplier pricing selected but multiplier is missing`);
+                  mealCostPerAdult = 0;
+                } else {
+                  mealCostPerAdult = occupancy.basePrice * (mealPlan.multiplier - 1);
+                }
               }
 
               // Add meal cost for all adults
