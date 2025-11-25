@@ -62,9 +62,9 @@ export default function PricingRecommendations({
       const maxAdultsValue = room.maxAdults || 0;
       const hasOccupancyPricing = room.occupancyPricing?.adultPricing && Object.keys(room.occupancyPricing.adultPricing).length > 0;
 
-      // For EP: all occupancies should use room base price
+      // For EP: all occupancies should use the same base rate
       // For CP/MAP/AP: meal costs will be added later based on number of adults
-      // Always use room.basePrice as the starting point for all occupancy types
+      // Base rate = highest configured occupancy price (e.g., if you configure up to 4 adults, use that as base)
 
       if (hasOccupancyPricing) {
         // Use configured occupancy pricing, but extend to maxAdults if needed
@@ -74,19 +74,38 @@ export default function PricingRecommendations({
         // Determine how many adult occupancies to show (use the larger of maxAdults or configured)
         const maxToShow = Math.max(maxAdultsValue, maxConfigured, 2); // At least show Single and Double
 
+        // Get the highest configured price - this becomes the "base" for unconfigured occupancies
+        // This ensures that Triple/Quad don't fall back to a lower base price
+        const highestConfiguredPrice = maxConfigured > 0
+          ? room.occupancyPricing.adultPricing[maxConfigured]
+          : room.basePrice;
+
         // Generate occupancy types up to maxToShow
         const labels = ['Single', 'Double', 'Triple', 'Quad'];
+        const missingOccupancies = [];
+
         for (let i = 1; i <= maxToShow; i++) {
           const configuredPrice = room.occupancyPricing.adultPricing[i];
-          // Always use configured price if available, otherwise use room base price
-          // This allows flexibility: if you configure different EP rates per occupancy, use those
-          // If not configured, fall back to base price (meal costs added later for CP/MAP/AP)
-          const finalPrice = configuredPrice !== undefined ? configuredPrice : room.basePrice;
+
+          // Track which occupancies are missing configured prices
+          if (configuredPrice === undefined) {
+            const label = i <= 4 ? labels[i - 1] : `${i} Adults`;
+            missingOccupancies.push(label);
+          }
+
+          // Use configured price if available, otherwise use the highest configured price
+          // This ensures unconfigured occupancies (Triple, Quad) use the max capacity rate
+          const finalPrice = configuredPrice !== undefined ? configuredPrice : highestConfiguredPrice;
 
           occupancyTypes.push({
             type: i <= 4 ? labels[i - 1] : `${i} Adults`,
             basePrice: finalPrice
           });
+        }
+
+        // Warn if some occupancies are using fallback prices
+        if (missingOccupancies.length > 0) {
+          console.warn(`[${room.roomTypeName}] Missing occupancy pricing for: ${missingOccupancies.join(', ')}. Using highest configured price (₹${highestConfiguredPrice}) as fallback. Please configure prices in Occupancy Pricing tab.`);
         }
       } else if (maxAdultsValue && maxAdultsValue > 0) {
         // Use maxAdults to generate occupancy types
@@ -149,12 +168,24 @@ export default function PricingRecommendations({
                 if (match) numAdults = parseInt(match[1]);
               }
 
-              // For CP, MAP, AP: add meal cost per adult
-              // Use multiplier field to calculate meal cost per adult
-              // Example: If multiplier is 1.25, meal cost = base * 0.25 = 250 per adult
-              const mealCostPerAdult = mealPlan.multiplier
-                ? (occupancy.basePrice * (mealPlan.multiplier - 1))
-                : 0;
+              // For CP, MAP, AP: add meal cost per adult based on pricing type
+              let mealCostPerAdult = 0;
+
+              if (mealPlan.pricingType === 'flat' && mealPlan.costPerAdult) {
+                // Flat rate: add fixed cost per adult
+                mealCostPerAdult = mealPlan.costPerAdult;
+              } else if (mealPlan.pricingType === 'multiplier' && mealPlan.multiplier) {
+                // Multiplier: calculate as percentage of base price
+                mealCostPerAdult = occupancy.basePrice * (mealPlan.multiplier - 1);
+              } else {
+                // Fallback to hardcoded values if rate plan doesn't have pricing configured
+                const defaultMealCosts = {
+                  'CP': 250,
+                  'MAP': 1000,
+                  'AP': 1650
+                };
+                mealCostPerAdult = defaultMealCosts[mealPlan.planName] || 0;
+              }
 
               // Add meal cost for all adults
               price += mealCostPerAdult * numAdults;

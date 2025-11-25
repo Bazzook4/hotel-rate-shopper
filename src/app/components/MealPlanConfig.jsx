@@ -12,10 +12,10 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
     AP: false,
   });
   const [mealPlanCosts, setMealPlanCosts] = useState({
-    EP: { cost: "", ratio: "" },
-    CP: { cost: "", ratio: "" },
-    MAP: { cost: "", ratio: "" },
-    AP: { cost: "", ratio: "" },
+    EP: { cost: "", ratio: "", pricingType: "flat" },
+    CP: { cost: "", ratio: "", pricingType: "flat" },
+    MAP: { cost: "", ratio: "", pricingType: "flat" },
+    AP: { cost: "", ratio: "", pricingType: "flat" },
   });
   const [error, setError] = useState("");
 
@@ -43,16 +43,18 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
       const newPlans = [];
 
       for (const planName of selectedPlans) {
+        const pricingType = mealPlanCosts[planName].pricingType;
         const cost = parseFloat(mealPlanCosts[planName].cost) || 0;
         const ratio = parseFloat(mealPlanCosts[planName].ratio);
 
-        // Calculate multiplier: use ratio if provided, otherwise calculate from cost
-        let multiplier = 1.0;
-        if (ratio && ratio > 0) {
-          multiplier = ratio;
-        } else if (cost > 0) {
-          // For cost-based, we'll store the cost and calculate multiplier per room type later
-          multiplier = 1.0 + (cost / 1000); // Just a placeholder, actual calculation happens in pricing
+        // Validate based on pricing type
+        if (pricingType === 'flat' && !cost) {
+          setError(`Please enter a flat cost for ${planName}`);
+          return;
+        }
+        if (pricingType === 'multiplier' && !ratio) {
+          setError(`Please enter a multiplier ratio for ${planName}`);
+          return;
         }
 
         const description = mealPlanInfo[planName].desc;
@@ -62,8 +64,10 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             planName,
-            multiplier,
-            description: `${description} | Cost: ₹${cost || 0}${ratio ? ` | Ratio: ${ratio}` : ''}`,
+            pricingType,
+            costPerAdult: pricingType === 'flat' ? cost : undefined,
+            multiplier: pricingType === 'multiplier' ? ratio : undefined,
+            description: `${description} | ${pricingType === 'flat' ? `₹${cost} per adult` : `${ratio}x multiplier`}`,
           }),
         });
 
@@ -79,10 +83,10 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
       // Reset form
       setSelectedMealPlans({ EP: false, CP: false, MAP: false, AP: false });
       setMealPlanCosts({
-        EP: { cost: "", ratio: "" },
-        CP: { cost: "", ratio: "" },
-        MAP: { cost: "", ratio: "" },
-        AP: { cost: "", ratio: "" },
+        EP: { cost: "", ratio: "", pricingType: "flat" },
+        CP: { cost: "", ratio: "", pricingType: "flat" },
+        MAP: { cost: "", ratio: "", pricingType: "flat" },
+        AP: { cost: "", ratio: "", pricingType: "flat" },
       });
     } catch (err) {
       setError("Network error: " + err.message);
@@ -184,35 +188,82 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                     <div className="text-xs text-slate-400 mt-1">{mealPlanInfo[planKey].desc}</div>
 
                     {selectedMealPlans[planKey] && (
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div>
-                          <label className="text-xs text-slate-300 mb-1 block">Additional Cost (INR)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={mealPlanCosts[planKey].cost}
-                            onChange={(e) => setMealPlanCosts({
-                              ...mealPlanCosts,
-                              [planKey]: { ...mealPlanCosts[planKey], cost: e.target.value }
-                            })}
-                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
-                            placeholder={planKey === 'EP' ? '0' : planKey === 'CP' ? '350' : planKey === 'MAP' ? '1000' : '1650'}
-                          />
+                      <div className="mt-3 space-y-3">
+                        {/* Pricing Type Selection */}
+                        <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                          <label className="text-xs text-slate-300 mb-2 block font-semibold">Pricing Method</label>
+                          <div className="flex gap-4">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`pricingType-${planKey}`}
+                                value="flat"
+                                checked={mealPlanCosts[planKey].pricingType === 'flat'}
+                                onChange={(e) => setMealPlanCosts({
+                                  ...mealPlanCosts,
+                                  [planKey]: { ...mealPlanCosts[planKey], pricingType: 'flat' }
+                                })}
+                                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <span className="text-sm text-white">Flat Rate per Adult</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`pricingType-${planKey}`}
+                                value="multiplier"
+                                checked={mealPlanCosts[planKey].pricingType === 'multiplier'}
+                                onChange={(e) => setMealPlanCosts({
+                                  ...mealPlanCosts,
+                                  [planKey]: { ...mealPlanCosts[planKey], pricingType: 'multiplier' }
+                                })}
+                                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <span className="text-sm text-white">Percentage Multiplier</span>
+                            </label>
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-xs text-slate-300 mb-1 block">Ratio (Optional)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={mealPlanCosts[planKey].ratio}
-                            onChange={(e) => setMealPlanCosts({
-                              ...mealPlanCosts,
-                              [planKey]: { ...mealPlanCosts[planKey], ratio: e.target.value }
-                            })}
-                            className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
-                            placeholder={planKey === 'EP' ? '1.0' : planKey === 'CP' ? '1.12' : planKey === 'MAP' ? '1.25' : '1.40'}
-                          />
-                        </div>
+
+                        {/* Input based on pricing type */}
+                        {mealPlanCosts[planKey].pricingType === 'flat' ? (
+                          <div>
+                            <label className="text-xs text-slate-300 mb-1 block">Cost per Adult (₹)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={mealPlanCosts[planKey].cost}
+                              onChange={(e) => setMealPlanCosts({
+                                ...mealPlanCosts,
+                                [planKey]: { ...mealPlanCosts[planKey], cost: e.target.value }
+                              })}
+                              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+                              placeholder={planKey === 'EP' ? '0' : planKey === 'CP' ? '250' : planKey === 'MAP' ? '1000' : '1650'}
+                              required
+                            />
+                            <p className="text-xs text-slate-400 mt-1">
+                              This amount will be added per adult. E.g., ₹250 for 1 adult, ₹500 for 2 adults.
+                            </p>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="text-xs text-slate-300 mb-1 block">Multiplier Ratio</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={mealPlanCosts[planKey].ratio}
+                              onChange={(e) => setMealPlanCosts({
+                                ...mealPlanCosts,
+                                [planKey]: { ...mealPlanCosts[planKey], ratio: e.target.value }
+                              })}
+                              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+                              placeholder={planKey === 'EP' ? '1.0' : planKey === 'CP' ? '1.1' : planKey === 'MAP' ? '1.25' : '1.40'}
+                              required
+                            />
+                            <p className="text-xs text-slate-400 mt-1">
+                              Base price will be multiplied by this ratio. E.g., 1.25x = 25% increase.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -223,8 +274,9 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
 
           <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
             <p className="text-xs text-blue-300">
-              <strong>Note:</strong> Specify either cost in INR or a ratio multiplier (or both).
-              If ratio is provided, it takes priority. Otherwise, cost will be added to base room price.
+              <strong>💡 Tip:</strong>
+              <br/>• <strong>Flat Rate:</strong> Fixed cost added per adult (e.g., ₹250/adult → Single: +₹250, Double: +₹500)
+              <br/>• <strong>Multiplier:</strong> Percentage of base price (e.g., 1.25x → base ₹4000 becomes ₹5000)
             </p>
           </div>
 

@@ -45,11 +45,25 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { planName, multiplier, description } = body;
+    const { planName, multiplier, costPerAdult, pricingType, description } = body;
 
-    if (!planName || multiplier === undefined) {
+    if (!planName) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate based on pricing type
+    if (pricingType === 'multiplier' && multiplier === undefined) {
+      return NextResponse.json(
+        { error: 'Multiplier is required for multiplier-based pricing' },
+        { status: 400 }
+      );
+    }
+    if (pricingType === 'flat' && costPerAdult === undefined) {
+      return NextResponse.json(
+        { error: 'Cost per adult is required for flat-rate pricing' },
         { status: 400 }
       );
     }
@@ -58,6 +72,8 @@ export async function POST(request) {
       propertyId: session.propertyId,
       planName,
       multiplier,
+      costPerAdult,
+      pricingType: pricingType || 'multiplier',
       description,
     });
 

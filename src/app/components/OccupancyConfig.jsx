@@ -33,12 +33,19 @@ export default function OccupancyConfig({ roomType, onSave }) {
       return;
     }
 
-    // Validate that at least one adult price is set
-    const hasAnyPrice = Object.values(adultPricing).some(
-      price => price && parseFloat(price) > 0
-    );
-    if (!hasAnyPrice) {
-      setError("Please set at least one adult occupancy price");
+    // Validate that ALL adult counts have prices set (not just some)
+    const missingPrices = [];
+    for (let i = 1; i <= parseInt(numAdultOptions); i++) {
+      const price = adultPricing[i];
+      if (!price || parseFloat(price) <= 0) {
+        const labels = ['Single', 'Double', 'Triple', 'Quad'];
+        const label = i <= 4 ? labels[i - 1] : `${i} Adults`;
+        missingPrices.push(label);
+      }
+    }
+
+    if (missingPrices.length > 0) {
+      setError(`Please set prices for all adult counts: ${missingPrices.join(', ')}`);
       return;
     }
 

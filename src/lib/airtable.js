@@ -393,15 +393,24 @@ export async function deleteRoomType(recordId) {
 }
 
 // Rate Plan Functions
-export async function createRatePlan({ propertyId, planName, multiplier, description }) {
+export async function createRatePlan({ propertyId, planName, multiplier, costPerAdult, pricingType, description }) {
   const ratePlanId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const fields = {
     ratePlanId,
     propertyId,
     planName,
-    multiplier: Number(multiplier),
+    multiplier: multiplier ? Number(multiplier) : undefined,
+    costPerAdult: costPerAdult ? Number(costPerAdult) : undefined,
+    pricingType: pricingType || 'multiplier', // 'multiplier' or 'flat'
     description: description || "",
   };
+
+  // Remove undefined values
+  Object.keys(fields).forEach(key => {
+    if (fields[key] === undefined) {
+      delete fields[key];
+    }
+  });
 
   const data = await airtableRequest(tablePath(TABLES.ratePlans), {
     method: "POST",
