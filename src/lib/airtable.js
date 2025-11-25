@@ -362,9 +362,28 @@ export async function listRoomTypes(propertyId) {
 }
 
 export async function updateRoomType(recordId, updates) {
+  // Sanitize updates to ensure proper types
+  const sanitizedUpdates = { ...updates };
+
+  // Convert numeric fields
+  if (sanitizedUpdates.basePrice !== undefined) {
+    sanitizedUpdates.basePrice = Number(sanitizedUpdates.basePrice);
+  }
+  if (sanitizedUpdates.numberOfRooms !== undefined) {
+    sanitizedUpdates.numberOfRooms = Number(sanitizedUpdates.numberOfRooms);
+  }
+  if (sanitizedUpdates.maxAdults !== undefined) {
+    // If maxAdults is empty string or falsy, remove it; otherwise convert to number
+    if (sanitizedUpdates.maxAdults === '' || !sanitizedUpdates.maxAdults) {
+      delete sanitizedUpdates.maxAdults;
+    } else {
+      sanitizedUpdates.maxAdults = Number(sanitizedUpdates.maxAdults);
+    }
+  }
+
   const data = await airtableRequest(recordPath(TABLES.roomTypes, recordId), {
     method: "PATCH",
-    body: { fields: updates },
+    body: { fields: sanitizedUpdates },
   });
   return normaliseRecord(data);
 }
