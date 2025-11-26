@@ -129,6 +129,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       setLoading(true);
       setError("");
 
+      console.log("Sending room data:", newRoom);
+
       const res = await fetch("/api/dynamicPricing/roomTypes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -136,6 +138,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           ...newRoom,
         }),
       });
+
+      console.log("Response status:", res.status);
 
       const data = await res.json();
 

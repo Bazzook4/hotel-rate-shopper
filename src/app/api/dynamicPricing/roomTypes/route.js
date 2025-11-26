@@ -45,9 +45,13 @@ export async function POST(request) {
     }
 
     const body = await request.json();
+    console.log('POST /api/dynamicPricing/roomTypes - Received body:', body);
+
     const { room_type_name, base_price, number_of_rooms, max_adults, description, amenities } = body;
+    console.log('Extracted fields:', { room_type_name, base_price, number_of_rooms, max_adults, description, amenities });
 
     if (!room_type_name || !base_price || !number_of_rooms) {
+      console.log('Missing required fields!');
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
