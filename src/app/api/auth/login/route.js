@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findUserByEmail, getPropertyById } from "@/lib/database";
+import { findUserByEmail, getPropertyById, getUserPropertyId } from "@/lib/database";
 import { verifyPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 
@@ -27,8 +27,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  // Get user's properties (if any)
-  const propertyId = null; // TODO: Implement user_properties lookup
+  // Get user's linked property (if any)
+  const propertyId = await getUserPropertyId(user.id);
   const property = propertyId ? await getPropertyById(propertyId).catch(() => null) : null;
 
   const response = NextResponse.json({

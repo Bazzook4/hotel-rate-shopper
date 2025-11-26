@@ -83,6 +83,24 @@ export async function createUser({ email, passwordHash, role = 'PropertyUser', s
   return user;
 }
 
+export async function getUserPropertyId(userId) {
+  if (!userId) return null;
+
+  const { data, error } = await supabase
+    .from('user_properties')
+    .select('property_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error fetching user property:', error);
+    return null;
+  }
+
+  return data?.property_id || null;
+}
+
 // ============================================
 // PROPERTY FUNCTIONS
 // ============================================
