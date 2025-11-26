@@ -100,6 +100,34 @@ export default function PropertyManager() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
+  async function handleLinkProperty(propertyId) {
+    setError("");
+    setSuccess("");
+
+    try {
+      const res = await fetch("/api/properties/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setSuccess(`Property "${data.property.name}" linked to your account! Refreshing...`);
+        // Reload the page to show updated property list
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        setError(data.error || "Failed to link property");
+      }
+    } catch (err) {
+      setError("An error occurred while linking the property");
+      console.error(err);
+    }
+  }
+
   if (loading && properties.length === 0) {
     return (
       <div className="p-6">
@@ -356,7 +384,7 @@ export default function PropertyManager() {
             {properties.map((property) => (
               <div key={property.id} className="p-6 hover:bg-gray-50 transition">
                 <div className="flex justify-between items-start">
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900">
                       {property.name}
                     </h3>
@@ -380,6 +408,12 @@ export default function PropertyManager() {
                       {property.phone && <span>📞 {property.phone}</span>}
                     </div>
                   </div>
+                  <button
+                    onClick={() => handleLinkProperty(property.id)}
+                    className="ml-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md transition"
+                  >
+                    Link to My Account
+                  </button>
                 </div>
               </div>
             ))}
