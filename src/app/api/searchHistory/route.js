@@ -2,37 +2,19 @@ import { NextResponse } from "next/server";
 import {
   createSearchSnapshot,
   listSearchSnapshots,
-} from "@/lib/airtable";
+} from "@/lib/database";
 import { getSessionFromRequest } from "@/lib/session";
 
 function mapSnapshot(record) {
   if (!record) return null;
-  let payload = null;
-  let params = null;
-
-  if (typeof record.Payload === "string" && record.Payload.length) {
-    try {
-      payload = JSON.parse(record.Payload);
-    } catch (err) {
-      payload = record.Payload;
-    }
-  }
-
-  if (typeof record["Request Params"] === "string" && record["Request Params"].length) {
-    try {
-      params = JSON.parse(record["Request Params"]);
-    } catch (err) {
-      params = record["Request Params"];
-    }
-  }
 
   return {
     id: record.id,
-    query: record["Search Query"] || null,
-    snapshotDate: record["Snapshot Date"] || null,
-    savedByEmail: record["Saved By Email"] || null,
-    payload,
-    params,
+    query: record.search_query || null,
+    snapshotDate: record.snapshot_date || null,
+    savedByEmail: record.saved_by_email || null,
+    payload: record.payload || null,
+    params: record.request_params || null,
   };
 }
 

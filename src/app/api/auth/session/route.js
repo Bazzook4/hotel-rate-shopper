@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { getUserById, getPropertyById } from "@/lib/airtable";
+import { getUserById, getPropertyById } from "@/lib/database";
 
 export async function GET(request) {
   const session = await getSessionFromRequest(request);
@@ -13,18 +13,18 @@ export async function GET(request) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const propertyId = session.propertyId || (Array.isArray(user.Properties) ? user.Properties[0] : null);
+  const propertyId = session.propertyId || null;
   const property = propertyId ? await getPropertyById(propertyId).catch(() => null) : null;
 
   return NextResponse.json({
     user: {
       id: user.id,
-      email: user.Email,
-      role: user.Role || null,
-      status: user.Status || null,
+      email: user.email,
+      role: user.role || null,
+      status: user.status || null,
       propertyId,
-      propertyName: property?.Name || null,
-      propertyLocation: property?.Location || null,
+      propertyName: property?.name || null,
+      propertyLocation: property?.city || null,
     },
   });
 }

@@ -12,6 +12,7 @@
   "dependencies": {
     "@prisma/client": "^6.16.2",
     "@prisma/extension-accelerate": "^2.0.2",
+    "@supabase/supabase-js": "^2.84.0",
     "airtable": "^0.12.2",
     "next": "15.5.4",
     "prisma": "^6.16.2",

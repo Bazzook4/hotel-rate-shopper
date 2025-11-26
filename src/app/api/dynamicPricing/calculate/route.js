@@ -5,7 +5,7 @@ import {
   listRatePlans,
   getPricingFactors,
   createPricingSnapshot,
-} from '@/lib/airtable';
+} from '@/lib/database';
 import { calculateDynamicPrice, calculateWeeklyPrices, calculateRevenueMetrics, formatPricingForExport } from '@/lib/pricingEngine';
 import { getSessionFromRequest } from '@/lib/session';
 

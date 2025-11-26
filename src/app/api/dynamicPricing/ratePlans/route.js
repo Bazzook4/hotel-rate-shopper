@@ -4,7 +4,7 @@ import {
   listRatePlans,
   updateRatePlan,
   deleteRatePlan,
-} from '@/lib/airtable';
+} from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
 
 export async function GET(request) {

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listRoomTypes, updateRoomType } from '@/lib/airtable';
+import { listRoomTypes, updateRoomType } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
 
 export async function POST(request) {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   createOrUpdatePricingFactors,
   getPricingFactors,
-} from '@/lib/airtable';
+} from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
 
 export async function GET(request) {

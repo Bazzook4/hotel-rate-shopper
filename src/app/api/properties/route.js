@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { getPropertyById, listProperties } from "@/lib/airtable";
+import { getPropertyById, listProperties } from "@/lib/database";
 
 export async function GET(request) {
   const session = await getSessionFromRequest(request);

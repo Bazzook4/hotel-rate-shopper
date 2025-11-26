@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPropertyById, updateProperty } from '@/lib/airtable';
+import { getPropertyById, updateProperty } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
 
 /**

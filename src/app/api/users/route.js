@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { createUser, findUserByEmail } from "@/lib/airtable";
+import { createUser, findUserByEmail } from "@/lib/database";
 import { hashPassword } from "@/lib/password";
 
 export async function POST(request) {
