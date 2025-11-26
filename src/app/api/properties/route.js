@@ -13,10 +13,10 @@ export async function GET(request) {
     return NextResponse.json({ properties: props });
   }
 
-  if (!session.propertyId) {
+  if (!session.property_id) {
     return NextResponse.json({ properties: [] });
   }
 
-  const prop = await getPropertyById(session.propertyId).catch(() => null);
+  const prop = await getPropertyById(session.property_id).catch(() => null);
   return NextResponse.json({ properties: prop ? [prop] : [] });
 }

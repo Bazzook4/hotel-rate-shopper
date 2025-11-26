@@ -13,11 +13,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json({ property: null });
     }
 
-    const property = await getPropertyById(session.propertyId);
+    const property = await getPropertyById(session.property_id);
 
     if (!property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
@@ -44,7 +44,7 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json(
         { error: 'No property associated with user' },
         { status: 400 }
@@ -59,7 +59,7 @@ export async function PATCH(request) {
     if (Location) updates.Location = Location;
     Object.assign(updates, otherFields);
 
-    const updatedProperty = await updateProperty(session.propertyId, updates);
+    const updatedProperty = await updateProperty(session.property_id, updates);
 
     return NextResponse.json({ property: updatedProperty });
   } catch (error) {

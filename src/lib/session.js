@@ -137,7 +137,7 @@ export async function getSessionFromRequest(req) {
       userId: "dev-user",
       email: "dev@example.com",
       role: "Admin",
-      propertyId: process.env.DEV_PROPERTY_ID || null,
+      property_id: process.env.DEV_PROPERTY_ID || null,
     };
   }
 

@@ -9,15 +9,15 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json(
         { error: 'No property associated with user' },
         { status: 400 }
       );
     }
 
-    console.log(`Initializing ranks for property: ${session.propertyId}`);
-    const roomTypes = await listRoomTypes(session.propertyId);
+    console.log(`Initializing ranks for property: ${session.property_id}`);
+    const roomTypes = await listRoomTypes(session.property_id);
 
     console.log(`Found ${roomTypes.length} room types`);
 
@@ -33,7 +33,7 @@ export async function POST(request) {
     console.log('All room types have been assigned ranks!');
 
     // Return updated room types
-    const updatedRooms = await listRoomTypes(session.propertyId);
+    const updatedRooms = await listRoomTypes(session.property_id);
     const sorted = updatedRooms.sort((a, b) => (a.rank || 999) - (b.rank || 999));
 
     return NextResponse.json({

@@ -46,7 +46,7 @@ export async function POST(request) {
     userId: user.id,
     email: user.email,
     role: user.role || null,
-    propertyId,
+    property_id: propertyId,
   });
 
   return response;

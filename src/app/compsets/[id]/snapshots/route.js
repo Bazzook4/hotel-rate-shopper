@@ -38,7 +38,7 @@ export async function POST(req, { params }) {
   const currency = body?.currency || "INR";
 
   const compset = await getCompsetById(params.id).catch(() => null);
-  const primaryPropertyId = Array.isArray(compset?.["Primary Property"]) ? compset["Primary Property"][0] : session.propertyId;
+  const primaryPropertyId = Array.isArray(compset?.["Primary Property"]) ? compset["Primary Property"][0] : session.property_id;
   const competitorPropertyIds = Array.isArray(compset?.Competitors) ? compset.Competitors : [];
 
   const rows = [];

@@ -13,7 +13,7 @@ export async function GET(request) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const propertyId = session.propertyId || null;
+  const propertyId = session.property_id || null;
   const property = propertyId ? await getPropertyById(propertyId).catch(() => null) : null;
 
   return NextResponse.json({
