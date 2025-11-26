@@ -335,16 +335,16 @@ export async function deleteSnapshotById(id) {
 // ROOM TYPE FUNCTIONS
 // ============================================
 
-export async function createRoomType({ propertyId, roomTypeName, basePrice, numberOfRooms, maxAdults, description, amenities }) {
+export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, max_adults, description, amenities }) {
   const roomTypeId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const roomType = {
     room_type_id: roomTypeId,
-    property_id: propertyId,
-    room_type_name: roomTypeName,
-    base_price: Number(basePrice),
-    number_of_rooms: Number(numberOfRooms),
-    max_adults: maxAdults ? Number(maxAdults) : null,
+    property_id: property_id,
+    room_type_name: room_type_name,
+    base_price: Number(base_price),
+    number_of_rooms: Number(number_of_rooms),
+    max_adults: max_adults ? Number(max_adults) : null,
     description: description || '',
     amenities: amenities || [],
   };
@@ -423,16 +423,16 @@ export async function deleteRoomType(id) {
 // RATE PLAN FUNCTIONS
 // ============================================
 
-export async function createRatePlan({ propertyId, planName, multiplier, costPerAdult, pricingType, description }) {
+export async function createRatePlan({ property_id, plan_name, multiplier, cost_per_adult, pricing_type, description }) {
   const ratePlanId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const ratePlan = {
     rate_plan_id: ratePlanId,
-    property_id: propertyId,
-    plan_name: planName,
-    pricing_type: pricingType || 'multiplier',
+    property_id: property_id,
+    plan_name: plan_name,
+    pricing_type: pricing_type || 'multiplier',
     multiplier: multiplier ? Number(multiplier) : null,
-    cost_per_adult: costPerAdult ? Number(costPerAdult) : null,
+    cost_per_adult: cost_per_adult ? Number(cost_per_adult) : null,
     description: description || '',
   };
 
