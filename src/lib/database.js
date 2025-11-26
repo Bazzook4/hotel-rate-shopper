@@ -373,20 +373,7 @@ export async function listRoomTypes(propertyId) {
     throw new Error(`Failed to list room types: ${error.message}`);
   }
 
-  // Map database fields (snake_case) to frontend fields (camelCase)
-  return (data || []).map(room => ({
-    id: room.id,
-    roomTypeId: room.room_type_id,
-    propertyId: room.property_id,
-    roomTypeName: room.room_type_name,
-    basePrice: room.base_price,
-    numberOfRooms: room.number_of_rooms,
-    maxAdults: room.max_adults,
-    description: room.description,
-    amenities: room.amenities,
-    occupancyPricing: room.occupancy_pricing,
-    rank: room.rank,
-  }));
+  return data || [];
 }
 
 export async function updateRoomType(id, updates) {

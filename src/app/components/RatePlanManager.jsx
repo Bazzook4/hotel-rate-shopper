@@ -19,25 +19,25 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
     let rowId = 1;
 
     roomTypes.forEach((room) => {
-      const occupancyPricing = room.occupancyPricing || {};
-      const adultPricing = occupancyPricing.adultPricing || {};
-      const numAdults = occupancyPricing.numAdultOptions || 0;
+      const occupancy_pricing = room.occupancy_pricing || {};
+      const adultPricing = occupancy_pricing.adultPricing || {};
+      const numAdults = occupancy_pricing.numAdultOptions || 0;
 
       // If no occupancy pricing defined, create basic row
       if (numAdults === 0) {
         ratePlans.forEach((plan) => {
           rows.push({
             id: rowId++,
-            roomType: room.roomTypeName,
-            roomTypeId: room.id,
+            roomType: room.room_type_name,
+            room_type_id: room.id,
             occupancy: "Standard",
             occupancyType: "standard",
-            mealPlan: plan.planName,
+            mealPlan: plan.plan_name,
             mealPlanId: plan.id,
             numMeals: 0,
-            baseRate: room.basePrice,
+            baseRate: room.base_price,
             additionalCost: 0,
-            totalRate: room.basePrice * plan.multiplier,
+            totalRate: room.base_price * plan.multiplier,
             ratio: plan.multiplier,
             isActive: true,
           });
@@ -46,24 +46,24 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
         // Create rows for each adult occupancy level
         for (let adultCount = 1; adultCount <= numAdults; adultCount++) {
           const occupancyLabel = getOccupancyLabel(adultCount);
-          const basePrice = adultPricing[adultCount] || room.basePrice;
+          const base_price = adultPricing[adultCount] || room.base_price;
 
           ratePlans.forEach((plan) => {
             // Calculate meal cost based on plan name
-            const mealCost = getMealCostFromPlan(plan.planName);
+            const mealCost = getMealCostFromPlan(plan.plan_name);
 
             rows.push({
               id: rowId++,
-              roomType: room.roomTypeName,
-              roomTypeId: room.id,
+              roomType: room.room_type_name,
+              room_type_id: room.id,
               occupancy: occupancyLabel,
               occupancyType: adultCount === 1 ? "Single (S)" : adultCount === 2 ? "Double (D)" : `${adultCount} Adults`,
-              mealPlan: plan.planName,
+              mealPlan: plan.plan_name,
               mealPlanId: plan.id,
-              numMeals: getMealCount(plan.planName, adultCount),
-              baseRate: basePrice,
+              numMeals: getMealCount(plan.plan_name, adultCount),
+              baseRate: base_price,
               additionalCost: mealCost * adultCount,
-              totalRate: basePrice + (mealCost * adultCount),
+              totalRate: base_price + (mealCost * adultCount),
               ratio: 1.0,
               isActive: true,
             });
@@ -85,24 +85,24 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
     return labels[count] || `${count} Adults`;
   }
 
-  function getMealCostFromPlan(planName) {
+  function getMealCostFromPlan(plan_name) {
     const costs = {
       "EP": 0,
       "CP": 350,
       "MAP": 1000,
       "AP": 1650,
     };
-    return costs[planName] || 0;
+    return costs[plan_name] || 0;
   }
 
-  function getMealCount(planName, adultCount) {
+  function getMealCount(plan_name, adultCount) {
     const mealCounts = {
       "EP": 0,
       "CP": 1,
       "MAP": 2,
       "AP": 3,
     };
-    return (mealCounts[planName] || 0) * adultCount;
+    return (mealCounts[plan_name] || 0) * adultCount;
   }
 
   function handleRowChange(rowId, field, value) {
@@ -126,16 +126,16 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
   function addRow() {
     const newRow = {
       id: Math.max(...ratePlanRows.map(r => r.id), 0) + 1,
-      roomType: roomTypes[0]?.roomTypeName || "",
-      roomTypeId: roomTypes[0]?.id || "",
+      roomType: roomTypes[0]?.room_type_name || "",
+      room_type_id: roomTypes[0]?.id || "",
       occupancy: "Single (S)",
       occupancyType: "Single (S)",
-      mealPlan: ratePlans[0]?.planName || "EP",
+      mealPlan: ratePlans[0]?.plan_name || "EP",
       mealPlanId: ratePlans[0]?.id || "",
       numMeals: 0,
-      baseRate: roomTypes[0]?.basePrice || 0,
+      baseRate: roomTypes[0]?.base_price || 0,
       additionalCost: 0,
-      totalRate: roomTypes[0]?.basePrice || 0,
+      totalRate: roomTypes[0]?.base_price || 0,
       ratio: 1.0,
       isActive: true,
     };
@@ -276,16 +276,16 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <select
                       value={row.roomType}
                       onChange={(e) => {
-                        const selectedRoom = roomTypes.find(r => r.roomTypeName === e.target.value);
+                        const selectedRoom = roomTypes.find(r => r.room_type_name === e.target.value);
                         handleRowChange(row.id, "roomType", e.target.value);
-                        handleRowChange(row.id, "roomTypeId", selectedRoom?.id || "");
-                        handleRowChange(row.id, "baseRate", selectedRoom?.basePrice || 0);
+                        handleRowChange(row.id, "room_type_id", selectedRoom?.id || "");
+                        handleRowChange(row.id, "baseRate", selectedRoom?.base_price || 0);
                       }}
                       className="w-full px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
                     >
                       {roomTypes.map((room) => (
-                        <option key={room.id} value={room.roomTypeName}>
-                          {room.roomTypeName}
+                        <option key={room.id} value={room.room_type_name}>
+                          {room.room_type_name}
                         </option>
                       ))}
                     </select>
@@ -317,8 +317,8 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                       className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
                     >
                       {ratePlans.map((plan) => (
-                        <option key={plan.id} value={plan.planName}>
-                          {plan.planName}
+                        <option key={plan.id} value={plan.plan_name}>
+                          {plan.plan_name}
                         </option>
                       ))}
                     </select>

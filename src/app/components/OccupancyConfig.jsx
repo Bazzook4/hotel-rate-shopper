@@ -9,20 +9,20 @@ export default function OccupancyConfig({ roomType, onSave }) {
 
   // Step 1: Ask how many adult capacity options they want to define
   const [numAdultOptions, setNumAdultOptions] = useState(
-    roomType?.occupancyPricing?.numAdultOptions || ""
+    roomType?.occupancy_pricing?.numAdultOptions || ""
   );
 
   // Step 2: Collect pricing for each adult count
   const [adultPricing, setAdultPricing] = useState(
-    roomType?.occupancyPricing?.adultPricing || {}
+    roomType?.occupancy_pricing?.adultPricing || {}
   );
 
   // Extra charges
   const [extraAdult, setExtraAdult] = useState(
-    roomType?.occupancyPricing?.extraAdult || ""
+    roomType?.occupancy_pricing?.extraAdult || ""
   );
   const [extraChild, setExtraChild] = useState(
-    roomType?.occupancyPricing?.extraChild || ""
+    roomType?.occupancy_pricing?.extraChild || ""
   );
 
   async function handleSave(e) {
@@ -88,10 +88,10 @@ export default function OccupancyConfig({ roomType, onSave }) {
     setShowConfig(false);
     setError("");
     // Reset to saved values
-    setNumAdultOptions(roomType?.occupancyPricing?.numAdultOptions || "");
-    setAdultPricing(roomType?.occupancyPricing?.adultPricing || {});
-    setExtraAdult(roomType?.occupancyPricing?.extraAdult || "");
-    setExtraChild(roomType?.occupancyPricing?.extraChild || "");
+    setNumAdultOptions(roomType?.occupancy_pricing?.numAdultOptions || "");
+    setAdultPricing(roomType?.occupancy_pricing?.adultPricing || {});
+    setExtraAdult(roomType?.occupancy_pricing?.extraAdult || "");
+    setExtraChild(roomType?.occupancy_pricing?.extraChild || "");
   }
 
   function handleNumAdultOptionsChange(value) {
@@ -104,7 +104,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
     setAdultPricing(newPricing);
   }
 
-  const hasExistingPricing = roomType?.occupancyPricing?.numAdultOptions;
+  const hasExistingPricing = roomType?.occupancy_pricing?.numAdultOptions;
   const numAdultsNum = parseInt(numAdultOptions) || 0;
 
   // Helper to get occupancy label
@@ -127,7 +127,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
           </h5>
           <p className="text-xs text-slate-400 mt-0.5">
             {hasExistingPricing
-              ? `${roomType.occupancyPricing.numAdultOptions} adult occupancy options configured`
+              ? `${roomType.occupancy_pricing.numAdultOptions} adult occupancy options configured`
               : "Define pricing for different adult counts"
             }
           </p>
@@ -147,27 +147,27 @@ export default function OccupancyConfig({ roomType, onSave }) {
       {hasExistingPricing && !showConfig && (
         <div className="mt-3 space-y-2">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {Object.entries(roomType.occupancyPricing.adultPricing || {}).map(([adults, price]) => (
+            {Object.entries(roomType.occupancy_pricing.adultPricing || {}).map(([adults, price]) => (
               <div key={adults} className="p-2 rounded-lg bg-white/5 border border-white/10">
                 <div className="text-xs text-slate-400">{getOccupancyLabel(parseInt(adults))}</div>
                 <div className="text-white font-semibold">₹{price}</div>
               </div>
             ))}
           </div>
-          {(roomType.occupancyPricing.extraAdult || roomType.occupancyPricing.extraChild) && (
+          {(roomType.occupancy_pricing.extraAdult || roomType.occupancy_pricing.extraChild) && (
             <div className="pt-2 border-t border-white/10">
               <div className="text-xs text-slate-400 mb-2">Extra Charges:</div>
               <div className="grid grid-cols-2 gap-2">
-                {roomType.occupancyPricing.extraAdult && (
+                {roomType.occupancy_pricing.extraAdult && (
                   <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                     <div className="text-xs text-amber-300">Extra Adult</div>
-                    <div className="text-white font-semibold">+₹{roomType.occupancyPricing.extraAdult}</div>
+                    <div className="text-white font-semibold">+₹{roomType.occupancy_pricing.extraAdult}</div>
                   </div>
                 )}
-                {roomType.occupancyPricing.extraChild && (
+                {roomType.occupancy_pricing.extraChild && (
                   <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
                     <div className="text-xs text-blue-300">Extra Child</div>
-                    <div className="text-white font-semibold">+₹{roomType.occupancyPricing.extraChild}</div>
+                    <div className="text-white font-semibold">+₹{roomType.occupancy_pricing.extraChild}</div>
                   </div>
                 )}
               </div>

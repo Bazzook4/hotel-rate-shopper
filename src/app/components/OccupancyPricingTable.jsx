@@ -17,15 +17,15 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
       roomTypes.forEach(room => {
         // Preserve existing occupancy pricing data
-        const existingPricing = room.occupancyPricing || {};
+        const existingPricing = room.occupancy_pricing || {};
 
         initialData[room.id] = {
           isBase: existingPricing.isBase || false,
           pricingMode: existingPricing.pricingMode || 'room',
           numAdultOptions: existingPricing.numAdultOptions || 2,
           adultPricing: existingPricing.adultPricing || {
-            1: room.basePrice || 0,
-            2: room.basePrice || 0,
+            1: room.base_price || 0,
+            2: room.base_price || 0,
           },
           perAdultRate: existingPricing.perAdultRate || 0,
           extraAdult: existingPricing.extraAdult || 0,
@@ -178,16 +178,16 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
     // If using fixed adjustment
     if (roomData.calcType[adultCount] === 'fixed') {
-      const basePrice = occupancyData[baseRoomId]?.adultPricing[adultCount] || 0;
+      const base_price = occupancyData[baseRoomId]?.adultPricing[adultCount] || 0;
       const adjustment = roomData.fixedAdjustment[adultCount] || 0;
-      return basePrice + adjustment;
+      return base_price + adjustment;
     }
 
     // If using ratio
     if (roomData.calcType[adultCount] === 'ratio') {
-      const basePrice = occupancyData[baseRoomId]?.adultPricing[adultCount] || 0;
+      const base_price = occupancyData[baseRoomId]?.adultPricing[adultCount] || 0;
       const ratio = roomData.ratioMultiplier[adultCount] || 1;
-      return basePrice * ratio;
+      return base_price * ratio;
     }
 
     return roomData.adultPricing[adultCount] || 0;
@@ -223,7 +223,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
           extraAdult: roomData.extraAdult || 0,
           extraChild: roomData.extraChild || 0,
         };
-        console.log(`Saving occupancy pricing for ${room.roomTypeName}:`, dataToSave);
+        console.log(`Saving occupancy pricing for ${room.room_type_name}:`, dataToSave);
         return onSave(room, dataToSave);
       });
 
@@ -326,7 +326,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               if (pricingMode === 'flat_room') {
                 return (
                   <tr key={room.id} className="border-b border-white/10 hover:bg-white/5">
-                    <td className="py-2 px-3 text-white text-sm">{room.roomTypeName}</td>
+                    <td className="py-2 px-3 text-white text-sm">{room.room_type_name}</td>
                     <td className="py-2 px-3 text-center">
                       <input
                         type="radio"
@@ -410,7 +410,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               if (pricingMode === 'per_adult') {
                 return (
                   <tr key={room.id} className="border-b border-white/10 hover:bg-white/5">
-                    <td className="py-2 px-3 text-white text-sm">{room.roomTypeName}</td>
+                    <td className="py-2 px-3 text-white text-sm">{room.room_type_name}</td>
                     <td className="py-2 px-3 text-center">
                       <input
                         type="radio"
@@ -480,7 +480,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                 <tr key={`${room.id}-${adultCount}`} className="border-b border-white/10 hover:bg-white/5">
                   {adultCount === 1 && (
                     <td rowSpan={numAdults} className="py-2 px-3 text-white text-sm border-r border-white/10">
-                      {room.roomTypeName}
+                      {room.room_type_name}
                     </td>
                   )}
                   {adultCount === 1 && (
@@ -575,7 +575,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
             return (
               <div key={room.id} className="space-y-2">
-                <div className="text-xs text-slate-400 font-semibold">{room.roomTypeName}</div>
+                <div className="text-xs text-slate-400 font-semibold">{room.room_type_name}</div>
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="text-xs text-slate-300 block mb-1">Extra Adult</label>

@@ -14,11 +14,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json({ ratePlans: [] });
     }
 
-    const ratePlans = await listRatePlans(session.propertyId);
+    const ratePlans = await listRatePlans(session.property_id);
 
     return NextResponse.json({ ratePlans });
   } catch (error) {
@@ -37,7 +37,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json(
         { error: 'No property associated with user' },
         { status: 400 }
@@ -45,9 +45,9 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { planName, multiplier, costPerAdult, pricingType, description } = body;
+    const { plan_name, multiplier, cost_per_adult, pricing_type, description } = body;
 
-    if (!planName) {
+    if (!plan_name) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -55,13 +55,13 @@ export async function POST(request) {
     }
 
     // Validate based on pricing type
-    if (pricingType === 'multiplier' && multiplier === undefined) {
+    if (pricing_type === 'multiplier' && multiplier === undefined) {
       return NextResponse.json(
         { error: 'Multiplier is required for multiplier-based pricing' },
         { status: 400 }
       );
     }
-    if (pricingType === 'flat' && costPerAdult === undefined) {
+    if (pricing_type === 'flat' && cost_per_adult === undefined) {
       return NextResponse.json(
         { error: 'Cost per adult is required for flat-rate pricing' },
         { status: 400 }
@@ -69,11 +69,11 @@ export async function POST(request) {
     }
 
     const ratePlan = await createRatePlan({
-      propertyId: session.propertyId,
-      planName,
+      property_id: session.property_id,
+      plan_name,
       multiplier,
-      costPerAdult,
-      pricingType: pricingType || 'multiplier',
+      cost_per_adult,
+      pricing_type: pricing_type || 'multiplier',
       description,
     });
 

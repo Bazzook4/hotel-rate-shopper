@@ -12,15 +12,15 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
   const [rankInput, setRankInput] = useState((index + 1).toString());
 
   const [editData, setEditData] = useState({
-    roomTypeName: room.roomTypeName,
-    basePrice: room.basePrice,
-    numberOfRooms: room.numberOfRooms,
-    maxAdults: room.maxAdults || 2,
+    room_type_name: room.room_type_name,
+    base_price: room.base_price,
+    number_of_rooms: room.number_of_rooms,
+    max_adults: room.max_adults || 2,
     description: room.description || "",
   });
 
   async function handleSave() {
-    if (!editData.roomTypeName || !editData.basePrice || !editData.numberOfRooms) {
+    if (!editData.room_type_name || !editData.base_price || !editData.number_of_rooms) {
       setError("Room name, base price, and number of rooms are required");
       return;
     }
@@ -39,10 +39,10 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
 
   function handleCancel() {
     setEditData({
-      roomTypeName: room.roomTypeName,
-      basePrice: room.basePrice,
-      numberOfRooms: room.numberOfRooms,
-      maxAdults: room.maxAdults || 2,
+      room_type_name: room.room_type_name,
+      base_price: room.base_price,
+      number_of_rooms: room.number_of_rooms,
+      max_adults: room.max_adults || 2,
       description: room.description || "",
     });
     setIsEditing(false);
@@ -92,9 +92,9 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
 
             {/* Room Info - Compact */}
             <div className="flex-1 flex items-center gap-4">
-              <h5 className="text-white font-semibold text-sm">🏠 {room.roomTypeName}</h5>
+              <h5 className="text-white font-semibold text-sm">🏠 {room.room_type_name}</h5>
               <span className="text-xs text-slate-400">
-                ₹{room.basePrice} • {room.numberOfRooms} rooms • Max {room.maxAdults || 2} adults
+                ₹{room.base_price} • {room.number_of_rooms} rooms • Max {room.max_adults || 2} adults
               </span>
               {room.description && (
                 <span className="text-xs text-slate-500 italic truncate max-w-xs">{room.description}</span>
@@ -133,8 +133,8 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                 <label className="block text-xs text-slate-300 mb-1">Room Type Name *</label>
                 <input
                   type="text"
-                  value={editData.roomTypeName}
-                  onChange={(e) => setEditData({ ...editData, roomTypeName: e.target.value })}
+                  value={editData.room_type_name}
+                  onChange={(e) => setEditData({ ...editData, room_type_name: e.target.value })}
                   className={inputClass}
                   placeholder="e.g., Deluxe Suite"
                   required
@@ -146,8 +146,8 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                 <input
                   type="number"
                   step="0.01"
-                  value={editData.basePrice}
-                  onChange={(e) => setEditData({ ...editData, basePrice: e.target.value })}
+                  value={editData.base_price}
+                  onChange={(e) => setEditData({ ...editData, base_price: e.target.value })}
                   className={inputClass}
                   placeholder="3500"
                   required
@@ -158,8 +158,8 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                 <label className="block text-xs text-slate-300 mb-1">Number of Rooms *</label>
                 <input
                   type="number"
-                  value={editData.numberOfRooms}
-                  onChange={(e) => setEditData({ ...editData, numberOfRooms: e.target.value })}
+                  value={editData.number_of_rooms}
+                  onChange={(e) => setEditData({ ...editData, number_of_rooms: e.target.value })}
                   className={inputClass}
                   placeholder="10"
                   required
@@ -172,8 +172,8 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                   type="number"
                   min="1"
                   max="10"
-                  value={editData.maxAdults}
-                  onChange={(e) => setEditData({ ...editData, maxAdults: e.target.value })}
+                  value={editData.max_adults}
+                  onChange={(e) => setEditData({ ...editData, max_adults: e.target.value })}
                   className={inputClass}
                   placeholder="2"
                   required

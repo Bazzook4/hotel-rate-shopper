@@ -29,7 +29,7 @@ export default function WeeklyPricingTable({ hotel, roomTypes, weeklyPrices, pri
     // Rows
     roomTypes.forEach((room, index) => {
       const prices = weeklyPrices[index];
-      text += `${room.roomTypeName}\t`;
+      text += `${room.room_type_name}\t`;
       text += `EP\t`; // Default meal plan
       text += `Single\t`; // Default occupancy
       text += `${prices.Monday.toFixed(2)}\t`;
@@ -102,7 +102,7 @@ export default function WeeklyPricingTable({ hotel, roomTypes, weeklyPrices, pri
               const prices = weeklyPrices[index];
               return (
                 <tr key={room.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="px-4 py-3 text-white font-medium">{room.roomTypeName}</td>
+                  <td className="px-4 py-3 text-white font-medium">{room.room_type_name}</td>
                   <td className="px-4 py-3 text-slate-300">EP</td>
                   <td className="px-4 py-3 text-slate-300">Single</td>
                   <td className="px-4 py-3 text-right text-white font-mono">{prices.Monday.toFixed(2)}</td>

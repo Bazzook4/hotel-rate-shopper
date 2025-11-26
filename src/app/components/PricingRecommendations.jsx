@@ -24,12 +24,12 @@ export default function PricingRecommendations({
   // Get all meal plans (rate plans) and sort them in the correct order
   const mealPlanOrder = ['EP', 'CP', 'MAP', 'AP'];
   const mealPlans = (ratePlans || [
-    { planName: 'EP', multiplier: 1.0 },
-    { planName: 'CP', multiplier: 1.1 },
-    { planName: 'MAP', multiplier: 1.25 },
+    { plan_name: 'EP', multiplier: 1.0 },
+    { plan_name: 'CP', multiplier: 1.1 },
+    { plan_name: 'MAP', multiplier: 1.25 },
   ]).sort((a, b) => {
-    const indexA = mealPlanOrder.indexOf(a.planName);
-    const indexB = mealPlanOrder.indexOf(b.planName);
+    const indexA = mealPlanOrder.indexOf(a.plan_name);
+    const indexB = mealPlanOrder.indexOf(b.plan_name);
     // If not found in the order array, put at the end
     if (indexA === -1) return 1;
     if (indexB === -1) return -1;
@@ -59,33 +59,33 @@ export default function PricingRecommendations({
       let occupancyTypes = [];
 
       // Determine the maximum number of adults to show
-      const maxAdultsValue = room.maxAdults || 0;
-      const hasOccupancyPricing = room.occupancyPricing?.adultPricing && Object.keys(room.occupancyPricing.adultPricing).length > 0;
+      const max_adultsValue = room.max_adults || 0;
+      const hasOccupancyPricing = room.occupancy_pricing?.adultPricing && Object.keys(room.occupancy_pricing.adultPricing).length > 0;
 
       // For EP: all occupancies should use the same base rate
       // For CP/MAP/AP: meal costs will be added later based on number of adults
       // Base rate = highest configured occupancy price (e.g., if you configure up to 4 adults, use that as base)
 
       if (hasOccupancyPricing) {
-        // Use configured occupancy pricing, but extend to maxAdults if needed
-        const configuredAdults = Object.keys(room.occupancyPricing.adultPricing).map(Number).sort((a, b) => a - b);
+        // Use configured occupancy pricing, but extend to max_adults if needed
+        const configuredAdults = Object.keys(room.occupancy_pricing.adultPricing).map(Number).sort((a, b) => a - b);
         const maxConfigured = configuredAdults.length > 0 ? Math.max(...configuredAdults) : 0;
 
-        // Determine how many adult occupancies to show (use the larger of maxAdults or configured)
-        const maxToShow = Math.max(maxAdultsValue, maxConfigured, 2); // At least show Single and Double
+        // Determine how many adult occupancies to show (use the larger of max_adults or configured)
+        const maxToShow = Math.max(max_adultsValue, maxConfigured, 2); // At least show Single and Double
 
         // Get the highest configured price - this becomes the "base" for unconfigured occupancies
         // This ensures that Triple/Quad don't fall back to a lower base price
         const highestConfiguredPrice = maxConfigured > 0
-          ? room.occupancyPricing.adultPricing[maxConfigured]
-          : room.basePrice;
+          ? room.occupancy_pricing.adultPricing[maxConfigured]
+          : room.base_price;
 
         // Generate occupancy types up to maxToShow
         const labels = ['Single', 'Double', 'Triple', 'Quad'];
         const missingOccupancies = [];
 
         for (let i = 1; i <= maxToShow; i++) {
-          const configuredPrice = room.occupancyPricing.adultPricing[i];
+          const configuredPrice = room.occupancy_pricing.adultPricing[i];
 
           // Track which occupancies are missing configured prices
           if (configuredPrice === undefined) {
@@ -99,42 +99,42 @@ export default function PricingRecommendations({
 
           occupancyTypes.push({
             type: i <= 4 ? labels[i - 1] : `${i} Adults`,
-            basePrice: finalPrice
+            base_price: finalPrice
           });
         }
 
         // Warn if some occupancies are using fallback prices
         if (missingOccupancies.length > 0) {
-          console.warn(`[${room.roomTypeName}] Missing occupancy pricing for: ${missingOccupancies.join(', ')}. Using highest configured price (₹${highestConfiguredPrice}) as fallback. Please configure prices in Occupancy Pricing tab.`);
+          console.warn(`[${room.room_type_name}] Missing occupancy pricing for: ${missingOccupancies.join(', ')}. Using highest configured price (₹${highestConfiguredPrice}) as fallback. Please configure prices in Occupancy Pricing tab.`);
         }
-      } else if (maxAdultsValue && maxAdultsValue > 0) {
-        // Use maxAdults to generate occupancy types
+      } else if (max_adultsValue && max_adultsValue > 0) {
+        // Use max_adults to generate occupancy types
         const labels = ['Single', 'Double', 'Triple', 'Quad'];
-        for (let i = 1; i <= maxAdultsValue; i++) {
+        for (let i = 1; i <= max_adultsValue; i++) {
           occupancyTypes.push({
             type: i <= 4 ? labels[i - 1] : `${i} Adults`,
-            basePrice: room.basePrice
+            base_price: room.base_price
           });
         }
       } else {
         // Default to Single and Double
         occupancyTypes = [
-          { type: 'Single', basePrice: room.basePrice },
-          { type: 'Double', basePrice: room.basePrice }
+          { type: 'Single', base_price: room.base_price },
+          { type: 'Double', base_price: room.base_price }
         ];
       }
 
       // Add extra adult/child if configured
-      if (room.occupancyPricing?.extraAdult) {
+      if (room.occupancy_pricing?.extraAdult) {
         occupancyTypes.push({
           type: 'Extra Adult',
-          basePrice: room.occupancyPricing.extraAdult
+          base_price: room.occupancy_pricing.extraAdult
         });
       }
-      if (room.occupancyPricing?.extraChild) {
+      if (room.occupancy_pricing?.extraChild) {
         occupancyTypes.push({
           type: 'Extra Child',
-          basePrice: room.occupancyPricing.extraChild
+          base_price: room.occupancy_pricing.extraChild
         });
       }
 
@@ -143,30 +143,30 @@ export default function PricingRecommendations({
         // For each occupancy type
         occupancyTypes.forEach(occupancy => {
           const row = {
-            roomCategory: room.roomTypeName,
-            mealPlan: mealPlan.planName,
+            roomCategory: room.room_type_name,
+            mealPlan: mealPlan.plan_name,
             occupancy: occupancy.type,
             prices: {}
           };
 
           // Calculate price for each day of the week
           weekdays.forEach(day => {
-            const originalBasePrice = occupancy.basePrice;
-            let basePrice = originalBasePrice;
+            const originalBasePrice = occupancy.base_price;
+            let base_price = originalBasePrice;
 
             // STEP 1: Apply dynamic pricing multipliers to BASE PRICE ONLY
             // (multipliers should NOT affect meal costs - those are fixed operational costs)
             const isExtraRate = occupancy.type === 'Extra Adult' || occupancy.type === 'Extra Child';
             if (!isExtraRate || dynamicExtraRates) {
-              basePrice *= pricingParams.demandMultiplier || 1.0;
-              basePrice *= pricingParams.seasonalMultiplier || 1.0;
-              basePrice *= pricingParams.weekdayMultipliers?.[day] || 1.0;
-              basePrice += (pricingParams.competitorAdjustment || 0);
+              base_price *= pricingParams.demandMultiplier || 1.0;
+              base_price *= pricingParams.seasonalMultiplier || 1.0;
+              base_price *= pricingParams.weekday_multipliers?.[day] || 1.0;
+              base_price += (pricingParams.competitorAdjustment || 0);
             }
 
             // STEP 2: Calculate meal costs (based on number of adults)
             let mealCost = 0;
-            if (mealPlan.planName !== 'EP') {
+            if (mealPlan.plan_name !== 'EP') {
               // Extract number of adults from occupancy type
               let numAdults = 1;
               if (occupancy.type === 'Single') numAdults = 1;
@@ -180,24 +180,24 @@ export default function PricingRecommendations({
               }
 
               // For CP, MAP, AP: calculate meal cost per adult based on pricing type
-              // NO LEGACY SUPPORT - pricingType MUST be configured
+              // NO LEGACY SUPPORT - pricing_type MUST be configured
               let mealCostPerAdult = 0;
 
-              if (!mealPlan.pricingType) {
-                console.error(`[${mealPlan.planName}] ERROR: Rate plan missing pricingType. Please reconfigure in Rate Plans tab.`);
+              if (!mealPlan.pricing_type) {
+                console.error(`[${mealPlan.plan_name}] ERROR: Rate plan missing pricing_type. Please reconfigure in Rate Plans tab.`);
                 mealCostPerAdult = 0;
-              } else if (mealPlan.pricingType === 'flat') {
+              } else if (mealPlan.pricing_type === 'flat') {
                 // Flat rate: add fixed cost per adult
-                if (mealPlan.costPerAdult === undefined || mealPlan.costPerAdult === null) {
-                  console.error(`[${mealPlan.planName}] ERROR: Flat pricing selected but costPerAdult is missing`);
+                if (mealPlan.cost_per_adult === undefined || mealPlan.cost_per_adult === null) {
+                  console.error(`[${mealPlan.plan_name}] ERROR: Flat pricing selected but cost_per_adult is missing`);
                   mealCostPerAdult = 0;
                 } else {
-                  mealCostPerAdult = mealPlan.costPerAdult;
+                  mealCostPerAdult = mealPlan.cost_per_adult;
                 }
-              } else if (mealPlan.pricingType === 'multiplier') {
+              } else if (mealPlan.pricing_type === 'multiplier') {
                 // Multiplier: calculate as percentage of ORIGINAL base price (before dynamic multipliers)
                 if (!mealPlan.multiplier) {
-                  console.error(`[${mealPlan.planName}] ERROR: Multiplier pricing selected but multiplier is missing`);
+                  console.error(`[${mealPlan.plan_name}] ERROR: Multiplier pricing selected but multiplier is missing`);
                   mealCostPerAdult = 0;
                 } else {
                   mealCostPerAdult = originalBasePrice * (mealPlan.multiplier - 1);
@@ -209,19 +209,19 @@ export default function PricingRecommendations({
             }
 
             // STEP 3: Final price = adjusted base price + meal costs
-            const price = basePrice + mealCost;
+            const price = base_price + mealCost;
 
             // Debug logging for Triple and Quad
             if ((occupancy.type === 'Triple' || occupancy.type === 'Quad') && day === 'Monday') {
-              console.log(`[${room.roomTypeName}] ${occupancy.type} - ${mealPlan.planName}:`, {
+              console.log(`[${room.room_type_name}] ${occupancy.type} - ${mealPlan.plan_name}:`, {
                 originalBase: originalBasePrice,
-                adjustedBase: basePrice,
+                adjustedBase: base_price,
                 mealCost: mealCost,
                 finalPrice: price,
                 isExtraRate,
                 demandMult: pricingParams.demandMultiplier,
                 seasonalMult: pricingParams.seasonalMultiplier,
-                weekdayMult: pricingParams.weekdayMultipliers?.[day]
+                weekdayMult: pricingParams.weekday_multipliers?.[day]
               });
             }
 
@@ -255,8 +255,8 @@ export default function PricingRecommendations({
   function updateWeekdayMultiplier(day, value) {
     onParamsChange({
       ...pricingParams,
-      weekdayMultipliers: {
-        ...pricingParams.weekdayMultipliers,
+      weekday_multipliers: {
+        ...pricingParams.weekday_multipliers,
         [day]: parseFloat(value)
       }
     });
@@ -461,7 +461,7 @@ export default function PricingRecommendations({
                       min="0.5"
                       max="2.0"
                       step="0.1"
-                      value={pricingParams.weekdayMultipliers?.[day] || 1.0}
+                      value={pricingParams.weekday_multipliers?.[day] || 1.0}
                       onChange={(e) => updateWeekdayMultiplier(day, e.target.value)}
                       className="w-full px-2 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
                     />
@@ -608,7 +608,7 @@ export default function PricingRecommendations({
                       const rec = comparison.results.recommendations[roomIdx];
                       return (
                         <div key={room.id} className="p-3 rounded-lg bg-white/5">
-                          <div className="text-xs text-slate-400 mb-1">{room.roomTypeName}</div>
+                          <div className="text-xs text-slate-400 mb-1">{room.room_type_name}</div>
                           <div className="text-lg font-bold text-white">
                             ${rec.recommendedPrice.toFixed(2)}
                           </div>

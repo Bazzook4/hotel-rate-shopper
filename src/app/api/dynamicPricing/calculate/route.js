@@ -16,7 +16,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json(
         { error: 'No property associated with user' },
         { status: 400 }
@@ -39,15 +39,15 @@ export async function POST(request) {
     }
 
     // Fetch property data
-    const property = await getPropertyById(session.propertyId);
+    const property = await getPropertyById(session.property_id);
     if (!property) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
 
     // Fetch room types and rate plans
     const [roomTypes, ratePlans] = await Promise.all([
-      listRoomTypes(session.propertyId),
-      listRatePlans(session.propertyId)
+      listRoomTypes(session.property_id),
+      listRatePlans(session.property_id)
     ]);
 
     if (!roomTypes || roomTypes.length === 0) {
@@ -58,7 +58,7 @@ export async function POST(request) {
     }
 
     // Fetch pricing factors or use defaults
-    let pricingFactors = await getPricingFactors(session.propertyId);
+    let pricingFactors = await getPricingFactors(session.property_id);
     if (!pricingFactors) {
       // Use default pricing factors
       pricingFactors = {
@@ -84,7 +84,7 @@ export async function POST(request) {
     // Calculate pricing for each room type
     const recommendations = roomTypes.map(room => {
       return calculateDynamicPrice({
-        basePrice: room.basePrice,
+        base_price: room.base_price,
         checkInDate,
         checkOutDate,
         currentOccupancy: currentOccupancy || 50,
@@ -100,7 +100,7 @@ export async function POST(request) {
 
     const weeklyPrices = roomTypes.map(room => {
       return calculateWeeklyPrices({
-        basePrice: room.basePrice,
+        base_price: room.base_price,
         checkInDate,
         currentOccupancy: currentOccupancy || 50,
         pricingFactors,
@@ -124,8 +124,8 @@ export async function POST(request) {
     try {
       for (let i = 0; i < roomTypes.length; i++) {
         await createPricingSnapshot({
-          propertyId: session.propertyId,
-          roomTypeId: roomTypes[i].roomTypeId,
+          property_id: session.property_id,
+          room_type_id: roomTypes[i].room_type_id,
           checkInDate,
           checkOutDate,
           currentOccupancy: currentOccupancy || 50,

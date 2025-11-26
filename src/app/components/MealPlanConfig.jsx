@@ -12,10 +12,10 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
     AP: false,
   });
   const [mealPlanCosts, setMealPlanCosts] = useState({
-    EP: { cost: "", ratio: "", pricingType: "flat" },
-    CP: { cost: "", ratio: "", pricingType: "flat" },
-    MAP: { cost: "", ratio: "", pricingType: "flat" },
-    AP: { cost: "", ratio: "", pricingType: "flat" },
+    EP: { cost: "", ratio: "", pricing_type: "flat" },
+    CP: { cost: "", ratio: "", pricing_type: "flat" },
+    MAP: { cost: "", ratio: "", pricing_type: "flat" },
+    AP: { cost: "", ratio: "", pricing_type: "flat" },
   });
   const [error, setError] = useState("");
 
@@ -42,32 +42,32 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
 
       const newPlans = [];
 
-      for (const planName of selectedPlans) {
-        const pricingType = mealPlanCosts[planName].pricingType;
-        const cost = parseFloat(mealPlanCosts[planName].cost) || 0;
-        const ratio = parseFloat(mealPlanCosts[planName].ratio);
+      for (const plan_name of selectedPlans) {
+        const pricing_type = mealPlanCosts[plan_name].pricing_type;
+        const cost = parseFloat(mealPlanCosts[plan_name].cost) || 0;
+        const ratio = parseFloat(mealPlanCosts[plan_name].ratio);
 
         // Validate based on pricing type
-        if (pricingType === 'flat' && !cost) {
-          setError(`Please enter a flat cost for ${planName}`);
+        if (pricing_type === 'flat' && !cost) {
+          setError(`Please enter a flat cost for ${plan_name}`);
           return;
         }
-        if (pricingType === 'multiplier' && !ratio) {
-          setError(`Please enter a multiplier ratio for ${planName}`);
+        if (pricing_type === 'multiplier' && !ratio) {
+          setError(`Please enter a multiplier ratio for ${plan_name}`);
           return;
         }
 
-        const description = mealPlanInfo[planName].desc;
+        const description = mealPlanInfo[plan_name].desc;
 
         const res = await fetch("/api/dynamicPricing/ratePlans", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            planName,
-            pricingType,
-            costPerAdult: pricingType === 'flat' ? cost : undefined,
-            multiplier: pricingType === 'multiplier' ? ratio : undefined,
-            description: `${description} | ${pricingType === 'flat' ? `₹${cost} per adult` : `${ratio}x multiplier`}`,
+            plan_name,
+            pricing_type,
+            cost_per_adult: pricing_type === 'flat' ? cost : undefined,
+            multiplier: pricing_type === 'multiplier' ? ratio : undefined,
+            description: `${description} | ${pricing_type === 'flat' ? `₹${cost} per adult` : `${ratio}x multiplier`}`,
           }),
         });
 
@@ -83,10 +83,10 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
       // Reset form
       setSelectedMealPlans({ EP: false, CP: false, MAP: false, AP: false });
       setMealPlanCosts({
-        EP: { cost: "", ratio: "", pricingType: "flat" },
-        CP: { cost: "", ratio: "", pricingType: "flat" },
-        MAP: { cost: "", ratio: "", pricingType: "flat" },
-        AP: { cost: "", ratio: "", pricingType: "flat" },
+        EP: { cost: "", ratio: "", pricing_type: "flat" },
+        CP: { cost: "", ratio: "", pricing_type: "flat" },
+        MAP: { cost: "", ratio: "", pricing_type: "flat" },
+        AP: { cost: "", ratio: "", pricing_type: "flat" },
       });
     } catch (err) {
       setError("Network error: " + err.message);
@@ -96,7 +96,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
   }
 
   async function handleDeleteRatePlan(ratePlan) {
-    if (!confirm(`Delete ${ratePlan.planName}?`)) return;
+    if (!confirm(`Delete ${ratePlan.plan_name}?`)) return;
 
     try {
       setLoading(true);
@@ -118,7 +118,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
   }
 
   async function handleEditRatePlan(plan) {
-    const newMultiplier = prompt(`Edit multiplier for ${plan.planName}:`, plan.multiplier);
+    const newMultiplier = prompt(`Edit multiplier for ${plan.plan_name}:`, plan.multiplier);
     if (!newMultiplier || newMultiplier === plan.multiplier.toString()) return;
 
     try {
@@ -196,12 +196,12 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="radio"
-                                name={`pricingType-${planKey}`}
+                                name={`pricing_type-${planKey}`}
                                 value="flat"
-                                checked={mealPlanCosts[planKey].pricingType === 'flat'}
+                                checked={mealPlanCosts[planKey].pricing_type === 'flat'}
                                 onChange={(e) => setMealPlanCosts({
                                   ...mealPlanCosts,
-                                  [planKey]: { ...mealPlanCosts[planKey], pricingType: 'flat' }
+                                  [planKey]: { ...mealPlanCosts[planKey], pricing_type: 'flat' }
                                 })}
                                 className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                               />
@@ -210,12 +210,12 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
                                 type="radio"
-                                name={`pricingType-${planKey}`}
+                                name={`pricing_type-${planKey}`}
                                 value="multiplier"
-                                checked={mealPlanCosts[planKey].pricingType === 'multiplier'}
+                                checked={mealPlanCosts[planKey].pricing_type === 'multiplier'}
                                 onChange={(e) => setMealPlanCosts({
                                   ...mealPlanCosts,
-                                  [planKey]: { ...mealPlanCosts[planKey], pricingType: 'multiplier' }
+                                  [planKey]: { ...mealPlanCosts[planKey], pricing_type: 'multiplier' }
                                 })}
                                 className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                               />
@@ -225,7 +225,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                         </div>
 
                         {/* Input based on pricing type */}
-                        {mealPlanCosts[planKey].pricingType === 'flat' ? (
+                        {mealPlanCosts[planKey].pricing_type === 'flat' ? (
                           <div>
                             <label className="text-xs text-slate-300 mb-1 block">Cost per Adult (₹)</label>
                             <input
@@ -305,7 +305,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-white font-semibold">🍽️ {plan.planName}</h5>
+                    <h5 className="text-white font-semibold">🍽️ {plan.plan_name}</h5>
                   </div>
                   <p className="text-sm text-slate-300 mt-2">
                     <span className="text-slate-400">Multiplier:</span> <span className="font-semibold text-indigo-400">{plan.multiplier}x</span>

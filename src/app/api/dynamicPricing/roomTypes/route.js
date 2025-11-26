@@ -14,11 +14,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json({ roomTypes: [] });
     }
 
-    const roomTypes = await listRoomTypes(session.propertyId);
+    const roomTypes = await listRoomTypes(session.property_id);
 
     return NextResponse.json({ roomTypes });
   } catch (error) {
@@ -37,7 +37,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!session.propertyId) {
+    if (!session.property_id) {
       return NextResponse.json(
         { error: 'No property associated with user' },
         { status: 400 }
@@ -45,9 +45,9 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { roomTypeName, basePrice, numberOfRooms, maxAdults, description, amenities } = body;
+    const { room_type_name, base_price, number_of_rooms, max_adults, description, amenities } = body;
 
-    if (!roomTypeName || !basePrice || !numberOfRooms) {
+    if (!room_type_name || !base_price || !number_of_rooms) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -55,11 +55,11 @@ export async function POST(request) {
     }
 
     const roomType = await createRoomType({
-      propertyId: session.propertyId,
-      roomTypeName,
-      basePrice,
-      numberOfRooms,
-      maxAdults,
+      property_id: session.property_id,
+      room_type_name,
+      base_price,
+      number_of_rooms,
+      max_adults,
       description,
       amenities,
     });

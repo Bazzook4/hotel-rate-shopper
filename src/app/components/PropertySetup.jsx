@@ -28,15 +28,15 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   const [showAddRoom, setShowAddRoom] = useState(false);
   const [showAddPlan, setShowAddPlan] = useState(false);
   const [newRoom, setNewRoom] = useState({
-    roomTypeName: "",
-    basePrice: "",
-    numberOfRooms: "",
-    maxAdults: "",
+    room_type_name: "",
+    base_price: "",
+    number_of_rooms: "",
+    max_adults: "",
     description: "",
     amenities: [],
   });
   const [newPlan, setNewPlan] = useState({
-    planName: "",
+    plan_name: "",
     multiplier: "",
     description: "",
   });
@@ -58,7 +58,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
         const sorted = (data.roomTypes || []).sort((a, b) => {
           const rankA = a.rank || 999;
           const rankB = b.rank || 999;
-          console.log(`Comparing ${a.roomTypeName} (rank: ${rankA}) vs ${b.roomTypeName} (rank: ${rankB})`);
+          console.log(`Comparing ${a.room_type_name} (rank: ${rankA}) vs ${b.room_type_name} (rank: ${rankB})`);
           return rankA - rankB;
         });
         console.log("Sorted room types:", sorted);
@@ -120,7 +120,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   async function handleAddRoomType(e) {
     e.preventDefault();
 
-    if (!newRoom.roomTypeName || !newRoom.basePrice || !newRoom.numberOfRooms) {
+    if (!newRoom.room_type_name || !newRoom.base_price || !newRoom.number_of_rooms) {
       setError("Room type name, base price, and number of rooms are required");
       return;
     }
@@ -144,10 +144,10 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
         setRoomTypes(updatedRoomTypes);
         onRoomTypesChange?.(updatedRoomTypes);
         setNewRoom({
-          roomTypeName: "",
-          basePrice: "",
-          numberOfRooms: "",
-          maxAdults: "",
+          room_type_name: "",
+          base_price: "",
+          number_of_rooms: "",
+          max_adults: "",
           description: "",
           amenities: [],
         });
@@ -163,7 +163,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   }
 
   async function handleDeleteRoomType(roomType) {
-    if (!confirm(`Delete ${roomType.roomTypeName}?`)) return;
+    if (!confirm(`Delete ${roomType.room_type_name}?`)) return;
 
     try {
       setLoading(true);
@@ -215,14 +215,14 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
     }
   }
 
-  async function handleSaveOccupancyPricing(roomType, occupancyPricing) {
+  async function handleSaveOccupancyPricing(roomType, occupancy_pricing) {
     try {
       const res = await fetch(`/api/dynamicPricing/roomTypes`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recordId: roomType.id,
-          occupancyPricing: JSON.stringify(occupancyPricing),
+          occupancy_pricing: JSON.stringify(occupancy_pricing),
         }),
       });
 
@@ -231,7 +231,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
         // Update the room type in the list
         setRoomTypes(roomTypes.map((r) =>
           r.id === roomType.id
-            ? { ...r, occupancyPricing }
+            ? { ...r, occupancy_pricing }
             : r
         ));
       } else {
@@ -251,7 +251,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       // Update each room type with its new rank
       const updatePromises = newRoomTypes.map((room, index) => {
         const rank = index + 1;
-        console.log(`Updating ${room.roomTypeName} to rank ${rank} (recordId: ${room.id})`);
+        console.log(`Updating ${room.room_type_name} to rank ${rank} (recordId: ${room.id})`);
         return fetch(`/api/dynamicPricing/roomTypes`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -293,7 +293,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   async function handleAddRatePlan(e) {
     e.preventDefault();
 
-    if (!newPlan.planName || !newPlan.multiplier) {
+    if (!newPlan.plan_name || !newPlan.multiplier) {
       setError("Plan name and multiplier are required");
       return;
     }
@@ -315,7 +315,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       if (res.ok) {
         setRatePlans([...ratePlans, data.ratePlan]);
         setNewPlan({
-          planName: "",
+          plan_name: "",
           multiplier: "",
           description: "",
         });
@@ -331,7 +331,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   }
 
   async function handleDeleteRatePlan(ratePlan) {
-    if (!confirm(`Delete ${ratePlan.planName}?`)) return;
+    if (!confirm(`Delete ${ratePlan.plan_name}?`)) return;
 
     try {
       setLoading(true);
@@ -517,8 +517,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                 <label className={controlLabel}>Room Type Name</label>
                 <input
                   type="text"
-                  value={newRoom.roomTypeName}
-                  onChange={(e) => setNewRoom({ ...newRoom, roomTypeName: e.target.value })}
+                  value={newRoom.room_type_name}
+                  onChange={(e) => setNewRoom({ ...newRoom, room_type_name: e.target.value })}
                   className={inputClass}
                   placeholder="e.g., Deluxe Suite"
                   required
@@ -530,8 +530,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                 <input
                   type="number"
                   step="0.01"
-                  value={newRoom.basePrice}
-                  onChange={(e) => setNewRoom({ ...newRoom, basePrice: e.target.value })}
+                  value={newRoom.base_price}
+                  onChange={(e) => setNewRoom({ ...newRoom, base_price: e.target.value })}
                   className={inputClass}
                   placeholder="150.00"
                   required
@@ -542,8 +542,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                 <label className={controlLabel}>Number of Rooms</label>
                 <input
                   type="number"
-                  value={newRoom.numberOfRooms}
-                  onChange={(e) => setNewRoom({ ...newRoom, numberOfRooms: e.target.value })}
+                  value={newRoom.number_of_rooms}
+                  onChange={(e) => setNewRoom({ ...newRoom, number_of_rooms: e.target.value })}
                   className={inputClass}
                   placeholder="10"
                   required
@@ -556,8 +556,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                   type="number"
                   min="1"
                   max="10"
-                  value={newRoom.maxAdults}
-                  onChange={(e) => setNewRoom({ ...newRoom, maxAdults: e.target.value })}
+                  value={newRoom.max_adults}
+                  onChange={(e) => setNewRoom({ ...newRoom, max_adults: e.target.value })}
                   className={inputClass}
                   placeholder="2"
                   required
@@ -600,7 +600,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                 totalRooms={roomTypes.length}
                 onUpdate={handleUpdateRoomType}
                 onDelete={handleDeleteRoomType}
-                onSaveOccupancy={(occupancyPricing) => handleSaveOccupancyPricing(room, occupancyPricing)}
+                onSaveOccupancy={(occupancy_pricing) => handleSaveOccupancyPricing(room, occupancy_pricing)}
                 onRankChange={(newRank) => {
                   const targetIndex = newRank - 1;
                   if (targetIndex >= 0 && targetIndex < roomTypes.length && targetIndex !== index) {
