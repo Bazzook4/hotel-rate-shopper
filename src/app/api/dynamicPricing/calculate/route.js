@@ -81,6 +81,18 @@ export async function POST(request) {
     let competitorPrices = [];
     // TODO: Implement competitor pricing by comparing with other properties
 
+    // Map room types from snake_case (database) to camelCase (pricingEngine)
+    const roomTypesForEngine = roomTypes.map(room => ({
+      roomTypeName: room.room_type_name,
+      basePrice: room.base_price,
+      numberOfRooms: room.number_of_rooms,
+      maxAdults: room.max_adults,
+      description: room.description,
+      amenities: room.amenities,
+      occupancyPricing: room.occupancy_pricing,
+      rank: room.rank,
+    }));
+
     // Calculate pricing for each room type
     const recommendations = roomTypes.map(room => {
       return calculateDynamicPrice({
@@ -109,16 +121,16 @@ export async function POST(request) {
       });
     });
 
-    // Calculate revenue metrics
+    // Calculate revenue metrics (use camelCase mapped data)
     const metrics = calculateRevenueMetrics({
-      roomTypes,
+      roomTypes: roomTypesForEngine,
       pricingRecommendations: recommendations,
       currentOccupancy: currentOccupancy || 50,
       targetOccupancy: 80,
     });
 
-    // Format for export
-    const exportData = formatPricingForExport(property, roomTypes, recommendations, metrics);
+    // Format for export (use camelCase mapped data)
+    const exportData = formatPricingForExport(property, roomTypesForEngine, recommendations, metrics);
 
     // Save snapshot
     try {
