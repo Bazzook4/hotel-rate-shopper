@@ -143,8 +143,15 @@ export function calculateDynamicPrice({
   pricingFactors,
   competitorPrices = [],
 }) {
-  if (!basePrice || !checkInDate || !checkOutDate || !pricingFactors) {
-    throw new Error('Missing required parameters for price calculation');
+  // Validate required parameters and show exactly what's missing
+  const missing = [];
+  if (!basePrice) missing.push('basePrice');
+  if (!checkInDate) missing.push('checkInDate');
+  if (!checkOutDate) missing.push('checkOutDate');
+  if (!pricingFactors) missing.push('pricingFactors');
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required parameters for price calculation: ${missing.join(', ')}`);
   }
 
   const checkIn = new Date(checkInDate);
@@ -308,8 +315,14 @@ export function calculateWeeklyPrices({
   competitorPrices = [],
   lengthOfStay = 1,
 }) {
-  if (!basePrice || !checkInDate || !pricingFactors) {
-    throw new Error('Missing required parameters for weekly price calculation');
+  // Validate required parameters and show exactly what's missing
+  const missing = [];
+  if (!basePrice) missing.push('basePrice');
+  if (!checkInDate) missing.push('checkInDate');
+  if (!pricingFactors) missing.push('pricingFactors');
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required parameters for weekly price calculation: ${missing.join(', ')}`);
   }
 
   const today = new Date();

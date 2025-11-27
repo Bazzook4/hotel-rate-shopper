@@ -100,7 +100,7 @@ export async function POST(request) {
 
     const weeklyPrices = roomTypes.map(room => {
       return calculateWeeklyPrices({
-        base_price: room.base_price,
+        basePrice: room.base_price,  // Note: pricingEngine expects camelCase
         checkInDate,
         currentOccupancy: currentOccupancy || 50,
         pricingFactors,
