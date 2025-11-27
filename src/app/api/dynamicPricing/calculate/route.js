@@ -84,7 +84,7 @@ export async function POST(request) {
     // Calculate pricing for each room type
     const recommendations = roomTypes.map(room => {
       return calculateDynamicPrice({
-        base_price: room.base_price,
+        basePrice: room.base_price,  // Note: pricingEngine expects camelCase
         checkInDate,
         checkOutDate,
         currentOccupancy: currentOccupancy || 50,
