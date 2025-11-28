@@ -66,18 +66,6 @@ export default function PricingRecommendations({
         }
       }
 
-      // Debug log to see what we have
-      if (room.room_type_name === 'Single Standard') {
-        console.log('[DEBUG] Single Standard occupancy_pricing:', {
-          raw: room.occupancy_pricing,
-          parsed: occupancyPricing,
-          hasExtraAdult: !!occupancyPricing?.extraAdult,
-          hasExtraChild: !!occupancyPricing?.extraChild,
-          extraAdultValue: occupancyPricing?.extraAdult,
-          extraChildValue: occupancyPricing?.extraChild
-        });
-      }
-
       // Get occupancy pricing if available
       let occupancyTypes = [];
 
