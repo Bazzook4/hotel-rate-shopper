@@ -471,6 +471,59 @@ export default function PricingRecommendations({
             </div>
           </div>
 
+          {/* Pricing Breakdown Info */}
+          {recommendations && recommendations.length > 0 && recommendations[0].effectiveBasePrice && (
+            <div className={sectionClass}>
+              <h4 className="text-lg font-semibold text-white mb-4">Pricing Calculation Breakdown</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {roomTypes.map((room, index) => {
+                  const rec = recommendations[index];
+                  if (!rec) return null;
+
+                  return (
+                    <div key={room.id || index} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="text-sm font-semibold text-white mb-3">{room.room_type_name}</div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Guest Config:</span>
+                          <span className="text-white">
+                            {rec.guestConfiguration?.numAdults || 2} Adults
+                            {rec.guestConfiguration?.numChildren > 0 && `, ${rec.guestConfiguration.numChildren} Children`}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Pricing Mode:</span>
+                          <span className="text-white capitalize">{rec.guestConfiguration?.pricingMode || 'flat'}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-white/10 pt-2">
+                          <span className="text-slate-400">Base Price:</span>
+                          <span className="text-white">₹{rec.basePrice?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        {rec.effectiveBasePrice !== rec.basePrice && (
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Effective Price:</span>
+                            <span className="text-green-400 font-semibold">₹{rec.effectiveBasePrice?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        )}
+                        {rec.effectiveBasePrice !== rec.basePrice && (
+                          <div className="text-xs text-slate-500 italic">
+                            Includes occupancy-based pricing
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <p className="text-sm text-blue-300">
+                  <strong>Note:</strong> Effective Price shows the base rate after applying occupancy-based pricing for the configured number of guests.
+                  Extra adult/child charges are included when the number of guests exceeds the base configuration.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Pricing Table */}
           <div className={sectionClass}>
             <div className="flex items-center justify-between mb-4">

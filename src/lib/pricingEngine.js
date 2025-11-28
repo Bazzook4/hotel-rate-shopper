@@ -133,6 +133,45 @@ function getCompetitorPricingMultiplier(basePrice, competitorPrices, weight) {
 }
 
 /**
+ * Get effective base price from occupancy pricing if available
+ */
+function getEffectiveBasePrice(basePrice, occupancyPricing, numAdults = 2, numChildren = 0) {
+  if (!occupancyPricing || typeof occupancyPricing !== 'object') {
+    return basePrice;
+  }
+
+  const pricingMode = occupancyPricing.pricingMode || 'flat';
+
+  // If flat pricing mode or no pricing data, use base price
+  if (pricingMode === 'flat' || !occupancyPricing.adultPricing) {
+    return basePrice;
+  }
+
+  // For occupancy-based or per-adult pricing modes
+  let effectivePrice = basePrice;
+
+  // Get base price for the number of adults
+  const adultPricing = occupancyPricing.adultPricing || {};
+  if (adultPricing[numAdults.toString()]) {
+    effectivePrice = adultPricing[numAdults.toString()];
+  } else if (adultPricing['1']) {
+    // Fallback to single adult pricing
+    effectivePrice = adultPricing['1'];
+    // Add extra adult charges if applicable
+    const extraAdults = Math.max(0, numAdults - 1);
+    const extraAdultRate = occupancyPricing.extraAdult || 0;
+    effectivePrice += extraAdults * extraAdultRate;
+  }
+
+  // Add extra child charges
+  if (numChildren > 0 && occupancyPricing.extraChild) {
+    effectivePrice += numChildren * occupancyPricing.extraChild;
+  }
+
+  return effectivePrice;
+}
+
+/**
  * Main pricing calculation function
  */
 export function calculateDynamicPrice({
@@ -142,6 +181,9 @@ export function calculateDynamicPrice({
   currentOccupancy,
   pricingFactors,
   competitorPrices = [],
+  occupancyPricing = null,
+  numAdults = 2,
+  numChildren = 0,
 }) {
   // Validate required parameters and show exactly what's missing
   const missing = [];
@@ -153,6 +195,9 @@ export function calculateDynamicPrice({
   if (missing.length > 0) {
     throw new Error(`Missing required parameters for price calculation: ${missing.join(', ')}`);
   }
+
+  // Get effective base price based on occupancy pricing configuration
+  const effectiveBasePrice = getEffectiveBasePrice(basePrice, occupancyPricing, numAdults, numChildren);
 
   const checkIn = new Date(checkInDate);
   const checkOut = new Date(checkOutDate);
@@ -170,13 +215,13 @@ export function calculateDynamicPrice({
   const leadTimeMultiplier = getLeadTimeMultiplier(leadTimeDays, pricingFactors);
   const lengthOfStayMultiplier = getLengthOfStayMultiplier(lengthOfStay, pricingFactors);
   const competitorMultiplier = getCompetitorPricingMultiplier(
-    basePrice,
+    effectiveBasePrice,
     competitorPrices,
     pricingFactors.competitorPricingWeight || 0
   );
 
-  // Calculate final price
-  const finalPrice = basePrice *
+  // Calculate final price using effective base price
+  const finalPrice = effectiveBasePrice *
     occupancyMultiplier *
     seasonalityMultiplier *
     dayOfWeekMultiplier *
@@ -187,39 +232,45 @@ export function calculateDynamicPrice({
   // Round to 2 decimal places
   const recommendedPrice = Math.round(finalPrice * 100) / 100;
 
-  // Calculate price change percentage
-  const priceChange = ((recommendedPrice - basePrice) / basePrice) * 100;
+  // Calculate price change percentage (compare against effective base price)
+  const priceChange = ((recommendedPrice - effectiveBasePrice) / effectiveBasePrice) * 100;
 
   // Build breakdown
   const breakdown = {
     basePrice,
+    effectiveBasePrice,
     recommendedPrice,
     priceChange: Math.round(priceChange * 100) / 100,
+    guestConfiguration: {
+      numAdults,
+      numChildren,
+      pricingMode: occupancyPricing?.pricingMode || 'flat',
+    },
     factors: {
       occupancy: {
         value: currentOccupancy || 50,
         multiplier: occupancyMultiplier,
-        impact: ((occupancyMultiplier - 1) * basePrice).toFixed(2),
+        impact: ((occupancyMultiplier - 1) * effectiveBasePrice).toFixed(2),
       },
       seasonality: {
         isPeakSeason: isInPeakSeason(checkInDate, pricingFactors.peakSeasonStart, pricingFactors.peakSeasonEnd),
         multiplier: seasonalityMultiplier,
-        impact: ((seasonalityMultiplier - 1) * basePrice).toFixed(2),
+        impact: ((seasonalityMultiplier - 1) * effectiveBasePrice).toFixed(2),
       },
       dayOfWeek: {
         day: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek],
         multiplier: dayOfWeekMultiplier,
-        impact: ((dayOfWeekMultiplier - 1) * basePrice).toFixed(2),
+        impact: ((dayOfWeekMultiplier - 1) * effectiveBasePrice).toFixed(2),
       },
       leadTime: {
         days: leadTimeDays,
         multiplier: leadTimeMultiplier,
-        impact: ((leadTimeMultiplier - 1) * basePrice).toFixed(2),
+        impact: ((leadTimeMultiplier - 1) * effectiveBasePrice).toFixed(2),
       },
       lengthOfStay: {
         nights: lengthOfStay,
         multiplier: lengthOfStayMultiplier,
-        impact: ((lengthOfStayMultiplier - 1) * basePrice).toFixed(2),
+        impact: ((lengthOfStayMultiplier - 1) * effectiveBasePrice).toFixed(2),
       },
       competitorPricing: {
         enabled: (pricingFactors.competitorPricingWeight || 0) > 0,
@@ -227,7 +278,7 @@ export function calculateDynamicPrice({
           ? (competitorPrices.reduce((sum, p) => sum + p, 0) / competitorPrices.length).toFixed(2)
           : null,
         multiplier: competitorMultiplier,
-        impact: ((competitorMultiplier - 1) * basePrice).toFixed(2),
+        impact: ((competitorMultiplier - 1) * effectiveBasePrice).toFixed(2),
       },
     },
   };
@@ -314,6 +365,9 @@ export function calculateWeeklyPrices({
   pricingFactors,
   competitorPrices = [],
   lengthOfStay = 1,
+  occupancyPricing = null,
+  numAdults = 2,
+  numChildren = 0,
 }) {
   // Validate required parameters and show exactly what's missing
   const missing = [];
@@ -325,6 +379,9 @@ export function calculateWeeklyPrices({
     throw new Error(`Missing required parameters for weekly price calculation: ${missing.join(', ')}`);
   }
 
+  // Get effective base price based on occupancy pricing configuration
+  const effectiveBasePrice = getEffectiveBasePrice(basePrice, occupancyPricing, numAdults, numChildren);
+
   const today = new Date();
   const checkIn = new Date(checkInDate);
   const leadTimeDays = getDaysDifference(today, checkIn);
@@ -334,7 +391,7 @@ export function calculateWeeklyPrices({
   const leadTimeMultiplier = getLeadTimeMultiplier(leadTimeDays, pricingFactors);
   const lengthOfStayMultiplier = getLengthOfStayMultiplier(lengthOfStay, pricingFactors);
   const competitorMultiplier = getCompetitorPricingMultiplier(
-    basePrice,
+    effectiveBasePrice,
     competitorPrices,
     pricingFactors.competitorPricingWeight || 0
   );
@@ -349,7 +406,7 @@ export function calculateWeeklyPrices({
     const jsDayOfWeek = (dayIndex + 1) % 7;
     const dayOfWeekMultiplier = getDayOfWeekMultiplier(jsDayOfWeek, pricingFactors);
 
-    const finalPrice = basePrice *
+    const finalPrice = effectiveBasePrice *
       occupancyMultiplier *
       seasonalityMultiplier *
       dayOfWeekMultiplier *

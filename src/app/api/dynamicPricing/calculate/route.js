@@ -95,6 +95,17 @@ export async function POST(request) {
 
     // Calculate pricing for each room type
     const recommendations = roomTypes.map(room => {
+      // Parse occupancy_pricing if it's a string
+      let occupancyPricing = room.occupancy_pricing;
+      if (typeof occupancyPricing === 'string') {
+        try {
+          occupancyPricing = JSON.parse(occupancyPricing);
+        } catch (e) {
+          console.error('Failed to parse occupancy_pricing:', e);
+          occupancyPricing = null;
+        }
+      }
+
       return calculateDynamicPrice({
         basePrice: room.base_price,  // Note: pricingEngine expects camelCase
         checkInDate,
@@ -102,6 +113,9 @@ export async function POST(request) {
         currentOccupancy: currentOccupancy || 50,
         pricingFactors,
         competitorPrices,
+        occupancyPricing,
+        numAdults: 2,  // Default to 2 adults, can be made configurable later
+        numChildren: 0,
       });
     });
 
@@ -111,6 +125,17 @@ export async function POST(request) {
     const lengthOfStay = Math.round(Math.abs((checkOut - checkIn) / (24 * 60 * 60 * 1000)));
 
     const weeklyPrices = roomTypes.map(room => {
+      // Parse occupancy_pricing if it's a string
+      let occupancyPricing = room.occupancy_pricing;
+      if (typeof occupancyPricing === 'string') {
+        try {
+          occupancyPricing = JSON.parse(occupancyPricing);
+        } catch (e) {
+          console.error('Failed to parse occupancy_pricing:', e);
+          occupancyPricing = null;
+        }
+      }
+
       return calculateWeeklyPrices({
         basePrice: room.base_price,  // Note: pricingEngine expects camelCase
         checkInDate,
@@ -118,6 +143,9 @@ export async function POST(request) {
         pricingFactors,
         competitorPrices,
         lengthOfStay,
+        occupancyPricing,
+        numAdults: 2,  // Default to 2 adults, can be made configurable later
+        numChildren: 0,
       });
     });
 
