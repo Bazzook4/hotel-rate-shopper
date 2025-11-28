@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function PricingRecommendations({
   data,
@@ -244,6 +245,57 @@ export default function PricingRecommendations({
     return tableData;
   }, [roomTypes, recommendations, mealPlans, pricingParams, weekdays]);
 
+  // Prepare chart data - aggregate average prices per day across all rooms/plans
+  const chartData = useMemo(() => {
+    if (!calculateTablePrices || calculateTablePrices.length === 0) return [];
+
+    // Create a data point for each day of the week
+    return weekdays.map(day => {
+      const dataPoint = { day: day.substring(0, 3) };
+
+      // Group prices by room type for this day
+      const roomPrices = {};
+
+      calculateTablePrices.forEach(row => {
+        const roomKey = row.roomCategory;
+
+        // Only include EP (base rates) to avoid duplication and show cleaner trends
+        if (row.mealPlan === 'EP' && row.occupancy === '👤 ×2') {
+          if (!roomPrices[roomKey]) {
+            roomPrices[roomKey] = [];
+          }
+          roomPrices[roomKey].push(row.prices[day]);
+        }
+      });
+
+      // Add average price for each room type
+      Object.keys(roomPrices).forEach(roomKey => {
+        const prices = roomPrices[roomKey];
+        const avgPrice = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+        dataPoint[roomKey] = Math.round(avgPrice);
+      });
+
+      return dataPoint;
+    });
+  }, [calculateTablePrices, weekdays]);
+
+  // Get unique room types for chart legend
+  const chartRoomTypes = useMemo(() => {
+    if (!roomTypes) return [];
+    return [...roomTypes].sort((a, b) => (a.rank || 999) - (b.rank || 999)).map(r => r.room_type_name);
+  }, [roomTypes]);
+
+  // Color palette for chart lines
+  const colorPalette = [
+    '#818cf8', // indigo
+    '#34d399', // emerald
+    '#fbbf24', // amber
+    '#f472b6', // pink
+    '#60a5fa', // blue
+    '#a78bfa', // violet
+    '#fb923c', // orange
+  ];
+
   const sectionClass = "rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6";
 
   // Helper function to get room abbreviation
@@ -477,6 +529,55 @@ export default function PricingRecommendations({
                 ))}
               </div>
             </div>
+          </div>
+
+          {/* Weekly Price Trend Chart */}
+          <div className={sectionClass}>
+            <h4 className="text-lg font-semibold text-white mb-4">Weekly Price Trend</h4>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis
+                    dataKey="day"
+                    stroke="#94a3b8"
+                    style={{ fontSize: '12px' }}
+                  />
+                  <YAxis
+                    stroke="#94a3b8"
+                    style={{ fontSize: '12px' }}
+                    tickFormatter={(value) => `₹${value}`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: '8px',
+                      color: '#fff'
+                    }}
+                    formatter={(value) => [`₹${value}`, '']}
+                    labelStyle={{ color: '#94a3b8' }}
+                  />
+                  <Legend
+                    wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }}
+                  />
+                  {chartRoomTypes.map((roomType, index) => (
+                    <Line
+                      key={roomType}
+                      type="monotone"
+                      dataKey={roomType}
+                      stroke={colorPalette[index % colorPalette.length]}
+                      strokeWidth={2}
+                      dot={{ fill: colorPalette[index % colorPalette.length], r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-xs text-slate-400 mt-3">
+              Showing Double Occupancy (👤 ×2) EP rates across the week for all room types
+            </p>
           </div>
 
           {/* Pricing Table */}
