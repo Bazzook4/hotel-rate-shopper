@@ -223,26 +223,29 @@ function LocationSearchPanel({ session }) {
 export default function Page() {
   // "ratetracker" | "compare" | "location" | "disparity" | "pricing" | "users"
   // Persist active tab in localStorage to survive page refreshes
-  // Read directly from localStorage in initializer - this will cause a hydration warning
-  // but that's acceptable for better UX (no flash of wrong tab)
-  const [active, setActive] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const savedTab = localStorage.getItem('activeTab');
-      console.log('[TabPersistence] Initial state, saved tab:', savedTab);
-      return savedTab || 'ratetracker';
-    }
-    return 'ratetracker';
-  });
-
+  const [active, setActive] = useState('ratetracker');
+  const [isClient, setIsClient] = useState(false);
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
+  // Load from localStorage on mount (client-side only) - runs before first paint
+  useEffect(() => {
+    const savedTab = localStorage.getItem('activeTab');
+    console.log('[TabPersistence] Initial load, saved tab:', savedTab);
+    if (savedTab) {
+      setActive(savedTab);
+    }
+    setIsClient(true);
+  }, []);
+
   // Persist active tab to localStorage when it changes
   useEffect(() => {
-    console.log('[TabPersistence] Saving tab to localStorage:', active);
-    localStorage.setItem('activeTab', active);
-  }, [active]);
+    if (isClient) {
+      console.log('[TabPersistence] Saving tab to localStorage:', active);
+      localStorage.setItem('activeTab', active);
+    }
+  }, [active, isClient]);
 
   useEffect(() => {
     let cancelled = false;
@@ -305,18 +308,18 @@ export default function Page() {
               </p>
             </div>
 
-            <nav className="flex flex-col gap-2" suppressHydrationWarning>
+            <nav className="flex flex-col gap-2">
               {navItems.map((item) => {
                 const activeState = active === item.id;
                 if (item.id === 'pricing' || item.id === 'ratetracker') {
-                  console.log(`[Sidebar] ${item.id}: active="${active}", item.id="${item.id}", activeState=${activeState}`);
+                  console.log(`[Sidebar] ${item.id}: active="${active}", item.id="${item.id}", activeState=${activeState}, isClient=${isClient}`);
                 }
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => setActive(item.id)}
-                    suppressHydrationWarning
+                    style={!isClient ? { opacity: 0 } : {}}
                     className={`group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
                       activeState
                         ? "bg-white/15 text-white shadow-inner"
