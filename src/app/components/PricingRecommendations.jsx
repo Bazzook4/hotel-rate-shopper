@@ -55,12 +55,23 @@ export default function PricingRecommendations({
       const rec = recommendations[originalIndex];
       const baseRecommended = rec.recommendedPrice;
 
+      // Parse occupancy pricing if it's a JSON string
+      let occupancyPricing = room.occupancy_pricing;
+      if (typeof occupancyPricing === 'string') {
+        try {
+          occupancyPricing = JSON.parse(occupancyPricing);
+        } catch (e) {
+          console.error('Failed to parse occupancy_pricing for room:', room.room_type_name, e);
+          occupancyPricing = null;
+        }
+      }
+
       // Get occupancy pricing if available
       let occupancyTypes = [];
 
       // Determine the maximum number of adults to show
       const max_adultsValue = room.max_adults || 0;
-      const hasOccupancyPricing = room.occupancy_pricing?.adultPricing && Object.keys(room.occupancy_pricing.adultPricing).length > 0;
+      const hasOccupancyPricing = occupancyPricing?.adultPricing && Object.keys(occupancyPricing.adultPricing).length > 0;
 
       // For EP: all occupancies should use the same base rate
       // For CP/MAP/AP: meal costs will be added later based on number of adults
@@ -68,7 +79,7 @@ export default function PricingRecommendations({
 
       if (hasOccupancyPricing) {
         // Use configured occupancy pricing, but extend to max_adults if needed
-        const configuredAdults = Object.keys(room.occupancy_pricing.adultPricing).map(Number).sort((a, b) => a - b);
+        const configuredAdults = Object.keys(occupancyPricing.adultPricing).map(Number).sort((a, b) => a - b);
         const maxConfigured = configuredAdults.length > 0 ? Math.max(...configuredAdults) : 0;
 
         // Determine how many adult occupancies to show (use the larger of max_adults or configured)
@@ -77,7 +88,7 @@ export default function PricingRecommendations({
         // Get the highest configured price - this becomes the "base" for unconfigured occupancies
         // This ensures that Triple/Quad don't fall back to a lower base price
         const highestConfiguredPrice = maxConfigured > 0
-          ? room.occupancy_pricing.adultPricing[maxConfigured]
+          ? occupancyPricing.adultPricing[maxConfigured]
           : room.base_price;
 
         // Generate occupancy types up to maxToShow
@@ -85,7 +96,7 @@ export default function PricingRecommendations({
         const missingOccupancies = [];
 
         for (let i = 1; i <= maxToShow; i++) {
-          const configuredPrice = room.occupancy_pricing.adultPricing[i];
+          const configuredPrice = occupancyPricing.adultPricing[i];
 
           // Track which occupancies are missing configured prices
           if (configuredPrice === undefined) {
@@ -125,16 +136,16 @@ export default function PricingRecommendations({
       }
 
       // Add extra adult/child if configured
-      if (room.occupancy_pricing?.extraAdult) {
+      if (occupancyPricing?.extraAdult) {
         occupancyTypes.push({
           type: 'Extra Adult',
-          base_price: room.occupancy_pricing.extraAdult
+          base_price: occupancyPricing.extraAdult
         });
       }
-      if (room.occupancy_pricing?.extraChild) {
+      if (occupancyPricing?.extraChild) {
         occupancyTypes.push({
           type: 'Extra Child',
-          base_price: room.occupancy_pricing.extraChild
+          base_price: occupancyPricing.extraChild
         });
       }
 
