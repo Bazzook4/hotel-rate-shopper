@@ -135,13 +135,13 @@ export default function PricingRecommendations({
       // Add extra adult/child if configured
       if (occupancyPricing?.extraAdult) {
         occupancyTypes.push({
-          type: 'Extra Adult',
+          type: '👤 Extra',
           base_price: occupancyPricing.extraAdult
         });
       }
       if (occupancyPricing?.extraChild) {
         occupancyTypes.push({
-          type: 'Extra Child',
+          type: '👶 Extra',
           base_price: occupancyPricing.extraChild
         });
       }
