@@ -222,32 +222,27 @@ function LocationSearchPanel({ session }) {
 
 export default function Page() {
   // "ratetracker" | "compare" | "location" | "disparity" | "pricing" | "users"
-  // Track if component has mounted on client to avoid hydration mismatch
-  const [mounted, setMounted] = useState(false);
-
   // Persist active tab in localStorage to survive page refreshes
-  const [active, setActive] = useState('ratetracker');
+  // Read directly from localStorage in initializer - this will cause a hydration warning
+  // but that's acceptable for better UX (no flash of wrong tab)
+  const [active, setActive] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const savedTab = localStorage.getItem('activeTab');
+      console.log('[TabPersistence] Initial state, saved tab:', savedTab);
+      return savedTab || 'ratetracker';
+    }
+    return 'ratetracker';
+  });
+
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
-  // On mount, load the saved tab and mark as mounted
-  useEffect(() => {
-    const savedTab = localStorage.getItem('activeTab');
-    console.log('[TabPersistence] Component mounted, saved tab:', savedTab);
-    if (savedTab && savedTab !== active) {
-      setActive(savedTab);
-    }
-    setMounted(true);
-  }, []);
-
   // Persist active tab to localStorage when it changes
   useEffect(() => {
-    if (mounted) {
-      console.log('[TabPersistence] Saving tab to localStorage:', active);
-      localStorage.setItem('activeTab', active);
-    }
-  }, [active, mounted]);
+    console.log('[TabPersistence] Saving tab to localStorage:', active);
+    localStorage.setItem('activeTab', active);
+  }, [active]);
 
   useEffect(() => {
     let cancelled = false;
@@ -310,7 +305,7 @@ export default function Page() {
               </p>
             </div>
 
-            <nav className="flex flex-col gap-2">
+            <nav className="flex flex-col gap-2" suppressHydrationWarning>
               {navItems.map((item) => {
                 const activeState = active === item.id;
                 if (item.id === 'pricing' || item.id === 'ratetracker') {
@@ -321,6 +316,7 @@ export default function Page() {
                     key={item.id}
                     type="button"
                     onClick={() => setActive(item.id)}
+                    suppressHydrationWarning
                     className={`group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
                       activeState
                         ? "bg-white/15 text-white shadow-inner"
