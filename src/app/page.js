@@ -232,7 +232,6 @@ export default function Page() {
   // Load from localStorage on mount (client-side only) - runs before first paint
   useEffect(() => {
     const savedTab = localStorage.getItem('activeTab');
-    console.log('[TabPersistence] Initial load, saved tab:', savedTab);
     if (savedTab) {
       setActive(savedTab);
     }
@@ -242,7 +241,6 @@ export default function Page() {
   // Persist active tab to localStorage when it changes
   useEffect(() => {
     if (isClient) {
-      console.log('[TabPersistence] Saving tab to localStorage:', active);
       localStorage.setItem('activeTab', active);
     }
   }, [active, isClient]);
@@ -311,9 +309,6 @@ export default function Page() {
             <nav className="flex flex-col gap-2">
               {navItems.map((item) => {
                 const activeState = active === item.id;
-                if (item.id === 'pricing' || item.id === 'ratetracker') {
-                  console.log(`[Sidebar] ${item.id}: active="${active}", item.id="${item.id}", activeState=${activeState}, isClient=${isClient}`);
-                }
                 return (
                   <button
                     key={item.id}
