@@ -92,7 +92,6 @@ export default function PricingRecommendations({
           : room.base_price;
 
         // Generate occupancy types up to maxToShow
-        const labels = ['Single', 'Double', 'Triple', 'Quad'];
         const missingOccupancies = [];
 
         for (let i = 1; i <= maxToShow; i++) {
@@ -100,16 +99,15 @@ export default function PricingRecommendations({
 
           // Track which occupancies are missing configured prices
           if (configuredPrice === undefined) {
-            const label = i <= 4 ? labels[i - 1] : `${i} Adults`;
-            missingOccupancies.push(label);
+            missingOccupancies.push(`×${i}`);
           }
 
           // Use configured price if available, otherwise use the highest configured price
-          // This ensures unconfigured occupancies (Triple, Quad) use the max capacity rate
+          // This ensures unconfigured occupancies use the max capacity rate
           const finalPrice = configuredPrice !== undefined ? configuredPrice : highestConfiguredPrice;
 
           occupancyTypes.push({
-            type: i <= 4 ? labels[i - 1] : `${i} Adults`,
+            type: `👤 ×${i}`,
             base_price: finalPrice
           });
         }
@@ -120,18 +118,17 @@ export default function PricingRecommendations({
         }
       } else if (max_adultsValue && max_adultsValue > 0) {
         // Use max_adults to generate occupancy types
-        const labels = ['Single', 'Double', 'Triple', 'Quad'];
         for (let i = 1; i <= max_adultsValue; i++) {
           occupancyTypes.push({
-            type: i <= 4 ? labels[i - 1] : `${i} Adults`,
+            type: `👤 ×${i}`,
             base_price: room.base_price
           });
         }
       } else {
-        // Default to Single and Double
+        // Default to ×1 and ×2
         occupancyTypes = [
-          { type: 'Single', base_price: room.base_price },
-          { type: 'Double', base_price: room.base_price }
+          { type: '👤 ×1', base_price: room.base_price },
+          { type: '👤 ×2', base_price: room.base_price }
         ];
       }
 
