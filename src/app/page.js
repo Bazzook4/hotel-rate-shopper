@@ -222,31 +222,32 @@ function LocationSearchPanel({ session }) {
 
 export default function Page() {
   // "ratetracker" | "compare" | "location" | "disparity" | "pricing" | "users"
+  // Track if component has mounted on client to avoid hydration mismatch
+  const [mounted, setMounted] = useState(false);
+
   // Persist active tab in localStorage to survive page refreshes
   const [active, setActive] = useState('ratetracker');
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
-  // Load saved tab from localStorage on mount (client-side only)
+  // On mount, load the saved tab and mark as mounted
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTab = localStorage.getItem('activeTab');
-      console.log('[TabPersistence] Initial load, saved tab:', savedTab);
-      if (savedTab) {
-        console.log('[TabPersistence] Setting active to:', savedTab);
-        setActive(savedTab);
-      }
+    const savedTab = localStorage.getItem('activeTab');
+    console.log('[TabPersistence] Component mounted, saved tab:', savedTab);
+    if (savedTab && savedTab !== active) {
+      setActive(savedTab);
     }
+    setMounted(true);
   }, []);
 
   // Persist active tab to localStorage when it changes
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (mounted) {
       console.log('[TabPersistence] Saving tab to localStorage:', active);
       localStorage.setItem('activeTab', active);
     }
-  }, [active]);
+  }, [active, mounted]);
 
   useEffect(() => {
     let cancelled = false;
@@ -312,6 +313,9 @@ export default function Page() {
             <nav className="flex flex-col gap-2">
               {navItems.map((item) => {
                 const activeState = active === item.id;
+                if (item.id === 'pricing' || item.id === 'ratetracker') {
+                  console.log(`[Sidebar] ${item.id}: active="${active}", item.id="${item.id}", activeState=${activeState}`);
+                }
                 return (
                   <button
                     key={item.id}
