@@ -222,10 +222,24 @@ function LocationSearchPanel({ session }) {
 
 export default function Page() {
   // "ratetracker" | "compare" | "location" | "disparity" | "pricing" | "users"
-  const [active, setActive] = useState("ratetracker");
+  // Persist active tab in localStorage to survive page refreshes
+  const [active, setActive] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('activeTab') || 'ratetracker';
+    }
+    return 'ratetracker';
+  });
+
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+
+  // Persist active tab to localStorage when it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('activeTab', active);
+    }
+  }, [active]);
 
   useEffect(() => {
     let cancelled = false;
@@ -317,95 +331,106 @@ export default function Page() {
 
           {/* Main content */}
           <section className="space-y-6">
-            {active === "ratetracker" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-semibold text-white">Rate Tracker</h2>
-                    <p className="text-sm text-slate-300/80">
-                      Track your property&apos;s rates across multiple OTAs over time.
-                    </p>
-                  </div>
+            {sessionLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="text-center space-y-3">
+                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white/20 border-t-white"></div>
+                  <p className="text-sm text-slate-400">Loading dashboard...</p>
                 </div>
-                <SingleSearchPanel session={session} />
               </div>
-            )}
-
-            {active === "history" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-semibold text-white">Rate History</h2>
-                    <p className="text-sm text-slate-300/80">
-                      View and compare historical rate searches grouped by check-in date.
-                    </p>
+            ) : (
+              <>
+                {active === "ratetracker" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-semibold text-white">Rate Tracker</h2>
+                        <p className="text-sm text-slate-300/80">
+                          Track your property&apos;s rates across multiple OTAs over time.
+                        </p>
+                      </div>
+                    </div>
+                    <SingleSearchPanel session={session} />
                   </div>
-                </div>
-                <RateHistory session={session} />
-              </div>
-            )}
+                )}
 
-            {active === "compare" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-semibold text-white">Compare Hotels</h2>
-                    <p className="text-sm text-slate-300/80">
-                      Define your comp set and monitor channel-level deltas in real time.
-                    </p>
+                {active === "history" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-semibold text-white">Rate History</h2>
+                        <p className="text-sm text-slate-300/80">
+                          View and compare historical rate searches grouped by check-in date.
+                        </p>
+                      </div>
+                    </div>
+                    <RateHistory session={session} />
                   </div>
-                </div>
-                <CompSetEditor value={compSet} onChange={setCompSet} session={session} />
-                <ComparePanel compSet={compSet} />
-              </div>
-            )}
+                )}
 
-            {active === "location" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-semibold text-white">Search by Location</h2>
-                    <p className="text-sm text-slate-300/80">
-                      Surface the strongest offers in a destination, filtered by rating and amenities.
-                    </p>
+                {active === "compare" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-semibold text-white">Compare Hotels</h2>
+                        <p className="text-sm text-slate-300/80">
+                          Define your comp set and monitor channel-level deltas in real time.
+                        </p>
+                      </div>
+                    </div>
+                    <CompSetEditor value={compSet} onChange={setCompSet} session={session} />
+                    <ComparePanel compSet={compSet} />
                   </div>
-                </div>
-                <LocationSearchPanel session={session} />
-              </div>
-            )}
+                )}
 
-            {active === "disparity" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-semibold text-white">Disparity Checker</h2>
-                    <p className="text-sm text-slate-300/80">
-                      Audit OTA spreads for a specific hotel and highlight actionable gaps.
-                    </p>
+                {active === "location" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-semibold text-white">Search by Location</h2>
+                        <p className="text-sm text-slate-300/80">
+                          Surface the strongest offers in a destination, filtered by rating and amenities.
+                        </p>
+                      </div>
+                    </div>
+                    <LocationSearchPanel session={session} />
                   </div>
-                </div>
-                <DisparityChecker defaultHotelName={session?.propertyName} />
-              </div>
-            )}
+                )}
 
-            {active === "pricing" && (
-              <div className="space-y-4">
-                <DynamicPricing />
-              </div>
-            )}
-
-            {active === "users" && session?.role === "Admin" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-3xl font-semibold text-white">Manage Users</h2>
-                    <p className="text-sm text-slate-300/80">
-                      Provision login access for teammates and assign them to properties.
-                    </p>
+                {active === "disparity" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-semibold text-white">Disparity Checker</h2>
+                        <p className="text-sm text-slate-300/80">
+                          Audit OTA spreads for a specific hotel and highlight actionable gaps.
+                        </p>
+                      </div>
+                    </div>
+                    <DisparityChecker defaultHotelName={session?.propertyName} />
                   </div>
-                </div>
-                <AdminUserManager />
-              </div>
+                )}
+
+                {active === "pricing" && (
+                  <div className="space-y-4">
+                    <DynamicPricing />
+                  </div>
+                )}
+
+                {active === "users" && session?.role === "Admin" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-3xl font-semibold text-white">Manage Users</h2>
+                        <p className="text-sm text-slate-300/80">
+                          Provision login access for teammates and assign them to properties.
+                        </p>
+                      </div>
+                    </div>
+                    <AdminUserManager />
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>
