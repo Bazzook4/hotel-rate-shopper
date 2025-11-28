@@ -66,6 +66,18 @@ export default function PricingRecommendations({
         }
       }
 
+      // Debug log to see what we have
+      if (room.room_type_name === 'Single Standard') {
+        console.log('[DEBUG] Single Standard occupancy_pricing:', {
+          raw: room.occupancy_pricing,
+          parsed: occupancyPricing,
+          hasExtraAdult: !!occupancyPricing?.extraAdult,
+          hasExtraChild: !!occupancyPricing?.extraChild,
+          extraAdultValue: occupancyPricing?.extraAdult,
+          extraChildValue: occupancyPricing?.extraChild
+        });
+      }
+
       // Get occupancy pricing if available
       let occupancyTypes = [];
 
@@ -481,89 +493,6 @@ export default function PricingRecommendations({
               </div>
             </div>
           </div>
-
-          {/* Pricing Breakdown Info */}
-          {recommendations && recommendations.length > 0 && recommendations[0].effectiveBasePrice && (
-            <div className={sectionClass}>
-              <h4 className="text-lg font-semibold text-white mb-4">Pricing Calculation Breakdown</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {roomTypes.map((room, index) => {
-                  const rec = recommendations[index];
-                  if (!rec) return null;
-
-                  // Parse occupancy pricing to show extra rates
-                  let occupancyPricing = room.occupancy_pricing;
-                  if (typeof occupancyPricing === 'string') {
-                    try {
-                      occupancyPricing = JSON.parse(occupancyPricing);
-                    } catch (e) {
-                      occupancyPricing = null;
-                    }
-                  }
-
-                  const hasExtraRates = occupancyPricing?.extraAdult || occupancyPricing?.extraChild;
-
-                  return (
-                    <div key={room.id || index} className="p-4 rounded-xl bg-white/5 border border-white/10">
-                      <div className="text-sm font-semibold text-white mb-3">{room.room_type_name}</div>
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Guest Config:</span>
-                          <span className="text-white">
-                            {rec.guestConfiguration?.numAdults || 2} Adults
-                            {rec.guestConfiguration?.numChildren > 0 && `, ${rec.guestConfiguration.numChildren} Children`}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Pricing Mode:</span>
-                          <span className="text-white capitalize">{rec.guestConfiguration?.pricingMode || 'flat'}</span>
-                        </div>
-                        <div className="flex justify-between border-t border-white/10 pt-2">
-                          <span className="text-slate-400">Base Price:</span>
-                          <span className="text-white">₹{rec.basePrice?.toFixed(2) || '0.00'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-400">Effective Price:</span>
-                          <span className={`font-semibold ${rec.effectiveBasePrice !== rec.basePrice ? 'text-green-400' : 'text-white'}`}>
-                            ₹{rec.effectiveBasePrice?.toFixed(2) || '0.00'}
-                          </span>
-                        </div>
-                        {hasExtraRates && (
-                          <div className="border-t border-white/10 pt-2 space-y-1">
-                            <div className="text-xs text-slate-500 font-semibold">Configured Extra Rates:</div>
-                            {occupancyPricing?.extraAdult && (
-                              <div className="flex justify-between text-xs">
-                                <span className="text-slate-400">Extra Adult:</span>
-                                <span className="text-blue-400">₹{occupancyPricing.extraAdult.toFixed(2)}</span>
-                              </div>
-                            )}
-                            {occupancyPricing?.extraChild && (
-                              <div className="flex justify-between text-xs">
-                                <span className="text-slate-400">Extra Child:</span>
-                                <span className="text-blue-400">₹{occupancyPricing.extraChild.toFixed(2)}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {rec.effectiveBasePrice !== rec.basePrice && (
-                          <div className="text-xs text-green-400 italic mt-2">
-                            ✓ Occupancy pricing applied
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                <p className="text-sm text-blue-300">
-                  <strong>Note:</strong> Effective Price is calculated for {recommendations[0].guestConfiguration?.numAdults || 2} adults.
-                  Extra adult/child charges apply when guests exceed this base configuration.
-                  The pricing table below shows rates for all occupancy types including extra charges.
-                </p>
-              </div>
-            </div>
-          )}
 
           {/* Pricing Table */}
           <div className={sectionClass}>
