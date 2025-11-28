@@ -223,20 +223,27 @@ function LocationSearchPanel({ session }) {
 export default function Page() {
   // "ratetracker" | "compare" | "location" | "disparity" | "pricing" | "users"
   // Persist active tab in localStorage to survive page refreshes
-  const [active, setActive] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('activeTab') || 'ratetracker';
-    }
-    return 'ratetracker';
-  });
-
+  const [active, setActive] = useState('ratetracker');
   const [compSet, setCompSet] = useState(null);
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
+  // Load saved tab from localStorage on mount (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTab = localStorage.getItem('activeTab');
+      console.log('[TabPersistence] Initial load, saved tab:', savedTab);
+      if (savedTab) {
+        console.log('[TabPersistence] Setting active to:', savedTab);
+        setActive(savedTab);
+      }
+    }
+  }, []);
+
   // Persist active tab to localStorage when it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      console.log('[TabPersistence] Saving tab to localStorage:', active);
       localStorage.setItem('activeTab', active);
     }
   }, [active]);
