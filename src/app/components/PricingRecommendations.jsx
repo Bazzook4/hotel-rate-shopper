@@ -423,14 +423,18 @@ export default function PricingRecommendations({
               {/* Demand Multiplier */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300">Demand Multiplier</label>
+                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Adjusts prices based on current demand levels. Higher demand = higher multiplier. Range: 0.5x (very low demand) to 2.0x (very high demand)">
+                    Demand Multiplier
+                  </label>
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={pricingParams.demandMultiplier}
                     onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
                     className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
                     placeholder="1.0"
+                    title="Enter any decimal value (e.g., 0.9, 1.2, 1.75)"
                   />
                 </div>
                 <input
@@ -452,14 +456,18 @@ export default function PricingRecommendations({
               {/* Seasonal Multiplier */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300">Seasonal Multiplier</label>
+                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Adjusts prices based on the season or time of year. Range: 0.7x (off-season) to 1.5x (peak season). Use lower values during slow periods and higher during holidays/peak times.">
+                    Seasonal Multiplier
+                  </label>
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={pricingParams.seasonalMultiplier}
                     onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
                     className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
                     placeholder="1.0"
+                    title="Enter any decimal value (e.g., 0.8, 1.0, 1.3)"
                   />
                 </div>
                 <input
@@ -481,15 +489,16 @@ export default function PricingRecommendations({
               {/* Competitor Adjustment */}
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300">Competitor Adjustment</label>
+                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Fixed amount to add or subtract from prices based on competitor pricing. Negative values undercut competitors, positive values price higher. This is a flat rate adjustment added after multipliers.">
+                    Competitor Adjustment
+                  </label>
                   <input
                     type="number"
-                    min="-50"
-                    max="50"
-                    step="5"
+                    step="1"
                     value={pricingParams.competitorAdjustment}
                     onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
                     className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                    title="Enter any value (e.g., -25, 0, +15)"
                   />
                 </div>
                 <input
@@ -511,19 +520,21 @@ export default function PricingRecommendations({
 
             {/* Weekday Multipliers */}
             <div>
-              <h5 className="text-sm font-semibold text-slate-300 mb-4">Weekday Multipliers</h5>
+              <h5 className="text-sm font-semibold text-slate-300 mb-4 cursor-help" title="Adjust prices for each day of the week. Common uses: higher rates for Friday/Saturday (weekends), lower rates for Monday-Thursday (weekdays). Examples: 0.9 for 10% discount, 1.2 for 20% premium.">
+                Weekday Multipliers
+              </h5>
               <div className="grid grid-cols-7 gap-3">
                 {weekdays.map(day => (
                   <div key={day}>
                     <div className="text-xs text-slate-400 mb-1 text-center">{day.slice(0, 3)}</div>
                     <input
                       type="number"
-                      min="0.5"
-                      max="2.0"
-                      step="0.1"
+                      step="0.01"
+                      min="0"
                       value={pricingParams.weekday_multipliers?.[day] || 1.0}
                       onChange={(e) => updateWeekdayMultiplier(day, e.target.value)}
                       className="w-full px-2 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+                      title={`${day} multiplier - enter decimal value (e.g., 0.9, 1.0, 1.2)`}
                     />
                   </div>
                 ))}
