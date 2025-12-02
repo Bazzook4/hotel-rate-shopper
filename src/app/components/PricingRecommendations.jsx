@@ -14,6 +14,7 @@ export default function PricingRecommendations({
   loading
 }) {
   const [viewMode, setViewMode] = useState("pricing"); // "pricing" or "comparison"
+  const [pricingMode, setPricingMode] = useState("simple"); // "simple" or "advanced"
   const [dynamicExtraRates, setDynamicExtraRates] = useState(false); // Default: OFF - Extra rates stay fixed
   const [copyStatus, setCopyStatus] = useState({});
   const [roomNameDisplay, setRoomNameDisplay] = useState("abbreviation"); // "full" or "abbreviation"
@@ -357,6 +358,57 @@ export default function PricingRecommendations({
     }
   }
 
+  // Simple Mode preset functions
+  function applyDemandPreset(level) {
+    const presets = {
+      'very-low': 0.5,
+      'low': 0.7,
+      'normal': 1.0,
+      'high': 1.3,
+      'very-high': 1.8
+    };
+    onParamsChange({ ...pricingParams, demandMultiplier: presets[level] });
+  }
+
+  function applySeasonalPreset(season) {
+    const presets = {
+      'off-season': 0.7,
+      'shoulder': 0.9,
+      'regular': 1.0,
+      'peak': 1.3
+    };
+    onParamsChange({ ...pricingParams, seasonalMultiplier: presets[season] });
+  }
+
+  function applyCompetitorPreset(strategy) {
+    const presets = {
+      'undercut': -30,
+      'match': 0,
+      'premium': 30
+    };
+    onParamsChange({ ...pricingParams, competitorAdjustment: presets[strategy] });
+  }
+
+  function applyWeekdayPreset(pattern) {
+    let multipliers = {};
+
+    if (pattern === 'flat') {
+      // All days same
+      weekdays.forEach(day => { multipliers[day] = 1.0; });
+    } else if (pattern === 'weekend') {
+      // Higher on Fri/Sat/Sun
+      weekdays.forEach(day => {
+        if (day === 'Friday' || day === 'Saturday' || day === 'Sunday') {
+          multipliers[day] = 1.2;
+        } else {
+          multipliers[day] = 1.0;
+        }
+      });
+    }
+
+    onParamsChange({ ...pricingParams, weekday_multipliers: multipliers });
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -408,19 +460,155 @@ export default function PricingRecommendations({
           <div className={sectionClass}>
             <div className="flex justify-between items-center mb-6">
               <h4 className="text-lg font-semibold text-white">Pricing Factors - Adjust in Real-time</h4>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="text-sm text-slate-300">Dynamic Extra Rates</span>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={dynamicExtraRates}
-                    onChange={(e) => setDynamicExtraRates(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              <div className="flex items-center gap-4">
+                {/* Mode Toggle */}
+                <div className="flex gap-1 p-1 bg-white/5 rounded-lg border border-white/10">
+                  <button
+                    onClick={() => setPricingMode("simple")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      pricingMode === "simple"
+                        ? "bg-indigo-600 text-white"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Simple
+                  </button>
+                  <button
+                    onClick={() => setPricingMode("advanced")}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      pricingMode === "advanced"
+                        ? "bg-indigo-600 text-white"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Advanced
+                  </button>
                 </div>
-              </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-sm text-slate-300">Dynamic Extra Rates</span>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={dynamicExtraRates}
+                      onChange={(e) => setDynamicExtraRates(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </div>
+                </label>
+              </div>
             </div>
+            {/* Simple Mode */}
+            {pricingMode === "simple" && (
+              <div className="space-y-4">
+                {/* Question 1: Demand Level */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <h5 className="text-white font-semibold text-sm mb-3">What's your current demand level?</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    {[
+                      { key: 'very-low', label: 'Very Low', emoji: '🔵', desc: 'Lots of empty rooms' },
+                      { key: 'low', label: 'Low', emoji: '🟡', desc: 'Below average' },
+                      { key: 'normal', label: 'Normal', emoji: '🟢', desc: 'Typical occupancy' },
+                      { key: 'high', label: 'High', emoji: '🟠', desc: 'Above average' },
+                      { key: 'very-high', label: 'Very High', emoji: '🔥', desc: 'Almost full' }
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        onClick={() => applyDemandPreset(option.key)}
+                        className={`p-3 rounded-lg border transition-all ${
+                          pricingParams.demandMultiplier === ({ 'very-low': 0.5, 'low': 0.7, 'normal': 1.0, 'high': 1.3, 'very-high': 1.8 }[option.key])
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{option.emoji}</div>
+                        <div className="text-xs font-semibold">{option.label}</div>
+                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Question 2: Season */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <h5 className="text-white font-semibold text-sm mb-3">What season is it?</h5>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {[
+                      { key: 'off-season', label: 'Off-Season', emoji: '❄️', desc: 'Slow period' },
+                      { key: 'shoulder', label: 'Shoulder', emoji: '🌸', desc: 'Moderate' },
+                      { key: 'regular', label: 'Regular', emoji: '☀️', desc: 'Normal season' },
+                      { key: 'peak', label: 'Peak', emoji: '🎉', desc: 'Holiday/Event' }
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        onClick={() => applySeasonalPreset(option.key)}
+                        className={`p-3 rounded-lg border transition-all ${
+                          pricingParams.seasonalMultiplier === ({ 'off-season': 0.7, 'shoulder': 0.9, 'regular': 1.0, 'peak': 1.3 }[option.key])
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{option.emoji}</div>
+                        <div className="text-xs font-semibold">{option.label}</div>
+                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Question 3: Competition */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <h5 className="text-white font-semibold text-sm mb-3">How do you want to price vs competitors?</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {[
+                      { key: 'undercut', label: 'Undercut', emoji: '💚', desc: 'Price ₹30 lower' },
+                      { key: 'match', label: 'Match', emoji: '🤝', desc: 'Same as competitors' },
+                      { key: 'premium', label: 'Premium', emoji: '💰', desc: 'Price ₹30 higher' }
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        onClick={() => applyCompetitorPreset(option.key)}
+                        className={`p-3 rounded-lg border transition-all ${
+                          pricingParams.competitorAdjustment === ({ 'undercut': -30, 'match': 0, 'premium': 30 }[option.key])
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-2xl mb-1">{option.emoji}</div>
+                        <div className="text-xs font-semibold">{option.label}</div>
+                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Question 4: Weekend Pricing */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <h5 className="text-white font-semibold text-sm mb-3">Do you charge more on weekends?</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {[
+                      { key: 'weekend', label: 'Yes - Higher Weekends', emoji: '📅', desc: 'Fri/Sat/Sun +20%' },
+                      { key: 'flat', label: 'No - Same Every Day', emoji: '📊', desc: 'All days equal' }
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        onClick={() => applyWeekdayPreset(option.key)}
+                        className="p-3 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all"
+                      >
+                        <div className="text-2xl mb-1">{option.emoji}</div>
+                        <div className="text-xs font-semibold">{option.label}</div>
+                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Advanced Mode */}
+            {pricingMode === "advanced" && (
+              <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {/* Demand Multiplier */}
               <div>
@@ -542,6 +730,8 @@ export default function PricingRecommendations({
                 ))}
               </div>
             </div>
+              </>
+            )}
           </div>
 
           {/* Weekly Price Trend Chart */}
