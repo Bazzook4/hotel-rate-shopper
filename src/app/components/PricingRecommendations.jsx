@@ -313,11 +313,13 @@ export default function PricingRecommendations({
   }
 
   function updateWeekdayMultiplier(day, value) {
+    // Allow empty string during typing, otherwise parse the value
+    const numValue = value === '' ? 1.0 : parseFloat(value);
     onParamsChange({
       ...pricingParams,
       weekday_multipliers: {
         ...pricingParams.weekday_multipliers,
-        [day]: parseFloat(value)
+        [day]: isNaN(numValue) ? 1.0 : numValue
       }
     });
   }
