@@ -364,29 +364,49 @@ export default function PricingRecommendations({
       'very-low': 0.5,
       'low': 0.7,
       'normal': 1.0,
-      'high': 1.3,
-      'very-high': 1.8
+      'high': 1.5,
+      'very-high': 2.0,
+      'extreme': 2.5
     };
     onParamsChange({ ...pricingParams, demandMultiplier: presets[level] });
   }
 
   function applySeasonalPreset(season) {
     const presets = {
-      'off-season': 0.7,
-      'shoulder': 0.9,
+      'off-season': 0.6,
+      'low': 0.8,
       'regular': 1.0,
-      'peak': 1.3
+      'high': 1.5,
+      'peak': 2.0,
+      'super-peak': 3.0,
+      'ultra-peak': 4.0
     };
     onParamsChange({ ...pricingParams, seasonalMultiplier: presets[season] });
   }
 
   function applyCompetitorPreset(strategy) {
     const presets = {
-      'undercut': -30,
+      'heavy-undercut': -1000,
+      'undercut': -500,
+      'slight-undercut': -200,
       'match': 0,
-      'premium': 30
+      'slight-premium': 200,
+      'premium': 500,
+      'heavy-premium': 1000
     };
     onParamsChange({ ...pricingParams, competitorAdjustment: presets[strategy] });
+  }
+
+  function applyDayDemandLevel(day, level) {
+    const levelMultipliers = {
+      'very-low': 0.7,
+      'low': 0.85,
+      'normal': 1.0,
+      'high': 1.2,
+      'very-high': 1.5,
+      'peak': 2.0
+    };
+    updateWeekdayMultiplier(day, levelMultipliers[level].toString());
   }
 
   function applyWeekdayPreset(pattern) {
@@ -510,19 +530,20 @@ export default function PricingRecommendations({
                       {pricingParams.demandMultiplier}x
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
                     {[
-                      { key: 'very-low', label: 'Very Low', emoji: '🔵', desc: 'Lots of empty rooms' },
-                      { key: 'low', label: 'Low', emoji: '🟡', desc: 'Below average' },
-                      { key: 'normal', label: 'Normal', emoji: '🟢', desc: 'Typical occupancy' },
-                      { key: 'high', label: 'High', emoji: '🟠', desc: 'Above average' },
-                      { key: 'very-high', label: 'Very High', emoji: '🔥', desc: 'Almost full' }
+                      { key: 'very-low', label: 'Very Low', emoji: '🔵', desc: 'Lots of empty', multiplier: 0.5 },
+                      { key: 'low', label: 'Low', emoji: '🟡', desc: 'Below average', multiplier: 0.7 },
+                      { key: 'normal', label: 'Normal', emoji: '🟢', desc: 'Typical', multiplier: 1.0 },
+                      { key: 'high', label: 'High', emoji: '🟠', desc: 'Good demand', multiplier: 1.5 },
+                      { key: 'very-high', label: 'Very High', emoji: '🔥', desc: 'Almost full', multiplier: 2.0 },
+                      { key: 'extreme', label: 'Extreme', emoji: '⚡', desc: 'Sold out soon', multiplier: 2.5 }
                     ].map(option => (
                       <button
                         key={option.key}
                         onClick={() => applyDemandPreset(option.key)}
                         className={`p-3 rounded-lg border transition-all ${
-                          pricingParams.demandMultiplier === ({ 'very-low': 0.5, 'low': 0.7, 'normal': 1.0, 'high': 1.3, 'very-high': 1.8 }[option.key])
+                          pricingParams.demandMultiplier === option.multiplier
                             ? 'bg-indigo-600 border-indigo-500 text-white'
                             : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                         }`}
@@ -530,6 +551,7 @@ export default function PricingRecommendations({
                         <div className="text-2xl mb-1">{option.emoji}</div>
                         <div className="text-xs font-semibold">{option.label}</div>
                         <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                        <div className="text-xs font-bold mt-1 text-indigo-400">{option.multiplier}x</div>
                       </button>
                     ))}
                   </div>
@@ -543,18 +565,21 @@ export default function PricingRecommendations({
                       {pricingParams.seasonalMultiplier}x
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
                     {[
-                      { key: 'off-season', label: 'Off-Season', emoji: '❄️', desc: 'Slow period' },
-                      { key: 'shoulder', label: 'Shoulder', emoji: '🌸', desc: 'Moderate' },
-                      { key: 'regular', label: 'Regular', emoji: '☀️', desc: 'Normal season' },
-                      { key: 'peak', label: 'Peak', emoji: '🎉', desc: 'Holiday/Event' }
+                      { key: 'off-season', label: 'Off-Season', emoji: '❄️', desc: 'Very slow', multiplier: 0.6 },
+                      { key: 'low', label: 'Low', emoji: '🌧️', desc: 'Slow period', multiplier: 0.8 },
+                      { key: 'regular', label: 'Regular', emoji: '☀️', desc: 'Normal', multiplier: 1.0 },
+                      { key: 'high', label: 'High', emoji: '🌸', desc: 'Busy period', multiplier: 1.5 },
+                      { key: 'peak', label: 'Peak', emoji: '🎉', desc: 'Very busy', multiplier: 2.0 },
+                      { key: 'super-peak', label: 'Super Peak', emoji: '🎆', desc: 'Major event', multiplier: 3.0 },
+                      { key: 'ultra-peak', label: 'Ultra Peak', emoji: '🔥', desc: 'Festival', multiplier: 4.0 }
                     ].map(option => (
                       <button
                         key={option.key}
                         onClick={() => applySeasonalPreset(option.key)}
                         className={`p-3 rounded-lg border transition-all ${
-                          pricingParams.seasonalMultiplier === ({ 'off-season': 0.7, 'shoulder': 0.9, 'regular': 1.0, 'peak': 1.3 }[option.key])
+                          pricingParams.seasonalMultiplier === option.multiplier
                             ? 'bg-indigo-600 border-indigo-500 text-white'
                             : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                         }`}
@@ -562,6 +587,7 @@ export default function PricingRecommendations({
                         <div className="text-2xl mb-1">{option.emoji}</div>
                         <div className="text-xs font-semibold">{option.label}</div>
                         <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                        <div className="text-xs font-bold mt-1 text-indigo-400">{option.multiplier}x</div>
                       </button>
                     ))}
                   </div>
@@ -572,20 +598,24 @@ export default function PricingRecommendations({
                   <div className="flex justify-between items-center mb-3">
                     <h5 className="text-white font-semibold text-sm">How do you want to price vs competitors?</h5>
                     <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-                      {pricingParams.competitorAdjustment > 0 ? '+' : ''}{pricingParams.competitorAdjustment}
+                      {pricingParams.competitorAdjustment > 0 ? '+₹' : pricingParams.competitorAdjustment < 0 ? '₹' : '₹'}{pricingParams.competitorAdjustment}
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+                  <div className="grid grid-cols-2 md:grid-cols-7 gap-2 mb-3">
                     {[
-                      { key: 'undercut', label: 'Undercut', emoji: '💚', desc: 'Price lower' },
-                      { key: 'match', label: 'Match', emoji: '🤝', desc: 'Same price' },
-                      { key: 'premium', label: 'Premium', emoji: '💰', desc: 'Price higher' }
+                      { key: 'heavy-undercut', label: 'Heavy Undercut', emoji: '🔻', desc: '₹1000 lower', amount: -1000 },
+                      { key: 'undercut', label: 'Undercut', emoji: '💚', desc: '₹500 lower', amount: -500 },
+                      { key: 'slight-undercut', label: 'Slight Under', emoji: '🟢', desc: '₹200 lower', amount: -200 },
+                      { key: 'match', label: 'Match', emoji: '🤝', desc: 'Same price', amount: 0 },
+                      { key: 'slight-premium', label: 'Slight Premium', emoji: '🟡', desc: '₹200 higher', amount: 200 },
+                      { key: 'premium', label: 'Premium', emoji: '💰', desc: '₹500 higher', amount: 500 },
+                      { key: 'heavy-premium', label: 'Heavy Premium', emoji: '🔺', desc: '₹1000 higher', amount: 1000 }
                     ].map(option => (
                       <button
                         key={option.key}
                         onClick={() => applyCompetitorPreset(option.key)}
                         className={`p-3 rounded-lg border transition-all ${
-                          pricingParams.competitorAdjustment === ({ 'undercut': -30, 'match': 0, 'premium': 30 }[option.key])
+                          pricingParams.competitorAdjustment === option.amount
                             ? 'bg-indigo-600 border-indigo-500 text-white'
                             : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                         }`}
@@ -610,10 +640,10 @@ export default function PricingRecommendations({
                   </div>
                 </div>
 
-                {/* Question 4: Day-Specific Pricing */}
+                {/* Question 4: Day-Specific Demand */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                  <h5 className="text-white font-semibold text-sm mb-3">Which days have higher demand?</h5>
-                  <p className="text-xs text-slate-400 mb-3">Select days that typically have higher prices (20% premium)</p>
+                  <h5 className="text-white font-semibold text-sm mb-3">Set demand level for each day of the week</h5>
+                  <p className="text-xs text-slate-400 mb-3">Click a day to cycle through demand levels</p>
 
                   {/* Quick Presets */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
@@ -621,38 +651,56 @@ export default function PricingRecommendations({
                       onClick={() => applyWeekdayPreset('weekend')}
                       className="p-2 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all text-xs"
                     >
-                      📅 Weekend Premium (Fri/Sat/Sun)
+                      📅 Leisure Property (Weekend Premium)
                     </button>
                     <button
                       onClick={() => applyWeekdayPreset('flat')}
                       className="p-2 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all text-xs"
                     >
-                      📊 Same Price Every Day
+                      📊 Same Demand Every Day
                     </button>
                   </div>
 
-                  {/* Individual Day Selection */}
-                  <div className="grid grid-cols-7 gap-2">
+                  {/* Individual Day Demand Selection */}
+                  <div className="space-y-2">
                     {weekdays.map(day => {
-                      const isPremium = (pricingParams.weekday_multipliers?.[day] || 1.0) > 1.0;
+                      const currentMultiplier = pricingParams.weekday_multipliers?.[day] || 1.0;
+                      const demandLevels = [
+                        { label: 'Very Low', multiplier: 0.7, color: 'bg-blue-600' },
+                        { label: 'Low', multiplier: 0.85, color: 'bg-cyan-600' },
+                        { label: 'Normal', multiplier: 1.0, color: 'bg-gray-600' },
+                        { label: 'High', multiplier: 1.2, color: 'bg-amber-600' },
+                        { label: 'Very High', multiplier: 1.5, color: 'bg-orange-600' },
+                        { label: 'Peak', multiplier: 2.0, color: 'bg-red-600' }
+                      ];
+
+                      const currentLevel = demandLevels.find(l => l.multiplier === currentMultiplier) || demandLevels[2];
+
                       return (
-                        <button
-                          key={day}
-                          onClick={() => {
-                            const newMultiplier = isPremium ? 1.0 : 1.2;
-                            updateWeekdayMultiplier(day, newMultiplier.toString());
-                          }}
-                          className={`p-2 rounded-lg border transition-all ${
-                            isPremium
-                              ? 'bg-indigo-600 border-indigo-500 text-white'
-                              : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                          }`}
-                        >
-                          <div className="text-xs font-semibold text-center">{day.substring(0, 3)}</div>
-                          <div className="text-xs text-center mt-1 opacity-70">
-                            {(pricingParams.weekday_multipliers?.[day] || 1.0)}x
+                        <div key={day} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-white">{day}</span>
+                            <span className="text-xs text-slate-400">
+                              {currentLevel.label} ({currentMultiplier}x)
+                            </span>
                           </div>
-                        </button>
+                          <div className="grid grid-cols-6 gap-1">
+                            {demandLevels.map((level) => (
+                              <button
+                                key={level.multiplier}
+                                onClick={() => applyDayDemandLevel(day, level.label.toLowerCase().replace(' ', '-'))}
+                                className={`px-2 py-1.5 rounded text-xs font-medium transition-all ${
+                                  currentMultiplier === level.multiplier
+                                    ? `${level.color} text-white`
+                                    : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                                }`}
+                                title={`${level.label} (${level.multiplier}x)`}
+                              >
+                                {level.multiplier}x
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
