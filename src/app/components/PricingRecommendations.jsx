@@ -504,7 +504,12 @@ export default function PricingRecommendations({
               <div className="space-y-4">
                 {/* Question 1: Demand Level */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                  <h5 className="text-white font-semibold text-sm mb-3">What's your current demand level?</h5>
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="text-white font-semibold text-sm">What's your current demand level?</h5>
+                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
+                      {pricingParams.demandMultiplier}x
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                     {[
                       { key: 'very-low', label: 'Very Low', emoji: '🔵', desc: 'Lots of empty rooms' },
@@ -532,7 +537,12 @@ export default function PricingRecommendations({
 
                 {/* Question 2: Season */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                  <h5 className="text-white font-semibold text-sm mb-3">What season is it?</h5>
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="text-white font-semibold text-sm">What season is it?</h5>
+                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
+                      {pricingParams.seasonalMultiplier}x
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                     {[
                       { key: 'off-season', label: 'Off-Season', emoji: '❄️', desc: 'Slow period' },
@@ -559,12 +569,17 @@ export default function PricingRecommendations({
 
                 {/* Question 3: Competition */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                  <h5 className="text-white font-semibold text-sm mb-3">How do you want to price vs competitors?</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="text-white font-semibold text-sm">How do you want to price vs competitors?</h5>
+                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
+                      {pricingParams.competitorAdjustment > 0 ? '+' : ''}{pricingParams.competitorAdjustment}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
                     {[
-                      { key: 'undercut', label: 'Undercut', emoji: '💚', desc: 'Price ₹30 lower' },
-                      { key: 'match', label: 'Match', emoji: '🤝', desc: 'Same as competitors' },
-                      { key: 'premium', label: 'Premium', emoji: '💰', desc: 'Price ₹30 higher' }
+                      { key: 'undercut', label: 'Undercut', emoji: '💚', desc: 'Price lower' },
+                      { key: 'match', label: 'Match', emoji: '🤝', desc: 'Same price' },
+                      { key: 'premium', label: 'Premium', emoji: '💰', desc: 'Price higher' }
                     ].map(option => (
                       <button
                         key={option.key}
@@ -581,26 +596,65 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                   </div>
+                  {/* Custom Amount Input */}
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-slate-400">Custom amount:</label>
+                    <input
+                      type="number"
+                      step="10"
+                      value={pricingParams.competitorAdjustment}
+                      onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                      placeholder="Enter custom amount (e.g., -50, +25)"
+                    />
+                  </div>
                 </div>
 
-                {/* Question 4: Weekend Pricing */}
+                {/* Question 4: Day-Specific Pricing */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                  <h5 className="text-white font-semibold text-sm mb-3">Do you charge more on weekends?</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {[
-                      { key: 'weekend', label: 'Yes - Higher Weekends', emoji: '📅', desc: 'Fri/Sat/Sun +20%' },
-                      { key: 'flat', label: 'No - Same Every Day', emoji: '📊', desc: 'All days equal' }
-                    ].map(option => (
-                      <button
-                        key={option.key}
-                        onClick={() => applyWeekdayPreset(option.key)}
-                        className="p-3 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all"
-                      >
-                        <div className="text-2xl mb-1">{option.emoji}</div>
-                        <div className="text-xs font-semibold">{option.label}</div>
-                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
-                      </button>
-                    ))}
+                  <h5 className="text-white font-semibold text-sm mb-3">Which days have higher demand?</h5>
+                  <p className="text-xs text-slate-400 mb-3">Select days that typically have higher prices (20% premium)</p>
+
+                  {/* Quick Presets */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+                    <button
+                      onClick={() => applyWeekdayPreset('weekend')}
+                      className="p-2 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all text-xs"
+                    >
+                      📅 Weekend Premium (Fri/Sat/Sun)
+                    </button>
+                    <button
+                      onClick={() => applyWeekdayPreset('flat')}
+                      className="p-2 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all text-xs"
+                    >
+                      📊 Same Price Every Day
+                    </button>
+                  </div>
+
+                  {/* Individual Day Selection */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {weekdays.map(day => {
+                      const isPremium = (pricingParams.weekday_multipliers?.[day] || 1.0) > 1.0;
+                      return (
+                        <button
+                          key={day}
+                          onClick={() => {
+                            const newMultiplier = isPremium ? 1.0 : 1.2;
+                            updateWeekdayMultiplier(day, newMultiplier.toString());
+                          }}
+                          className={`p-2 rounded-lg border transition-all ${
+                            isPremium
+                              ? 'bg-indigo-600 border-indigo-500 text-white'
+                              : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="text-xs font-semibold text-center">{day.substring(0, 3)}</div>
+                          <div className="text-xs text-center mt-1 opacity-70">
+                            {(pricingParams.weekday_multipliers?.[day] || 1.0)}x
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
