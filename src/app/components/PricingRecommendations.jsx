@@ -525,7 +525,15 @@ export default function PricingRecommendations({
                 {/* Question 1: Demand Level */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
                   <div className="flex justify-between items-center mb-3">
-                    <h5 className="text-white font-semibold text-sm">What's your current demand level?</h5>
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-white font-semibold text-sm">What's your current demand level?</h5>
+                      <span
+                        className="text-slate-400 cursor-help hover:text-white transition-colors"
+                        title="Don't see your ideal multiplier? Use the custom input below to set any value"
+                      >
+                        ❓
+                      </span>
+                    </div>
                     <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
                       {pricingParams.demandMultiplier}x
                     </span>
@@ -555,12 +563,33 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                   </div>
+                  {/* Custom Demand Input */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
+                    <label className="text-xs text-slate-400">Custom multiplier:</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={pricingParams.demandMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                      placeholder="e.g., 1.3, 2.2, 3.5"
+                    />
+                  </div>
                 </div>
 
                 {/* Question 2: Season */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
                   <div className="flex justify-between items-center mb-3">
-                    <h5 className="text-white font-semibold text-sm">What season is it?</h5>
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-white font-semibold text-sm">What season is it?</h5>
+                      <span
+                        className="text-slate-400 cursor-help hover:text-white transition-colors"
+                        title="Need a different seasonal factor? Use the custom input below to set your own multiplier"
+                      >
+                        ❓
+                      </span>
+                    </div>
                     <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
                       {pricingParams.seasonalMultiplier}x
                     </span>
@@ -591,12 +620,33 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                   </div>
+                  {/* Custom Season Input */}
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
+                    <label className="text-xs text-slate-400">Custom multiplier:</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={pricingParams.seasonalMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
+                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                      placeholder="e.g., 1.8, 3.5, 5.0"
+                    />
+                  </div>
                 </div>
 
                 {/* Question 3: Competition */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
                   <div className="flex justify-between items-center mb-3">
-                    <h5 className="text-white font-semibold text-sm">How do you want to price vs competitors?</h5>
+                    <div className="flex items-center gap-2">
+                      <h5 className="text-white font-semibold text-sm">How do you want to price vs competitors?</h5>
+                      <span
+                        className="text-slate-400 cursor-help hover:text-white transition-colors"
+                        title="Need a specific amount? Use the custom input below to set any adjustment value"
+                      >
+                        ❓
+                      </span>
+                    </div>
                     <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
                       {pricingParams.competitorAdjustment > 0 ? '+₹' : pricingParams.competitorAdjustment < 0 ? '₹' : '₹'}{pricingParams.competitorAdjustment}
                     </span>
@@ -642,8 +692,15 @@ export default function PricingRecommendations({
 
                 {/* Question 4: Day-Specific Demand */}
                 <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-                  <h5 className="text-white font-semibold text-sm mb-3">Set demand level for each day of the week</h5>
-                  <p className="text-xs text-slate-400 mb-3">Click a day to cycle through demand levels</p>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h5 className="text-white font-semibold text-sm">Set demand level for each day of the week</h5>
+                    <span
+                      className="text-slate-400 cursor-help hover:text-white transition-colors"
+                      title="Select demand level for each day. Presets available or customize each day individually."
+                    >
+                      ❓
+                    </span>
+                  </div>
 
                   {/* Quick Presets */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
@@ -661,45 +718,43 @@ export default function PricingRecommendations({
                     </button>
                   </div>
 
-                  {/* Individual Day Demand Selection */}
-                  <div className="space-y-2">
+                  {/* Individual Day Demand Selection - Compact Dropdowns */}
+                  <div className="grid grid-cols-1 gap-2">
                     {weekdays.map(day => {
                       const currentMultiplier = pricingParams.weekday_multipliers?.[day] || 1.0;
                       const demandLevels = [
-                        { label: 'Very Low', multiplier: 0.7, color: 'bg-blue-600' },
-                        { label: 'Low', multiplier: 0.85, color: 'bg-cyan-600' },
-                        { label: 'Normal', multiplier: 1.0, color: 'bg-gray-600' },
-                        { label: 'High', multiplier: 1.2, color: 'bg-amber-600' },
-                        { label: 'Very High', multiplier: 1.5, color: 'bg-orange-600' },
-                        { label: 'Peak', multiplier: 2.0, color: 'bg-red-600' }
+                        { label: 'Very Low', key: 'very-low', multiplier: 0.7 },
+                        { label: 'Low', key: 'low', multiplier: 0.85 },
+                        { label: 'Normal', key: 'normal', multiplier: 1.0 },
+                        { label: 'High', key: 'high', multiplier: 1.2 },
+                        { label: 'Very High', key: 'very-high', multiplier: 1.5 },
+                        { label: 'Peak', key: 'peak', multiplier: 2.0 }
                       ];
 
                       const currentLevel = demandLevels.find(l => l.multiplier === currentMultiplier) || demandLevels[2];
 
                       return (
-                        <div key={day} className="p-3 rounded-lg bg-white/5 border border-white/10">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-white">{day}</span>
-                            <span className="text-xs text-slate-400">
-                              {currentLevel.label} ({currentMultiplier}x)
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-6 gap-1">
-                            {demandLevels.map((level) => (
-                              <button
-                                key={level.multiplier}
-                                onClick={() => applyDayDemandLevel(day, level.label.toLowerCase().replace(' ', '-'))}
-                                className={`px-2 py-1.5 rounded text-xs font-medium transition-all ${
-                                  currentMultiplier === level.multiplier
-                                    ? `${level.color} text-white`
-                                    : 'bg-white/5 text-slate-400 hover:bg-white/10'
-                                }`}
-                                title={`${level.label} (${level.multiplier}x)`}
-                              >
-                                {level.multiplier}x
-                              </button>
+                        <div key={day} className="flex items-center gap-3 p-2 rounded-lg bg-white/5">
+                          <span className="text-sm font-medium text-white w-24">{day}</span>
+                          <select
+                            value={currentLevel.key}
+                            onChange={(e) => {
+                              const selected = demandLevels.find(l => l.key === e.target.value);
+                              if (selected) {
+                                applyDayDemandLevel(day, selected.key);
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          >
+                            {demandLevels.map(level => (
+                              <option key={level.key} value={level.key} className="bg-slate-800">
+                                {level.label} ({level.multiplier}x)
+                              </option>
                             ))}
-                          </div>
+                          </select>
+                          <span className="text-xs text-slate-400 w-16 text-right">
+                            {currentMultiplier}x
+                          </span>
                         </div>
                       );
                     })}
