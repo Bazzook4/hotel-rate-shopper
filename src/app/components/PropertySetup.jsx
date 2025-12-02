@@ -470,6 +470,21 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       {/* Room Types Tab */}
       {activeTab === "rooms" && (
         <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
+          {/* Important Pricing Guidance */}
+          <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-400 text-lg">💡</span>
+              <div>
+                <h5 className="text-amber-300 font-semibold text-sm mb-1">Important: Base Price Guidelines</h5>
+                <p className="text-amber-200/90 text-xs leading-relaxed">
+                  Set your <strong>base prices for ONE season only</strong> (recommend: Regular/Off-Season rates).
+                  Avoid mixing peak and off-season rates here. The Pricing Calculator will help you adjust prices
+                  for different seasons, demand levels, and days of the week using multipliers.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-base font-semibold text-white">Room Types</h4>
             <div className="flex gap-2">
@@ -530,15 +545,18 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               </div>
 
               <div>
-                <label className={controlLabel}>Base Price (per night)</label>
+                <label className={controlLabel} title="Enter your regular/off-season rate. This should be consistent across all room types - don't mix peak and off-season pricing.">
+                  Base Price (per night) <span className="text-amber-400 cursor-help">ℹ️</span>
+                </label>
                 <input
                   type="number"
                   step="0.01"
                   value={newRoom.base_price}
                   onChange={(e) => setNewRoom({ ...newRoom, base_price: e.target.value })}
                   className={inputClass}
-                  placeholder="150.00"
+                  placeholder="150.00 (regular season)"
                   required
+                  title="Your baseline rate for this room type - use regular/off-season pricing, not peak rates"
                 />
               </div>
 
@@ -644,6 +662,20 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       {/* Occupancy Pricing Tab */}
       {activeTab === "occupancy" && (
         <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
+          {/* Important Pricing Guidance */}
+          <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-400 text-lg">💡</span>
+              <div>
+                <h5 className="text-amber-300 font-semibold text-sm mb-1">Remember: Consistent Base Pricing</h5>
+                <p className="text-amber-200/90 text-xs leading-relaxed">
+                  All occupancy prices should reflect the <strong>same season</strong> (regular/off-season).
+                  Use the Pricing Calculator later to adjust for peak seasons, high demand, or special events.
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="mb-4">
             <h4 className="text-base font-semibold text-white">Occupancy-Based Pricing</h4>
             <p className="text-xs text-slate-400 mt-1">Set one room as Base (Master) and calculate others using Fixed Price or Multiplier</p>
