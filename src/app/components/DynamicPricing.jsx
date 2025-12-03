@@ -200,45 +200,45 @@ export default function DynamicPricing() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-3">
+      {/* Compact Header - Dense B2B Layout */}
+      <div className="flex items-center justify-between py-1">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            Dynamic Pricing Engine
+          <h2 className="text-lg font-bold text-white">
+            Dynamic Pricing
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
-            Configure your hotel and calculate optimal pricing with real-time factors
+          <p className="text-xs text-slate-400">
+            Optimize pricing with real-time factors
           </p>
         </div>
 
         {step === "results" && (
           <button
             onClick={handleBackToSetup}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm font-medium transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-medium transition-colors"
           >
-            Back to Setup
+            Back
           </button>
         )}
       </div>
 
       {error && (
-        <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-4">
-          <p className="text-rose-400 text-sm">{error}</p>
+        <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-2">
+          <p className="text-rose-400 text-xs">{error}</p>
         </div>
       )}
 
       {/* Step Navigation */}
-      <div className="flex items-center gap-2 p-4 rounded-xl bg-white/5 border border-white/10">
-        <div className={`flex-1 text-center py-2 rounded-lg text-sm font-medium transition-colors ${
+      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/5 border border-white/10">
+        <div className={`flex-1 text-center py-1.5 rounded text-xs font-medium transition-colors ${
           step === "setup" ? "bg-indigo-500/20 text-indigo-300" : "text-slate-400"
         }`}>
-          1. Hotel Setup
+          Setup
         </div>
-        <div className={`flex-1 text-center py-2 rounded-lg text-sm font-medium transition-colors ${
+        <div className={`flex-1 text-center py-1.5 rounded text-xs font-medium transition-colors ${
           step === "results" ? "bg-indigo-500/20 text-indigo-300" : "text-slate-400"
         }`}>
-          2. Calculate & Compare
+          Calculate
         </div>
       </div>
 
