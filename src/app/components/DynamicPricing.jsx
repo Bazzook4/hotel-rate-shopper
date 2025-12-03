@@ -25,6 +25,7 @@ export default function DynamicPricing() {
     demandMultiplier: 1.0,
     competitorAdjustment: 0,
     seasonalMultiplier: 1.0,
+    lastMinuteMultiplier: 1.0,
     weekdayMultipliers: {
       Monday: 1.0,
       Tuesday: 1.0,
@@ -64,6 +65,7 @@ export default function DynamicPricing() {
       demandMultiplier: pricingParams.demandMultiplier,
       seasonalMultiplier: pricingParams.seasonalMultiplier,
       competitorAdjustment: pricingParams.competitorAdjustment,
+      lastMinuteMultiplier: pricingParams.lastMinuteMultiplier,
       weekdayMultipliers: pricingParams.weekdayMultipliers,
       currentOccupancy: pricingParams.currentOccupancy,
     };
@@ -79,7 +81,39 @@ export default function DynamicPricing() {
       const data = await res.json();
       if (res.ok && data.property) {
         setProperty(data.property);
-        loadRoomTypesAndRatePlans();
+
+        // Load room types and rate plans
+        const [roomTypesRes, ratePlansRes] = await Promise.all([
+          fetch(`/api/dynamicPricing/roomTypes`),
+          fetch(`/api/dynamicPricing/ratePlans`)
+        ]);
+
+        if (roomTypesRes.ok && ratePlansRes.ok) {
+          const roomTypesData = await roomTypesRes.json();
+          const ratePlansData = await ratePlansRes.json();
+
+          setRoomTypes(roomTypesData.roomTypes || []);
+          setRatePlans(ratePlansData.ratePlans || []);
+
+          // If setup is complete, auto-calculate and show results
+          if (roomTypesData.roomTypes?.length > 0 && ratePlansData.ratePlans?.length > 0) {
+            // Calculate pricing directly with the property data
+            const calcRes = await fetch("/api/dynamicPricing/calculate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ...pricingParams,
+              }),
+            });
+
+            const calcData = await calcRes.json();
+
+            if (calcRes.ok) {
+              setPricingResults(calcData);
+              setStep("results");
+            }
+          }
+        }
       }
     } catch (err) {
       setError("Network error loading property");
