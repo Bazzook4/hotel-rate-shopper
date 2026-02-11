@@ -14,7 +14,7 @@
     "@prisma/extension-accelerate": "^2.0.2",
     "@supabase/supabase-js": "^2.84.0",
     "airtable": "^0.12.2",
-    "next": "15.5.4",
+    "next": "15.5.9",
     "prisma": "^6.16.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
