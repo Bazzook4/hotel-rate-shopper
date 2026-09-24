@@ -1,8 +1,12 @@
 /**
- * v2 module registry. v1 (at "/") keeps its own module ids untouched;
- * these are additive so both can be granted independently per user.
+ * Dashboard module registry.
+ *
+ * Module ids are stored per user in the user_modules table. The previous
+ * dashboard (now at /v1) used its own ids, so a user carried over from it
+ * may hold grants like "ratetracker" or "disparity" that name modules which
+ * no longer exist here.
  */
-export const V2_MODULES = [
+export const MODULES = [
   { id: "cm", label: "Channel Manager", icon: "🔗" },
   { id: "compshopper", label: "Comp Shopper", icon: "📊" },
   { id: "parity", label: "Rate Parity", icon: "🧭" },
@@ -10,12 +14,30 @@ export const V2_MODULES = [
   { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
 ];
 
+/** Old dashboard ids that map onto a module here. */
+const LEGACY_ALIASES = {
+  disparity: "parity",
+  ratetracker: "compshopper",
+  compare: "compshopper",
+};
+
 export function visibleModules(session) {
-  const all = [...V2_MODULES];
+  const all = [...MODULES];
+
   if (session?.role === "Admin") {
     return [...all, { id: "users", label: "Manage Users", icon: "👥" }];
   }
+
   const granted = session?.modules || [];
   if (granted.length === 0) return all;
-  return all.filter((m) => granted.includes(m.id));
+
+  // Translate any legacy ids before filtering, so a user whose grants predate
+  // this dashboard still sees the modules those grants correspond to.
+  const effective = new Set(granted.map((id) => LEGACY_ALIASES[id] || id));
+
+  const visible = all.filter((m) => effective.has(m.id));
+
+  // A user holding only ids that no longer map to anything would otherwise be
+  // left with an empty sidebar and no way to work; show the full set instead.
+  return visible.length > 0 ? visible : all;
 }

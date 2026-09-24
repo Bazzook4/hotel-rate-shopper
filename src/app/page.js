@@ -20,7 +20,8 @@ export default function V2Dashboard() {
       try {
         const res = await fetch("/api/auth/session");
         const json = res.ok ? await res.json() : null;
-        if (!cancelled) setSession(json?.session ?? json ?? null);
+        // The session route returns { user: {...} }.
+        if (!cancelled) setSession(json?.user ?? null);
       } catch {
         if (!cancelled) setSession(null);
       } finally {
