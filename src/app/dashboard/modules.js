@@ -2,7 +2,7 @@
  * Dashboard module registry.
  *
  * Module ids are stored per user in the user_modules table. The previous
- * dashboard (now at /v1) used its own ids, so a user carried over from it
+ * dashboard used its own ids, so a user carried over from it
  * may hold grants like "ratetracker" or "disparity" that name modules which
  * no longer exist here.
  */

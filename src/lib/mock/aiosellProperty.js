@@ -29,7 +29,9 @@ export const MOCK_PROPERTY = {
       min_occ: 1,
       max_occ: 3,
       rateplans: [
+        { rateplan_id: "deluxe-s-ep", rateplan_name: "Standard EP", description: "Room Only", occupancy: 1, no_of_meals: 0, extra_adult: 800 },
         { rateplan_id: "deluxe-d-ep", rateplan_name: "Standard EP", description: "Room Only", occupancy: 2, no_of_meals: 0, extra_adult: 800 },
+        { rateplan_id: "deluxe-s-cp", rateplan_name: "Breakfast CP", description: "Incl. breakfast", occupancy: 1, no_of_meals: 1, extra_adult: 800 },
         { rateplan_id: "deluxe-d-cp", rateplan_name: "Breakfast CP", description: "Incl. breakfast", occupancy: 2, no_of_meals: 1, extra_adult: 800 },
       ],
     },
@@ -43,7 +45,9 @@ export const MOCK_PROPERTY = {
       min_occ: 1,
       max_occ: 4,
       rateplans: [
+        { rateplan_id: "suite-s-ep", rateplan_name: "Standard EP", description: "Room Only", occupancy: 1, no_of_meals: 0, extra_adult: 1200 },
         { rateplan_id: "suite-d-ep", rateplan_name: "Standard EP", description: "Room Only", occupancy: 2, no_of_meals: 0, extra_adult: 1200 },
+        { rateplan_id: "suite-s-cp", rateplan_name: "Breakfast CP", description: "Incl. breakfast", occupancy: 1, no_of_meals: 1, extra_adult: 1200 },
         { rateplan_id: "suite-d-cp", rateplan_name: "Breakfast CP", description: "Incl. breakfast", occupancy: 2, no_of_meals: 1, extra_adult: 1200 },
       ],
     },
@@ -66,9 +70,11 @@ export const MOCK_PROPERTY = {
 export function mockRate(roomId, rateplanId, isoDate) {
   const base = roomId === "suite" ? 8200 : 4500;
   const mealUplift = rateplanId.endsWith("-cp") ? 500 : 0;
+  // Single occupancy sells below double.
+  const singleDiscount = rateplanId.includes("-s-") ? -600 : 0;
   const day = new Date(`${isoDate}T00:00:00Z`).getUTCDay();
   const weekend = day === 5 || day === 6 ? 700 : 0;
-  return base + mealUplift + weekend;
+  return base + mealUplift + weekend + singleDiscount;
 }
 
 export function mockInventory(roomId, isoDate) {

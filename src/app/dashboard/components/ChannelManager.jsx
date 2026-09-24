@@ -61,6 +61,10 @@ export default function ChannelManager() {
   // Bumped when a multiplier update is rejected, to remount the input so it
   // snaps back to the value actually live on the channel.
   const [revert, setRevert] = useState(0);
+  // Edited rates, keyed "<rateplanId>|<date>". Unedited cells fall back to
+  // the stored value, so only changes are held here.
+  const [rates, setRates] = useState({});
+  const dirty = Object.keys(rates).length;
 
   const dates = useMemo(
     () => buildDates(new Date(`${anchor}T00:00:00Z`), days),
@@ -162,29 +166,42 @@ export default function ChannelManager() {
     setBusy(true);
     setNotice("");
     try {
-      const rates = [];
-      for (const room of property.rooms) {
-        for (const plan of room.rateplans) {
-          rates.push({
-            roomCode: room.room_id,
-            rateplanCode: plan.rateplan_id,
-            rate: mockRate(room.room_id, plan.rateplan_id, dates[0]),
-          });
-        }
+      // Push each edited cell at its own date, so an edit to one day does
+      // not overwrite the whole window.
+      const byDate = {};
+      for (const [key, value] of Object.entries(rates)) {
+        const [rateplanId, date] = key.split("|");
+        const room = property.rooms.find((r) =>
+          r.rateplans.some((p) => p.rateplan_id === rateplanId)
+        );
+        if (!room) continue;
+        (byDate[date] ||= []).push({
+          roomCode: room.room_id,
+          rateplanCode: rateplanId,
+          rate: Number(value),
+        });
+      }
+
+      const updates = Object.entries(byDate).map(([date, entries]) => ({
+        startDate: date,
+        endDate: date,
+        rates: entries,
+      }));
+
+      if (updates.length === 0) {
+        setNotice("No rate changes to push.");
+        setBusy(false);
+        return;
       }
       const res = await fetch("/api/cm/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "rates",
-          updates: [
-            { startDate: dates[0], endDate: dates[dates.length - 1], rates },
-          ],
-        }),
+        body: JSON.stringify({ kind: "rates", updates }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Push failed");
-      setNotice(json.message || "Rates pushed to channels.");
+      setNotice(json.message || `Pushed ${dirty} rate change${dirty === 1 ? "" : "s"}.`);
+      setRates({});
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -251,7 +268,11 @@ export default function ChannelManager() {
             disabled={busy}
             className="btn btn-primary"
           >
-            {busy ? "Working…" : "Push All to Channels"}
+            {busy
+              ? "Working…"
+              : dirty
+              ? `Push ${dirty} change${dirty === 1 ? "" : "s"}`
+              : "Push All to Channels"}
           </button>
         </div>
       </div>
@@ -388,6 +409,10 @@ export default function ChannelManager() {
                 onToggle={() =>
                   setExpanded((p) => ({ ...p, [room.room_id]: !p[room.room_id] }))
                 }
+                rates={rates}
+                onRateChange={(key, value) =>
+                  setRates((prev) => ({ ...prev, [key]: value }))
+                }
               />
             ))}
             {rooms.length === 0 && (
@@ -407,11 +432,36 @@ export default function ChannelManager() {
   );
 }
 
-function ExpandableRoom({ room, dates, currency, open, onToggle }) {
+function ExpandableRoom({
+  room,
+  dates,
+  currency,
+  open,
+  onToggle,
+  rates,
+  onRateChange,
+}) {
+  // Aiosell exposes one rate plan per occupancy, so several entries share a
+  // name and differ only by occupancy. They are grouped back together here so
+  // the grid reads as "Standard EP / Adult 1, Adult 2" rather than as four
+  // unrelated plans.
+  const groups = [];
+  for (const plan of room.rateplans) {
+    let group = groups.find((g) => g.name === plan.rateplan_name);
+    if (!group) {
+      group = { name: plan.rateplan_name, description: plan.description, plans: [] };
+      groups.push(group);
+    }
+    group.plans.push(plan);
+  }
+  for (const g of groups) {
+    g.plans.sort((a, b) => (a.occupancy || 0) - (b.occupancy || 0));
+  }
+
   return (
     <>
       <tr className="bg-[var(--surface-2)]">
-        <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-3">
+        <td className="sticky left-0 z-10 bg-[var(--surface-2)] px-4 py-3">
           <button
             type="button"
             onClick={onToggle}
@@ -421,7 +471,8 @@ function ExpandableRoom({ room, dates, currency, open, onToggle }) {
             <span>
               <span className="block font-medium text-ink">{room.room_name}</span>
               <span className="block text-xs muted">
-                {room.rateplans.length} rate plans · {room.count} rooms
+                {groups.length} rate plan{groups.length === 1 ? "" : "s"} ·{" "}
+                {room.count} rooms
               </span>
             </span>
           </button>
@@ -432,21 +483,44 @@ function ExpandableRoom({ room, dates, currency, open, onToggle }) {
           </td>
         ))}
       </tr>
+
       {open &&
-        room.rateplans.map((plan) => (
-          <tr key={plan.rateplan_id} className="">
-            <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-2 pl-10">
-              <span className="block text-sm text-ink">{plan.rateplan_name}</span>
-              <span className="block text-xs muted">{plan.description}</span>
-            </td>
-            {dates.map((d) => (
-              <td key={d} className="px-3 py-2 text-center text-ink">
-                {currency}
-                {mockRate(room.room_id, plan.rateplan_id, d).toLocaleString("en-IN")}
+        groups.map((group) =>
+          group.plans.map((plan, i) => (
+            <tr key={plan.rateplan_id}>
+              <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-1.5 pl-10">
+                {i === 0 && (
+                  <span className="block text-sm text-ink">{group.name}</span>
+                )}
+                <span className="block text-xs muted">
+                  Adult {plan.occupancy ?? 1}
+                  {plan.no_of_meals > 0 ? " · incl. meals" : ""}
+                </span>
               </td>
-            ))}
-          </tr>
-        ))}
+              {dates.map((d) => {
+                const key = `${plan.rateplan_id}|${d}`;
+                const value =
+                  rates[key] ?? mockRate(room.room_id, plan.rateplan_id, d);
+                return (
+                  <td key={d} className="px-1.5 py-1.5">
+                    <input
+                      type="number"
+                      value={value}
+                      onChange={(e) => onRateChange(key, e.target.value)}
+                      className="w-full rounded border px-1.5 py-1 text-right text-sm"
+                      style={{
+                        background: "var(--surface)",
+                        borderColor: "var(--border)",
+                        color: "var(--text)",
+                      }}
+                      aria-label={`${group.name} adult ${plan.occupancy} on ${d}`}
+                    />
+                  </td>
+                );
+              })}
+            </tr>
+          ))
+        )}
     </>
   );
 }

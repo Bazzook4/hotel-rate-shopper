@@ -107,12 +107,6 @@ export default function V2Dashboard() {
             >
               Admin
             </Link>
-            <Link
-              href="/v1"
-              className="block rounded-lg px-3 py-2 text-sm muted transition hover:opacity-80"
-            >
-              Previous dashboard
-            </Link>
             <ThemeToggle className="w-full justify-start px-3" />
             <LogoutButton />
           </div>

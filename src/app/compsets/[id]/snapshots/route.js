@@ -28,7 +28,7 @@ export async function POST(req, { params }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // body.payload should be what ComparePanel produced
+  // body.payload is the comparison result being snapshotted
   const body = await req.json().catch(() => ({}));
   const payload = body?.payload;
   if (!payload) return NextResponse.json({ error: "Missing payload" }, { status: 400 });
