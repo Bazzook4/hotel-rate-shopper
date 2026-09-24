@@ -48,6 +48,11 @@ export default function V2Dashboard() {
   // The sidebar collapses to give the grid its full width, which matters most
   // on the Channel Manager's 30-day view.
   const [railOpen, setRailOpen] = useState(true);
+  // The property every page works against. A super admin switches it here in
+  // the header rather than inside each page, so there is one answer to "which
+  // property am I changing" wherever they are.
+  const [properties, setProperties] = useState([]);
+  const [propertyId, setPropertyId] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +73,42 @@ export default function V2Dashboard() {
       cancelled = true;
     };
   }, []);
+
+  // The properties this session may work in. A super admin gets the full list
+  // and may switch; everyone else gets only their own, so the control shows
+  // where they are without offering a change they may not make.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    fetch("/api/properties")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j?.properties) return;
+        setProperties(j.properties);
+        setPropertyId((cur) => cur || session.propertyId || j.properties[0]?.id || "");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  /**
+   * The session as the pages should see it: the selected property, not the
+   * one the cookie was issued for. Pages read propertyId from here, so a
+   * switch in the header moves every page at once.
+   */
+  const scopedSession = useMemo(() => {
+    if (!session) return null;
+    const chosen = properties.find((p) => p.id === propertyId);
+    return {
+      ...session,
+      propertyId: propertyId || session.propertyId,
+      propertyName: chosen?.name || session.propertyName,
+      // Switching happens in the header now, so no page offers its own picker.
+      canSwitchProperties: false,
+    };
+  }, [session, properties, propertyId]);
 
   const areas = useMemo(() => visibleAreas(session), [session]);
 
@@ -107,10 +148,32 @@ export default function V2Dashboard() {
         </div>
 
         <div className="flex items-center gap-1">
-          {session?.propertyName && (
-            <span className="mr-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              {session.propertyName}
-            </span>
+          {/* A super admin picks the property; everyone else sees theirs named.
+              Either way this is the one place it is set. */}
+          {session?.canSwitchProperties && properties.length > 1 ? (
+            <select
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+              aria-label="Property"
+              className="mr-2 rounded px-2 py-1 text-sm"
+              style={{
+                background: "var(--surface-2)",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            >
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            scopedSession?.propertyName && (
+              <span className="mr-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                {scopedSession.propertyName}
+              </span>
+            )
           )}
           <Link
             href="/admin"
@@ -253,7 +316,7 @@ export default function V2Dashboard() {
               <>
                 {active === "cm" && <ChannelManager />}
 
-                {active === "integrations" && <Integrations session={session} />}
+                {active === "integrations" && <Integrations session={scopedSession} />}
 
                 {active === "parity" && (
                   <div className="space-y-4">
@@ -270,11 +333,22 @@ export default function V2Dashboard() {
 
                 {active === "pricing" && <DynamicPricing />}
 
-                {/* Property Setup renders room types and rate plans together;
-                    both Setup pages open it until they are split apart. */}
-                {(active === "setup" ||
-                  active === "rooms" ||
-                  active === "rateplans") && <PropertySetup session={session} />}
+                {/* Rooms and rate plans are separate pages; the component
+                    renders one panel or the other. */}
+                {active === "rooms" && (
+                  <PropertySetup session={scopedSession} only="rooms" />
+                )}
+
+                {active === "rateplans" && (
+                  <PropertySetup session={scopedSession} only="plans" />
+                )}
+
+                {active === "setup" && (
+                  <ComingSoon title="Property Setup">
+                    Property details — address, contact, policies and amenities. This
+                    will be fed from the PMS rather than entered here.
+                  </ComingSoon>
+                )}
 
                 {active === "users" && session?.canManageUsers && (
                   <div className="space-y-4">
@@ -282,7 +356,7 @@ export default function V2Dashboard() {
                       <h2 className="h1">Users</h2>
                       <p className="sub">Provision access and assign modules.</p>
                     </div>
-                    <AdminUserManager session={session} />
+                    <AdminUserManager session={scopedSession} />
                   </div>
                 )}
 

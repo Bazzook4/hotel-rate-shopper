@@ -15,6 +15,42 @@ const METHOD_LABELS = {
   percent: "Percent change",
 };
 
+/**
+ * A plain sentence showing what the derivation works out to.
+ *
+ * The arithmetic is easy to get backwards -- especially "decrease by 10%" --
+ * so the form states the result rather than leaving it to be worked out after
+ * saving.
+ */
+function previewDerived(plan, allPlans, resolved) {
+  const master = allPlans.find((p) => p.id === plan.derive_from_id);
+  if (!master) return "";
+
+  const base = resolved?.[master.id];
+  const value = Number(plan.derive_value);
+  if (!Number.isFinite(value) || plan.derive_value === "") {
+    return `Takes its rate from ${master.plan_name}.`;
+  }
+
+  const describe = {
+    offset: value < 0 ? `less ${Math.abs(value)}` : `plus ${value}`,
+    multiplier: `multiplied by ${value}`,
+    percent: value < 0 ? `less ${Math.abs(value)}%` : `plus ${value}%`,
+  }[plan.derive_method];
+
+  if (!Number.isFinite(base)) {
+    return `${master.plan_name}, ${describe}.`;
+  }
+
+  const out = {
+    offset: base + value,
+    multiplier: base * value,
+    percent: base * (1 + value / 100),
+  }[plan.derive_method];
+
+  return `${master.plan_name} is ${Math.round(base)}, so this is ${describe} = ${Math.round(out)}.`;
+}
+
 function Field({ label, children }) {
   return (
     <label className="block label">
@@ -27,12 +63,16 @@ function Field({ label, children }) {
 const inputClass =
   "input mt-1";
 
-export default function PropertySetup({ session }) {
-  // A super admin is not tied to one property, so they choose which to
-  // configure. Everyone else is scoped to their own and sees no picker.
-  const [properties, setProperties] = useState([]);
-  const [propertyId, setPropertyId] = useState(session?.propertyId || "");
-  const canChoose = session?.canSwitchProperties === true;
+/**
+ * Room types and rate plans for one property.
+ *
+ * `only` picks which panel to render -- "rooms" or "plans" -- because the two
+ * are separate pages in the navigation. The property comes from the session
+ * the dashboard passes down, which follows the switcher in the header, so
+ * there is no picker here.
+ */
+export default function PropertySetup({ session, only = "rooms" }) {
+  const propertyId = session?.propertyId || "";
 
   const [roomTypes, setRoomTypes] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
@@ -40,30 +80,13 @@ export default function PropertySetup({ session }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState("rooms");
   const [editingRoom, setEditingRoom] = useState(null);
   const [editingPlan, setEditingPlan] = useState(null);
 
-  // Load the property list once, so a super admin has something to pick.
-  useEffect(() => {
-    if (!canChoose) return;
-    let cancelled = false;
-    fetch("/api/properties")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (cancelled || !j?.properties) return;
-        setProperties(j.properties);
-        setPropertyId((cur) => cur || j.properties[0]?.id || "");
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [canChoose]);
 
   const load = useCallback(async () => {
-    // Nothing to load until a property is known.
-    if (canChoose && !propertyId) {
+    // Nothing to load until the dashboard has settled on a property.
+    if (!propertyId) {
       setLoading(false);
       return;
     }
@@ -91,7 +114,7 @@ export default function PropertySetup({ session }) {
     } finally {
       setLoading(false);
     }
-  }, [propertyId, canChoose]);
+  }, [propertyId]);
 
   useEffect(() => {
     load();
@@ -216,33 +239,23 @@ export default function PropertySetup({ session }) {
     );
   }
 
+  const showRooms = only === "rooms";
+
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="h1">Property Setup</h2>
+        <h2 className="h1">
+          {showRooms ? "Room Setup" : "Rate Plan Setup"}
+          <span className="ml-2 text-base font-normal muted">
+            ({showRooms ? roomTypes.length : ratePlans.length})
+          </span>
+        </h2>
         <p className="sub">
-          Manage room types and rate plans. Linked plans derive their rate from a
-          master, so changing the master updates them all.
+          {showRooms
+            ? "The rooms you sell, how many of each, and what they cost as a base."
+            : "What a guest is buying, and what it costs. A plan can take its rate from another, so changing one moves them together."}
         </p>
       </div>
-
-      {canChoose && (
-        <div className="card card-pad">
-          <label className="label">Property</label>
-          <select
-            value={propertyId}
-            onChange={(e) => setPropertyId(e.target.value)}
-            className="input"
-          >
-            {properties.length === 0 && <option value="">No properties found</option>}
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {notice && (
         <div className="card px-4 py-2 sub">
@@ -250,27 +263,7 @@ export default function PropertySetup({ session }) {
         </div>
       )}
 
-      <div className="flex gap-2">
-        {[
-          ["rooms", `Room types (${roomTypes.length})`],
-          ["plans", `Rate plans (${ratePlans.length})`],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`rounded-xl px-3 py-1.5 text-sm transition ${
-              tab === id
-                ? "bg-[var(--accent-soft)] text-ink"
-                : "muted hover:bg-[var(--surface-2)] hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "rooms" && (
+      {showRooms ? (
         <RoomTypesPanel
           roomTypes={roomTypes}
           editing={editingRoom}
@@ -279,9 +272,7 @@ export default function PropertySetup({ session }) {
           onDelete={removeRoom}
           busy={busy}
         />
-      )}
-
-      {tab === "plans" && (
+      ) : (
         <RatePlansPanel
           ratePlans={ratePlans}
           roomTypes={roomTypes}
@@ -595,24 +586,47 @@ function RatePlansPanel({
           </div>
 
           <div className="mt-4 card p-3">
+            <p className="label">Rate setup</p>
+
             <label className="flex items-center gap-2 text-sm text-ink">
               <input
-                type="checkbox"
+                type="radio"
+                name="rate-setup"
+                checked={!editing.derive_from_id}
+                onChange={() =>
+                  setEditing({ ...editing, derive_from_id: "", derive_value: "" })
+                }
+              />
+              Enter this plan&rsquo;s rates directly
+            </label>
+
+            <label className="mt-2 flex items-center gap-2 text-sm text-ink">
+              <input
+                type="radio"
+                name="rate-setup"
+                disabled={masters.length === 0}
                 checked={Boolean(editing.derive_from_id)}
-                onChange={(e) =>
+                onChange={() =>
                   setEditing({
                     ...editing,
-                    derive_from_id: e.target.checked ? masters[0]?.id || "" : "",
-                    is_master: e.target.checked ? false : editing.is_master,
+                    derive_from_id: masters[0]?.id || "",
+                    is_master: false,
+                    derive_method: editing.derive_method || "percent",
                   })
                 }
               />
-              Link this plan to a master
+              Derive its rates from another rate plan
             </label>
+
+            {masters.length === 0 && !editing.derive_from_id && (
+              <p className="mt-1 pl-6 text-xs faint">
+                Needs another plan to derive from. Add one first.
+              </p>
+            )}
 
             {editing.derive_from_id ? (
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <Field label="Master plan">
+                <Field label="Derived from">
                   <select
                     value={editing.derive_from_id}
                     onChange={(e) =>
@@ -627,9 +641,10 @@ function RatePlansPanel({
                     ))}
                   </select>
                 </Field>
-                <Field label="Method">
+
+                <Field label="Adjust daily rates by">
                   <select
-                    value={editing.derive_method || "offset"}
+                    value={editing.derive_method || "percent"}
                     onChange={(e) =>
                       setEditing({ ...editing, derive_method: e.target.value })
                     }
@@ -642,19 +657,74 @@ function RatePlansPanel({
                     ))}
                   </select>
                 </Field>
-                <Field label="Value">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editing.derive_value ?? ""}
-                    onChange={(e) =>
-                      setEditing({ ...editing, derive_value: e.target.value })
-                    }
-                    className={inputClass}
-                    placeholder={
-                      editing.derive_method === "multiplier" ? "0.90" : "500"
-                    }
-                  />
+
+                {/* Multiplier is a factor, where below 1 already means a
+                    discount, so a direction control would contradict it.
+                    Offset and percent are signed, and a hotelier thinks in
+                    "increase" or "decrease" rather than a minus sign. */}
+                <Field
+                  label={
+                    editing.derive_method === "multiplier"
+                      ? "Factor"
+                      : editing.derive_method === "percent"
+                      ? "Percentage adjustment"
+                      : "Amount"
+                  }
+                >
+                  {editing.derive_method === "multiplier" ? (
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editing.derive_value ?? ""}
+                      onChange={(e) =>
+                        setEditing({ ...editing, derive_value: e.target.value })
+                      }
+                      className={inputClass}
+                      placeholder="0.90"
+                    />
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        value={Number(editing.derive_value) < 0 ? "down" : "up"}
+                        onChange={(e) => {
+                          const mag = Math.abs(Number(editing.derive_value) || 0);
+                          setEditing({
+                            ...editing,
+                            derive_value: e.target.value === "down" ? -mag : mag,
+                          });
+                        }}
+                        className={inputClass}
+                        style={{ flex: "0 0 52%" }}
+                        aria-label="Direction"
+                      >
+                        <option value="up">Increase by</option>
+                        <option value="down">Decrease by</option>
+                      </select>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={
+                          editing.derive_value === "" ||
+                          editing.derive_value === null ||
+                          editing.derive_value === undefined
+                            ? ""
+                            : Math.abs(Number(editing.derive_value))
+                        }
+                        onChange={(e) => {
+                          const mag = e.target.value === "" ? "" : Math.abs(Number(e.target.value));
+                          const down = Number(editing.derive_value) < 0;
+                          setEditing({
+                            ...editing,
+                            derive_value: mag === "" ? "" : down ? -mag : mag,
+                          });
+                        }}
+                        className={inputClass}
+                        placeholder={editing.derive_method === "percent" ? "10" : "500"}
+                      />
+                    </div>
+                  )}
                 </Field>
               </div>
             ) : (
@@ -668,6 +738,12 @@ function RatePlansPanel({
                 />
                 This is a master plan
               </label>
+            )}
+
+            {editing.derive_from_id && (
+              <p className="mt-3 text-xs faint">
+                {previewDerived(editing, ratePlans, resolved)}
+              </p>
             )}
           </div>
 
