@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PropertyManager from "../components/PropertyManager";
+import { canManageProperties } from "@/lib/permissions";
 
 export default function ManagePropertiesPage() {
   const router = useRouter();
@@ -18,7 +19,7 @@ export default function ManagePropertiesPage() {
       const res = await fetch("/api/auth/session");
       if (res.ok) {
         const data = await res.json();
-        if (data.user && data.user.role === "Admin") {
+        if (data.user && canManageProperties(data.user)) {
           setIsAdmin(true);
         } else {
           router.push("/");

@@ -15,6 +15,7 @@ import AdminUserManager from "../components/AdminUserManager";
 import DynamicPricing from "../components/DynamicPricing";
 import SavedSearchTable from "../components/SavedSearchTable";
 import RateHistory from "../components/RateHistory";
+import { canManageUsers } from "@/lib/permissions";
 
 function SingleSearchPanel({ session }) {
   const [data, setData] = useState(null);
@@ -283,7 +284,7 @@ export default function Page() {
     ];
 
     // Admin always gets Manage Users tab
-    if (session?.role === "Admin") {
+    if (canManageUsers(session)) {
       allItems.push({ id: "users", label: "Manage Users", icon: "👥" });
       // Admins get all modules by default
       return allItems;
@@ -436,7 +437,7 @@ export default function Page() {
                   </div>
                 )}
 
-                {active === "users" && session?.role === "Admin" && (
+                {active === "users" && canManageUsers(session) && (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/permissions";
 import { getPropertyById, listProperties } from "@/lib/database";
 
 export async function GET(request) {
@@ -8,7 +9,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (session.role === "Admin") {
+  if (isSuperAdmin(session)) {
     const props = await listProperties();
     return NextResponse.json({ properties: props });
   }
