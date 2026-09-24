@@ -41,6 +41,13 @@ export function createAiosellClient({ partner, hotelCode } = {}) {
   const pms = partner?.partner_id || process.env.AIOSELL_PARTNER_ID;
   const hotel = hotelCode || process.env.AIOSELL_HOTEL_CODE;
 
+  // Rates and inventory have separate paths. They are stored per partner so
+  // a provider with different routing does not need a code change; {pms} is
+  // substituted at call time.
+  const ratesPath = partner?.rates_url || "/update-rates/{pms}";
+  const inventoryPath = partner?.inventory_url || "/update/{pms}";
+  const withPms = (path) => path.replace("{pms}", pms);
+
   function configured() {
     return Boolean(user && password && pms && hotel);
   }
@@ -114,18 +121,18 @@ export function createAiosellClient({ partner, hotelCode } = {}) {
 
     /** updates: [{ startDate, endDate, rooms: [{ roomCode, available }] }] */
     pushInventory(updates) {
-      return request(`/update/${pms}`, { body: { hotelCode: hotel, updates } });
+      return request(withPms(inventoryPath), { body: { hotelCode: hotel, updates } });
     },
 
     /** updates: [{ startDate, endDate, rates: [{ roomCode, rateplanCode, rate }] }] */
     pushRates(updates) {
-      return request(`/update-rates/${pms}`, { body: { hotelCode: hotel, updates } });
+      return request(withPms(ratesPath), { body: { hotelCode: hotel, updates } });
     },
 
     pushInventoryRestrictions(updates, { toChannels } = {}) {
       const body = { hotelCode: hotel, updates };
       if (toChannels?.length) body.toChannels = toChannels;
-      return request(`/update/${pms}`, { body });
+      return request(withPms(inventoryPath), { body });
     },
 
     /**

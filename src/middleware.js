@@ -22,7 +22,12 @@ export async function middleware(request) {
   if (["GET", "POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
     const sessionCookie = request.cookies.get("rate_session")?.value;
     const session = await decodeSession(sessionCookie);
-    const isPublic = PUBLIC_PATHS.has(pathname) || pathname.startsWith("/api/auth/");
+    // Inbound webhooks are called server-to-server by a partner with no
+    // session. The secret in the path authenticates them.
+    const isPublic =
+      PUBLIC_PATHS.has(pathname) ||
+      pathname.startsWith("/api/auth/") ||
+      pathname.startsWith("/api/webhooks/");
 
     if (!session && !isPublic) {
       const loginUrl = new URL("/login", request.url);

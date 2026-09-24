@@ -255,6 +255,43 @@ export default function Integrations({ session }) {
                 );
               })}
             </div>
+
+            {acts.reservationsIn && (
+              <div className="mt-3 rounded-xl border border-white/10 bg-slate-900/60 p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                  Reservation webhook
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Give this URL to Aiosell. They will post bookings,
+                  modifications and cancellations to it.
+                </p>
+                {data?.webhookUrl ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <code className="flex-1 break-all rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-200">
+                      {data.webhookUrl}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(data.webhookUrl);
+                        setNotice("Webhook URL copied.");
+                      }}
+                      className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-white/20"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">
+                    Save with this activity on and the URL will be generated.
+                  </p>
+                )}
+                <p className="mt-2 text-[10px] text-slate-500">
+                  Treat it as a password: anyone holding it can post
+                  reservations to this property.
+                </p>
+              </div>
+            )}
           </div>
 
           {(data?.roomTypes?.length > 0 || data?.ratePlans?.length > 0) && (

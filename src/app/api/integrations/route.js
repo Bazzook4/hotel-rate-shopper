@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin, isAnyAdmin } from "@/lib/permissions";
+import { randomBytes } from "crypto";
 import {
   getPropertyIntegration,
+  setWebhookToken,
   upsertPropertyIntegration,
   saveIntegrationCodeMap,
   getUserPropertyId,
@@ -61,8 +63,16 @@ export async function GET(req) {
         }
       : null;
 
+    // The URL a partner posts reservations to. Built from the request so it
+    // is correct in every environment.
+    const origin = req.nextUrl.origin;
+    const token = found?.integration?.webhook_token || null;
+
     return NextResponse.json({
       partner,
+      webhookUrl: token
+        ? `${origin}/api/webhooks/reservations/${token}`
+        : null,
       integration: found?.integration || null,
       codeMap: found?.codeMap || [],
       roomTypes,
@@ -115,7 +125,21 @@ export async function PUT(req) {
       await saveIntegrationCodeMap(integration.id, body.codeMap);
     }
 
-    return NextResponse.json({ integration });
+    // Issue a webhook secret the first time reservations are switched on, or
+    // when the caller asks for a new one.
+    let webhookToken = integration.webhook_token;
+    if ((body.reservationsIn && !webhookToken) || body.regenerateWebhook) {
+      const fresh = randomBytes(24).toString("base64url");
+      await setWebhookToken(integration.id, fresh);
+      webhookToken = fresh;
+    }
+
+    return NextResponse.json({
+      integration: { ...integration, webhook_token: webhookToken },
+      webhookUrl: webhookToken
+        ? `${req.nextUrl.origin}/api/webhooks/reservations/${webhookToken}`
+        : null,
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

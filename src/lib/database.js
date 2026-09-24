@@ -988,7 +988,7 @@ export async function listUsersForProperty(propertyId) {
 export async function listPartners() {
   const { data, error } = await supabase
     .from('partners')
-    .select('id, slug, name, base_url, partner_id, api_username, enabled, notes, updated_at, supports_rates_out, supports_inventory_out, supports_reservations_in')
+    .select('id, slug, name, base_url, rates_url, inventory_url, partner_id, api_username, enabled, notes, updated_at, supports_rates_out, supports_inventory_out, supports_reservations_in')
     .order('name');
 
   if (error) {
@@ -1016,7 +1016,7 @@ export async function getPartnerBySlug(slug) {
 
 export async function updatePartner(id, updates) {
   const patch = { updated_at: new Date().toISOString() };
-  for (const key of ['name', 'base_url', 'api_username', 'partner_id', 'enabled', 'notes']) {
+  for (const key of ['name', 'base_url', 'rates_url', 'inventory_url', 'api_username', 'partner_id', 'enabled', 'notes']) {
     if (key in updates) patch[key] = updates[key];
   }
   // An empty password means "leave unchanged", so it is only written when set.
@@ -1127,6 +1127,74 @@ export async function saveIntegrationCodeMap(integrationId, rows) {
 
   if (error) {
     throw new Error(`Failed to save code map: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/** Find an integration by the secret in its inbound webhook URL. */
+export async function getIntegrationByWebhookToken(token) {
+  if (!token) return null;
+
+  const { data, error } = await supabase
+    .from('property_integrations')
+    .select('*')
+    .eq('webhook_token', token)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to resolve webhook: ${error.message}`);
+  }
+
+  return data || null;
+}
+
+/** Issue (or re-issue) the secret for a property's inbound webhook URL. */
+export async function setWebhookToken(integrationId, token) {
+  const { data, error } = await supabase
+    .from('property_integrations')
+    .update({ webhook_token: token, updated_at: new Date().toISOString() })
+    .eq('id', integrationId)
+    .select('id, webhook_token')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to set webhook token: ${error.message}`);
+  }
+
+  return data;
+}
+
+/** Record a reservation pushed to us by a partner. */
+export async function recordPartnerReservation(row) {
+  const { data, error } = await supabase
+    .from('partner_reservations')
+    .insert(row)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to record reservation: ${error.message}`);
+  }
+
+  await supabase
+    .from('property_integrations')
+    .update({ last_reservation_at: new Date().toISOString() })
+    .eq('id', row.integration_id);
+
+  return data;
+}
+
+export async function listPartnerReservations(propertyId, { limit = 50 } = {}) {
+  const { data, error } = await supabase
+    .from('partner_reservations')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('received_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to list reservations: ${error.message}`);
   }
 
   return data || [];

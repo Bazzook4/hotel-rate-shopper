@@ -107,6 +107,24 @@ export default function PartnerSettings() {
                 />
               </label>
               <label className="block text-[11px] text-slate-400">
+                Rates path
+                <input
+                  value={form.rates_url ?? ""}
+                  onChange={(e) => setForm({ ...form, rates_url: e.target.value })}
+                  className={inputClass}
+                  placeholder="/update-rates/{pms}"
+                />
+              </label>
+              <label className="block text-[11px] text-slate-400">
+                Inventory path
+                <input
+                  value={form.inventory_url ?? ""}
+                  onChange={(e) => setForm({ ...form, inventory_url: e.target.value })}
+                  className={inputClass}
+                  placeholder="/update/{pms}"
+                />
+              </label>
+              <label className="block text-[11px] text-slate-400">
                 API username
                 <input
                   value={form.api_username ?? ""}
