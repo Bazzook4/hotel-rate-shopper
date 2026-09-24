@@ -130,18 +130,14 @@ export default function PropertyUsers({ session, property }) {
     <div className="mt-4 card card-pad">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="h2 text-sm">
-            Users at {property.name}
+          <h3 className="h2 text-sm">Users at {property.name}
           </h3>
-          <p className="text-xs muted">
-            Role, status and module access for this property.
+          <p className="text-xs muted">Role, status and module access for this property.
           </p>
         </div>
         {canAdd && !adding && (
           <button
-            type="button"
-            onClick={() =>
-              setAdding({
+            type="button"onClick={() =>setAdding({
                 email: "",
                 password: "",
                 role: roles[roles.length - 1].value,
@@ -169,26 +165,21 @@ export default function PropertyUsers({ session, property }) {
       {adding && (
         <div className="mb-3 card p-3">
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="block label">
-              Email
+            <label className="block label">Email
               <input
-                type="email"
-                value={adding.email}
+                type="email"value={adding.email}
                 onChange={(e) => setAdding({ ...adding, email: e.target.value })}
                 className={inputClass}
               />
             </label>
-            <label className="block label">
-              Password
+            <label className="block label">Password
               <input
-                type="password"
-                value={adding.password}
+                type="password"value={adding.password}
                 onChange={(e) => setAdding({ ...adding, password: e.target.value })}
                 className={inputClass}
               />
             </label>
-            <label className="block label">
-              Role
+            <label className="block label">Role
               <select
                 value={adding.role}
                 onChange={(e) => setAdding({ ...adding, role: e.target.value })}
@@ -210,19 +201,16 @@ export default function PropertyUsers({ session, property }) {
 
           <div className="mt-3 flex gap-2">
             <button
-              type="button"
-              disabled={busy}
+              type="button"disabled={busy}
               onClick={() => addUser(adding)}
               className="btn btn-primary"
             >
               {busy ? "Adding…" : "Add user"}
             </button>
             <button
-              type="button"
-              onClick={() => setAdding(null)}
+              type="button"onClick={() => setAdding(null)}
               className="btn btn-secondary"
-            >
-              Cancel
+            >Cancel
             </button>
           </div>
         </div>
@@ -232,20 +220,17 @@ export default function PropertyUsers({ session, property }) {
         <p className="py-4 text-center sub">Loading users…</p>
       ) : (
         <div className="space-y-2">
-          {users.map((u) =>
-            editing?.id === u.id ? (
+          {users.map((u) =>editing?.id === u.id ? (
               <div
                 key={u.id}
                 className="card p-3"
               >
                 <p className="mb-2 text-sm text-ink">{u.email}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block label">
-                    Role
+                  <label className="block label">Role
                     <select
                       value={editing.role}
-                      onChange={(e) =>
-                        setEditing({ ...editing, role: e.target.value })
+                      onChange={(e) =>setEditing({ ...editing, role: e.target.value })
                       }
                       className={inputClass}
                     >
@@ -256,12 +241,10 @@ export default function PropertyUsers({ session, property }) {
                       ))}
                     </select>
                   </label>
-                  <label className="block label">
-                    Status
+                  <label className="block label">Status
                     <select
                       value={editing.status || "Active"}
-                      onChange={(e) =>
-                        setEditing({ ...editing, status: e.target.value })
+                      onChange={(e) =>setEditing({ ...editing, status: e.target.value })
                       }
                       className={inputClass}
                     >
@@ -281,19 +264,16 @@ export default function PropertyUsers({ session, property }) {
 
                 <div className="mt-3 flex gap-2">
                   <button
-                    type="button"
-                    disabled={busy}
+                    type="button"disabled={busy}
                     onClick={() => saveUser(editing)}
                     className="btn btn-primary"
                   >
                     {busy ? "Saving…" : "Save"}
                   </button>
                   <button
-                    type="button"
-                    onClick={() => setEditing(null)}
+                    type="button"onClick={() => setEditing(null)}
                     className="btn btn-secondary"
-                  >
-                    Cancel
+                  >Cancel
                   </button>
                 </div>
               </div>
@@ -312,29 +292,25 @@ export default function PropertyUsers({ session, property }) {
                   </span>
                 </div>
                 <button
-                  type="button"
-                  onClick={() => {
+                  type="button"onClick={() => {
                     setEditing({ ...u, modules: u.modules || [] });
                     setNotice("");
                   }}
                   className="btn btn-secondary text-xs"
-                >
-                  Edit
+                >Edit
                 </button>
               </div>
             )
           )}
           {users.length === 0 && (
-            <p className="py-4 text-center sub">
-              No users at this property yet.
+            <p className="py-4 text-center sub">No users at this property yet.
             </p>
           )}
         </div>
       )}
 
       {!isSuperAdmin(session) && (
-        <p className="mt-3 text-[11px] faint">
-          Only a super admin can move a user to a different property.
+        <p className="mt-3 text-[11px] faint">Only a super admin can move a user to a different property.
         </p>
       )}
     </div>
@@ -351,15 +327,14 @@ function ModulePicker({ selected = [], onToggle }) {
           return (
             <button
               key={m.id}
-              type="button"
-              onClick={() => onToggle(m.id)}
+              type="button"onClick={() => onToggle(m.id)}
               className={`rounded-lg px-2.5 py-1 text-xs transition ${
                 on
                   ? "bg-white/20 text-ink ring-1 ring-white/30"
                   : "bg-[var(--surface)] muted hover:bg-[var(--surface-2)]"
               }`}
             >
-              {on ? "✓ " : ""}
+              {on ? " " : ""}
               {m.label}
             </button>
           );

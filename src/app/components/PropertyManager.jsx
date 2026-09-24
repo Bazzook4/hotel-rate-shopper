@@ -167,200 +167,147 @@ export default function PropertyManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Property Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Property Name *
+                <label className="block text-sm font-medium text-gray-700 mb-1">Property Name *
                 </label>
                 <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
+                  type="text"name="name"value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Fortune Retreat"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="e.g., Fortune Retreat"
                 />
               </div>
 
               {/* City */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City
+                <label className="block text-sm font-medium text-gray-700 mb-1">City
                 </label>
                 <input
-                  type="text"
-                  name="city"
-                  value={formData.city}
+                  type="text"name="city"value={formData.city}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Ooty"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="e.g., Ooty"
                 />
               </div>
 
               {/* State */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  State
+                <label className="block text-sm font-medium text-gray-700 mb-1">State
                 </label>
                 <input
-                  type="text"
-                  name="state"
-                  value={formData.state}
+                  type="text"name="state"value={formData.state}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., Tamil Nadu"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="e.g., Tamil Nadu"
                 />
               </div>
 
               {/* Country */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Country
+                <label className="block text-sm font-medium text-gray-700 mb-1">Country
                 </label>
                 <input
-                  type="text"
-                  name="country"
-                  value={formData.country}
+                  type="text"name="country"value={formData.country}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., India"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="e.g., India"
                 />
               </div>
 
               {/* Address */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Address
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address
                 </label>
                 <input
-                  type="text"
-                  name="address"
-                  value={formData.address}
+                  type="text"name="address"value={formData.address}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Full address"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="Full address"
                 />
               </div>
 
               {/* Phone */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone
                 </label>
                 <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
+                  type="tel"name="phone"value={formData.phone}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Contact number"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="Contact number"
                 />
               </div>
 
               {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email
                 </label>
                 <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
+                  type="email"name="email"value={formData.email}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="contact@hotel.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="contact@hotel.com"
                 />
               </div>
 
               {/* Website */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Website
+                <label className="block text-sm font-medium text-gray-700 mb-1">Website
                 </label>
                 <input
-                  type="url"
-                  name="website"
-                  value={formData.website}
+                  type="url"name="website"value={formData.website}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="https://..."
                 />
               </div>
 
               {/* Postal Code */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Postal Code
+                <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code
                 </label>
                 <input
-                  type="text"
-                  name="postalCode"
-                  value={formData.postalCode}
+                  type="text"name="postalCode"value={formData.postalCode}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="ZIP/Postal code"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="ZIP/Postal code"
                 />
               </div>
 
               {/* Star Rating */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Star Rating (1-5)
+                <label className="block text-sm font-medium text-gray-700 mb-1">Star Rating (1-5)
                 </label>
                 <input
-                  type="number"
-                  name="starRating"
-                  min="1"
-                  max="5"
-                  value={formData.starRating}
+                  type="number"name="starRating"min="1"max="5"value={formData.starRating}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="1-5"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="1-5"
                 />
               </div>
 
               {/* Total Rooms */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Total Rooms
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Rooms
                 </label>
                 <input
-                  type="number"
-                  name="totalRooms"
-                  min="1"
-                  value={formData.totalRooms}
+                  type="number"name="totalRooms"min="1"value={formData.totalRooms}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Number of rooms"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="Number of rooms"
                 />
               </div>
 
               {/* Description */}
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description
                 </label>
                 <textarea
-                  name="description"
-                  value={formData.description}
+                  name="description"value={formData.description}
                   onChange={handleChange}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Brief description of the property"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"placeholder="Brief description of the property"
                 />
               </div>
             </div>
 
             <div className="flex justify-end gap-3 mt-6">
               <button
-                type="button"
-                onClick={() => setShowAddForm(false)}
+                type="button"onClick={() => setShowAddForm(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition"
-              >
-                Cancel
+              >Cancel
               </button>
               <button
-                type="submit"
-                disabled={loading}
+                type="submit"disabled={loading}
                 className="px-4 py-2 bg-[var(--accent)] text-ink rounded-md hover:bg-[var(--accent)] transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Creating..." : "Create Property"}
@@ -376,8 +323,7 @@ export default function PropertyManager() {
           <h2 className="text-lg font-semibold">Existing Properties</h2>
         </div>
         {properties.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No properties found. Add your first property above!
+          <div className="p-6 text-center text-gray-500">No properties found. Add your first property above!
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -400,19 +346,18 @@ export default function PropertyManager() {
                     )}
                     <div className="flex gap-4 mt-3 text-sm text-gray-600">
                       {property.star_rating && (
-                        <span>⭐ {property.star_rating} Star</span>
+                        <span>{property.star_rating} Star</span>
                       )}
                       {property.total_rooms && (
-                        <span>🛏️ {property.total_rooms} Rooms</span>
+                        <span>{property.total_rooms} Rooms</span>
                       )}
-                      {property.phone && <span>📞 {property.phone}</span>}
+                      {property.phone && <span>{property.phone}</span>}
                     </div>
                   </div>
                   <button
                     onClick={() => handleLinkProperty(property.id)}
                     className="ml-4 px-4 py-2 bg-[var(--accent)] hover:opacity-90 text-ink text-sm rounded-md transition"
-                  >
-                    Link to My Account
+                  >Link to My Account
                   </button>
                 </div>
               </div>

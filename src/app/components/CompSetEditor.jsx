@@ -77,14 +77,12 @@ export default function CompSetEditor({ value, onChange, session }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="h2">Comp Set</h3>
-          <p className="text-xs text-ink/70">
-            Keep your primary property first; additional rows become competitors in comparisons.
+          <p className="text-xs text-ink/70">Keep your primary property first; additional rows become competitors in comparisons.
           </p>
         </div>
         <button
           onClick={addRow}
-          type="button"
-          className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 h2 text-sm  transition  "
+          type="button"className="inline-flex items-center gap-2 rounded-2xl px-4 py-2 h2 text-sm  transition"
         >
           + Add Hotel
         </button>
@@ -97,13 +95,11 @@ export default function CompSetEditor({ value, onChange, session }) {
           >
             <input
               className={inputClass}
-              placeholder="Hotel / Query"
-              value={r.name}
+              placeholder="Hotel / Query"value={r.name}
               onChange={(e) => update(i, { name: e.target.value })}
             />
             <input
-              type="date"
-              className={inputClass}
+              type="date"className={inputClass}
               value={r.check_in_date}
               onChange={(e) => {
                 const value = e.target.value;
@@ -117,21 +113,18 @@ export default function CompSetEditor({ value, onChange, session }) {
               }}
             />
             <input
-              type="date"
-              className={inputClass}
+              type="date"className={inputClass}
               value={r.check_out_date}
               onChange={(e) => update(i, { check_out_date: e.target.value })}
             />
             <input
-              type="number"
-              min={1}
+              type="number"min={1}
               className={inputClass}
               value={r.adults}
               onChange={(e) => update(i, { adults: Number(e.target.value) })}
             />
             <input
-              type="number"
-              min={0}
+              type="number"min={0}
               className={inputClass}
               value={r.children}
               onChange={(e) => update(i, { children: Number(e.target.value) })}
@@ -144,18 +137,13 @@ export default function CompSetEditor({ value, onChange, session }) {
               />
               <button
                 onClick={() => remove(i)}
-                type="button"
-                className="inline-flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 sub/80 transition hover:border-[var(--danger)]/40 hover:bg-[var(--danger-soft)] hover:text-ink"
-                aria-label="Remove hotel"
-              >
-                ✕
-              </button>
+                type="button"className="inline-flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 sub/80 transition hover:border-[var(--danger)]/40 hover:bg-[var(--danger-soft)] hover:text-ink"aria-label="Remove hotel"
+              ></button>
             </div>
           </div>
         ))}
       </div>
-      <p className="text-xs text-ink/70">
-        Tip: dates start at today/tomorrow for quick comps—adjust per property if needed.
+      <p className="text-xs text-ink/70">Tip: dates start at today/tomorrow for quick comps—adjust per property if needed.
       </p>
     </div>
   );

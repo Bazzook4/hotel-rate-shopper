@@ -16,6 +16,7 @@ import DynamicPricing from "../components/DynamicPricing";
 import SavedSearchTable from "../components/SavedSearchTable";
 import RateHistory from "../components/RateHistory";
 import { canManageUsers } from "@/lib/permissions";
+import Icon from "../components/Icon";
 
 function SingleSearchPanel({ session }) {
   const [data, setData] = useState(null);
@@ -275,17 +276,17 @@ export default function Page() {
 
   const navItems = useMemo(() => {
     const allItems = [
-      { id: "ratetracker", label: "Rate Tracker", icon: "📊" },
-      { id: "history", label: "Rate History", icon: "📈" },
-      { id: "compare", label: "Compare Hotels", icon: "🔎" },
-      { id: "location", label: "Search by Location", icon: "📍" },
-      { id: "disparity", label: "Disparity Checker", icon: "🧭" },
-      { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
+      { id: "ratetracker", label: "Rate Tracker", icon: "chart" },
+      { id: "history", label: "Rate History", icon: "trend" },
+      { id: "compare", label: "Compare Hotels", icon: "search" },
+      { id: "location", label: "Search by Location", icon: "pin" },
+      { id: "disparity", label: "Disparity Checker", icon: "compass" },
+      { id: "pricing", label: "Dynamic Pricing", icon: "money" },
     ];
 
     // Admin always gets Manage Users tab
     if (canManageUsers(session)) {
-      allItems.push({ id: "users", label: "Manage Users", icon: "👥" });
+      allItems.push({ id: "users", label: "Manage Users", icon: "users" });
       // Admins get all modules by default
       return allItems;
     }
@@ -331,7 +332,7 @@ export default function Page() {
                       : "text-ink/80 hover:bg-[var(--surface-2)] hover:text-ink"
                   }`}
                 >
-                  <span className="text-base leading-none">{item.icon}</span>
+                  <Icon name={item.icon} />
                   <span className="text-xs font-medium">{item.label}</span>
                 </button>
               );

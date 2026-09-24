@@ -205,8 +205,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       if (res.ok) {
         const data = await res.json();
         // Update the room type in the list
-        setRoomTypes(roomTypes.map((r) =>
-          r.id === recordId ? { ...r, ...updates } : r
+        setRoomTypes(roomTypes.map((r) =>r.id === recordId ? { ...r, ...updates } : r
         ));
       } else {
         const data = await res.json();
@@ -233,8 +232,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       if (res.ok) {
         const data = await res.json();
         // Update the room type in the list
-        setRoomTypes(roomTypes.map((r) =>
-          r.id === roomType.id
+        setRoomTypes(roomTypes.map((r) =>r.id === roomType.id
             ? { ...r, occupancy_pricing }
             : r
         ));
@@ -364,7 +362,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       <div className="max-w-2xl mx-auto">
         <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-8">
           <div className="text-center mb-6">
-            <div className="text-5xl mb-4">🏨</div>
+            <div className="text-5xl mb-4"></div>
             <h3 className="text-2xl font-bold text-ink mb-3">Dynamic Pricing</h3>
             <p className="muted text-sm mb-6">
               {loading ? "Loading your property..." : "No property found. Please contact your administrator to set up your property."}
@@ -374,22 +372,22 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           {!loading && (
             <>
               <div className="bg-[var(--accent)] border border-[var(--accent)] rounded-lg p-4 mb-6">
-                <h4 className="text-ink font-semibold text-sm mb-3">📋 What you can configure:</h4>
+                <h4 className="text-ink font-semibold text-sm mb-3">What you can configure:</h4>
                 <ul className="muted text-sm space-y-2">
                   <li className="flex items-start gap-2">
-                    <span className="text-[var(--accent-text)]">✓</span>
+                    <span className="text-[var(--accent-text)]"></span>
                     <span><strong>Property Details:</strong> Name and location</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[var(--accent-text)]">✓</span>
+                    <span className="text-[var(--accent-text)]"></span>
                     <span><strong>Room Types:</strong> Different room categories with base prices</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[var(--accent-text)]">✓</span>
+                    <span className="text-[var(--accent-text)]"></span>
                     <span><strong>Rate Plans:</strong> Meal plans (EP, CP, MAP, AP)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-[var(--accent-text)]">✓</span>
+                    <span className="text-[var(--accent-text)]"></span>
                     <span><strong>Occupancy Pricing:</strong> Pricing for different guest counts</span>
                   </li>
                 </ul>
@@ -397,7 +395,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
               {error && (
                 <div className="mb-4 rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-3">
-                  <p className="text-[var(--danger)] text-sm">⚠️ {error}</p>
+                  <p className="text-[var(--danger)] text-sm">{error}</p>
                 </div>
               )}
             </>
@@ -426,8 +424,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                 }
               }}
               className="px-3 py-1.5 rounded-lg bg-[var(--surface-2)] hover:bg-white/20 text-ink text-xs font-medium transition-all"
-            >
-              ✏️ Edit Property
+            >Edit Property
             </button>
           </div>
         </div>
@@ -442,8 +439,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               ? "text-ink border-b-2 border-[var(--accent)]"
               : "muted hover:text-ink"
           }`}
-        >
-          Room Types
+        >Room Types
         </button>
         <button
           onClick={() => setActiveTab("rates")}
@@ -452,8 +448,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               ? "text-ink border-b-2 border-[var(--accent)]"
               : "muted hover:text-ink"
           }`}
-        >
-          Rate Plans
+        >Rate Plans
         </button>
         <button
           onClick={() => setActiveTab("occupancy")}
@@ -462,8 +457,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               ? "text-ink border-b-2 border-[var(--accent)]"
               : "muted hover:text-ink"
           }`}
-        >
-          Occupancy Pricing
+        >Occupancy Pricing
         </button>
       </div>
 
@@ -473,11 +467,10 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           {/* Important Pricing Guidance */}
           <div className="mb-4 rounded-lg bg-[var(--warn-soft)] border border-[var(--warn)] p-3">
             <div className="flex items-start gap-2">
-              <span className="text-amber-400 text-lg">💡</span>
+              <span className="text-amber-400 text-lg"></span>
               <div>
                 <h5 className="text-[var(--warn)] font-semibold text-sm mb-1">Important: Base Price Guidelines</h5>
-                <p className="text-[var(--warn)] text-xs leading-relaxed">
-                  Set your <strong>base prices for ONE season only</strong> (recommend: Regular/Off-Season rates).
+                <p className="text-[var(--warn)] text-xs leading-relaxed">Set your <strong>base prices for ONE season only</strong> (recommend: Regular/Off-Season rates).
                   Avoid mixing peak and off-season rates here. The Pricing Calculator will help you adjust prices
                   for different seasons, demand levels, and days of the week using multipliers.
                 </p>
@@ -509,10 +502,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                     }
                   }
                 }}
-                className="px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-ink text-xs font-medium transition-all"
-                title="Initialize ranks for existing rooms"
-              >
-                🔄 Init Ranks
+                className="px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-ink text-xs font-medium transition-all"title="Initialize ranks for existing rooms"
+              >Init Ranks
               </button>
               <button
                 onClick={() => setShowAddRoom(!showAddRoom)}
@@ -535,27 +526,21 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               <div>
                 <label className={controlLabel}>Room Type Name</label>
                 <input
-                  type="text"
-                  value={newRoom.room_type_name}
+                  type="text"value={newRoom.room_type_name}
                   onChange={(e) => setNewRoom({ ...newRoom, room_type_name: e.target.value })}
                   className={inputClass}
-                  placeholder="e.g., Deluxe Suite"
-                  required
+                  placeholder="e.g., Deluxe Suite"required
                 />
               </div>
 
               <div>
-                <label className={controlLabel} title="Enter your regular/off-season rate. This should be consistent across all room types - don't mix peak and off-season pricing.">
-                  Base Price (per night) <span className="text-amber-400 cursor-help">ℹ️</span>
+                <label className={controlLabel} title="Enter your regular/off-season rate. This should be consistent across all room types - don't mix peak and off-season pricing.">Base Price (per night) <span className="text-amber-400 cursor-help">ℹ</span>
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={newRoom.base_price}
+                  type="number"step="0.01"value={newRoom.base_price}
                   onChange={(e) => setNewRoom({ ...newRoom, base_price: e.target.value })}
                   className={inputClass}
-                  placeholder="150.00 (regular season)"
-                  required
+                  placeholder="150.00 (regular season)"required
                   title="Your baseline rate for this room type - use regular/off-season pricing, not peak rates"
                 />
               </div>
@@ -563,34 +548,27 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               <div>
                 <label className={controlLabel}>Number of Rooms</label>
                 <input
-                  type="number"
-                  value={newRoom.number_of_rooms}
+                  type="number"value={newRoom.number_of_rooms}
                   onChange={(e) => setNewRoom({ ...newRoom, number_of_rooms: e.target.value })}
                   className={inputClass}
-                  placeholder="10"
-                  required
+                  placeholder="10"required
                 />
               </div>
 
               <div>
                 <label className={controlLabel}>Max Adults</label>
                 <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={newRoom.max_adults}
+                  type="number"min="1"max="10"value={newRoom.max_adults}
                   onChange={(e) => setNewRoom({ ...newRoom, max_adults: e.target.value })}
                   className={inputClass}
-                  placeholder="2"
-                  required
+                  placeholder="2"required
                 />
               </div>
 
               <div className="md:col-span-2">
                 <label className={controlLabel}>Description (Optional)</label>
                 <input
-                  type="text"
-                  value={newRoom.description}
+                  type="text"value={newRoom.description}
                   onChange={(e) => setNewRoom({ ...newRoom, description: e.target.value })}
                   className={inputClass}
                   placeholder="Brief description"
@@ -599,8 +577,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
             </div>
 
             <button
-              type="submit"
-              disabled={loading}
+              type="submit"disabled={loading}
               className="px-4 py-1.5 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all"
             >
               {loading ? "Adding..." : "Add Room Type"}
@@ -609,8 +586,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
         )}
 
         {roomTypes.length === 0 ? (
-          <div className="text-center py-6 muted text-sm">
-            No room types added yet. Add your first room type to continue.
+          <div className="text-center py-6 muted text-sm">No room types added yet. Add your first room type to continue.
           </div>
         ) : (
           <div className="space-y-2">
@@ -665,11 +641,10 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           {/* Important Pricing Guidance */}
           <div className="mb-4 rounded-lg bg-[var(--warn-soft)] border border-[var(--warn)] p-3">
             <div className="flex items-start gap-2">
-              <span className="text-amber-400 text-lg">💡</span>
+              <span className="text-amber-400 text-lg"></span>
               <div>
                 <h5 className="text-[var(--warn)] font-semibold text-sm mb-1">Remember: Consistent Base Pricing</h5>
-                <p className="text-[var(--warn)] text-xs leading-relaxed">
-                  All occupancy prices should reflect the <strong>same season</strong> (regular/off-season).
+                <p className="text-[var(--warn)] text-xs leading-relaxed">All occupancy prices should reflect the <strong>same season</strong> (regular/off-season).
                   Use the Pricing Calculator later to adjust for peak seasons, high demand, or special events.
                 </p>
               </div>
@@ -691,7 +666,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       {/* Success Message */}
       {saveSuccess && (
         <div className="rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)] p-3">
-          <p className="text-[var(--accent-text)] text-sm text-center">✅ All changes saved successfully!</p>
+          <p className="text-[var(--accent-text)] text-sm text-center">All changes saved successfully!</p>
         </div>
       )}
 
@@ -706,8 +681,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               setTimeout(() => setSaveSuccess(false), 3000);
             }}
             className="flex-1 px-5 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-green-500 text-ink font-semibold text-sm transition-all"
-          >
-            💾 Save All Changes
+          >Save All Changes
           </button>
         )}
         {roomTypes.length > 0 && (
@@ -716,7 +690,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
             disabled={parentLoading}
             className="flex-1 px-5 py-2.5 rounded-lg from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
           >
-            {parentLoading ? "Calculating..." : "📊 Calculate Pricing"}
+            {parentLoading ? "Calculating..." : " Calculate Pricing"}
           </button>
         )}
       </div>

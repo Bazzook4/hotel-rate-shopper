@@ -60,8 +60,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
     >
       <div className="flex flex-col gap-1">
         <span className="text-xs uppercase tracking-[0.4em] text-ink/60">Location Explorer</span>
-        <p className="sub/80">
-          Search by city or area, then refine by star rating to surface standout deals.
+        <p className="sub/80">Search by city or area, then refine by star rating to surface standout deals.
         </p>
       </div>
 
@@ -72,8 +71,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
           <input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="Darjeeling"
-            className={inputClasses}
+            placeholder="Darjeeling"className={inputClasses}
           />
         </div>
 
@@ -81,8 +79,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
           <div className="flex flex-col gap-2">
             <span className={labelClass}>Check-in</span>
             <input
-              type="date"
-              value={checkIn}
+              type="date"value={checkIn}
               onChange={(e) => {
                 const value = e.target.value;
                 setCheckIn(value);
@@ -98,8 +95,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
           <div className="flex flex-col gap-2">
             <span className={labelClass}>Check-out</span>
             <input
-              type="date"
-              value={checkOut}
+              type="date"value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
               className={inputClasses}
               required
@@ -114,8 +110,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
           <div className="flex flex-col gap-2">
             <span className={labelClass}>Adults</span>
             <input
-              type="number"
-              min={1}
+              type="number"min={1}
               value={adults}
               onChange={(e) => setAdults(Number(e.target.value))}
               className={inputClasses}
@@ -124,8 +119,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
           <div className="flex flex-col gap-2">
             <span className={labelClass}>Children</span>
             <input
-              type="number"
-              min={0}
+              type="number"min={0}
               value={children}
               onChange={(e) => setChildren(Number(e.target.value))}
               className={inputClasses}
@@ -147,11 +141,11 @@ export default function LocationSearch({ onResult, defaultLocation }) {
               className={`${inputClasses} appearance-none pr-8`}
             >
               <option value={0}>Any</option>
-              <option value={1}>1★+</option>
-              <option value={2}>2★+</option>
-              <option value={3}>3★+</option>
-              <option value={4}>4★+</option>
-              <option value={5}>5★</option>
+              <option value={1}>1+</option>
+              <option value={2}>2+</option>
+              <option value={3}>3+</option>
+              <option value={4}>4+</option>
+              <option value={5}>5</option>
             </select>
           </div>
         </div>
@@ -159,8 +153,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
-          type="submit"
-          disabled={loading}
+          type="submit"disabled={loading}
           className="rounded-2xl from-emerald-400/80 to-teal-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 "
         >
           {loading ? "Searching..." : "Search by Location"}

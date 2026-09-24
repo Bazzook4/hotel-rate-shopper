@@ -178,8 +178,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
               <div key={planKey} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
-                    type="checkbox"
-                    checked={selectedMealPlans[planKey]}
+                    type="checkbox"checked={selectedMealPlans[planKey]}
                     onChange={(e) => setSelectedMealPlans({ ...selectedMealPlans, [planKey]: e.target.checked })}
                     className="mt-1 w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-[var(--accent-text)] focus:ring-[var(--accent)]"
                   />
@@ -195,10 +194,8 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                           <div className="flex gap-4">
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
-                                type="radio"
-                                name={`pricing_type-${planKey}`}
-                                value="flat"
-                                checked={mealPlanCosts[planKey].pricing_type === 'flat'}
+                                type="radio"name={`pricing_type-${planKey}`}
+                                value="flat"checked={mealPlanCosts[planKey].pricing_type === 'flat'}
                                 onChange={(e) => setMealPlanCosts({
                                   ...mealPlanCosts,
                                   [planKey]: { ...mealPlanCosts[planKey], pricing_type: 'flat' }
@@ -209,10 +206,8 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
-                                type="radio"
-                                name={`pricing_type-${planKey}`}
-                                value="multiplier"
-                                checked={mealPlanCosts[planKey].pricing_type === 'multiplier'}
+                                type="radio"name={`pricing_type-${planKey}`}
+                                value="multiplier"checked={mealPlanCosts[planKey].pricing_type === 'multiplier'}
                                 onChange={(e) => setMealPlanCosts({
                                   ...mealPlanCosts,
                                   [planKey]: { ...mealPlanCosts[planKey], pricing_type: 'multiplier' }
@@ -229,38 +224,30 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                           <div>
                             <label className="text-xs muted mb-1 block">Cost per Adult (₹)</label>
                             <input
-                              type="number"
-                              step="0.01"
-                              value={mealPlanCosts[planKey].cost}
+                              type="number"step="0.01"value={mealPlanCosts[planKey].cost}
                               onChange={(e) => setMealPlanCosts({
                                 ...mealPlanCosts,
                                 [planKey]: { ...mealPlanCosts[planKey], cost: e.target.value }
                               })}
-                              className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm"
-                              placeholder={planKey === 'EP' ? '0' : planKey === 'CP' ? '250' : planKey === 'MAP' ? '1000' : '1650'}
+                              className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm"placeholder={planKey === 'EP' ? '0' : planKey === 'CP' ? '250' : planKey === 'MAP' ? '1000' : '1650'}
                               required
                             />
-                            <p className="text-xs muted mt-1">
-                              This amount will be added per adult. E.g., ₹250 for 1 adult, ₹500 for 2 adults.
+                            <p className="text-xs muted mt-1">This amount will be added per adult. E.g., ₹250 for 1 adult, ₹500 for 2 adults.
                             </p>
                           </div>
                         ) : (
                           <div>
                             <label className="text-xs muted mb-1 block">Multiplier Ratio</label>
                             <input
-                              type="number"
-                              step="0.01"
-                              value={mealPlanCosts[planKey].ratio}
+                              type="number"step="0.01"value={mealPlanCosts[planKey].ratio}
                               onChange={(e) => setMealPlanCosts({
                                 ...mealPlanCosts,
                                 [planKey]: { ...mealPlanCosts[planKey], ratio: e.target.value }
                               })}
-                              className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm"
-                              placeholder={planKey === 'EP' ? '1.0' : planKey === 'CP' ? '1.1' : planKey === 'MAP' ? '1.25' : '1.40'}
+                              className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm"placeholder={planKey === 'EP' ? '1.0' : planKey === 'CP' ? '1.1' : planKey === 'MAP' ? '1.25' : '1.40'}
                               required
                             />
-                            <p className="text-xs muted mt-1">
-                              Base price will be multiplied by this ratio. E.g., 1.25x = 25% increase.
+                            <p className="text-xs muted mt-1">Base price will be multiplied by this ratio. E.g., 1.25x = 25% increase.
                             </p>
                           </div>
                         )}
@@ -274,15 +261,14 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
 
           <div className="p-3 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]">
             <p className="text-xs text-[var(--accent-text)]">
-              <strong>💡 Tip:</strong>
+              <strong>Tip:</strong>
               <br/>• <strong>Flat Rate:</strong> Fixed cost added per adult (e.g., ₹250/adult → Single: +₹250, Double: +₹500)
               <br/>• <strong>Multiplier:</strong> Percentage of base price (e.g., 1.25x → base ₹4000 becomes ₹5000)
             </p>
           </div>
 
           <button
-            type="submit"
-            disabled={loading}
+            type="submit"disabled={loading}
             className="w-full px-6 py-3 rounded-lg from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink font-medium disabled:opacity-50 transition-all"
           >
             {loading ? "Saving..." : "Save Meal Plans"}
@@ -305,7 +291,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-ink font-semibold">🍽️ {plan.plan_name}</h5>
+                    <h5 className="text-ink font-semibold">{plan.plan_name}</h5>
                   </div>
                   <p className="sub mt-2">
                     <span className="muted">Multiplier:</span> <span className="font-semibold text-[var(--accent-text)]">{plan.multiplier}x</span>
@@ -324,14 +310,12 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                   <button
                     onClick={() => handleEditRatePlan(plan)}
                     className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--accent-text)] text-xs font-medium transition-colors border border-[var(--accent)]"
-                  >
-                    ✏️ Edit
+                  >Edit
                   </button>
                   <button
                     onClick={() => handleDeleteRatePlan(plan)}
                     className="px-3 py-1.5 rounded-lg bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)] text-[var(--danger)] text-xs font-medium transition-colors border border-[var(--danger)]"
-                  >
-                    🗑️ Delete
+                  >Delete
                   </button>
                 </div>
               </div>

@@ -69,7 +69,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
     <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] hover:border-white/20 transition-all">
       {error && (
         <div className="mb-3 rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-3">
-          <p className="text-[var(--danger)] text-xs">⚠️ {error}</p>
+          <p className="text-[var(--danger)] text-xs">{error}</p>
         </div>
       )}
 
@@ -80,19 +80,16 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
             {/* Rank Input */}
             <div className="flex items-center gap-2">
               <input
-                type="number"
-                min="1"
-                max={totalRooms}
+                type="number"min="1"max={totalRooms}
                 value={rankInput}
                 onChange={handleRankChange}
-                className="w-12 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-[var(--accent)]"
-                title="Rank"
+                className="w-12 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-[var(--accent)]"title="Rank"
               />
             </div>
 
             {/* Room Info - Compact */}
             <div className="flex-1 flex items-center gap-4">
-              <h5 className="text-ink font-semibold text-sm">🏠 {room.room_type_name}</h5>
+              <h5 className="text-ink font-semibold text-sm">{room.room_type_name}</h5>
               <span className="text-xs muted">
                 ₹{room.base_price} • {room.number_of_rooms} rooms • Max {room.max_adults || 2} adults
               </span>
@@ -105,18 +102,12 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
             <div className="flex gap-1">
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-2 py-1 rounded bg-[var(--accent)] hover:bg-[var(--accent)] text-ink text-xs font-medium transition-all"
-                title="Edit"
-              >
-                ✏️
-              </button>
+                className="px-2 py-1 rounded bg-[var(--accent)] hover:bg-[var(--accent)] text-ink text-xs font-medium transition-all"title="Edit"
+              ></button>
               <button
                 onClick={() => onDelete(room)}
-                className="px-2 py-1 rounded bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)] text-[var(--danger)] text-xs font-medium transition-colors border border-[var(--danger)]"
-                title="Delete"
-              >
-                🗑️
-              </button>
+                className="px-2 py-1 rounded bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)] text-[var(--danger)] text-xs font-medium transition-colors border border-[var(--danger)]"title="Delete"
+              ></button>
             </div>
           </div>
         </>
@@ -125,66 +116,54 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
           {/* Edit Mode */}
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-2">
-              <h5 className="text-ink font-semibold text-sm">✏️ Editing Room Type</h5>
+              <h5 className="text-ink font-semibold text-sm">Editing Room Type</h5>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs muted mb-1">Room Type Name *</label>
                 <input
-                  type="text"
-                  value={editData.room_type_name}
+                  type="text"value={editData.room_type_name}
                   onChange={(e) => setEditData({ ...editData, room_type_name: e.target.value })}
                   className={inputClass}
-                  placeholder="e.g., Deluxe Suite"
-                  required
+                  placeholder="e.g., Deluxe Suite"required
                 />
               </div>
 
               <div>
                 <label className="block text-xs muted mb-1">Base Price (₹) *</label>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={editData.base_price}
+                  type="number"step="0.01"value={editData.base_price}
                   onChange={(e) => setEditData({ ...editData, base_price: e.target.value })}
                   className={inputClass}
-                  placeholder="3500"
-                  required
+                  placeholder="3500"required
                 />
               </div>
 
               <div>
                 <label className="block text-xs muted mb-1">Number of Rooms *</label>
                 <input
-                  type="number"
-                  value={editData.number_of_rooms}
+                  type="number"value={editData.number_of_rooms}
                   onChange={(e) => setEditData({ ...editData, number_of_rooms: e.target.value })}
                   className={inputClass}
-                  placeholder="10"
-                  required
+                  placeholder="10"required
                 />
               </div>
 
               <div>
                 <label className="block text-xs muted mb-1">Max Adults *</label>
                 <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={editData.max_adults}
+                  type="number"min="1"max="10"value={editData.max_adults}
                   onChange={(e) => setEditData({ ...editData, max_adults: e.target.value })}
                   className={inputClass}
-                  placeholder="2"
-                  required
+                  placeholder="2"required
                 />
               </div>
 
               <div className="md:col-span-2">
                 <label className="block text-xs muted mb-1">Description (Optional)</label>
                 <input
-                  type="text"
-                  value={editData.description}
+                  type="text"value={editData.description}
                   onChange={(e) => setEditData({ ...editData, description: e.target.value })}
                   className={inputClass}
                   placeholder="Brief description"
@@ -198,14 +177,13 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                 disabled={loading}
                 className="flex-1 px-4 py-2 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all shadow-lg shadow-green-500/20"
               >
-                {loading ? "💾 Saving..." : "✅ Save Changes"}
+                {loading ? " Saving..." : " Save Changes"}
               </button>
               <button
                 onClick={handleCancel}
                 disabled={loading}
                 className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
-              >
-                Cancel
+              >Cancel
               </button>
             </div>
           </div>

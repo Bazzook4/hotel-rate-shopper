@@ -297,15 +297,13 @@ export default function RateHistory({ session }) {
               <button
                 onClick={handleToday}
                 className="mt-1 text-xs text-[var(--accent-text)] hover:text-[var(--accent-text)] transition"
-              >
-                Today
+              >Today
               </button>
             </div>
             <button
               onClick={handleNextMonth}
               className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
-            >
-              Next →
+            >Next →
             </button>
           </div>
         </div>
@@ -466,8 +464,7 @@ export default function RateHistory({ session }) {
             {/* Historical Searches */}
             {selectedDayData.length > 1 && (
               <div className="space-y-3">
-                <h5 className="text-sm font-semibold text-ink px-2">
-                  Previous Searches ({selectedDayData.length - 1})
+                <h5 className="text-sm font-semibold text-ink px-2">Previous Searches ({selectedDayData.length - 1})
                 </h5>
                 {selectedDayData.slice(1).map((search) => {
                   const comparison = compareRates(selectedDayData[0], search);
@@ -527,9 +524,8 @@ export default function RateHistory({ session }) {
           </div>
         ) : (
           <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center backdrop-blur-xl">
-            <div className="text-4xl mb-3">📅</div>
-            <p className="sub">
-              Select a date with tracked rates to view details
+            <div className="text-4xl mb-3"></div>
+            <p className="sub">Select a date with tracked rates to view details
             </p>
           </div>
         )}

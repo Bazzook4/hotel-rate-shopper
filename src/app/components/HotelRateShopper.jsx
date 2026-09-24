@@ -37,8 +37,7 @@ export default function HotelRateShopper({ data }) {
                 className="h-36 w-full object-cover"
               />
             ) : (
-              <div className="flex h-36 w-full items-center justify-center bg-gradient-to-br from-slate-800/80 to-slate-900/80 text-xs muted">
-                No Image
+              <div className="flex h-36 w-full items-center justify-center bg-gradient-to-br from-slate-800/80 to-slate-900/80 text-xs muted">No Image
               </div>
             )}
           </div>
@@ -52,23 +51,19 @@ export default function HotelRateShopper({ data }) {
 
             <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] text-ink/80">
               {typeof data.overall_rating === "number" && (
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">
-                  ⭐ {data.overall_rating} ({data.reviews} reviews)
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">{data.overall_rating} ({data.reviews} reviews)
                 </span>
               )}
               {data.location_rating && (
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
-                  📍 Location {data.location_rating}
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">Location {data.location_rating}
                 </span>
               )}
               {data.deal && (
-                <span className="rounded-full border border-amber-200/40 bg-[var(--warn-soft)] px-3 py-1 text-[var(--warn)]">
-                  🔖 {data.deal}
+                <span className="rounded-full border border-amber-200/40 bg-[var(--warn-soft)] px-3 py-1 text-[var(--warn)]">{data.deal}
                 </span>
               )}
               {data.rate_per_night?.lowest && (
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">
-                  From {data.rate_per_night.lowest}
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">From {data.rate_per_night.lowest}
                 </span>
               )}
             </div>
@@ -78,20 +73,16 @@ export default function HotelRateShopper({ data }) {
         {/* Sponsored */}
         {sponsored.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 mb-3">
-              Sponsored
+            <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 mb-3">Sponsored
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {sponsored.map((p) => (
                 <a
                   key={p.id}
                   href={p.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-slate-100 transition hover:border-amber-200/60 hover:bg-amber-400/15"
+                  target="_blank"rel="noreferrer"className="group rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-slate-100 transition hover:border-amber-200/60 hover:bg-amber-400/15"
                 >
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)] mb-2">
-                    Sponsored
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)] mb-2">Sponsored
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -117,17 +108,14 @@ export default function HotelRateShopper({ data }) {
 
         {/* Organic */}
         <div className="mt-6">
-          <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 mb-3">
-            Available rates
+          <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 mb-3">Available rates
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {organicSorted.map((p) => (
               <a
                 key={p.id}
                 href={p.link}
-                target="_blank"
-                rel="noreferrer"
-                className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-slate-100 transition hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]"
+                target="_blank"rel="noreferrer"className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-slate-100 transition hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -148,8 +136,7 @@ export default function HotelRateShopper({ data }) {
               </a>
             ))}
             {organicSorted.length === 0 && (
-              <div className="card card-pad sub/70">
-                No rates found.
+              <div className="card card-pad sub/70">No rates found.
               </div>
             )}
           </div>

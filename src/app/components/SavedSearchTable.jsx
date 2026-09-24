@@ -8,8 +8,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
   if (!entry?.payload) {
     return (
       <tr>
-        <td colSpan="7" className="px-4 py-3 text-center sub/70">
-          No data available for this search.
+        <td colSpan="7" className="px-4 py-3 text-center sub/70">No data available for this search.
         </td>
       </tr>
     );
@@ -106,8 +105,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
         <td className="px-4 py-3 text-sm">
           <div className="font-medium text-ink">{entry.query || data.name || "Unknown"}</div>
           {data.overall_rating && (
-            <div className="mt-0.5 text-xs muted/70">
-              ⭐ {data.overall_rating} ({data.reviews || 0})
+            <div className="mt-0.5 text-xs muted/70">{data.overall_rating} ({data.reviews || 0})
             </div>
           )}
         </td>
@@ -136,9 +134,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
                 <div key={idx} className="flex items-center justify-between gap-2">
                   <a
                     href={p.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-2 text-ink transition hover:text-ink"
+                    target="_blank"rel="noreferrer"className="flex items-center gap-2 text-ink transition hover:text-ink"
                   >
                     {p.logo && (
                       <img src={p.logo} alt={p.source} className="h-4 w-4 rounded" />
@@ -160,8 +156,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
               ))}
               {hiddenCount > 0 && (
                 <button
-                  type="button"
-                  onClick={() => setExpanded(!expanded)}
+                  type="button"onClick={() => setExpanded(!expanded)}
                   className="text-xs text-[var(--accent-text)] transition hover:text-[var(--accent-text)]"
                 >
                   {expanded ? "▲ Show less" : `▼ +${hiddenCount} more OTAs`}
@@ -177,22 +172,18 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
         <td className="px-4 py-3 text-sm">
           <div className="flex items-center gap-2">
             <button
-              type="button"
-              onClick={() => onRefresh(entry)}
+              type="button"onClick={() => onRefresh(entry)}
               disabled={isRefreshing}
-              className="rounded-lg border border-[var(--accent)] px-3 py-1 text-xs text-[var(--accent-text)] transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"
-              title="Refresh prices"
+              className="rounded-lg border border-[var(--accent)] px-3 py-1 text-xs text-[var(--accent-text)] transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"title="Refresh prices"
             >
-              {isRefreshing ? "⏳" : "🔄"}
+              {isRefreshing ? "⏳" : ""}
             </button>
             <button
-              type="button"
-              onClick={() => onDelete(entry)}
+              type="button"onClick={() => onDelete(entry)}
               disabled={isDeleting}
-              className="rounded-lg border border-[var(--danger)]/40 px-3 py-1 text-xs text-[var(--danger)] transition hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"
-              title="Delete search"
+              className="rounded-lg border border-[var(--danger)]/40 px-3 py-1 text-xs text-[var(--danger)] transition hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"title="Delete search"
             >
-              {isDeleting ? "⏳" : "🗑️"}
+              {isDeleting ? "⏳" : ""}
             </button>
           </div>
         </td>
@@ -204,8 +195,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
 export default function SavedSearchTable({ history, onRefresh, onDelete, refreshingId, deletingId }) {
   if (!history || history.length === 0) {
     return (
-      <div className="card px-4 py-8 text-center sub/70">
-        No rate history yet. Track your property rates to get started.
+      <div className="card px-4 py-8 text-center sub/70">No rate history yet. Track your property rates to get started.
       </div>
     );
   }
@@ -215,26 +205,19 @@ export default function SavedSearchTable({ history, onRefresh, onDelete, refresh
       <table className="w-full">
         <thead>
           <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              Tracked On
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">Tracked On
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              Property
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">Property
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              Check-in
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">Check-in
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              Check-out
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">Check-out
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              Guests
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">Guests
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              OTA Prices
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">OTA Prices
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
-              Actions
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">Actions
             </th>
           </tr>
         </thead>

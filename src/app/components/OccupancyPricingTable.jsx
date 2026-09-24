@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 
 export default function OccupancyPricingTable({ roomTypes, onSave }) {
-  const [pricingMode, setPricingMode] = useState("occupancy"); // "flat_room", "occupancy", or "per_adult"
-  const [baseRoomId, setBaseRoomId] = useState(null);
+  const [pricingMode, setPricingMode] = useState("occupancy"); // "flat_room", "occupancy", or "per_adult"const [baseRoomId, setBaseRoomId] = useState(null);
   const [occupancyData, setOccupancyData] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -238,8 +237,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
   if (!roomTypes || roomTypes.length === 0) {
     return (
-      <div className="text-center py-6 muted text-sm">
-        No room types available. Add room types first in the Room Types tab.
+      <div className="text-center py-6 muted text-sm">No room types available. Add room types first in the Room Types tab.
       </div>
     );
   }
@@ -252,10 +250,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
             <input
-              type="radio"
-              name="pricingMode"
-              value="flat_room"
-              checked={pricingMode === "flat_room"}
+              type="radio"name="pricingMode"value="flat_room"checked={pricingMode === "flat_room"}
               onChange={(e) => setPricingMode(e.target.value)}
               className="w-4 h-4 mt-0.5"
             />
@@ -267,10 +262,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
           </label>
           <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
             <input
-              type="radio"
-              name="pricingMode"
-              value="occupancy"
-              checked={pricingMode === "occupancy"}
+              type="radio"name="pricingMode"value="occupancy"checked={pricingMode === "occupancy"}
               onChange={(e) => setPricingMode(e.target.value)}
               className="w-4 h-4 mt-0.5"
             />
@@ -282,10 +274,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
           </label>
           <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
             <input
-              type="radio"
-              name="pricingMode"
-              value="per_adult"
-              checked={pricingMode === "per_adult"}
+              type="radio"name="pricingMode"value="per_adult"checked={pricingMode === "per_adult"}
               onChange={(e) => setPricingMode(e.target.value)}
               className="w-4 h-4 mt-0.5"
             />
@@ -329,9 +318,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     <td className="py-2 px-3 text-ink text-sm">{room.room_type_name}</td>
                     <td className="py-2 px-3 text-center">
                       <input
-                        type="radio"
-                        name="baseRoom"
-                        checked={isBaseRoom}
+                        type="radio"name="baseRoom"checked={isBaseRoom}
                         onChange={() => handleSetBaseRoom(room.id)}
                         className="w-4 h-4"
                       />
@@ -342,20 +329,16 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         <div className="flex items-center gap-1">
                           <span className="px-2 py-0.5 rounded bg-[var(--accent)] text-ink text-xs font-semibold">Master</span>
                           <input
-                            type="number"
-                            value={roomData.adultPricing[1] || 0}
+                            type="number"value={roomData.adultPricing[1] || 0}
                             onChange={(e) => handlePriceChange(room.id, 1, e.target.value)}
-                            className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                            placeholder="5000"
+                            className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="5000"
                           />
                         </div>
                       ) : (
                         <input
-                          type="number"
-                          value={roomData.adultPricing[1] || 0}
+                          type="number"value={roomData.adultPricing[1] || 0}
                           onChange={(e) => handlePriceChange(room.id, 1, e.target.value)}
-                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                          placeholder="5000"
+                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="5000"
                         />
                       )}
                     </td>
@@ -377,11 +360,9 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         <div className="flex items-center gap-1">
                           <span className="muted text-xs">+</span>
                           <input
-                            type="number"
-                            value={roomData.fixedAdjustment?.[1] || 0}
+                            type="number"value={roomData.fixedAdjustment?.[1] || 0}
                             onChange={(e) => handleFixedAdjustmentChange(room.id, 1, e.target.value)}
-                            className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                            placeholder="500"
+                            className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="500"
                           />
                         </div>
                       )}
@@ -389,12 +370,9 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         <div className="flex items-center gap-1">
                           <span className="muted text-xs">×</span>
                           <input
-                            type="number"
-                            step="0.1"
-                            value={roomData.ratioMultiplier?.[1] || 1}
+                            type="number"step="0.1"value={roomData.ratioMultiplier?.[1] || 1}
                             onChange={(e) => handleRatioChange(room.id, 1, e.target.value)}
-                            className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                            placeholder="1.2"
+                            className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="1.2"
                           />
                         </div>
                       )}
@@ -413,9 +391,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     <td className="py-2 px-3 text-ink text-sm">{room.room_type_name}</td>
                     <td className="py-2 px-3 text-center">
                       <input
-                        type="radio"
-                        name="baseRoom"
-                        checked={isBaseRoom}
+                        type="radio"name="baseRoom"checked={isBaseRoom}
                         onChange={() => handleSetBaseRoom(room.id)}
                         className="w-4 h-4"
                       />
@@ -424,11 +400,9 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     <td className="py-2 px-3">
                       {isBaseRoom ? (
                         <input
-                          type="number"
-                          value={roomData.perAdultRate}
+                          type="number"value={roomData.perAdultRate}
                           onChange={(e) => handlePerAdultRateChange(room.id, e.target.value)}
-                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                          placeholder="1000"
+                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="1000"
                         />
                       ) : (
                         <span className="text-ink text-sm">Calculated</span>
@@ -450,21 +424,16 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     <td className="py-2 px-3">
                       {!isBaseRoom && roomData.calcType === 'fixed' && (
                         <input
-                          type="number"
-                          value={roomData.fixedAdjustment['all'] || 0}
+                          type="number"value={roomData.fixedAdjustment['all'] || 0}
                           onChange={(e) => handleFixedAdjustmentChange(room.id, 'all', e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                          placeholder="+500"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="+500"
                         />
                       )}
                       {!isBaseRoom && roomData.calcType === 'ratio' && (
                         <input
-                          type="number"
-                          step="0.1"
-                          value={roomData.ratioMultiplier['all'] || 1}
+                          type="number"step="0.1"value={roomData.ratioMultiplier['all'] || 1}
                           onChange={(e) => handleRatioChange(room.id, 'all', e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                          placeholder="1.2"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="1.2"
                         />
                       )}
                     </td>
@@ -486,9 +455,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                   {adultCount === 1 && (
                     <td rowSpan={numAdults} className="py-2 px-3 text-center border-r border-[var(--border)]">
                       <input
-                        type="radio"
-                        name="baseRoom"
-                        checked={isBaseRoom}
+                        type="radio"name="baseRoom"checked={isBaseRoom}
                         onChange={() => handleSetBaseRoom(room.id)}
                         className="w-4 h-4"
                       />
@@ -500,16 +467,14 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                       <div className="flex items-center gap-1">
                         <span className="px-2 py-0.5 rounded bg-[var(--accent)] text-ink text-xs font-semibold">Master</span>
                         <input
-                          type="number"
-                          value={roomData.adultPricing[adultCount] || 0}
+                          type="number"value={roomData.adultPricing[adultCount] || 0}
                           onChange={(e) => handlePriceChange(room.id, adultCount, e.target.value)}
                           className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                         />
                       </div>
                     ) : (
                       <input
-                        type="number"
-                        value={roomData.adultPricing[adultCount] || 0}
+                        type="number"value={roomData.adultPricing[adultCount] || 0}
                         onChange={(e) => handlePriceChange(room.id, adultCount, e.target.value)}
                         className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                       />
@@ -533,11 +498,9 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                       <div className="flex items-center gap-1">
                         <span className="muted text-xs">+</span>
                         <input
-                          type="number"
-                          value={roomData.fixedAdjustment?.[adultCount] || 0}
+                          type="number"value={roomData.fixedAdjustment?.[adultCount] || 0}
                           onChange={(e) => handleFixedAdjustmentChange(room.id, adultCount, e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                          placeholder="500"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="500"
                         />
                       </div>
                     )}
@@ -545,12 +508,9 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                       <div className="flex items-center gap-1">
                         <span className="muted text-xs">×</span>
                         <input
-                          type="number"
-                          step="0.1"
-                          value={roomData.ratioMultiplier?.[adultCount] || 1}
+                          type="number"step="0.1"value={roomData.ratioMultiplier?.[adultCount] || 1}
                           onChange={(e) => handleRatioChange(room.id, adultCount, e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
-                          placeholder="1.2"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"placeholder="1.2"
                         />
                       </div>
                     )}
@@ -580,21 +540,17 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                   <div className="flex-1">
                     <label className="text-xs muted block mb-1">Extra Adult</label>
                     <input
-                      type="number"
-                      value={roomData.extraAdult || ''}
+                      type="number"value={roomData.extraAdult || ''}
                       onChange={(e) => handleExtraChange(room.id, 'extraAdult', e.target.value)}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm"
-                      placeholder="800"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm"placeholder="800"
                     />
                   </div>
                   <div className="flex-1">
                     <label className="text-xs muted block mb-1">Extra Child</label>
                     <input
-                      type="number"
-                      value={roomData.extraChild || ''}
+                      type="number"value={roomData.extraChild || ''}
                       onChange={(e) => handleExtraChange(room.id, 'extraChild', e.target.value)}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm"
-                      placeholder="500"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm"placeholder="500"
                     />
                   </div>
                 </div>
@@ -611,7 +567,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
           disabled={loading}
           className="px-6 py-2.5 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
         >
-          {loading ? 'Saving...' : '💾 Save All Occupancy Pricing'}
+          {loading ? 'Saving...' : ' Save All Occupancy Pricing'}
         </button>
       </div>
     </div>

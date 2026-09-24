@@ -10,12 +10,12 @@ const statuses = [
 ];
 
 const availableModules = [
-  { id: "cm", label: "Channel Manager", icon: "🔗", description: "Rates and inventory to OTAs" },
-  { id: "compshopper", label: "Comp Shopper", icon: "📊", description: "Comp set rate comparison" },
-  { id: "parity", label: "Rate Parity", icon: "🧭", description: "OTA spread analysis" },
-  { id: "location", label: "Search by Location", icon: "📍", description: "Location-based search" },
-  { id: "pricing", label: "Dynamic Pricing", icon: "💰", description: "Smart pricing optimization" },
-  { id: "setup", label: "Property Setup", icon: "⚙️", description: "Room types and rate plans" },
+  { id: "cm", label: "Channel Manager", icon: "", description: "Rates and inventory to OTAs" },
+  { id: "compshopper", label: "Comp Shopper", icon: "", description: "Comp set rate comparison" },
+  { id: "parity", label: "Rate Parity", icon: "", description: "OTA spread analysis" },
+  { id: "location", label: "Search by Location", icon: "", description: "Location-based search" },
+  { id: "pricing", label: "Dynamic Pricing", icon: "", description: "Smart pricing optimization" },
+  { id: "setup", label: "Property Setup", icon: "", description: "Room types and rate plans" },
 ];
 
 export default function AdminUserManager({ session }) {
@@ -127,19 +127,16 @@ export default function AdminUserManager({ session }) {
       <div className="space-y-1">
         <span className="text-xs uppercase tracking-[0.4em] text-ink/70">Admin</span>
         <h3 className="h2">Create User</h3>
-        <p className="text-xs text-ink/70">
-          Provision a new login tied to a property. Passwords are stored hashed automatically.
+        <p className="text-xs text-ink/70">Provision a new login tied to a property. Passwords are stored hashed automatically.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
-            Email
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">Email
           </span>
           <input
-            type="email"
-            className={inputClasses}
+            type="email"className={inputClasses}
             value={form.email}
             onChange={(e) => onChange("email", e.target.value)}
             required
@@ -149,12 +146,10 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
-            Password
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">Password
           </span>
           <input
-            type="password"
-            className={inputClasses}
+            type="password"className={inputClasses}
             value={form.password}
             onChange={(e) => onChange("password", e.target.value)}
             required
@@ -164,8 +159,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
-            Role
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">Role
           </span>
           <select
             className={`${inputClasses} pr-8 appearance-none`}
@@ -182,8 +176,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
-            Status
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">Status
           </span>
           <select
             className={`${inputClasses} pr-8 appearance-none`}
@@ -200,8 +193,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2 sm:col-span-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
-            Property
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">Property
           </span>
           <select
             className={`${inputClasses} pr-8 appearance-none`}
@@ -223,30 +215,24 @@ export default function AdminUserManager({ session }) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
-              Module Access
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">Module Access
             </span>
-            <p className="text-xs muted mt-1">
-              Select which modules this user can access
+            <p className="text-xs muted mt-1">Select which modules this user can access
             </p>
           </div>
           <div className="flex gap-2">
             <button
-              type="button"
-              onClick={selectAllModules}
+              type="button"onClick={selectAllModules}
               disabled={disabled}
               className="text-xs text-[var(--accent-text)] hover:text-[var(--accent-text)] transition-colors disabled:opacity-50"
-            >
-              Select All
+            >Select All
             </button>
             <span className="text-slate-600">|</span>
             <button
-              type="button"
-              onClick={deselectAllModules}
+              type="button"onClick={deselectAllModules}
               disabled={disabled}
               className="text-xs muted hover:muted transition-colors disabled:opacity-50"
-            >
-              Clear All
+            >Clear All
             </button>
           </div>
         </div>
@@ -262,8 +248,7 @@ export default function AdminUserManager({ session }) {
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <input
-                type="checkbox"
-                checked={form.modules.includes(module.id)}
+                type="checkbox"checked={form.modules.includes(module.id)}
                 onChange={() => toggleModule(module.id)}
                 disabled={disabled}
                 className="mt-0.5 w-4 h-4 rounded border-white/20 bg-[var(--surface-2)] text-[var(--accent-text)] focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-0"
@@ -280,8 +265,7 @@ export default function AdminUserManager({ session }) {
         </div>
 
         {form.modules.length === 0 && (
-          <div className="rounded-xl border border-amber-300/40 bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn)]">
-            ⚠️ No modules selected - user will not be able to access any features
+          <div className="rounded-xl border border-amber-300/40 bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn)]">No modules selected - user will not be able to access any features
           </div>
         )}
       </div>
@@ -300,8 +284,7 @@ export default function AdminUserManager({ session }) {
 
       <div className="flex justify-end">
         <button
-          type="submit"
-          disabled={disabled}
+          type="submit"disabled={disabled}
           className="rounded-2xl px-4 py-2 h2 text-sm  transition   disabled:opacity-50 "
         >
           {submitting ? "Creating…" : "Create user"}

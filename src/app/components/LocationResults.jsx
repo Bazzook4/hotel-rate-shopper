@@ -218,22 +218,19 @@ export default function LocationResults({ data }) {
       <div className="flex flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-1 text-xs text-ink/70">
           <span className="font-semibold uppercase tracking-[0.4em]">Results</span>
-          <p className="text-[11px] text-ink/60">
-            Sort and refine your compset leads directly from SerpAPI responses.
+          <p className="text-[11px] text-ink/60">Sort and refine your compset leads directly from SerpAPI responses.
           </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/70">
-            Sort by
+          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/70">Sort by
           </label>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${selectClasses} pr-8`}>
             <option value="price">Price (low → high)</option>
             <option value="reviews">Reviews (high → low)</option>
             <option value="rating">Rating (high → low)</option>
           </select>
-          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/70">
-            Min stars
+          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/70">Min stars
           </label>
           <select
             value={minStars}
@@ -241,19 +238,18 @@ export default function LocationResults({ data }) {
             className={`${selectClasses} pr-8`}
           >
             <option value={0}>Any</option>
-            <option value={1}>1★+</option>
-            <option value={2}>2★+</option>
-            <option value={3}>3★+</option>
-            <option value={4}>4★+</option>
-            <option value={5}>5★</option>
+            <option value={1}>1+</option>
+            <option value={2}>2+</option>
+            <option value={3}>3+</option>
+            <option value={4}>4+</option>
+            <option value={5}>5</option>
           </select>
         </div>
       </div>
 
       {/* results */}
       {sorted.length === 0 ? (
-        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sub/70 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
-          No results (try lowering the Min stars or changing dates).
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sub/70 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">No results (try lowering the Min stars or changing dates).
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -272,17 +268,15 @@ export default function LocationResults({ data }) {
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="h2 leading-tight">{h.name}</h3>
                   {h.sponsored && (
-                    <span className="rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)]">
-                      Sponsored
+                    <span className="rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)]">Sponsored
                     </span>
                   )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-ink/70">
-                  {h.stars != null && <span>{h.stars}★</span>}
+                  {h.stars != null && <span>{h.stars}</span>}
                   {h.rating != null && (
-                    <span className="inline-flex items-center gap-1 normal-case tracking-normal text-slate-100">
-                      ⭐ {h.rating}
+                    <span className="inline-flex items-center gap-1 normal-case tracking-normal text-slate-100">{h.rating}
                     </span>
                   )}
                   {h.reviews != null && <span>{h.reviews} reviews</span>}
@@ -333,11 +327,8 @@ export default function LocationResults({ data }) {
                 {h.link && (
                   <a
                     href={h.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-auto inline-flex items-center text-sm font-semibold text-sky-300 transition hover:text-sky-200"
-                  >
-                    View deal →
+                    target="_blank"rel="noopener noreferrer"className="mt-auto inline-flex items-center text-sm font-semibold text-sky-300 transition hover:text-sky-200"
+                  >View deal →
                   </a>
                 )}
               </div>

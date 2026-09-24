@@ -183,12 +183,10 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
       <div className="rounded-2xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-bold text-ink">📋 Configure Rate Plans</h3>
-            <p className="sub mt-1">
-              Fine-tune pricing for all combinations of room types, occupancy, and meal plans
+            <h3 className="text-xl font-bold text-ink">Configure Rate Plans</h3>
+            <p className="sub mt-1">Fine-tune pricing for all combinations of room types, occupancy, and meal plans
             </p>
-            <p className="text-xs faint mt-2">
-              Hotel: <span className="text-ink font-medium">{hotel.hotelName}</span> •
+            <p className="text-xs faint mt-2">Hotel: <span className="text-ink font-medium">{hotel.hotelName}</span> •
               {roomTypes.length} room types • {ratePlans.length} meal plans • {activeRows.length} rate plan variations
             </p>
           </div>
@@ -203,7 +201,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
 
       {error && (
         <div className="rounded-xl bg-[var(--danger-soft)] border border-[var(--danger)] p-4">
-          <p className="text-[var(--danger)] text-sm">⚠️ {error}</p>
+          <p className="text-[var(--danger)] text-sm">{error}</p>
         </div>
       )}
 
@@ -223,7 +221,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
           <table className="w-full">
             <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">✓</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider"></th>
                 <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Actions</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Room</th>
                 <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Occupancy</th>
@@ -244,8 +242,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                   {/* Active Checkbox */}
                   <td className="px-3 py-3">
                     <input
-                      type="checkbox"
-                      checked={row.isActive}
+                      type="checkbox"checked={row.isActive}
                       onChange={(e) => handleRowChange(row.id, "isActive", e.target.checked)}
                       className="w-4 h-4 rounded bg-[var(--surface-2)] border-white/20 text-[var(--accent-text)] focus:ring-[var(--accent)]"
                     />
@@ -256,15 +253,13 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <div className="flex gap-1">
                       <button
                         onClick={() => duplicateRow(row.id)}
-                        className="p-1 rounded bg-[var(--accent)] hover:bg-green-500 text-ink text-xs"
-                        title="Duplicate row"
+                        className="p-1 rounded bg-[var(--accent)] hover:bg-green-500 text-ink text-xs"title="Duplicate row"
                       >
                         +
                       </button>
                       <button
                         onClick={() => deleteRow(row.id)}
-                        className="btn btn-danger text-xs p-1"
-                        title="Delete row"
+                        className="btn btn-danger text-xs p-1"title="Delete row"
                       >
                         −
                       </button>
@@ -327,8 +322,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                   {/* Number of Meals */}
                   <td className="px-3 py-3">
                     <input
-                      type="number"
-                      value={row.numMeals}
+                      type="number"value={row.numMeals}
                       onChange={(e) => handleRowChange(row.id, "numMeals", e.target.value)}
                       className="w-20 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-[var(--accent)]"
                     />
@@ -339,8 +333,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <div className="flex items-center gap-1">
                       <span className="text-[var(--accent-text)] text-xs px-1.5 py-0.5 rounded bg-[var(--accent-soft)] border border-[var(--accent)]">Master</span>
                       <input
-                        type="number"
-                        value={row.baseRate}
+                        type="number"value={row.baseRate}
                         onChange={(e) => handleRowChange(row.id, "baseRate", e.target.value)}
                         className="w-24 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
@@ -353,8 +346,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                   {/* Additional Cost */}
                   <td className="px-3 py-3">
                     <input
-                      type="number"
-                      value={row.additionalCost}
+                      type="number"value={row.additionalCost}
                       onChange={(e) => handleRowChange(row.id, "additionalCost", e.target.value)}
                       className="w-24 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                     />
@@ -373,9 +365,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                   {/* Ratio */}
                   <td className="px-3 py-3">
                     <input
-                      type="number"
-                      step="0.01"
-                      value={row.ratio}
+                      type="number"step="0.01"value={row.ratio}
                       onChange={(e) => handleRowChange(row.id, "ratio", e.target.value)}
                       className="w-20 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-[var(--accent)]"
                     />
@@ -386,18 +376,12 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <div className="flex gap-1">
                       <button
                         onClick={() => duplicateRow(row.id)}
-                        className="p-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent)] text-ink text-xs"
-                        title="Duplicate"
-                      >
-                        ⬆
-                      </button>
+                        className="p-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent)] text-ink text-xs"title="Duplicate"
+                      ></button>
                       <button
                         onClick={() => duplicateRow(row.id)}
-                        className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-ink text-xs"
-                        title="Copy"
-                      >
-                        ⬇
-                      </button>
+                        className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-ink text-xs"title="Copy"
+                      ></button>
                     </div>
                   </td>
                 </tr>
@@ -412,15 +396,14 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
         <button
           onClick={() => setRatePlanRows([])}
           className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
-        >
-          Reset All
+        >Reset All
         </button>
         <button
           onClick={handleSave}
           disabled={loading || ratePlanRows.length === 0}
           className="px-6 py-2 rounded-lg from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold disabled:opacity-50 transition-all"
         >
-          {loading ? "💾 Saving..." : "✅ Save Rate Plans & Continue"}
+          {loading ? " Saving..." : " Save Rate Plans & Continue"}
         </button>
       </div>
     </div>

@@ -110,7 +110,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
       }
 
       if (successCount > 0) {
-        setErr(`✓ Saved ${successCount} day${successCount > 1 ? 's' : ''} of rates${failCount > 0 ? ` (${failCount} failed)` : ''}`);
+        setErr(` Saved ${successCount} day${successCount > 1 ? 's' : ''} of rates${failCount > 0 ? ` (${failCount} failed)` : ''}`);
       } else {
         setErr("Failed to save any rates. Please try again.");
       }
@@ -137,8 +137,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           <input
             value={q}
             readOnly
-            placeholder="Your Hotel"
-            className={`${inputClasses} cursor-not-allowed bg-[var(--surface)]`}
+            placeholder="Your Hotel"className={`${inputClasses} cursor-not-allowed bg-[var(--surface)]`}
             title="This is your property. Contact support to change."
           />
         </div>
@@ -147,8 +146,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           <div className="flex flex-col gap-2">
             <span className={controlLabel}>Check-in</span>
             <input
-              type="date"
-              value={checkIn}
+              type="date"value={checkIn}
               onChange={(e) => {
                 const value = e.target.value;
                 setCheckIn(value);
@@ -164,8 +162,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           <div className="flex flex-col gap-2">
             <span className={controlLabel}>Check-out</span>
             <input
-              type="date"
-              value={checkOut}
+              type="date"value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
               className={inputClasses}
               required
@@ -177,8 +174,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           <div className="flex flex-col gap-2">
             <span className={controlLabel}>Adults</span>
             <input
-              type="number"
-              min={1}
+              type="number"min={1}
               value={adults}
               onChange={(e) => setAdults(Number(e.target.value))}
               className={inputClasses}
@@ -187,8 +183,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           <div className="flex flex-col gap-2">
             <span className={controlLabel}>Children</span>
             <input
-              type="number"
-              min={0}
+              type="number"min={0}
               value={children}
               onChange={(e) => setChildren(Number(e.target.value))}
               className={inputClasses}
@@ -207,21 +202,19 @@ export default function SearchBar({ onResult, defaultHotelName }) {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
-          type="submit"
-          disabled={loading || weeklyLoading}
+          type="submit"disabled={loading || weeklyLoading}
           className="rounded-2xl px-5 py-2.5 h2 text-sm  transition   disabled:opacity-50 "
         >
           {loading ? "Tracking Rates..." : "Track My Rates"}
         </button>
         <button
-          type="button"
-          onClick={onWeeklySearch}
+          type="button"onClick={onWeeklySearch}
           disabled={loading || weeklyLoading}
           className="rounded-2xl from-purple-500/80 to-pink-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-purple-500/25 transition hover:from-purple-400 hover:to-pink-400 disabled:opacity-50 "
         >
           {weeklyLoading ? "Tracking Week..." : "Track Weekly Rates"}
         </button>
-        {err && <span className={`text-xs ${err.includes('✓') ? 'text-[var(--accent-text)]' : 'text-[var(--danger)]'}`}>{err}</span>}
+        {err && <span className={`text-xs ${err.includes('') ? 'text-[var(--accent-text)]' : 'text-[var(--danger)]'}`}>{err}</span>}
       </div>
     </form>
   );

@@ -14,13 +14,9 @@ export default function PricingRecommendations({
   onRemoveComparison,
   loading
 }) {
-  const [viewMode, setViewMode] = useState("pricing"); // "pricing" or "comparison"
-  const [pricingMode, setPricingMode] = useState("simple"); // "simple" or "advanced"
-  const [dynamicExtraRates, setDynamicExtraRates] = useState(false); // Default: OFF - Extra rates stay fixed
+  const [viewMode, setViewMode] = useState("pricing"); // "pricing" or "comparison"const [pricingMode, setPricingMode] = useState("simple"); // "simple" or "advanced"const [dynamicExtraRates, setDynamicExtraRates] = useState(false); // Default: OFF - Extra rates stay fixed
   const [copyStatus, setCopyStatus] = useState({});
-  const [roomNameDisplay, setRoomNameDisplay] = useState("abbreviation"); // "full" or "abbreviation"
-
-  const { hotel, roomTypes, recommendations, metrics, ratePlans } = data;
+  const [roomNameDisplay, setRoomNameDisplay] = useState("abbreviation"); // "full" or "abbreviation"const { hotel, roomTypes, recommendations, metrics, ratePlans } = data;
 
   const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -110,7 +106,7 @@ export default function PricingRecommendations({
           const finalPrice = configuredPrice !== undefined ? configuredPrice : highestConfiguredPrice;
 
           occupancyTypes.push({
-            type: `👤 ×${i}`,
+            type: ` ×${i}`,
             base_price: finalPrice
           });
         }
@@ -123,28 +119,28 @@ export default function PricingRecommendations({
         // Use max_adults to generate occupancy types
         for (let i = 1; i <= max_adultsValue; i++) {
           occupancyTypes.push({
-            type: `👤 ×${i}`,
+            type: ` ×${i}`,
             base_price: room.base_price
           });
         }
       } else {
         // Default to ×1 and ×2
         occupancyTypes = [
-          { type: '👤 ×1', base_price: room.base_price },
-          { type: '👤 ×2', base_price: room.base_price }
+          { type: ' ×1', base_price: room.base_price },
+          { type: ' ×2', base_price: room.base_price }
         ];
       }
 
       // Add extra adult/child if configured
       if (occupancyPricing?.extraAdult) {
         occupancyTypes.push({
-          type: '👤 Extra',
+          type: ' Extra',
           base_price: occupancyPricing.extraAdult
         });
       }
       if (occupancyPricing?.extraChild) {
         occupancyTypes.push({
-          type: '👶 Extra',
+          type: ' Extra',
           base_price: occupancyPricing.extraChild
         });
       }
@@ -167,7 +163,7 @@ export default function PricingRecommendations({
 
             // STEP 1: Apply dynamic pricing multipliers to BASE PRICE ONLY
             // (multipliers should NOT affect meal costs - those are fixed operational costs)
-            const isExtraRate = occupancy.type === '👤 Extra' || occupancy.type === '👶 Extra';
+            const isExtraRate = occupancy.type === ' Extra' || occupancy.type === ' Extra';
             if (!isExtraRate || dynamicExtraRates) {
               base_price *= pricingParams.demandMultiplier || 1.0;
               base_price *= pricingParams.seasonalMultiplier || 1.0;
@@ -263,7 +259,7 @@ export default function PricingRecommendations({
         const roomKey = row.roomCategory;
 
         // Only include EP (base rates) to avoid duplication and show cleaner trends
-        if (row.mealPlan === 'EP' && row.occupancy === '👤 ×2') {
+        if (row.mealPlan === 'EP' && row.occupancy === ' ×2') {
           if (!roomPrices[roomKey]) {
             roomPrices[roomKey] = [];
           }
@@ -447,8 +443,7 @@ export default function PricingRecommendations({
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            Save
+            </svg>Save
           </button>
         </div>
       </div>
@@ -462,8 +457,7 @@ export default function PricingRecommendations({
               ? "bg-[var(--accent)] text-ink"
               : "muted hover:text-ink"
           }`}
-        >
-          Pricing
+        >Pricing
         </button>
         <button
           onClick={() => setViewMode("comparison")}
@@ -472,8 +466,7 @@ export default function PricingRecommendations({
               ? "bg-[var(--accent)] text-ink"
               : "muted hover:text-ink"
           }`}
-        >
-          Compare ({comparisons.length})
+        >Compare ({comparisons.length})
         </button>
       </div>
 
@@ -482,7 +475,7 @@ export default function PricingRecommendations({
           {/* UNIFIED PRICING DASHBOARD - 2 Columns, 4 Rows Grid */}
           <div className={sectionClass}>
             <div className="flex justify-between items-center mb-2">
-              <h4 className="h2 text-sm">📊 Pricing Dashboard</h4>
+              <h4 className="h2 text-sm">Pricing Dashboard</h4>
               <div className="flex items-center gap-2">
                 {/* Simple/Advanced Mode Toggle */}
                 <div className="flex gap-1 p-0.5 bg-[var(--surface)] rounded-lg border border-[var(--border)]">
@@ -493,8 +486,7 @@ export default function PricingRecommendations({
                         ? "bg-[var(--accent)] text-ink"
                         : "muted hover:text-ink"
                     }`}
-                  >
-                    Simple
+                  >Simple
                   </button>
                   <button
                     onClick={() => setPricingMode("advanced")}
@@ -503,8 +495,7 @@ export default function PricingRecommendations({
                         ? "bg-[var(--accent)] text-ink"
                         : "muted hover:text-ink"
                     }`}
-                  >
-                    Advanced
+                  >Advanced
                   </button>
                 </div>
 
@@ -513,8 +504,7 @@ export default function PricingRecommendations({
                   <span className="text-[10px] muted">Dynamic Extra</span>
                   <div className="relative">
                     <input
-                      type="checkbox"
-                      checked={dynamicExtraRates}
+                      type="checkbox"checked={dynamicExtraRates}
                       onChange={(e) => setDynamicExtraRates(e.target.checked)}
                       className="sr-only peer"
                     />
@@ -529,7 +519,7 @@ export default function PricingRecommendations({
 
               {/* ROW 1-2 LEFT: Weekly Price Trend Chart (spans 2 rows) */}
               <div className="lg:row-span-2">
-                <h5 className="text-xs font-semibold muted mb-1">📈 Weekly Price Trend</h5>
+                <h5 className="text-xs font-semibold muted mb-1">Weekly Price Trend</h5>
                 <div className="h-[240px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
@@ -551,8 +541,7 @@ export default function PricingRecommendations({
                       {[chartRoomTypes[0]].filter(Boolean).map((roomType) => (
                         <Line
                           key={roomType}
-                          type="monotone"
-                          dataKey={roomType}
+                          type="monotone"dataKey={roomType}
                           stroke={colorPalette[0]}
                           strokeWidth={2}
                           dot={{ fill: colorPalette[0], r: 3 }}
@@ -563,21 +552,21 @@ export default function PricingRecommendations({
                   </ResponsiveContainer>
                 </div>
                 <p className="text-[9px] muted text-center mt-1">
-                  {chartRoomTypes[0]} - Double Occupancy (👤 ×2) EP rates
+                  {chartRoomTypes[0]} - Double Occupancy ( ×2) EP rates
                 </p>
               </div>
 
               {/* ROW 1 RIGHT: Competitor Adjustment Controller */}
               <div className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-                <h5 className="text-xs font-semibold text-ink mb-1">💰 Competitor Adjustment</h5>
+                <h5 className="text-xs font-semibold text-ink mb-1">Competitor Adjustment</h5>
 
                 {pricingMode === "simple" ? (
                   <div className="space-y-0.5">
                     {[
-                      { key: 'undercut', label: 'Undercut', emoji: '💚', amount: -500 },
-                      { key: 'match', label: 'Match', emoji: '🤝', amount: 0 },
-                      { key: 'premium', label: 'Premium', emoji: '💰', amount: 500 },
-                      { key: 'heavy-premium', label: 'Heavy', emoji: '🔺', amount: 1000 }
+                      { key: 'undercut', label: 'Undercut', emoji: '', amount: -500 },
+                      { key: 'match', label: 'Match', emoji: '', amount: 0 },
+                      { key: 'premium', label: 'Premium', emoji: '', amount: 500 },
+                      { key: 'heavy-premium', label: 'Heavy', emoji: '', amount: 1000 }
                     ].map(option => (
                       <button
                         key={option.key}
@@ -596,12 +585,9 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                     <input
-                      type="number"
-                      step="1"
-                      value={pricingParams.competitorAdjustment}
+                      type="number"step="1"value={pricingParams.competitorAdjustment}
                       onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
-                      placeholder="Custom amount (₹)"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"placeholder="Custom amount (₹)"
                     />
                   </div>
                 ) : (
@@ -609,19 +595,13 @@ export default function PricingRecommendations({
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-xs muted">Fixed Amount</label>
                       <input
-                        type="number"
-                        step="10"
-                        value={pricingParams.competitorAdjustment}
+                        type="number"step="10"value={pricingParams.competitorAdjustment}
                         onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
                         className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
-                      type="range"
-                      min="-1000"
-                      max="1000"
-                      step="50"
-                      value={pricingParams.competitorAdjustment}
+                      type="range"min="-1000"max="1000"step="50"value={pricingParams.competitorAdjustment}
                       onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) })}
                       className="w-full h-2 bg-[var(--surface-2)] rounded-lg appearance-none cursor-pointer slider"
                     />
@@ -641,10 +621,10 @@ export default function PricingRecommendations({
                 {pricingMode === "simple" ? (
                   <div className="space-y-0.5">
                     {[
-                      { key: 'discount', label: 'Discount', emoji: '💸', multiplier: 0.7 },
-                      { key: 'standard', label: 'Standard', emoji: '⚪', multiplier: 1.0 },
-                      { key: 'premium', label: 'Premium', emoji: '⭐', multiplier: 1.3 },
-                      { key: 'high', label: 'High', emoji: '💎', multiplier: 1.5 }
+                      { key: 'discount', label: 'Discount', emoji: '', multiplier: 0.7 },
+                      { key: 'standard', label: 'Standard', emoji: '', multiplier: 1.0 },
+                      { key: 'premium', label: 'Premium', emoji: '', multiplier: 1.3 },
+                      { key: 'high', label: 'High', emoji: '', multiplier: 1.5 }
                     ].map(option => (
                       <button
                         key={option.key}
@@ -661,13 +641,9 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={pricingParams.lastMinuteMultiplier}
+                      type="number"step="0.01"min="0"value={pricingParams.lastMinuteMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
-                      placeholder="Custom multiplier"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"placeholder="Custom multiplier"
                     />
                   </div>
                 ) : (
@@ -675,20 +651,13 @@ export default function PricingRecommendations({
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-xs muted">Multiplier</label>
                       <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={pricingParams.lastMinuteMultiplier}
+                        type="number"step="0.1"min="0"value={pricingParams.lastMinuteMultiplier}
                         onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
                         className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
-                      type="range"
-                      min="0.5"
-                      max="2.0"
-                      step="0.1"
-                      value={pricingParams.lastMinuteMultiplier}
+                      type="range"min="0.5"max="2.0"step="0.1"value={pricingParams.lastMinuteMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) })}
                       className="w-full h-2 bg-[var(--surface-2)] rounded-lg appearance-none cursor-pointer slider"
                     />
@@ -703,16 +672,13 @@ export default function PricingRecommendations({
 
               {/* ROW 3 FULL WIDTH: Weekly Multipliers Controller */}
               <div className="lg:col-span-2 p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-                <h5 className="text-xs font-semibold text-ink mb-1">📅 Weekly Multipliers</h5>
+                <h5 className="text-xs font-semibold text-ink mb-1">Weekly Multipliers</h5>
                 <div className="grid grid-cols-7 gap-1">
                   {weekdays.map(day => (
                     <div key={day} className="text-center">
                       <div className="text-[9px] muted mb-0.5 font-medium">{day.slice(0, 3)}</div>
                       <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={pricingParams.weekday_multipliers?.[day] || 1.0}
+                        type="number"step="0.1"min="0"value={pricingParams.weekday_multipliers?.[day] || 1.0}
                         onChange={(e) => updateWeekdayMultiplier(day, e.target.value)}
                         className="w-full px-0.5 py-0.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
                       />
@@ -726,16 +692,16 @@ export default function PricingRecommendations({
 
               {/* ROW 4 LEFT: Demand Factor Controller */}
               <div className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-                <h5 className="text-xs font-semibold text-ink mb-1">🎯 Demand Factor</h5>
+                <h5 className="text-xs font-semibold text-ink mb-1">Demand Factor</h5>
 
                 {pricingMode === "simple" ? (
                   <div className="space-y-0.5">
                     {[
-                      { key: 'low', label: 'Low', emoji: '🟡', multiplier: 0.7 },
-                      { key: 'normal', label: 'Normal', emoji: '🟢', multiplier: 1.0 },
-                      { key: 'high', label: 'High', emoji: '🟠', multiplier: 1.5 },
-                      { key: 'very-high', label: 'Very High', emoji: '🔥', multiplier: 2.0 },
-                      { key: 'extreme', label: 'Extreme', emoji: '⚡', multiplier: 2.5 }
+                      { key: 'low', label: 'Low', emoji: '', multiplier: 0.7 },
+                      { key: 'normal', label: 'Normal', emoji: '', multiplier: 1.0 },
+                      { key: 'high', label: 'High', emoji: '', multiplier: 1.5 },
+                      { key: 'very-high', label: 'Very High', emoji: '', multiplier: 2.0 },
+                      { key: 'extreme', label: 'Extreme', emoji: '', multiplier: 2.5 }
                     ].map(option => (
                       <button
                         key={option.key}
@@ -752,13 +718,9 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={pricingParams.demandMultiplier}
+                      type="number"step="0.01"min="0"value={pricingParams.demandMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
-                      placeholder="Custom multiplier"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"placeholder="Custom multiplier"
                     />
                   </div>
                 ) : (
@@ -766,20 +728,13 @@ export default function PricingRecommendations({
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-xs muted">Multiplier</label>
                       <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={pricingParams.demandMultiplier}
+                        type="number"step="0.1"min="0"value={pricingParams.demandMultiplier}
                         onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
                         className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
-                      type="range"
-                      min="0.5"
-                      max="2.5"
-                      step="0.1"
-                      value={pricingParams.demandMultiplier}
+                      type="range"min="0.5"max="2.5"step="0.1"value={pricingParams.demandMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) })}
                       className="w-full h-2 bg-[var(--surface-2)] rounded-lg appearance-none cursor-pointer slider"
                     />
@@ -794,16 +749,16 @@ export default function PricingRecommendations({
 
               {/* ROW 4 RIGHT: Seasonal Factor Controller */}
               <div className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
-                <h5 className="text-xs font-semibold text-ink mb-1">🌍 Seasonal Factor</h5>
+                <h5 className="text-xs font-semibold text-ink mb-1">Seasonal Factor</h5>
 
                 {pricingMode === "simple" ? (
                   <div className="space-y-0.5">
                     {[
-                      { key: 'low', label: 'Low', emoji: '🌧️', multiplier: 0.8 },
-                      { key: 'regular', label: 'Regular', emoji: '☀️', multiplier: 1.0 },
-                      { key: 'high', label: 'High', emoji: '🌸', multiplier: 1.5 },
-                      { key: 'peak', label: 'Peak', emoji: '🎉', multiplier: 2.0 },
-                      { key: 'ultra-peak', label: 'Ultra Peak', emoji: '🔥', multiplier: 4.0 }
+                      { key: 'low', label: 'Low', emoji: '', multiplier: 0.8 },
+                      { key: 'regular', label: 'Regular', emoji: '', multiplier: 1.0 },
+                      { key: 'high', label: 'High', emoji: '', multiplier: 1.5 },
+                      { key: 'peak', label: 'Peak', emoji: '', multiplier: 2.0 },
+                      { key: 'ultra-peak', label: 'Ultra Peak', emoji: '', multiplier: 4.0 }
                     ].map(option => (
                       <button
                         key={option.key}
@@ -820,13 +775,9 @@ export default function PricingRecommendations({
                       </button>
                     ))}
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={pricingParams.seasonalMultiplier}
+                      type="number"step="0.01"min="0"value={pricingParams.seasonalMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
-                      placeholder="Custom multiplier"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"placeholder="Custom multiplier"
                     />
                   </div>
                 ) : (
@@ -834,20 +785,13 @@ export default function PricingRecommendations({
                     <div className="flex justify-between items-center mb-2">
                       <label className="text-xs muted">Multiplier</label>
                       <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={pricingParams.seasonalMultiplier}
+                        type="number"step="0.1"min="0"value={pricingParams.seasonalMultiplier}
                         onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
                         className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
-                      type="range"
-                      min="0.6"
-                      max="4.0"
-                      step="0.1"
-                      value={pricingParams.seasonalMultiplier}
+                      type="range"min="0.6"max="4.0"step="0.1"value={pricingParams.seasonalMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) })}
                       className="w-full h-2 bg-[var(--surface-2)] rounded-lg appearance-none cursor-pointer slider"
                     />
@@ -883,7 +827,7 @@ export default function PricingRecommendations({
                   {copyStatus['table'] ? (
                     <span className="text-sm">{copyStatus['table']}</span>
                   ) : (
-                    <>📋 Copy All Rates</>
+                    <>Copy All Rates</>
                   )}
                 </button>
               </div>
@@ -907,8 +851,7 @@ export default function PricingRecommendations({
                       <td className="py-3 px-2 text-center">
                         <button
                           onClick={() => copyRowToClipboard(row, index)}
-                          className="p-1.5 rounded hover:bg-[var(--surface-2)] muted hover:text-ink transition-all opacity-0 group-hover:opacity-100"
-                          title="Copy row"
+                          className="p-1.5 rounded hover:bg-[var(--surface-2)] muted hover:text-ink transition-all opacity-0 group-hover:opacity-100"title="Copy row"
                         >
                           {copyStatus[index] ? (
                             <span className="text-xs text-[var(--accent-text)]">{copyStatus[index]}</span>
@@ -944,8 +887,7 @@ export default function PricingRecommendations({
               <button
                 onClick={() => comparisons.forEach(c => onRemoveComparison(c.id))}
                 className="text-sm text-[var(--danger)] hover:text-[var(--danger)]"
-              >
-                Clear All
+              >Clear All
               </button>
             )}
           </div>
@@ -953,8 +895,7 @@ export default function PricingRecommendations({
           {comparisons.length === 0 ? (
             <div className="text-center py-12">
               <p className="muted mb-4">No saved comparisons yet</p>
-              <p className="text-sm faint">
-                Adjust the pricing factors and click "Save for Comparison" to compare different scenarios
+              <p className="text-sm faint">Adjust the pricing factors and click "Save for Comparison" to compare different scenarios
               </p>
             </div>
           ) : (
@@ -964,8 +905,7 @@ export default function PricingRecommendations({
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h5 className="text-ink font-semibold">Scenario {idx + 1}</h5>
-                      <p className="text-xs faint mt-1">
-                        Saved {new Date(comparison.timestamp).toLocaleString()}
+                      <p className="text-xs faint mt-1">Saved {new Date(comparison.timestamp).toLocaleString()}
                       </p>
                     </div>
                     <button

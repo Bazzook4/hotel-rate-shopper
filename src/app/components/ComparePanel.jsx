@@ -206,8 +206,7 @@ export default function ComparePanel({ compSet }) {
       const primaryParams = rowToParams(normalized.primary);
       const primaryRes = await fetchHotel(normalized.primary.name, primaryParams);
       const compRes = await Promise.all(
-        normalized.competitors.map((c) =>
-          fetchHotel(c.name, rowToParams(c)).catch(() => null)
+        normalized.competitors.map((c) =>fetchHotel(c.name, rowToParams(c)).catch(() => null)
         )
       );
 
@@ -326,7 +325,7 @@ export default function ComparePanel({ compSet }) {
   const renderMeta = (rating, reviews) => {
     const parts = [];
     const ratingText = formatRating(rating);
-    if (ratingText) parts.push(`⭐ ${ratingText}`);
+    if (ratingText) parts.push(` ${ratingText}`);
     const reviewsText = formatReviews(reviews);
     if (reviewsText) parts.push(`${reviewsText} reviews`);
     if (!parts.length) return null;
@@ -338,14 +337,12 @@ export default function ComparePanel({ compSet }) {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h3 className="h1">Comparison</h3>
-          <p className="text-xs text-ink/70">
-            Align your primary property with the comp set and inspect channel spreads instantly.
+          <p className="text-xs text-ink/70">Align your primary property with the comp set and inspect channel spreads instantly.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {lastSync && (
-            <span className="text-[11px] text-ink/70">
-              Last sync: {new Date(lastSync).toLocaleString()}
+            <span className="text-[11px] text-ink/70">Last sync: {new Date(lastSync).toLocaleString()}
             </span>
           )}
           <button
@@ -377,8 +374,7 @@ export default function ComparePanel({ compSet }) {
       {err && <div className="rounded-2xl border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">{err}</div>}
 
       {!compareData ? (
-        <div className="card px-4 py-5 sub/70">
-          Set your comp set and click <b>Compare Now</b>.
+        <div className="card px-4 py-5 sub/70">Set your comp set and click <b>Compare Now</b>.
         </div>
       ) : (
         <div className="overflow-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
