@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { visibleModules } from "./modules";
 import ChannelManager from "./components/ChannelManager";
 import DisparityChecker from "../components/DisparityChecker";
@@ -79,12 +80,12 @@ export default function V2Dashboard() {
           </nav>
 
           <div className="mt-6 space-y-2">
-            <a
+            <Link
               href="/"
               className="block rounded-xl px-2.5 py-2 text-xs text-slate-400 transition hover:bg-white/10 hover:text-white"
             >
               ← Back to v1
-            </a>
+            </Link>
             <LogoutButton />
           </div>
         </div>
