@@ -134,6 +134,23 @@ body {
   .input:focus { border-color: var(--accent); }
   .input::placeholder { color: var(--text-faint); }
 
+  /* Number inputs lose their spinner arrows.
+   *
+   * The rate grid is dense -- a narrow cell holding a four-figure rate -- and
+   * the arrows sit on top of the digits, so "2400" reads as "240C". The value
+   * is typed, not stepped, so nothing is lost by hiding them. Arrow keys still
+   * increment, which is the accessible path. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   .label {
     display: block;
     font-size: 0.75rem;

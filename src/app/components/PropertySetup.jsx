@@ -507,7 +507,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               </button>
               <button
                 onClick={() => setShowAddRoom(!showAddRoom)}
-                className="px-3 py-1.5 rounded-lg from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink text-xs font-medium transition-all"
+                className="btn btn-primary text-xs"
               >
                 {showAddRoom ? "Cancel" : "+ Add Room"}
               </button>
@@ -578,7 +578,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
             <button
               type="submit"disabled={loading}
-              className="px-4 py-1.5 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all"
+              className="btn btn-primary text-sm"
             >
               {loading ? "Adding..." : "Add Room Type"}
             </button>
@@ -688,7 +688,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           <button
             onClick={onCalculate}
             disabled={parentLoading}
-            className="flex-1 px-5 py-2.5 rounded-lg from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
+            className="btn btn-primary flex-1 text-sm"
           >
             {parentLoading ? "Calculating..." : " Calculate Pricing"}
           </button>

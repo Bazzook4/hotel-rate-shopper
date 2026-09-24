@@ -157,7 +157,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
         </div>
         <button
           onClick={() => setShowAddPlan(!showAddPlan)}
-          className="px-4 py-2 rounded-lg from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink text-sm font-medium transition-all"
+          className="btn btn-primary text-sm"
         >
           {showAddPlan ? "Cancel" : "+ Add Meal Plans"}
         </button>
@@ -269,7 +269,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
 
           <button
             type="submit"disabled={loading}
-            className="w-full px-6 py-3 rounded-lg from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink font-medium disabled:opacity-50 transition-all"
+            className="btn btn-primary w-full"
           >
             {loading ? "Saving..." : "Save Meal Plans"}
           </button>

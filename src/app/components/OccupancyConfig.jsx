@@ -119,7 +119,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
   };
 
   return (
-    <div className="mt-3 p-4 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-[var(--accent)]">
+    <div className="mt-3 card p-4" style={{ borderColor: "var(--accent)" }}>
       <div className="flex items-center justify-between mb-2">
         <div>
           <h5 className="h2 text-sm flex items-center gap-2">Occupancy Pricing
@@ -285,7 +285,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
           <div className="flex gap-2 pt-2">
             <button
               type="submit"disabled={loading || !numAdultOptions}
-              className="flex-1 px-4 py-2.5 rounded-lg from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-ink text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
+              className="btn btn-primary flex-1 text-sm"
             >
               {loading ? " Saving..." : " Save Occupancy Pricing"}
             </button>

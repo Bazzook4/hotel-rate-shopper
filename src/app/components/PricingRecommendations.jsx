@@ -822,7 +822,7 @@ export default function PricingRecommendations({
                 </select>
                 <button
                   onClick={copyEntireTableToClipboard}
-                  className="px-4 py-2 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium transition-all shadow-lg shadow-green-500/20"
+                  className="btn btn-primary text-sm"
                 >
                   {copyStatus['table'] ? (
                     <span className="text-sm">{copyStatus['table']}</span>

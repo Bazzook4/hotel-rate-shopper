@@ -565,7 +565,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
         <button
           onClick={handleSaveAll}
           disabled={loading}
-          className="px-6 py-2.5 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
+          className="btn btn-primary text-sm"
         >
           {loading ? 'Saving...' : ' Save All Occupancy Pricing'}
         </button>

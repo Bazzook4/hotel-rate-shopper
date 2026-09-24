@@ -175,7 +175,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="flex-1 px-4 py-2 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all shadow-lg shadow-green-500/20"
+                className="btn btn-primary flex-1 text-sm"
               >
                 {loading ? " Saving..." : " Save Changes"}
               </button>
