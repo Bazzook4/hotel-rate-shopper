@@ -80,3 +80,14 @@ export function canAdministerUser(actor, target, actorPropertyId) {
   const targetProperty = target?.property_id ?? target?.propertyId ?? null;
   return Boolean(actorPropertyId) && targetProperty === actorPropertyId;
 }
+
+/**
+ * Whether `target` may be managed as a user of a property.
+ *
+ * Super admins are software team: they may be linked to a property so they
+ * can work in it, but they are not its staff and must not be editable or
+ * removable from the property's user list, whoever is asking.
+ */
+export function isPropertyScopedUser(target) {
+  return !isSuperAdmin(target);
+}

@@ -15,6 +15,7 @@ import {
   isSuperAdmin,
   canAdministerUser,
   assignableRoles,
+  isPropertyScopedUser,
 } from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
 
@@ -139,6 +140,15 @@ export async function PATCH(request) {
   const target = await getUserById(body.id).catch(() => null);
   if (!target) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  // A super admin is not a property's staff and is never edited through the
+  // property user list, regardless of who is asking.
+  if (!isPropertyScopedUser(target)) {
+    return NextResponse.json(
+      { error: "Super admins are managed separately and cannot be changed here." },
+      { status: 403 }
+    );
   }
 
   const actorProperty =

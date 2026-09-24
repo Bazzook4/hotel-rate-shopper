@@ -948,10 +948,14 @@ export async function listUsersForProperty(propertyId) {
   const ids = (links || []).map((l) => l.user_id);
   if (ids.length === 0) return [];
 
+  // Super admins are software team, not staff of a property. They may be
+  // linked to one so they can work in it, but they are not listed as its
+  // users and cannot be edited or removed from here.
   const { data: users, error } = await supabase
     .from('users')
     .select('id, email, role, status, created_at')
     .in('id', ids)
+    .not('role', 'in', '("SuperAdmin","Admin")')
     .order('created_at', { ascending: false });
 
   if (error) {

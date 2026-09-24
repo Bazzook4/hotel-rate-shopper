@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { assignableRoles, isSuperAdmin } from "@/lib/permissions";
+import { ROLES, assignableRoles, isSuperAdmin } from "@/lib/permissions";
 
 const MODULES = [
   { id: "cm", label: "Channel Manager" },
@@ -27,7 +27,11 @@ export default function PropertyUsers({ session, property }) {
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(null);
 
-  const roles = assignableRoles(session);
+  // Super admins are software team, not property staff, so the role is not
+  // offered here even to someone who could otherwise assign it.
+  const roles = assignableRoles(session).filter(
+    (r) => r.value !== ROLES.SUPER_ADMIN
+  );
   const canAdd = session?.role && roles.length > 0;
 
   const load = useCallback(async () => {
