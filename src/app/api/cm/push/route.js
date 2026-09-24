@@ -50,7 +50,18 @@ export async function POST(req) {
     return NextResponse.json({ error: invalid }, { status: 400 });
   }
 
-  const { client, ready } = await resolveChannelManager(session, { propertyId });
+  const cm = await resolveChannelManager(session, { propertyId });
+  const { client, ready } = cm;
+
+  // Each activity is enabled separately, so a connection that only sends
+  // rates must not be able to push inventory.
+  if (ready && !cm.allows(kind)) {
+    const label = kind === "rates" ? "Rates out" : "Inventory out";
+    return NextResponse.json(
+      { error: `${label} is turned off for this property's connection.` },
+      { status: 409 }
+    );
+  }
 
   if (!ready) {
     const count = updates.reduce((n, u) => n + u[key].length, 0);

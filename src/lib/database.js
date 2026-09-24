@@ -988,7 +988,7 @@ export async function listUsersForProperty(propertyId) {
 export async function listPartners() {
   const { data, error } = await supabase
     .from('partners')
-    .select('id, slug, name, base_url, partner_id, api_username, enabled, notes, updated_at')
+    .select('id, slug, name, base_url, partner_id, api_username, enabled, notes, updated_at, supports_rates_out, supports_inventory_out, supports_reservations_in')
     .order('name');
 
   if (error) {
@@ -1062,7 +1062,15 @@ export async function getPropertyIntegration(propertyId, partnerSlug) {
   return { partner, integration, codeMap: codeMap || [] };
 }
 
-export async function upsertPropertyIntegration({ propertyId, partnerId, hotelCode, enabled }) {
+export async function upsertPropertyIntegration({
+  propertyId,
+  partnerId,
+  hotelCode,
+  enabled,
+  ratesOut,
+  inventoryOut,
+  reservationsIn,
+}) {
   const { data, error } = await supabase
     .from('property_integrations')
     .upsert(
@@ -1071,6 +1079,9 @@ export async function upsertPropertyIntegration({ propertyId, partnerId, hotelCo
         partner_id: partnerId,
         hotel_code: hotelCode ?? null,
         enabled: Boolean(enabled),
+        rates_out: Boolean(ratesOut),
+        inventory_out: Boolean(inventoryOut),
+        reservations_in: Boolean(reservationsIn),
         updated_at: new Date().toISOString(),
       },
       { onConflict: 'property_id,partner_id' }

@@ -40,6 +40,12 @@ CREATE TABLE IF NOT EXISTS property_integrations (
   partner_id UUID REFERENCES partners(id) ON DELETE CASCADE,
   hotel_code TEXT,                        -- this hotel's code with the partner
   enabled BOOLEAN DEFAULT false,
+
+  -- Activities are enabled independently. Direction is from our point of
+  -- view: rates and inventory go out to the partner, reservations come in.
+  rates_out BOOLEAN DEFAULT false,
+  inventory_out BOOLEAN DEFAULT false,
+  reservations_in BOOLEAN DEFAULT false,
   last_synced_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -75,6 +81,13 @@ ALTER TABLE integration_code_map ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Service role only on integration_code_map" ON integration_code_map;
 CREATE POLICY "Service role only on integration_code_map" ON integration_code_map
   FOR ALL USING (true);
+
+-- Which activities each partner is capable of at all, so the UI only offers
+-- what the provider supports.
+ALTER TABLE partners
+  ADD COLUMN IF NOT EXISTS supports_rates_out BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS supports_inventory_out BOOLEAN DEFAULT true,
+  ADD COLUMN IF NOT EXISTS supports_reservations_in BOOLEAN DEFAULT true;
 
 -- Seed Aiosell so it appears in the marketplace before anyone configures it.
 INSERT INTO partners (slug, name, base_url, enabled)

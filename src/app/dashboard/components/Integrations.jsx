@@ -28,6 +28,12 @@ export default function Integrations({ session }) {
   const [open, setOpen] = useState(null);
   const [hotelCode, setHotelCode] = useState("");
   const [enabled, setEnabled] = useState(false);
+  // Each activity is switched on separately.
+  const [acts, setActs] = useState({
+    ratesOut: false,
+    inventoryOut: false,
+    reservationsIn: false,
+  });
   const [codes, setCodes] = useState({});
 
   const load = useCallback(async () => {
@@ -40,6 +46,11 @@ export default function Integrations({ session }) {
       setData(json);
       setHotelCode(json.integration?.hotel_code || "");
       setEnabled(Boolean(json.integration?.enabled));
+      setActs({
+        ratesOut: Boolean(json.integration?.rates_out),
+        inventoryOut: Boolean(json.integration?.inventory_out),
+        reservationsIn: Boolean(json.integration?.reservations_in),
+      });
 
       const map = {};
       for (const row of json.codeMap || []) {
@@ -76,7 +87,7 @@ export default function Integrations({ session }) {
       const res = await fetch("/api/integrations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hotelCode, enabled, codeMap }),
+        body: JSON.stringify({ hotelCode, enabled, ...acts, codeMap }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Save failed");
@@ -200,8 +211,50 @@ export default function Integrations({ session }) {
                 checked={enabled}
                 onChange={(e) => setEnabled(e.target.checked)}
               />
-              Send rates and inventory to Aiosell
+              Connection active
             </label>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">
+              Activities
+            </p>
+            <p className="mb-2 text-xs text-slate-400">
+              Turn on only what this property should exchange with Aiosell.
+            </p>
+            <div className="space-y-2">
+              {[
+                ["ratesOut", "Rate out", "Send our rates to the channel manager", "supports_rates_out"],
+                ["inventoryOut", "Inventory out", "Send room availability and restrictions", "supports_inventory_out"],
+                ["reservationsIn", "Reservation in", "Receive bookings from the channel manager", "supports_reservations_in"],
+              ].map(([key, label, hint, supportKey]) => {
+                const supported = data?.partner?.[supportKey] !== false;
+                return (
+                  <label
+                    key={key}
+                    className={`flex items-start gap-2 rounded-xl border px-3 py-2 ${
+                      supported
+                        ? "border-white/10 bg-white/5"
+                        : "border-white/5 bg-white/[0.02] opacity-50"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      disabled={!supported}
+                      checked={supported && acts[key]}
+                      onChange={(e) => setActs({ ...acts, [key]: e.target.checked })}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      <span className="block text-sm text-white">{label}</span>
+                      <span className="block text-xs text-slate-400">
+                        {supported ? hint : "Not supported by this partner"}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
           </div>
 
           {(data?.roomTypes?.length > 0 || data?.ratePlans?.length > 0) && (

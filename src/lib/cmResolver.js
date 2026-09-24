@@ -34,11 +34,39 @@ export async function resolveChannelManager(session, { propertyId } = {}) {
 
   const client = createAiosellClient({ partner, hotelCode });
 
+  const connected = client.isConfigured() && integration?.enabled === true;
+
   return {
     client,
     partner,
     integration,
     propertyId: resolvedPropertyId,
-    ready: client.isConfigured() && integration?.enabled !== false,
+    ready: connected,
+
+    /**
+     * Whether one activity may run. Each is enabled independently, and the
+     * partner must support it at all. Direction is from our point of view:
+     * rates and inventory go out, reservations come in.
+     */
+    allows(activity) {
+      if (!connected) return false;
+      switch (activity) {
+        case "rates":
+          return integration.rates_out === true && partner?.supports_rates_out !== false;
+        case "inventory":
+        case "restrictions":
+          return (
+            integration.inventory_out === true &&
+            partner?.supports_inventory_out !== false
+          );
+        case "reservations":
+          return (
+            integration.reservations_in === true &&
+            partner?.supports_reservations_in !== false
+          );
+        default:
+          return false;
+      }
+    },
   };
 }

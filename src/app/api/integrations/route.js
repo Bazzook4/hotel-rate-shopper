@@ -55,6 +55,9 @@ export async function GET(req) {
               found.partner.api_password &&
               found.partner.partner_id
           ),
+          supports_rates_out: found.partner.supports_rates_out !== false,
+          supports_inventory_out: found.partner.supports_inventory_out !== false,
+          supports_reservations_in: found.partner.supports_reservations_in !== false,
         }
       : null;
 
@@ -103,6 +106,9 @@ export async function PUT(req) {
       partnerId: found.partner.id,
       hotelCode: body.hotelCode?.trim() || null,
       enabled: Boolean(body.enabled),
+      ratesOut: Boolean(body.ratesOut),
+      inventoryOut: Boolean(body.inventoryOut),
+      reservationsIn: Boolean(body.reservationsIn),
     });
 
     if (Array.isArray(body.codeMap)) {
