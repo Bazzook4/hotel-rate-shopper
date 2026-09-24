@@ -168,57 +168,51 @@ export default function ChannelManager() {
     }
   }
 
-  async function saveRates() {
+  /**
+   * Publish: store the edits, then send them on to the channel manager.
+   *
+   * Saving first means a failed push still leaves the work recorded, so a
+   * connection problem never costs the edits.
+   */
+  async function publish() {
+    if (!grid?.rooms?.length) return;
+
     const rows = Object.entries(rates).map(([key, value]) => {
       const [rate_plan_id, occupancy, stay_date] = key.split("|");
       return { rate_plan_id, occupancy: Number(occupancy), stay_date, rate: value };
     });
+
     if (rows.length === 0) {
-      setNotice("No changes to save.");
+      setNotice("No changes to publish.");
       return;
     }
 
     setBusy(true);
     setNotice("");
+
     try {
-      const res = await fetch("/api/cm/rates", {
+      const saveRes = await fetch("/api/cm/rates", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rates: rows }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Save failed");
-      // Reload so the cells read from what was stored, then clear the edits.
-      await load();
-      setRates({});
-      setNotice(`Saved ${json.saved} rate${json.saved === 1 ? "" : "s"}.`);
-    } catch (err) {
-      setNotice(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+      const saveJson = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveJson?.error || "Could not save rates");
 
-  async function pushAll() {
-    if (!grid?.rooms?.length) return;
-    setBusy(true);
-    setNotice("");
-    try {
-      // Push each edited cell at its own date, so an edit to one day does
-      // not overwrite the whole window.
+      // Saved, so the edits are safe from here on.
+      setRates({});
+
       const byDate = {};
-      for (const [key, value] of Object.entries(rates)) {
-        const [planId, occupancy, date] = key.split("|");
+      for (const row of rows) {
         const room = (grid?.rooms || []).find((r) =>
-          r.plans.some((p) => p.id === planId)
+          r.plans.some((p) => p.id === row.rate_plan_id)
         );
         if (!room) continue;
-        // Our own ids: the push route maps them to partner codes.
-        (byDate[date] ||= []).push({
+        (byDate[row.stay_date] ||= []).push({
           roomCode: room.id,
-          rateplanCode: planId,
-          occupancy: Number(occupancy),
-          rate: Number(value),
+          rateplanCode: row.rate_plan_id,
+          occupancy: row.occupancy,
+          rate: Number(row.rate),
         });
       }
 
@@ -228,21 +222,26 @@ export default function ChannelManager() {
         rates: entries,
       }));
 
-      if (updates.length === 0) {
-        setNotice("No rate changes to push.");
-        setBusy(false);
-        return;
-      }
-      const res = await fetch("/api/cm/push", {
+      const pushRes = await fetch("/api/cm/push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "rates", updates }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Push failed");
+      const pushJson = await pushRes.json();
+
+      if (!pushRes.ok) {
+        // The rates are stored; only the send failed.
+        await load();
+        throw new Error(
+          `${pushJson?.error || "Push failed"} Your changes are saved and can be published again.`
+        );
+      }
+
       await load();
-      setNotice(json.message || `Pushed ${dirty} rate change${dirty === 1 ? "" : "s"}.`);
-      setRates({});
+      setNotice(
+        pushJson.message ||
+          `Published ${rows.length} rate${rows.length === 1 ? "" : "s"}.`
+      );
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -305,23 +304,15 @@ export default function ChannelManager() {
           )}
           <button
             type="button"
-            onClick={saveRates}
+            onClick={publish}
             disabled={busy || !dirty}
-            className="btn btn-secondary"
-          >
-            {busy ? "Working…" : dirty ? `Save ${dirty} change${dirty === 1 ? "" : "s"}` : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={pushAll}
-            disabled={busy}
             className="btn btn-primary"
           >
             {busy
-              ? "Working…"
+              ? "Publishing…"
               : dirty
-              ? `Push ${dirty} change${dirty === 1 ? "" : "s"}`
-              : "Push All to Channels"}
+              ? `Publish ${dirty} change${dirty === 1 ? "" : "s"}`
+              : "Publish"}
           </button>
         </div>
       </div>
