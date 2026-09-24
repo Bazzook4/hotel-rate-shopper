@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MEAL_PLANS, planLabel } from "@/lib/mealPlans";
 import {
   DERIVE_METHODS,
   describeDerivation,
@@ -154,6 +155,11 @@ export default function PropertySetup({ session }) {
     const linked = Boolean(plan.derive_from_id);
     const payload = {
       plan_name: plan.plan_name,
+      meal_plan: plan.meal_plan || null,
+      refundable: plan.refundable !== false,
+      stop_sell: Boolean(plan.stop_sell),
+      min_stay: plan.min_stay === "" ? null : plan.min_stay,
+      max_stay: plan.max_stay === "" ? null : plan.max_stay,
       description: plan.description || "",
       room_type_id: plan.room_type_id || null,
       is_master: !linked && Boolean(plan.is_master),
@@ -460,6 +466,11 @@ function RatePlansPanel({
         onClick={() =>
           setEditing({
             plan_name: "",
+            meal_plan: "EP",
+            refundable: true,
+            stop_sell: false,
+            min_stay: "",
+            max_stay: "",
             description: "",
             room_type_id: roomTypes[0]?.id || "",
             is_master: false,
@@ -480,12 +491,37 @@ function RatePlansPanel({
           </h3>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Field label="Meal plan">
+              <select
+                value={editing.meal_plan || "EP"}
+                onChange={(e) => setEditing({ ...editing, meal_plan: e.target.value })}
+                className={inputClass}
+              >
+                {MEAL_PLANS.map((m) => (
+                  <option key={m.code} value={m.code}>
+                    {m.code} — {m.hint}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Terms">
+              <select
+                value={editing.refundable === false ? "nr" : "ref"}
+                onChange={(e) =>
+                  setEditing({ ...editing, refundable: e.target.value === "ref" })
+                }
+                className={inputClass}
+              >
+                <option value="ref">Refundable</option>
+                <option value="nr">Non-refundable</option>
+              </select>
+            </Field>
             <Field label="Plan name">
               <input
                 value={editing.plan_name}
                 onChange={(e) => setEditing({ ...editing, plan_name: e.target.value })}
                 className={inputClass}
-                placeholder="Breakfast CP"
+                placeholder={planLabel(editing)}
               />
             </Field>
             <Field label="Room type">
@@ -612,8 +648,9 @@ function RatePlansPanel({
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide muted">
-              <th className="px-4 py-3">Rate plan</th>
+              <th className="px-4 py-3">Plan</th>
               <th className="px-4 py-3">Room type</th>
+              <th className="px-4 py-3">Restrictions</th>
               <th className="px-4 py-3">Linked to</th>
               <th className="px-4 py-3">Rule</th>
               <th className="px-4 py-3 text-right">Rate</th>
@@ -625,6 +662,7 @@ function RatePlansPanel({
               <tr key={p.id} className="">
                 <td className="px-4 py-3">
                   <span className="flex items-center gap-2">
+                    <span className="chip chip-off font-mono">{planLabel(p)}</span>
                     <span className="text-ink">{p.plan_name}</span>
                     {p.is_master && (
                       <span className="chip chip-ok">
@@ -634,6 +672,15 @@ function RatePlansPanel({
                   </span>
                 </td>
                 <td className="px-4 py-3 muted">{roomName(p.room_type_id)}</td>
+                <td className="px-4 py-3 muted text-xs">
+                  {[
+                    p.stop_sell ? "Stop sell" : null,
+                    p.min_stay ? `Min ${p.min_stay}` : null,
+                    p.max_stay ? `Max ${p.max_stay}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </td>
                 <td className="px-4 py-3 muted">
                   {p.derive_from_id ? planName(p.derive_from_id) : "—"}
                 </td>
@@ -665,7 +712,7 @@ function RatePlansPanel({
             ))}
             {ratePlans.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center sub">
+                <td colSpan={7} className="px-4 py-8 text-center sub">
                   No rate plans yet.
                 </td>
               </tr>

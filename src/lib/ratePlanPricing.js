@@ -108,3 +108,24 @@ export function eligibleMasters(plan, allPlans) {
       p.property_id === plan?.property_id
   );
 }
+
+/**
+ * A rate plan's restrictions in the shape Aiosell expects.
+ *
+ * Only the fields we actually manage are set; the rest are sent as null so
+ * the partner does not retain a previous value we no longer intend.
+ */
+export function restrictionsFor(plan) {
+  return {
+    stopSell: Boolean(plan?.stop_sell),
+    minimumStay: plan?.min_stay ?? null,
+    maximumStay: plan?.max_stay ?? null,
+    closeOnArrival: Boolean(plan?.close_on_arrival),
+    closeOnDeparture: Boolean(plan?.close_on_departure),
+    minimumStayArrival: null,
+    maximumStayArrival: null,
+    exactStayArrival: null,
+    minimumAdvanceReservation: null,
+    maximumAdvanceReservation: null,
+  };
+}

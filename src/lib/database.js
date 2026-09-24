@@ -761,6 +761,11 @@ export async function createRatePlanWithDerivation({
   room_type_id = null,
   plan_name,
   description = '',
+  meal_plan = null,
+  refundable = true,
+  stop_sell = false,
+  min_stay = null,
+  max_stay = null,
   is_master = false,
   derive_from_id = null,
   derive_method = null,
@@ -774,6 +779,11 @@ export async function createRatePlanWithDerivation({
     room_type_id,
     plan_name,
     description,
+    meal_plan,
+    refundable: refundable !== false,
+    stop_sell: Boolean(stop_sell),
+    min_stay: min_stay === null || min_stay === '' ? null : Number(min_stay),
+    max_stay: max_stay === null || max_stay === '' ? null : Number(max_stay),
     is_master: Boolean(is_master),
     derive_from_id: derive_from_id || null,
     derive_method: derive_from_id ? derive_method : null,
@@ -799,6 +809,17 @@ export async function updateRatePlanDerivation(id, updates) {
 
   if ('plan_name' in updates) patch.plan_name = updates.plan_name;
   if ('description' in updates) patch.description = updates.description;
+  for (const key of [
+    'meal_plan',
+    'refundable',
+    'stop_sell',
+    'min_stay',
+    'max_stay',
+    'close_on_arrival',
+    'close_on_departure',
+  ]) {
+    if (key in updates) patch[key] = updates[key];
+  }
   if ('room_type_id' in updates) patch.room_type_id = updates.room_type_id || null;
   if ('is_master' in updates) patch.is_master = Boolean(updates.is_master);
 
