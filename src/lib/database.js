@@ -766,6 +766,7 @@ export async function createRatePlanWithDerivation({
   stop_sell = false,
   min_stay = null,
   max_stay = null,
+  release_period = null,
   is_master = false,
   derive_from_id = null,
   derive_method = null,
@@ -784,6 +785,8 @@ export async function createRatePlanWithDerivation({
     stop_sell: Boolean(stop_sell),
     min_stay: min_stay === null || min_stay === '' ? null : Number(min_stay),
     max_stay: max_stay === null || max_stay === '' ? null : Number(max_stay),
+    release_period:
+      release_period === null || release_period === '' ? null : Number(release_period),
     is_master: Boolean(is_master),
     derive_from_id: derive_from_id || null,
     derive_method: derive_from_id ? derive_method : null,
@@ -815,6 +818,7 @@ export async function updateRatePlanDerivation(id, updates) {
     'stop_sell',
     'min_stay',
     'max_stay',
+    'release_period',
     'close_on_arrival',
     'close_on_departure',
   ]) {
@@ -1238,7 +1242,7 @@ export async function listPartnerReservations(propertyId, { limit = 50 } = {}) {
 export async function listDailyRates(propertyId, startDate, endDate) {
   const { data, error } = await supabase
     .from('daily_rates')
-    .select('rate_plan_id, occupancy, stay_date, rate, pushed_at')
+    .select('rate_plan_id, room_type_id, occupancy, stay_date, rate, pushed_at')
     .eq('property_id', propertyId)
     .gte('stay_date', startDate)
     .lte('stay_date', endDate);
@@ -1260,6 +1264,9 @@ export async function saveDailyRates(propertyId, rows) {
     .map((r) => ({
       property_id: propertyId,
       rate_plan_id: r.rate_plan_id,
+      // A rate belongs to one room. NULL means the plan's own room, which is
+      // what rows written before rooms were assignable meant.
+      room_type_id: r.room_type_id || null,
       occupancy: Number(r.occupancy) || 2,
       stay_date: r.stay_date,
       rate: Number(r.rate),
@@ -1268,29 +1275,60 @@ export async function saveDailyRates(propertyId, rows) {
 
   if (clean.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from('daily_rates')
-    .upsert(clean, { onConflict: 'rate_plan_id,occupancy,stay_date' })
-    .select();
+  // Uniqueness is enforced by two partial indexes -- one for rows with a room
+  // and one for rows without -- which PostgREST cannot name in onConflict. The
+  // matching row is therefore updated directly, and only a miss inserts.
+  const saved = [];
+  for (const row of clean) {
+    let find = supabase
+      .from('daily_rates')
+      .select('id')
+      .eq('property_id', propertyId)
+      .eq('rate_plan_id', row.rate_plan_id)
+      .eq('occupancy', row.occupancy)
+      .eq('stay_date', row.stay_date);
+    find = row.room_type_id
+      ? find.eq('room_type_id', row.room_type_id)
+      : find.is('room_type_id', null);
 
-  if (error) {
-    throw new Error(`Failed to save rates: ${error.message}`);
+    const { data: existing, error: findError } = await find.maybeSingle();
+    if (findError) {
+      throw new Error(`Failed to save rates: ${findError.message}`);
+    }
+
+    const { data, error } = existing
+      ? await supabase
+          .from('daily_rates')
+          .update({ rate: row.rate, updated_at: row.updated_at, pushed_at: null })
+          .eq('id', existing.id)
+          .select()
+          .single()
+      : await supabase.from('daily_rates').insert(row).select().single();
+
+    if (error) {
+      throw new Error(`Failed to save rates: ${error.message}`);
+    }
+    saved.push(data);
   }
 
-  return data || [];
+  return saved;
 }
 
 /** Mark rows as sent, so the grid can distinguish pending from pushed. */
 export async function markRatesPushed(propertyId, rows) {
   const now = new Date().toISOString();
   for (const r of rows || []) {
-    await supabase
+    let query = supabase
       .from('daily_rates')
       .update({ pushed_at: now })
       .eq('property_id', propertyId)
       .eq('rate_plan_id', r.rate_plan_id)
       .eq('occupancy', Number(r.occupancy) || 2)
       .eq('stay_date', r.stay_date);
+    query = r.room_type_id
+      ? query.eq('room_type_id', r.room_type_id)
+      : query.is('room_type_id', null);
+    await query;
   }
 }
 
@@ -1302,7 +1340,7 @@ export async function markRatesPushed(propertyId, rows) {
 export async function listDailyRestrictions(propertyId, startDate, endDate) {
   const { data, error } = await supabase
     .from('daily_restrictions')
-    .select('rate_plan_id, stay_date, stop_sell, min_stay, max_stay, pushed_at')
+    .select('rate_plan_id, room_type_id, stay_date, stop_sell, min_stay, max_stay, pushed_at')
     .eq('property_id', propertyId)
     .gte('stay_date', startDate)
     .lte('stay_date', endDate);
@@ -1334,6 +1372,7 @@ export async function saveDailyRestrictions(propertyId, rows) {
     .map((r) => ({
       property_id: propertyId,
       rate_plan_id: r.rate_plan_id,
+      room_type_id: r.room_type_id || null,
       stay_date: r.stay_date,
       stop_sell:
         r.stop_sell === null || r.stop_sell === undefined
@@ -1346,27 +1385,149 @@ export async function saveDailyRestrictions(propertyId, rows) {
 
   if (clean.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from('daily_restrictions')
-    .upsert(clean, { onConflict: 'rate_plan_id,stay_date' })
-    .select();
+  // As with rates, uniqueness comes from partial indexes that onConflict
+  // cannot name, so the matching row is updated directly.
+  const saved = [];
+  for (const row of clean) {
+    let find = supabase
+      .from('daily_restrictions')
+      .select('id')
+      .eq('property_id', propertyId)
+      .eq('rate_plan_id', row.rate_plan_id)
+      .eq('stay_date', row.stay_date);
+    find = row.room_type_id
+      ? find.eq('room_type_id', row.room_type_id)
+      : find.is('room_type_id', null);
 
-  if (error) {
-    throw new Error(`Failed to save restrictions: ${error.message}`);
+    const { data: existing, error: findError } = await find.maybeSingle();
+    if (findError) {
+      throw new Error(`Failed to save restrictions: ${findError.message}`);
+    }
+
+    const patch = {
+      stop_sell: row.stop_sell,
+      min_stay: row.min_stay,
+      max_stay: row.max_stay,
+      updated_at: row.updated_at,
+      pushed_at: null,
+    };
+
+    const { data, error } = existing
+      ? await supabase
+          .from('daily_restrictions')
+          .update(patch)
+          .eq('id', existing.id)
+          .select()
+          .single()
+      : await supabase.from('daily_restrictions').insert(row).select().single();
+
+    if (error) {
+      throw new Error(`Failed to save restrictions: ${error.message}`);
+    }
+    saved.push(data);
   }
 
-  return data || [];
+  return saved;
 }
 
 /** Mark restriction rows as sent, mirroring markRatesPushed. */
 export async function markRestrictionsPushed(propertyId, rows) {
   const now = new Date().toISOString();
   for (const r of rows || []) {
-    await supabase
+    let query = supabase
       .from('daily_restrictions')
       .update({ pushed_at: now })
       .eq('property_id', propertyId)
       .eq('rate_plan_id', r.rate_plan_id)
       .eq('stay_date', r.stay_date);
+    query = r.room_type_id
+      ? query.eq('room_type_id', r.room_type_id)
+      : query.is('room_type_id', null);
+    await query;
   }
+}
+
+// ============================================
+// RATE PLAN ROOM ASSIGNMENTS
+// ============================================
+
+/**
+ * Which room types are assigned to a property's rate plans, and at what rate.
+ *
+ * A rate plan is property-level: it says what the guest is buying. The rate
+ * differs per room, which is what these rows carry.
+ */
+export async function listRatePlanRooms(propertyId) {
+  const { data, error } = await supabase
+    .from('rate_plan_rooms')
+    .select('id, rate_plan_id, room_type_id, full_rate, included_occupancy, extra_adult_rate, extra_child_rate')
+    .eq('property_id', propertyId);
+
+  if (error) {
+    throw new Error(`Failed to list rate plan rooms: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Replace a rate plan's room assignments.
+ *
+ * The supplied rows become the whole set: a room left out is unassigned, so
+ * clearing a checkbox in the form removes the room rather than leaving a
+ * stale row behind. Rooms still listed are upserted, so their rates update
+ * without the assignment being torn down and recreated.
+ */
+export async function saveRatePlanRooms(propertyId, ratePlanId, rows) {
+  const num = (v) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+
+  const clean = (rows || [])
+    .filter((r) => r.room_type_id)
+    .map((r) => ({
+      property_id: propertyId,
+      rate_plan_id: ratePlanId,
+      room_type_id: r.room_type_id,
+      full_rate: num(r.full_rate),
+      included_occupancy:
+        r.included_occupancy === null || r.included_occupancy === undefined || r.included_occupancy === ''
+          ? null
+          : Math.max(1, Math.trunc(Number(r.included_occupancy))) || null,
+      extra_adult_rate: num(r.extra_adult_rate),
+      extra_child_rate: num(r.extra_child_rate),
+      updated_at: new Date().toISOString(),
+    }));
+
+  const keep = clean.map((r) => r.room_type_id);
+
+  // Drop assignments the caller no longer lists. Done before the upsert so a
+  // room removed and re-added in one save ends up with the new rates.
+  let del = supabase
+    .from('rate_plan_rooms')
+    .delete()
+    .eq('property_id', propertyId)
+    .eq('rate_plan_id', ratePlanId);
+  if (keep.length > 0) {
+    del = del.not('room_type_id', 'in', `(${keep.join(',')})`);
+  }
+  const { error: delError } = await del;
+  if (delError) {
+    throw new Error(`Failed to update room assignments: ${delError.message}`);
+  }
+
+  if (clean.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('rate_plan_rooms')
+    .upsert(clean, { onConflict: 'rate_plan_id,room_type_id' })
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to assign rooms: ${error.message}`);
+  }
+
+  return data || [];
 }

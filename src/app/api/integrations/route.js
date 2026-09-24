@@ -10,6 +10,7 @@ import {
   getUserPropertyId,
   listRoomTypes,
   listRatePlans,
+  listRatePlanRooms,
 } from "@/lib/database";
 
 /** The property this request is about, or null if the actor may not touch it. */
@@ -39,9 +40,12 @@ export async function GET(req) {
 
   try {
     const found = await getPropertyIntegration(propertyId, "aiosell");
-    const [roomTypes, ratePlans] = await Promise.all([
+    const [roomTypes, ratePlans, assignments] = await Promise.all([
       listRoomTypes(propertyId).catch(() => []),
       listRatePlans(propertyId).catch(() => []),
+      // Which rooms each plan is sold on. Additive, so a property with none
+      // still maps codes by the older room_type_id rule.
+      listRatePlanRooms(propertyId).catch(() => []),
     ]);
 
     // The partner's own credentials are never sent to the browser; the hotel
@@ -77,6 +81,7 @@ export async function GET(req) {
       codeMap: found?.codeMap || [],
       roomTypes,
       ratePlans,
+      assignments,
       propertyId,
     });
   } catch (err) {

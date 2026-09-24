@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { plansForRoom, planAppliesToRoom } from "@/lib/ratePlanPricing";
 
 const inputClass =
   "input";
@@ -93,7 +94,7 @@ export default function Integrations({ session }) {
       // occupancy as its own rate plan code.
       for (const r of data?.roomTypes || []) {
         for (const p of data?.ratePlans || []) {
-          if (p.room_type_id && p.room_type_id !== r.id) continue;
+          if (!planAppliesToRoom(p, r.id, data?.assignments)) continue;
           for (let occ = 1; occ <= (r.max_adults || 2); occ += 1) {
             const entry = codes[`plan:${r.id}:${p.id}:${occ}`];
             if (!entry?.code) continue;
@@ -329,8 +330,10 @@ export default function Integrations({ session }) {
 
               {(data.roomTypes || []).map((room) => {
                 const maxAdults = room.max_adults || 2;
-                const plans = (data.ratePlans || []).filter(
-                  (p) => !p.room_type_id || p.room_type_id === room.id
+                const plans = plansForRoom(
+                  data.ratePlans,
+                  room.id,
+                  data.assignments
                 );
                 return (
                   <div

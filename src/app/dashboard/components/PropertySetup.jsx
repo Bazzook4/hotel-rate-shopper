@@ -1,55 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { MEAL_PLANS, planLabel } from "@/lib/mealPlans";
-import {
-  DERIVE_METHODS,
-  describeDerivation,
-  resolveAllRates,
-  eligibleMasters,
-} from "@/lib/ratePlanPricing";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { planLabel } from "@/lib/mealPlans";
+import RatePlanWizard from "./RatePlanWizard";
+import { describeDerivation, resolveAllRates } from "@/lib/ratePlanPricing";
 
-const METHOD_LABELS = {
-  offset: "Add amount",
-  multiplier: "Multiply by",
-  percent: "Percent change",
-};
-
-/**
- * A plain sentence showing what the derivation works out to.
- *
- * The arithmetic is easy to get backwards -- especially "decrease by 10%" --
- * so the form states the result rather than leaving it to be worked out after
- * saving.
- */
-function previewDerived(plan, allPlans, resolved) {
-  const master = allPlans.find((p) => p.id === plan.derive_from_id);
-  if (!master) return "";
-
-  const base = resolved?.[master.id];
-  const value = Number(plan.derive_value);
-  if (!Number.isFinite(value) || plan.derive_value === "") {
-    return `Takes its rate from ${master.plan_name}.`;
-  }
-
-  const describe = {
-    offset: value < 0 ? `less ${Math.abs(value)}` : `plus ${value}`,
-    multiplier: `multiplied by ${value}`,
-    percent: value < 0 ? `less ${Math.abs(value)}%` : `plus ${value}%`,
-  }[plan.derive_method];
-
-  if (!Number.isFinite(base)) {
-    return `${master.plan_name}, ${describe}.`;
-  }
-
-  const out = {
-    offset: base + value,
-    multiplier: base * value,
-    percent: base * (1 + value / 100),
-  }[plan.derive_method];
-
-  return `${master.plan_name} is ${Math.round(base)}, so this is ${describe} = ${Math.round(out)}.`;
-}
 
 function Field({ label, children }) {
   return (
@@ -82,6 +37,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
   const [busy, setBusy] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [editingPlan, setEditingPlan] = useState(null);
+  const [assignments, setAssignments] = useState([]);
 
 
   const load = useCallback(async () => {
@@ -94,9 +50,12 @@ export default function PropertySetup({ session, only = "rooms" }) {
     setError("");
     const qs = propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : "";
     try {
-      const [r, p] = await Promise.all([
+      const [r, p, a] = await Promise.all([
         fetch(`/api/setup/roomTypes${qs}`),
         fetch(`/api/setup/ratePlans${qs}`),
+        // Assignments are additive: an older property with none still loads,
+        // so a failure here must not block the page.
+        fetch(`/api/setup/ratePlanRooms${qs}`).catch(() => null),
       ]);
       if (r.status === 403 || p.status === 403) {
         throw new Error(
@@ -109,6 +68,9 @@ export default function PropertySetup({ session, only = "rooms" }) {
       if (!p.ok) throw new Error(pj?.error || "Could not load rate plans");
       setRoomTypes(rj.roomTypes || []);
       setRatePlans(pj.ratePlans || []);
+
+      const aj = a && a.ok ? await a.json().catch(() => null) : null;
+      setAssignments(aj?.assignments || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -121,15 +83,36 @@ export default function PropertySetup({ session, only = "rooms" }) {
   }, [load]);
 
   // Base rates come from each plan's room type; masters price directly.
+  /**
+   * Each plan's own rate, before any derivation.
+   *
+   * A plan is priced per assigned room, so the list shows the lowest assigned
+   * rate as the plan's headline -- one number has to stand for several, and
+   * the cheapest is the one a guest sees first. A plan with no assignments
+   * falls back to its old room_type_id, so a property not yet migrated still
+   * shows a rate.
+   */
   const baseRates = useMemo(() => {
     const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
+    const byPlan = new Map();
+    for (const a of assignments) {
+      const rate = Number(a.full_rate);
+      if (!Number.isFinite(rate)) continue;
+      const cur = byPlan.get(a.rate_plan_id);
+      if (cur === undefined || rate < cur) byPlan.set(a.rate_plan_id, rate);
+    }
+
     const out = {};
     for (const p of ratePlans) {
+      if (byPlan.has(p.id)) {
+        out[p.id] = byPlan.get(p.id);
+        continue;
+      }
       const room = roomById[p.room_type_id];
       out[p.id] = room ? Number(room.base_price) : null;
     }
     return out;
-  }, [ratePlans, roomTypes]);
+  }, [ratePlans, roomTypes, assignments]);
 
   const resolved = useMemo(
     () => resolveAllRates(ratePlans, baseRates),
@@ -174,7 +157,13 @@ export default function PropertySetup({ session, only = "rooms" }) {
     }
   }
 
-  async function savePlan(plan) {
+  /**
+   * Save a rate plan and, in the same action, which rooms it applies to.
+   *
+   * The plan is written first because the assignments reference its id, which
+   * a new plan does not have until it exists.
+   */
+  async function savePlan(plan, rooms) {
     const linked = Boolean(plan.derive_from_id);
     const payload = {
       plan_name: plan.plan_name,
@@ -183,19 +172,63 @@ export default function PropertySetup({ session, only = "rooms" }) {
       stop_sell: Boolean(plan.stop_sell),
       min_stay: plan.min_stay === "" ? null : plan.min_stay,
       max_stay: plan.max_stay === "" ? null : plan.max_stay,
+      release_period: plan.release_period === "" ? null : plan.release_period,
       description: plan.description || "",
-      room_type_id: plan.room_type_id || null,
       is_master: !linked && Boolean(plan.is_master),
       derive_from_id: linked ? plan.derive_from_id : null,
       derive_method: linked ? plan.derive_method : null,
       derive_value: linked ? Number(plan.derive_value) : null,
     };
-    const ok = plan.id
-      ? await send("/api/setup/ratePlans", "PATCH", { id: plan.id, ...payload })
-      : await send("/api/setup/ratePlans", "POST", { ...payload, property_id: propertyId || undefined });
-    if (ok) {
+
+    setBusy(true);
+    setNotice("");
+    try {
+      const url = "/api/setup/ratePlans";
+      const res = plan.id
+        ? await fetch(url, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: plan.id, ...payload }),
+          })
+        : await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...payload,
+              property_id: propertyId || undefined,
+            }),
+          });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Could not save the rate plan");
+
+      const planId = plan.id || json?.ratePlan?.id || json?.id;
+
+      if (planId) {
+        const ra = await fetch("/api/setup/ratePlanRooms", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ratePlanId: planId,
+            propertyId: propertyId || undefined,
+            rooms: rooms || [],
+          }),
+        });
+        if (!ra.ok) {
+          const rj = await ra.json().catch(() => null);
+          // The plan itself saved, so say what did and did not.
+          throw new Error(
+            `${rj?.error || "Could not save room assignments"} The rate plan itself was saved.`
+          );
+        }
+      }
+
       setEditingPlan(null);
       setNotice(plan.id ? "Rate plan updated." : "Rate plan added.");
+      await load();
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -276,6 +309,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
         <RatePlansPanel
           ratePlans={ratePlans}
           roomTypes={roomTypes}
+          assignments={assignments}
           resolved={resolved}
           editing={editingPlan}
           setEditing={setEditingPlan}
@@ -434,6 +468,7 @@ function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy
 function RatePlansPanel({
   ratePlans,
   roomTypes,
+  assignments,
   resolved,
   editing,
   setEditing,
@@ -445,397 +480,99 @@ function RatePlansPanel({
   const roomName = (id) =>
     roomTypes.find((r) => r.id === id)?.room_type_name || "—";
 
-  const masters = editing
-    ? eligibleMasters(editing, ratePlans)
-    : [];
+
+  // Rows are collapsed by id; absent means open, so a newly added plan shows
+  // its children without needing to be registered first.
+  const [expanded, setExpanded] = useState({});
+
+  /**
+   * Plans nested under the plan they derive from.
+   *
+   * Derivation chains are followed to any depth, because the pricing engine
+   * supports them: a plan derived from a derived plan must still appear, and
+   * flattening to one level dropped it from the list entirely.
+   */
+  const tree = useMemo(() => {
+    const childrenOf = new Map();
+    for (const p of ratePlans) {
+      if (!p.derive_from_id) continue;
+      if (!childrenOf.has(p.derive_from_id)) childrenOf.set(p.derive_from_id, []);
+      childrenOf.get(p.derive_from_id).push(p);
+    }
+
+    // A cycle would otherwise recurse forever; the schema should prevent one,
+    // but the list must not hang if a bad row exists.
+    const build = (plan, seen) => {
+      if (seen.has(plan.id)) return { plan, children: [] };
+      const next = new Set(seen).add(plan.id);
+      return {
+        plan,
+        children: (childrenOf.get(plan.id) || []).map((c) => build(c, next)),
+      };
+    };
+
+    // A plan whose parent is missing would otherwise vanish, so it is treated
+    // as a root instead.
+    const ids = new Set(ratePlans.map((p) => p.id));
+    return ratePlans
+      .filter((p) => !p.derive_from_id || !ids.has(p.derive_from_id))
+      .map((p) => build(p, new Set()));
+  }, [ratePlans]);
 
   return (
     <div className="space-y-3">
       <button
         type="button"
         disabled={busy}
-        onClick={() =>
-          setEditing({
-            plan_name: "EP",
-            meal_plan: "EP",
-            refundable: true,
-            stop_sell: false,
-            min_stay: "",
-            max_stay: "",
-            description: "",
-            room_type_id: roomTypes[0]?.id || "",
-            is_master: false,
-            derive_from_id: "",
-            derive_method: "offset",
-            derive_value: "",
-          })
-        }
+        onClick={() => setEditing({})}
         className="btn btn-primary"
       >
         + Add rate plan
       </button>
 
       {editing && (
-        <div className="card card-pad">
-          <h3 className="mb-3 h2 text-sm">
-            {editing.id ? "Edit rate plan" : "New rate plan"}
-          </h3>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Meal plan">
-              <select
-                value={editing.meal_plan || "EP"}
-                onChange={(e) => {
-                  const next = { ...editing, meal_plan: e.target.value };
-                  // Keep the name in step with the code unless it was edited.
-                  if (!editing.plan_name || editing.plan_name === planLabel(editing)) {
-                    next.plan_name = planLabel(next);
-                  }
-                  setEditing(next);
-                }}
-                className={inputClass}
-              >
-                {MEAL_PLANS.map((m) => (
-                  <option key={m.code} value={m.code}>
-                    {m.code} — {m.hint}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Terms">
-              <select
-                value={editing.refundable === false ? "nr" : "ref"}
-                onChange={(e) => {
-                  const next = { ...editing, refundable: e.target.value === "ref" };
-                  if (!editing.plan_name || editing.plan_name === planLabel(editing)) {
-                    next.plan_name = planLabel(next);
-                  }
-                  setEditing(next);
-                }}
-                className={inputClass}
-              >
-                <option value="ref">Refundable</option>
-                <option value="nr">Non-refundable</option>
-              </select>
-            </Field>
-            <Field label="Plan name">
-              <input
-                value={editing.plan_name}
-                onChange={(e) => setEditing({ ...editing, plan_name: e.target.value })}
-                className={inputClass}
-                placeholder={planLabel(editing)}
-              />
-            </Field>
-            <Field label="Room type">
-              <select
-                value={editing.room_type_id || ""}
-                onChange={(e) => setEditing({ ...editing, room_type_id: e.target.value })}
-                className={inputClass}
-              >
-                <option value="">— none —</option>
-                {roomTypes.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.room_type_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Description">
-              <input
-                value={editing.description ?? ""}
-                onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-                className={inputClass}
-              />
-            </Field>
-          </div>
-
-          <div className="mt-4 card p-3">
-            <p className="label">Restrictions</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="flex items-center gap-2 pt-5 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={Boolean(editing.stop_sell)}
-                  onChange={(e) =>
-                    setEditing({ ...editing, stop_sell: e.target.checked })
-                  }
-                />
-                Stop sell
-              </label>
-              <Field label="Min length of stay">
-                <input
-                  type="number"
-                  min="1"
-                  value={editing.min_stay ?? ""}
-                  onChange={(e) => setEditing({ ...editing, min_stay: e.target.value })}
-                  className={inputClass}
-                  placeholder="1"
-                />
-              </Field>
-              <Field label="Max length of stay">
-                <input
-                  type="number"
-                  min="1"
-                  value={editing.max_stay ?? ""}
-                  onChange={(e) => setEditing({ ...editing, max_stay: e.target.value })}
-                  className={inputClass}
-                  placeholder="14"
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="mt-4 card p-3">
-            <p className="label">Rate setup</p>
-
-            <label className="flex items-center gap-2 text-sm text-ink">
-              <input
-                type="radio"
-                name="rate-setup"
-                checked={!editing.derive_from_id}
-                onChange={() =>
-                  setEditing({ ...editing, derive_from_id: "", derive_value: "" })
-                }
-              />
-              Enter this plan&rsquo;s rates directly
-            </label>
-
-            <label className="mt-2 flex items-center gap-2 text-sm text-ink">
-              <input
-                type="radio"
-                name="rate-setup"
-                disabled={masters.length === 0}
-                checked={Boolean(editing.derive_from_id)}
-                onChange={() =>
-                  setEditing({
-                    ...editing,
-                    derive_from_id: masters[0]?.id || "",
-                    is_master: false,
-                    derive_method: editing.derive_method || "percent",
-                  })
-                }
-              />
-              Derive its rates from another rate plan
-            </label>
-
-            {masters.length === 0 && !editing.derive_from_id && (
-              <p className="mt-1 pl-6 text-xs faint">
-                Needs another plan to derive from. Add one first.
-              </p>
-            )}
-
-            {editing.derive_from_id ? (
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <Field label="Derived from">
-                  <select
-                    value={editing.derive_from_id}
-                    onChange={(e) =>
-                      setEditing({ ...editing, derive_from_id: e.target.value })
-                    }
-                    className={inputClass}
-                  >
-                    {masters.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.plan_name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <Field label="Adjust daily rates by">
-                  <select
-                    value={editing.derive_method || "percent"}
-                    onChange={(e) =>
-                      setEditing({ ...editing, derive_method: e.target.value })
-                    }
-                    className={inputClass}
-                  >
-                    {DERIVE_METHODS.map((m) => (
-                      <option key={m} value={m}>
-                        {METHOD_LABELS[m]}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                {/* Multiplier is a factor, where below 1 already means a
-                    discount, so a direction control would contradict it.
-                    Offset and percent are signed, and a hotelier thinks in
-                    "increase" or "decrease" rather than a minus sign. */}
-                <Field
-                  label={
-                    editing.derive_method === "multiplier"
-                      ? "Factor"
-                      : editing.derive_method === "percent"
-                      ? "Percentage adjustment"
-                      : "Amount"
-                  }
-                >
-                  {editing.derive_method === "multiplier" ? (
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editing.derive_value ?? ""}
-                      onChange={(e) =>
-                        setEditing({ ...editing, derive_value: e.target.value })
-                      }
-                      className={inputClass}
-                      placeholder="0.90"
-                    />
-                  ) : (
-                    <div className="flex gap-2">
-                      <select
-                        value={Number(editing.derive_value) < 0 ? "down" : "up"}
-                        onChange={(e) => {
-                          const mag = Math.abs(Number(editing.derive_value) || 0);
-                          setEditing({
-                            ...editing,
-                            derive_value: e.target.value === "down" ? -mag : mag,
-                          });
-                        }}
-                        className={inputClass}
-                        style={{ flex: "0 0 52%" }}
-                        aria-label="Direction"
-                      >
-                        <option value="up">Increase by</option>
-                        <option value="down">Decrease by</option>
-                      </select>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={
-                          editing.derive_value === "" ||
-                          editing.derive_value === null ||
-                          editing.derive_value === undefined
-                            ? ""
-                            : Math.abs(Number(editing.derive_value))
-                        }
-                        onChange={(e) => {
-                          const mag = e.target.value === "" ? "" : Math.abs(Number(e.target.value));
-                          const down = Number(editing.derive_value) < 0;
-                          setEditing({
-                            ...editing,
-                            derive_value: mag === "" ? "" : down ? -mag : mag,
-                          });
-                        }}
-                        className={inputClass}
-                        placeholder={editing.derive_method === "percent" ? "10" : "500"}
-                      />
-                    </div>
-                  )}
-                </Field>
-              </div>
-            ) : (
-              <label className="mt-3 flex items-center gap-2 sub">
-                <input
-                  type="checkbox"
-                  checked={Boolean(editing.is_master)}
-                  onChange={(e) =>
-                    setEditing({ ...editing, is_master: e.target.checked })
-                  }
-                />
-                This is a master plan
-              </label>
-            )}
-
-            {editing.derive_from_id && (
-              <p className="mt-3 text-xs faint">
-                {previewDerived(editing, ratePlans, resolved)}
-              </p>
-            )}
-          </div>
-
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              disabled={busy || !editing.plan_name?.trim()}
-              onClick={() => onSave(editing)}
-              className="btn btn-primary"
-            >
-              {busy ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(null)}
-              className="btn btn-secondary"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <RatePlanWizard
+          plan={editing.id ? editing : null}
+          ratePlans={ratePlans}
+          roomTypes={roomTypes}
+          assignments={assignments}
+          onSave={onSave}
+          onCancel={() => setEditing(null)}
+          busy={busy}
+        />
       )}
 
+      {/* Plans are listed under the plan they derive from, so a chain is read
+          down the page rather than reconstructed from a "linked to" column. */}
       <div className="overflow-x-auto card">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide muted">
-              <th className="px-4 py-3">Plan</th>
-              <th className="px-4 py-3">Room type</th>
-              <th className="px-4 py-3">Restrictions</th>
-              <th className="px-4 py-3">Linked to</th>
-              <th className="px-4 py-3">Rule</th>
+              <th className="px-4 py-3">Rate plan &amp; room type</th>
+              <th className="px-4 py-3">Rate setup</th>
               <th className="px-4 py-3 text-right">Rate</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
-            {ratePlans.map((p) => (
-              <tr key={p.id} className="">
-                <td className="px-4 py-3">
-                  <span className="flex items-center gap-2">
-                    <span className="chip chip-off font-mono">{planLabel(p)}</span>
-                    <span className="text-ink">{p.plan_name}</span>
-                    {p.is_master && (
-                      <span className="chip chip-ok">
-                        MASTER
-                      </span>
-                    )}
-                  </span>
-                </td>
-                <td className="px-4 py-3 muted">{roomName(p.room_type_id)}</td>
-                <td className="px-4 py-3 muted text-xs">
-                  {[
-                    p.stop_sell ? "Stop sell" : null,
-                    p.min_stay ? `Min ${p.min_stay}` : null,
-                    p.max_stay ? `Max ${p.max_stay}` : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                </td>
-                <td className="px-4 py-3 muted">
-                  {p.derive_from_id ? planName(p.derive_from_id) : "—"}
-                </td>
-                <td className="px-4 py-3 muted">
-                  {describeDerivation(p) ?? "—"}
-                </td>
-                <td className="px-4 py-3 text-right text-[var(--text)]">
-                  {resolved[p.id] === null || resolved[p.id] === undefined
-                    ? "—"
-                    : Math.round(resolved[p.id]).toLocaleString("en-IN")}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(p)}
-                    className="mr-2 btn btn-secondary text-xs"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(p.id, p.plan_name)}
-                    className="btn btn-danger text-xs"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
+            {tree.map((node) => (
+              <PlanBranch
+                key={node.plan.id}
+                node={node}
+                depth={0}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                roomName={roomName}
+                planName={planName}
+                resolved={resolved}
+                assignments={assignments}
+                onEdit={setEditing}
+                onDelete={onDelete}
+              />
             ))}
             {ratePlans.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center sub">
+                <td colSpan={4} className="px-4 py-8 text-center sub">
                   No rate plans yet.
                 </td>
               </tr>
@@ -844,5 +581,190 @@ function RatePlansPanel({
         </table>
       </div>
     </div>
+  );
+}
+
+/**
+ * Which rooms a plan can be booked on, as a short phrase.
+ *
+ * Falls back to the plan's old room_type_id where there are no assignments,
+ * so a plan created before rooms were assignable still names its room rather
+ * than reading as unassigned.
+ */
+function assignedRooms(plan, assignments, roomName) {
+  const mine = (assignments || []).filter((a) => a.rate_plan_id === plan.id);
+
+  if (mine.length === 0) {
+    return plan.room_type_id ? roomName(plan.room_type_id) : "No rooms assigned";
+  }
+  if (mine.length <= 2) {
+    return mine.map((a) => roomName(a.room_type_id)).join(", ");
+  }
+  return `${roomName(mine[0].room_type_id)} +${mine.length - 1} more`;
+}
+
+/**
+ * One rate plan in the list.
+ *
+ * `depth` of 1 is a derived plan, indented under the plan it comes from. The
+ * Rate setup column names that plan outright rather than saying "derived",
+ * since the whole point of the row is which plan the rate follows.
+ */
+function PlanRow({
+  plan,
+  depth,
+  hasChildren,
+  open,
+  onToggle,
+  roomName,
+  planName,
+  resolved,
+  assignments,
+  onEdit,
+  onDelete,
+}) {
+  const rate = resolved?.[plan.id];
+  const derived = Boolean(plan.derive_from_id);
+
+  return (
+    <tr
+      style={
+        derived
+          ? { borderLeft: "2px solid var(--accent)" }
+          : { background: "var(--surface-2)" }
+      }
+    >
+      <td
+        className="px-4 py-2.5"
+        style={{ paddingLeft: depth ? 16 + Math.min(depth, 4) * 18 : undefined }}
+      >
+        <span className="flex items-center gap-2">
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              aria-expanded={open}
+              aria-label={open ? "Collapse" : "Expand"}
+              className="muted"
+              style={{ width: 14 }}
+            >
+              {open ? "▾" : "▸"}
+            </button>
+          ) : (
+            <span style={{ width: 14 }} />
+          )}
+          <span className="chip chip-off font-mono">{planLabel(plan)}</span>
+          <span className="text-ink">{plan.plan_name}</span>
+          {plan.is_master && <span className="chip chip-ok">MASTER</span>}
+        </span>
+        <span className="mt-0.5 block text-xs muted" style={{ paddingLeft: 30 }}>
+          {assignedRooms(plan, assignments, roomName)}
+          {[
+            plan.stop_sell ? "Stop sell" : null,
+            plan.min_stay ? `Min ${plan.min_stay}` : null,
+            plan.max_stay ? `Max ${plan.max_stay}` : null,
+          ]
+            .filter(Boolean)
+            .map((t) => ` · ${t}`)
+            .join("")}
+        </span>
+      </td>
+
+      <td className="px-4 py-2.5 text-xs">
+        {derived ? (
+          <>
+            <span className="muted">Derived from </span>
+            <span className="font-medium text-ink">
+              {planName(plan.derive_from_id)}
+            </span>
+            <span className="muted">, {describeDerivation(plan) ?? "no rule set"}</span>
+          </>
+        ) : (
+          <span className="muted">Rates entered directly</span>
+        )}
+      </td>
+
+      <td className="px-4 py-2.5 text-right text-[var(--text)]">
+        {rate === null || rate === undefined
+          ? "—"
+          : Math.round(rate).toLocaleString("en-IN")}
+      </td>
+
+      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+        <button
+          type="button"
+          onClick={() => onEdit(plan)}
+          className="mr-2 btn btn-secondary text-xs"
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={() => onDelete(plan.id, plan.plan_name)}
+          className="btn btn-danger text-xs"
+        >
+          Delete
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+/**
+ * A rate plan and, when open, everything derived from it.
+ *
+ * Recursive so a derivation chain of any depth is drawn; the indent grows
+ * with each level, up to a cap so a deep chain does not run off the column.
+ */
+function PlanBranch({
+  node,
+  depth,
+  expanded,
+  setExpanded,
+  roomName,
+  planName,
+  resolved,
+  assignments,
+  onEdit,
+  onDelete,
+}) {
+  const { plan, children } = node;
+  // Absent means open, so a newly added plan shows its children immediately.
+  const open = expanded[plan.id] !== false;
+
+  return (
+    <Fragment>
+      <PlanRow
+        plan={plan}
+        depth={depth}
+        hasChildren={children.length > 0}
+        open={open}
+        onToggle={() =>
+          setExpanded((prev) => ({ ...prev, [plan.id]: prev[plan.id] === false }))
+        }
+        roomName={roomName}
+        planName={planName}
+        resolved={resolved}
+        assignments={assignments}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+      {open &&
+        children.map((child) => (
+          <PlanBranch
+            key={child.plan.id}
+            node={child}
+            depth={depth + 1}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            roomName={roomName}
+            planName={planName}
+            resolved={resolved}
+            assignments={assignments}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+    </Fragment>
   );
 }

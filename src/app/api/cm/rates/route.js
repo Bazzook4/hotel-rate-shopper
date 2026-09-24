@@ -36,6 +36,8 @@ export async function PUT(req) {
     );
   }
 
+  // room_type_id rides along on each row; saveDailyRates treats a missing
+  // one as "the plan's own room", which is what older rows mean.
   const rows = Array.isArray(body.rates) ? body.rates : [];
   if (rows.length === 0) {
     return NextResponse.json({ error: "No rates supplied" }, { status: 400 });

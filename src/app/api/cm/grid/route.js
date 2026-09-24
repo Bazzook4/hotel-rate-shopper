@@ -8,8 +8,9 @@ import {
   getUserPropertyId,
   listDailyRates,
   listDailyRestrictions,
+  listRatePlanRooms,
 } from "@/lib/database";
-import { resolveAllRates } from "@/lib/ratePlanPricing";
+import { resolveAllRates, plansForRoom } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
 
 /**
@@ -45,8 +46,14 @@ export async function GET(req) {
     const start = req.nextUrl.searchParams.get("start");
     const end = req.nextUrl.searchParams.get("end");
 
-    const [roomTypes, ratePlans, integration, stored, storedRestrictions] =
-      await Promise.all([
+    const [
+      roomTypes,
+      ratePlans,
+      integration,
+      stored,
+      storedRestrictions,
+      assignments,
+    ] = await Promise.all([
         listRoomTypes(propertyId),
         listRatePlans(propertyId),
         getPropertyIntegration(propertyId, "aiosell").catch(() => null),
@@ -54,6 +61,9 @@ export async function GET(req) {
         start && end
           ? listDailyRestrictions(propertyId, start, end).catch(() => [])
           : [],
+        // Additive: a property with no assignments yet still loads, and the
+        // room_type_id fallback below keeps its grid working.
+        listRatePlanRooms(propertyId).catch(() => []),
       ]);
 
     // Per-date restrictions, keyed "<ratePlanId>|<date>". A null field means
@@ -61,7 +71,7 @@ export async function GET(req) {
     // the grid renders that as "inherit", not as a value of its own.
     const dailyRestrictions = {};
     for (const row of storedRestrictions) {
-      dailyRestrictions[`${row.rate_plan_id}|${row.stay_date}`] = {
+      dailyRestrictions[`${row.rate_plan_id}|${row.room_type_id || ""}|${row.stay_date}`] = {
         stopSell: row.stop_sell,
         minStay: row.min_stay,
         maxStay: row.max_stay,
@@ -73,7 +83,7 @@ export async function GET(req) {
     // grid keys its cells.
     const dailyRates = {};
     for (const row of stored) {
-      dailyRates[`${row.rate_plan_id}|${row.occupancy}|${row.stay_date}`] = {
+      dailyRates[`${row.rate_plan_id}|${row.room_type_id || ""}|${row.occupancy}|${row.stay_date}`] = {
         rate: Number(row.rate),
         pushed: Boolean(row.pushed_at),
       };
@@ -94,22 +104,59 @@ export async function GET(req) {
       }
     }
 
-    // A plan's own rate comes from its room type's base price; derived plans
-    // resolve from their master.
-    const baseRates = {};
-    const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
-    for (const p of ratePlans) {
-      const room = roomById[p.room_type_id];
-      baseRates[p.id] = room ? Number(room.base_price) : null;
+    // Which rooms each plan is sold on, and at what rate, from the room
+    // assignments. Keyed "<planId>|<roomId>".
+    const assignedRate = {};
+    const assignmentFor = {};
+    for (const a of assignments) {
+      assignedRate[`${a.rate_plan_id}|${a.room_type_id}`] = a.full_rate;
+      assignmentFor[`${a.rate_plan_id}|${a.room_type_id}`] = a;
     }
-    const resolved = resolveAllRates(ratePlans, baseRates);
+
+    /**
+     * What a plan costs in a room for a given number of adults.
+     *
+     * The assigned full rate covers included_occupancy adults; each adult
+     * beyond that adds extra_adult_rate. Fewer adults than included are not
+     * discounted, since the rate is for the room.
+     */
+    const rateForOccupancy = (planId, roomId, base, occupancy) => {
+      if (base === null || base === undefined) return null;
+      const a = assignmentFor[`${planId}|${roomId}`];
+      const included = Number(a?.included_occupancy);
+      const extra = Number(a?.extra_adult_rate);
+      if (!Number.isFinite(included) || !Number.isFinite(extra)) return base;
+      const additional = Math.max(0, occupancy - included);
+      return base + additional * extra;
+    };
+
+    const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
+
+    /**
+     * A plan's own rate in one room.
+     *
+     * The assignment wins; a plan with none falls back to the room's base
+     * price, so a property that has not assigned rooms yet keeps working.
+     */
+    const baseRateFor = (plan, roomId) => {
+      const assigned = assignedRate[`${plan.id}|${roomId}`];
+      if (assigned !== undefined && assigned !== null) return Number(assigned);
+      const room = roomById[roomId];
+      return room ? Number(room.base_price) : null;
+    };
 
     // One row per rate plan per occupancy, matching how the partner models
     // rate plans and how the grid displays them.
     const rooms = roomTypes.map((room) => {
-      const plans = ratePlans.filter(
-        (p) => !p.room_type_id || p.room_type_id === room.id
-      );
+      // A plan is sold on the rooms assigned to it; plansForRoom holds the
+      // fallback for a property that has not assigned any yet.
+      const plans = plansForRoom(ratePlans, room.id, assignments);
+
+      // Rates resolve per room, since the same plan can cost differently in
+      // each, and a derived plan must follow its master's rate in THIS room.
+      const baseRates = {};
+      for (const p of ratePlans) baseRates[p.id] = baseRateFor(p, room.id);
+      const resolved = resolveAllRates(ratePlans, baseRates);
       const maxAdults = room.max_adults || 2;
 
       return {
@@ -134,6 +181,9 @@ export async function GET(req) {
           occupancies: Array.from({ length: maxAdults }, (_, i) => i + 1).map(
             (occ) => ({
               occupancy: occ,
+              // The rate a cell falls back to, which now varies by how many
+              // adults the row is for.
+              resolvedRate: rateForOccupancy(p.id, room.id, resolved[p.id], occ),
               partnerCode: codeByPlan[`${p.id}|${occ}`]?.code || null,
               extraAdult: codeByPlan[`${p.id}|${occ}`]?.extraAdult ?? null,
             })

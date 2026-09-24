@@ -129,3 +129,26 @@ export function restrictionsFor(plan) {
     maximumAdvanceReservation: null,
   };
 }
+
+/**
+ * Whether a rate plan is sold on a given room type.
+ *
+ * A plan is property-level and gets room types assigned to it, so the
+ * assignments are the answer where they exist. A plan with none falls back to
+ * the older rule -- its own room_type_id, or every room if it named none --
+ * so a property that has not assigned rooms yet keeps working unchanged.
+ *
+ * `assignments` is the rate_plan_rooms rows for the property.
+ */
+export function planAppliesToRoom(plan, roomId, assignments) {
+  const mine = (assignments || []).filter((a) => a.rate_plan_id === plan.id);
+  if (mine.length > 0) {
+    return mine.some((a) => a.room_type_id === roomId);
+  }
+  return !plan.room_type_id || plan.room_type_id === roomId;
+}
+
+/** The plans sold on one room, in the order given. */
+export function plansForRoom(ratePlans, roomId, assignments) {
+  return (ratePlans || []).filter((p) => planAppliesToRoom(p, roomId, assignments));
+}

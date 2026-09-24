@@ -43,6 +43,7 @@ export async function PUT(req) {
     );
   }
 
+  // room_type_id rides along on each row, as it does for rates.
   const rows = Array.isArray(body.restrictions) ? body.restrictions : [];
   if (rows.length === 0) {
     return NextResponse.json(

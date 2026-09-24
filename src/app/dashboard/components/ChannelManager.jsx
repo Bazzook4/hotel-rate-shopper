@@ -206,15 +206,21 @@ export default function ChannelManager() {
     if (!grid?.rooms?.length) return;
 
     const rows = Object.entries(rates).map(([key, value]) => {
-      const [rate_plan_id, occupancy, stay_date] = key.split("|");
-      return { rate_plan_id, occupancy: Number(occupancy), stay_date, rate: value };
+      const [rate_plan_id, room_type_id, occupancy, stay_date] = key.split("|");
+      return {
+        rate_plan_id,
+        room_type_id,
+        occupancy: Number(occupancy),
+        stay_date,
+        rate: value,
+      };
     });
 
     // A restriction patch holds only the fields touched, so it is merged over
     // whatever is already stored for that date before being sent.
     const storedRestrictions = grid?.dailyRestrictions || {};
     const restrictionRows = Object.entries(restrictions).map(([key, patch]) => {
-      const [rate_plan_id, stay_date] = key.split("|");
+      const [rate_plan_id, room_type_id, stay_date] = key.split("|");
       const base = storedRestrictions[key] || {};
       const merged = {
         stop_sell: base.stopSell ?? null,
@@ -222,7 +228,7 @@ export default function ChannelManager() {
         max_stay: base.maxStay ?? null,
         ...patch,
       };
-      return { rate_plan_id, stay_date, ...merged };
+      return { rate_plan_id, room_type_id, stay_date, ...merged };
     });
 
     if (rows.length === 0 && restrictionRows.length === 0) {
@@ -258,14 +264,14 @@ export default function ChannelManager() {
       setRates({});
       setRestrictions({});
 
+      // The room comes from the edited cell itself. Looking it up from the
+      // plan would pick the first room offering it, so a rate edited in one
+      // room was sent to another.
       const byDate = {};
       for (const row of rows) {
-        const room = (grid?.rooms || []).find((r) =>
-          r.plans.some((p) => p.id === row.rate_plan_id)
-        );
-        if (!room) continue;
+        if (!row.room_type_id) continue;
         (byDate[row.stay_date] ||= []).push({
-          roomCode: room.id,
+          roomCode: row.room_type_id,
           rateplanCode: row.rate_plan_id,
           occupancy: row.occupancy,
           rate: Number(row.rate),
@@ -304,13 +310,10 @@ export default function ChannelManager() {
       // silently overwrote the others.
       const restrictionsByDate = {};
       for (const row of restrictionRows) {
-        const room = (grid?.rooms || []).find((r) =>
-          r.plans.some((p) => p.id === row.rate_plan_id)
-        );
-        if (!room) continue;
+        if (!row.room_type_id) continue;
         const byRoom = (restrictionsByDate[row.stay_date] ||= {});
-        const prev = byRoom[room.id];
-        byRoom[room.id] = prev
+        const prev = byRoom[row.room_type_id];
+        byRoom[row.room_type_id] = prev
           ? {
               stopSell: Boolean(prev.stopSell || row.stop_sell),
               minStay: maxOf(prev.minStay, row.min_stay),
@@ -746,12 +749,16 @@ function ExpandableRoom({
 
                   {view === "rates"
                     ? dates.map((d) => {
-                        const key = `${plan.id}|${occ.occupancy}|${d}`;
+                        const key = `${plan.id}|${room.id}|${occ.occupancy}|${d}`;
                         // An unsaved edit wins, then the stored rate for that
                         // date, and only then the plan's resolved base price.
                         const savedRate = stored[key];
                         const value =
-                          rates[key] ?? savedRate?.rate ?? plan.resolvedRate ?? "";
+                          rates[key] ??
+                          savedRate?.rate ??
+                          occ.resolvedRate ??
+                          plan.resolvedRate ??
+                          "";
                         const edited = rates[key] !== undefined;
                         const unpushed = savedRate && !savedRate.pushed;
                         return (
@@ -780,6 +787,7 @@ function ExpandableRoom({
                         <RestrictionCell
                           key={d}
                           plan={plan}
+                          roomId={room.id}
                           date={d}
                           field={view}
                           edits={restrictions}
@@ -803,8 +811,8 @@ function ExpandableRoom({
  * value from Property Setup still applies; that inherited value is shown as
  * the placeholder so it stays visible without being stored per date.
  */
-function RestrictionCell({ plan, date, field, edits, stored, onChange }) {
-  const key = `${plan.id}|${date}`;
+function RestrictionCell({ plan, roomId, date, field, edits, stored, onChange }) {
+  const key = `${plan.id}|${roomId}|${date}`;
   const patch = edits[key];
   const saved = stored[key];
 
