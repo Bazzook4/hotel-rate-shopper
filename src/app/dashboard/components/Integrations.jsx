@@ -362,7 +362,7 @@ export default function Integrations({ session }) {
 
                     {plans.length > 0 && (
                       <div className="mt-3 overflow-x-auto">
-                        <table className="min-w-full text-xs">
+                        <table className="grid-table min-w-full text-xs">
                           <thead>
                             <tr className="text-left text-[10px] uppercase tracking-wide faint">
                               <th className="py-1 pr-2">Rate plan</th>

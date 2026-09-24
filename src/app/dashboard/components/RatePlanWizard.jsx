@@ -532,17 +532,17 @@ export default function RatePlanWizard({
                 </p>
               ) : (
                 <div className="overflow-x-auto card">
-                  <table className="min-w-full text-sm">
+                  <table className="grid-table min-w-full">
                     <thead>
                       <tr className="text-left text-xs uppercase tracking-wide muted">
-                        <th className="px-3 py-2.5">Room type</th>
+                        <th >Room type</th>
                         {Array.from({ length: maxBaseAdults }, (_, i) => (
-                          <th key={i} className="px-3 py-2.5">
+                          <th key={i} >
                             Adult {i + 1} *
                           </th>
                         ))}
-                        <th className="px-3 py-2.5">Extra person</th>
-                        <th className="px-3 py-2.5">Extra child</th>
+                        <th >Extra person</th>
+                        <th >Extra child</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -557,7 +557,7 @@ export default function RatePlanWizard({
 
                         return (
                           <tr key={room.id}>
-                            <td className="px-3 py-2">
+                            <td >
                               <label className="flex items-center gap-2 text-ink">
                                 <input
                                   type="checkbox"
@@ -577,7 +577,7 @@ export default function RatePlanWizard({
                               const adults = i + 1;
                               const applies = adults <= base;
                               return (
-                                <td key={adults} className="px-3 py-2">
+                                <td key={adults} >
                                   {applies ? (
                                     <input
                                       type="number"
@@ -599,7 +599,7 @@ export default function RatePlanWizard({
                               );
                             })}
 
-                            <td className="px-3 py-2">
+                            <td >
                               {takesExtra ? (
                                 <input
                                   type="number"
@@ -621,7 +621,7 @@ export default function RatePlanWizard({
                               )}
                             </td>
 
-                            <td className="px-3 py-2">
+                            <td >
                               <input
                                 type="number"
                                 min="0"

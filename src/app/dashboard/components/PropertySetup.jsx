@@ -432,31 +432,31 @@ function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy
       )}
 
       <div className="overflow-x-auto card">
-        <table className="min-w-full text-sm">
+        <table className="grid-table min-w-full">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide muted">
-              <th className="px-4 py-3">Room type</th>
-              <th className="px-4 py-3">Base price</th>
-              <th className="px-4 py-3">Rooms</th>
-              <th className="px-4 py-3">Adults (base / max)</th>
-              <th className="px-4 py-3" />
+              <th >Room type</th>
+              <th >Base price</th>
+              <th >Rooms</th>
+              <th >Adults (base / max)</th>
+              <th  />
             </tr>
           </thead>
           <tbody>
             {roomTypes.map((r) => (
-              <tr key={r.id} className="">
-                <td className="px-4 py-3">
+              <tr key={r.id}>
+                <td >
                   <span className="block text-ink">{r.room_type_name}</span>
                   {r.description && (
                     <span className="block text-xs muted">{r.description}</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-ink">{r.base_price}</td>
-                <td className="px-4 py-3 text-ink">{r.number_of_rooms}</td>
-                <td className="px-4 py-3 text-ink">
+                <td className="text-ink">{r.base_price}</td>
+                <td className="text-ink">{r.number_of_rooms}</td>
+                <td className="text-ink">
                   {r.base_adults ?? "—"} / {r.max_adults ?? "—"}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="text-right">
                   <button
                     type="button"
                     onClick={() => setEditing(r)}
@@ -568,13 +568,13 @@ function RatePlansPanel({
       {/* Plans are listed under the plan they derive from, so a chain is read
           down the page rather than reconstructed from a "linked to" column. */}
       <div className="overflow-x-auto card">
-        <table className="min-w-full text-sm">
+        <table className="grid-table min-w-full">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide muted">
-              <th className="px-4 py-3">Rate plan &amp; room type</th>
-              <th className="px-4 py-3">Rate setup</th>
-              <th className="px-4 py-3 text-right">Rate</th>
-              <th className="px-4 py-3" />
+              <th >Rate plan &amp; room type</th>
+              <th >Rate setup</th>
+              <th className="text-right">Rate</th>
+              <th  />
             </tr>
           </thead>
           <tbody>
