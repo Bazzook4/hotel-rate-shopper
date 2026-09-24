@@ -988,7 +988,10 @@ export async function listUsersForProperty(propertyId) {
 export async function listPartners() {
   const { data, error } = await supabase
     .from('partners')
-    .select('id, slug, name, base_url, rates_url, inventory_url, partner_id, api_username, enabled, notes, updated_at, supports_rates_out, supports_inventory_out, supports_reservations_in')
+    // Selecting '*' rather than naming columns, so a column added by a
+    // migration that has not run yet cannot fail the whole query. Secrets are
+    // stripped below instead of being excluded by the select.
+    .select('*')
     .order('name');
 
   if (error) {
@@ -996,7 +999,10 @@ export async function listPartners() {
   }
 
   // Never expose the password; say only whether one is set.
-  return (data || []).map((p) => ({ ...p, has_password: Boolean(p.api_username) }));
+  return (data || []).map(({ api_password, ...p }) => ({
+    ...p,
+    has_password: Boolean(api_password),
+  }));
 }
 
 /** A partner including its password. Server-side use only. */

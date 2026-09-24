@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import PropertyAdmin from "../components/PropertyAdmin";
 import UserList from "../components/UserList";
 import PartnerSettings from "../components/PartnerSettings";
+import SchemaStatus from "../components/SchemaStatus";
 import { isAnyAdmin, isSuperAdmin } from "@/lib/permissions";
 
 export default function AdminPage() {
@@ -64,6 +65,7 @@ export default function AdminPage() {
         <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
       </div>
       <div className="mx-auto max-w-6xl space-y-4 p-4">
+        {isSuperAdmin(session) && <SchemaStatus />}
         <div className="flex gap-2">
           {[
             ["properties", "Properties"],
