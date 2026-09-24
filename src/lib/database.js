@@ -712,20 +712,32 @@ export async function findUserByEmailCompat(email) {
  * Whether a user may create or edit room types and rate plans.
  * Global Admins always may; other users need can_manage_setup.
  */
+const SETUP_ROLES = ['SuperAdmin', 'PropertyAdmin', 'Admin'];
+
 export async function canManageSetup(userId) {
+  // can_manage_setup is added by migration 004. Selecting it before that
+  // migration has run makes the whole query fail, which would deny access to
+  // an admin who legitimately has it, so the role is read on its own first.
   const { data, error } = await supabase
     .from('users')
-    .select('role, can_manage_setup')
+    .select('role')
     .eq('id', userId)
     .single();
 
   if (error || !data) return false;
-  // SuperAdmin and PropertyAdmin may configure setup; 'Admin' is the
-  // pre-migration name for SuperAdmin and is still honoured.
-  return (
-    ['SuperAdmin', 'PropertyAdmin', 'Admin'].includes(data.role) ||
-    data.can_manage_setup === true
-  );
+
+  // 'Admin' is the pre-migration name for SuperAdmin and is still honoured.
+  if (SETUP_ROLES.includes(data.role)) return true;
+
+  // Otherwise fall back to the per-user grant, treating a missing column as
+  // "not granted" rather than as an error.
+  const { data: flag } = await supabase
+    .from('users')
+    .select('can_manage_setup')
+    .eq('id', userId)
+    .single();
+
+  return flag?.can_manage_setup === true;
 }
 
 export async function setUserCanManageSetup(userId, canManage) {
