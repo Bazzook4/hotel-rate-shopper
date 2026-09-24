@@ -703,3 +703,112 @@ export async function findUserByEmailCompat(email) {
   const user = await originalFindUserByEmail(email);
   return mapToAirtableFormat(user);
 }
+
+// ============================================
+// SETUP ADMIN + RATE PLAN MASTER LINKING
+// ============================================
+
+/**
+ * Whether a user may create or edit room types and rate plans.
+ * Global Admins always may; other users need can_manage_setup.
+ */
+export async function canManageSetup(userId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('role, can_manage_setup')
+    .eq('id', userId)
+    .single();
+
+  if (error || !data) return false;
+  return data.role === 'Admin' || data.can_manage_setup === true;
+}
+
+export async function setUserCanManageSetup(userId, canManage) {
+  const { data, error } = await supabase
+    .from('users')
+    .update({ can_manage_setup: Boolean(canManage), updated_at: new Date().toISOString() })
+    .eq('id', userId)
+    .select('id, email, role, can_manage_setup')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update setup permission: ${error.message}`);
+  }
+
+  return data;
+}
+
+/** Create a rate plan, including its master-derivation fields. */
+export async function createRatePlanWithDerivation({
+  property_id,
+  room_type_id = null,
+  plan_name,
+  description = '',
+  is_master = false,
+  derive_from_id = null,
+  derive_method = null,
+  derive_value = null,
+}) {
+  const ratePlanId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  const payload = {
+    rate_plan_id: ratePlanId,
+    property_id,
+    room_type_id,
+    plan_name,
+    description,
+    is_master: Boolean(is_master),
+    derive_from_id: derive_from_id || null,
+    derive_method: derive_from_id ? derive_method : null,
+    derive_value: derive_from_id ? Number(derive_value) : null,
+  };
+
+  const { data, error } = await supabase
+    .from('rate_plans')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create rate plan: ${error.message}`);
+  }
+
+  return data;
+}
+
+/** Update a rate plan's derivation, clearing the fields when unlinked. */
+export async function updateRatePlanDerivation(id, updates) {
+  const patch = { updated_at: new Date().toISOString() };
+
+  if ('plan_name' in updates) patch.plan_name = updates.plan_name;
+  if ('description' in updates) patch.description = updates.description;
+  if ('room_type_id' in updates) patch.room_type_id = updates.room_type_id || null;
+  if ('is_master' in updates) patch.is_master = Boolean(updates.is_master);
+
+  if ('derive_from_id' in updates) {
+    patch.derive_from_id = updates.derive_from_id || null;
+    if (patch.derive_from_id) {
+      patch.derive_method = updates.derive_method || null;
+      patch.derive_value =
+        updates.derive_value === null || updates.derive_value === undefined
+          ? null
+          : Number(updates.derive_value);
+    } else {
+      patch.derive_method = null;
+      patch.derive_value = null;
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('rate_plans')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update rate plan: ${error.message}`);
+  }
+
+  return data;
+}

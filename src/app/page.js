@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { visibleModules } from "./dashboard/modules";
 import ChannelManager from "./dashboard/components/ChannelManager";
+import PropertySetup from "./dashboard/components/PropertySetup";
 import DisparityChecker from "./components/DisparityChecker";
 import DynamicPricing from "./components/DynamicPricing";
 import AdminUserManager from "./components/AdminUserManager";
@@ -149,6 +150,8 @@ export default function V2Dashboard() {
               )}
 
               {active === "pricing" && <DynamicPricing />}
+
+              {active === "setup" && <PropertySetup session={session} />}
 
               {active === "users" && session?.role === "Admin" && (
                 <div className="space-y-4">

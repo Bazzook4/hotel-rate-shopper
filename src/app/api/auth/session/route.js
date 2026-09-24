@@ -27,6 +27,7 @@ export async function GET(request) {
       id: user.id,
       email: user.email,
       role: user.role || null,
+      canManageSetup: user.role === "Admin" || user.can_manage_setup === true,
       status: user.status || null,
       propertyId,
       propertyName: property?.name || null,

@@ -12,6 +12,7 @@ export const MODULES = [
   { id: "parity", label: "Rate Parity", icon: "🧭" },
   { id: "location", label: "Search by Location", icon: "📍" },
   { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
+  { id: "setup", label: "Property Setup", icon: "⚙️" },
 ];
 
 /** Old dashboard ids that map onto a module here. */
@@ -22,7 +23,11 @@ const LEGACY_ALIASES = {
 };
 
 export function visibleModules(session) {
-  const all = [...MODULES];
+  // Property Setup edits room types and rate plans, which drive what gets
+  // pushed to channels, so it is shown only to users who may actually use it.
+  // The API enforces this too -- this just avoids offering a tab that 403s.
+  const canSetup = session?.role === "Admin" || session?.canManageSetup === true;
+  const all = MODULES.filter((m) => m.id !== "setup" || canSetup);
 
   if (session?.role === "Admin") {
     return [...all, { id: "users", label: "Manage Users", icon: "👥" }];
