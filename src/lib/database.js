@@ -886,3 +886,87 @@ export async function listUsersForActor({ propertyId = null } = {}) {
 
   return users.map((u) => ({ ...u, properties: byUser[u.id] || [] }));
 }
+
+/**
+ * Update a user's role, status and property link.
+ * Modules are handled separately by setUserModules.
+ */
+export async function updateUserAccount(userId, { role, status, propertyId } = {}) {
+  const patch = { updated_at: new Date().toISOString() };
+  if (role !== undefined) patch.role = role;
+  if (status !== undefined) patch.status = status;
+
+  const { data, error } = await supabase
+    .from('users')
+    .update(patch)
+    .eq('id', userId)
+    .select('id, email, role, status')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update user: ${error.message}`);
+  }
+
+  // A user belongs to one property here, so the link is replaced wholesale.
+  if (propertyId !== undefined) {
+    const { error: delError } = await supabase
+      .from('user_properties')
+      .delete()
+      .eq('user_id', userId);
+
+    if (delError) {
+      throw new Error(`Failed to clear property link: ${delError.message}`);
+    }
+
+    if (propertyId) {
+      const { error: insError } = await supabase
+        .from('user_properties')
+        .insert({ user_id: userId, property_id: propertyId });
+
+      if (insError) {
+        throw new Error(`Failed to link property: ${insError.message}`);
+      }
+    }
+  }
+
+  return data;
+}
+
+/** Users attached to one property, with their module grants. */
+export async function listUsersForProperty(propertyId) {
+  if (!propertyId) return [];
+
+  const { data: links, error: linkError } = await supabase
+    .from('user_properties')
+    .select('user_id')
+    .eq('property_id', propertyId);
+
+  if (linkError) {
+    throw new Error(`Failed to list property users: ${linkError.message}`);
+  }
+
+  const ids = (links || []).map((l) => l.user_id);
+  if (ids.length === 0) return [];
+
+  const { data: users, error } = await supabase
+    .from('users')
+    .select('id, email, role, status, created_at')
+    .in('id', ids)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to list users: ${error.message}`);
+  }
+
+  const { data: mods } = await supabase
+    .from('user_modules')
+    .select('user_id, module_id, enabled')
+    .in('user_id', ids);
+
+  const byUser = {};
+  for (const m of mods || []) {
+    if (m.enabled !== false) (byUser[m.user_id] ||= []).push(m.module_id);
+  }
+
+  return (users || []).map((u) => ({ ...u, modules: byUser[u.id] || [] }));
+}
