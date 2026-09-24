@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Icon from "./Icon";
 
 /**
  * Light is the default; the choice is remembered per browser. The value is
@@ -35,7 +36,7 @@ export default function ThemeToggle({ className = "" }) {
       aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
     >
-      <span aria-hidden>{theme === "dark" ? "☀" : "☾"}</span>
+      <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
       <span className="text-xs">{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );

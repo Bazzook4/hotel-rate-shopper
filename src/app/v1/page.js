@@ -175,7 +175,7 @@ function SingleSearchPanel({ session }) {
           </div>
 
           {historyError && (
-            <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
+            <div className="rounded-2xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs text-[var(--warn)]">
               {historyError}
             </div>
           )}

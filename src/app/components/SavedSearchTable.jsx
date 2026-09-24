@@ -148,9 +148,9 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
                   <span
                     className={`font-semibold ${
                       idx === 0
-                        ? "text-green-300"
+                        ? "text-[var(--accent-text)]"
                         : p.isSponsored
-                        ? "text-amber-200"
+                        ? "text-[var(--warn)]"
                         : "text-slate-100"
                     }`}
                   >
@@ -162,7 +162,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
                 <button
                   type="button"
                   onClick={() => setExpanded(!expanded)}
-                  className="text-xs text-blue-300 transition hover:text-blue-200"
+                  className="text-xs text-[var(--accent-text)] transition hover:text-[var(--accent-text)]"
                 >
                   {expanded ? "▲ Show less" : `▼ +${hiddenCount} more OTAs`}
                 </button>
@@ -180,7 +180,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
               type="button"
               onClick={() => onRefresh(entry)}
               disabled={isRefreshing}
-              className="rounded-lg border border-blue-400/40 px-3 py-1 text-xs text-blue-200 transition hover:border-blue-300 hover:bg-blue-400/10 disabled:opacity-50"
+              className="rounded-lg border border-[var(--accent)] px-3 py-1 text-xs text-[var(--accent-text)] transition hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] disabled:opacity-50"
               title="Refresh prices"
             >
               {isRefreshing ? "⏳" : "🔄"}
@@ -189,7 +189,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
               type="button"
               onClick={() => onDelete(entry)}
               disabled={isDeleting}
-              className="rounded-lg border border-rose-400/40 px-3 py-1 text-xs text-rose-200 transition hover:border-rose-300 hover:bg-rose-400/10 disabled:opacity-50"
+              className="rounded-lg border border-[var(--danger)]/40 px-3 py-1 text-xs text-[var(--danger)] transition hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"
               title="Delete search"
             >
               {isDeleting ? "⏳" : "🗑️"}

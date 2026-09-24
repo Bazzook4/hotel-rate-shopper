@@ -157,15 +157,15 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
         </div>
         <button
           onClick={() => setShowAddPlan(!showAddPlan)}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink text-sm font-medium transition-all"
+          className="px-4 py-2 rounded-lg from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink text-sm font-medium transition-all"
         >
           {showAddPlan ? "Cancel" : "+ Add Meal Plans"}
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-xl bg-rose-500/10 border border-rose-500/20 p-4">
-          <p className="text-rose-400 text-sm">{error}</p>
+        <div className="mb-4 rounded-xl bg-[var(--danger-soft)] border border-[var(--danger)] p-4">
+          <p className="text-[var(--danger)] text-sm">{error}</p>
         </div>
       )}
 
@@ -181,7 +181,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                     type="checkbox"
                     checked={selectedMealPlans[planKey]}
                     onChange={(e) => setSelectedMealPlans({ ...selectedMealPlans, [planKey]: e.target.checked })}
-                    className="mt-1 w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-indigo-600 focus:ring-indigo-500"
+                    className="mt-1 w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-[var(--accent-text)] focus:ring-[var(--accent)]"
                   />
                   <div className="flex-1">
                     <div className="text-ink font-semibold">{mealPlanInfo[planKey].name}</div>
@@ -203,7 +203,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                                   ...mealPlanCosts,
                                   [planKey]: { ...mealPlanCosts[planKey], pricing_type: 'flat' }
                                 })}
-                                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                                className="w-4 h-4 text-[var(--accent-text)] focus:ring-[var(--accent)]"
                               />
                               <span className="text-sm text-ink">Flat Rate per Adult</span>
                             </label>
@@ -217,7 +217,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                                   ...mealPlanCosts,
                                   [planKey]: { ...mealPlanCosts[planKey], pricing_type: 'multiplier' }
                                 })}
-                                className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
+                                className="w-4 h-4 text-[var(--accent-text)] focus:ring-[var(--accent)]"
                               />
                               <span className="text-sm text-ink">Percentage Multiplier</span>
                             </label>
@@ -272,8 +272,8 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
             ))}
           </div>
 
-          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-            <p className="text-xs text-blue-300">
+          <div className="p-3 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]">
+            <p className="text-xs text-[var(--accent-text)]">
               <strong>💡 Tip:</strong>
               <br/>• <strong>Flat Rate:</strong> Fixed cost added per adult (e.g., ₹250/adult → Single: +₹250, Double: +₹500)
               <br/>• <strong>Multiplier:</strong> Percentage of base price (e.g., 1.25x → base ₹4000 becomes ₹5000)
@@ -283,7 +283,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink font-medium disabled:opacity-50 transition-all"
+            className="w-full px-6 py-3 rounded-lg from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink font-medium disabled:opacity-50 transition-all"
           >
             {loading ? "Saving..." : "Save Meal Plans"}
           </button>
@@ -308,12 +308,12 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                     <h5 className="text-ink font-semibold">🍽️ {plan.plan_name}</h5>
                   </div>
                   <p className="sub mt-2">
-                    <span className="muted">Multiplier:</span> <span className="font-semibold text-indigo-400">{plan.multiplier}x</span>
+                    <span className="muted">Multiplier:</span> <span className="font-semibold text-[var(--accent-text)]">{plan.multiplier}x</span>
                     {plan.multiplier > 1 && (
-                      <span className="text-green-400"> (+{((plan.multiplier - 1) * 100).toFixed(0)}%)</span>
+                      <span className="text-[var(--accent-text)]"> (+{((plan.multiplier - 1) * 100).toFixed(0)}%)</span>
                     )}
                     {plan.multiplier < 1 && (
-                      <span className="text-rose-400"> ({((plan.multiplier - 1) * 100).toFixed(0)}%)</span>
+                      <span className="text-[var(--danger)]"> ({((plan.multiplier - 1) * 100).toFixed(0)}%)</span>
                     )}
                   </p>
                   {plan.description && (
@@ -323,13 +323,13 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleEditRatePlan(plan)}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-medium transition-colors border border-indigo-500/20"
+                    className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent)] text-[var(--accent-text)] text-xs font-medium transition-colors border border-[var(--accent)]"
                   >
                     ✏️ Edit
                   </button>
                   <button
                     onClick={() => handleDeleteRatePlan(plan)}
-                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium transition-colors border border-rose-500/20"
+                    className="px-3 py-1.5 rounded-lg bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)] text-[var(--danger)] text-xs font-medium transition-colors border border-[var(--danger)]"
                   >
                     🗑️ Delete
                   </button>

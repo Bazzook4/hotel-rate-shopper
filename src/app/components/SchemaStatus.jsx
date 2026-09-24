@@ -26,19 +26,19 @@ export default function SchemaStatus() {
   if (!state || state.ok) return null;
 
   return (
-    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
-      <p className="text-sm font-semibold text-amber-100">
+    <div className="rounded-2xl border border-[var(--warn)] bg-[var(--warn-soft)] p-4">
+      <p className="text-sm font-semibold text-[var(--warn)]">
         {state.migrations.length === 1
           ? "One migration has not been run"
           : `${state.migrations.length} migrations have not been run`}
       </p>
-      <p className="mt-1 text-xs text-amber-100/80">
+      <p className="mt-1 text-xs text-[var(--warn)]">
         The deployed app expects database columns that do not exist yet. Run
         these from supabase/migrations in order, then reload:
       </p>
       <ul className="mt-2 space-y-1">
         {state.migrations.map((m) => (
-          <li key={m} className="text-xs text-amber-200">
+          <li key={m} className="text-xs text-[var(--warn)]">
             <code className="rounded bg-black/30 px-1.5 py-0.5">{m}.sql</code>
           </li>
         ))}

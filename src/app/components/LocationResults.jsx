@@ -260,7 +260,7 @@ export default function LocationResults({ data }) {
           {sorted.map((h) => (
             <article
               key={h.key}
-              className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] transition hover:border-blue-300/40 hover:bg-[var(--surface-2)]"
+              className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--surface-2)]"
             >
               {h.thumb ? (
                 <img src={h.thumb} alt={h.name} className="h-40 w-full object-cover" />
@@ -272,7 +272,7 @@ export default function LocationResults({ data }) {
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="h2 leading-tight">{h.name}</h3>
                   {h.sponsored && (
-                    <span className="rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-200">
+                    <span className="rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)]">
                       Sponsored
                     </span>
                   )}

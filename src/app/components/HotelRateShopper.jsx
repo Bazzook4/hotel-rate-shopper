@@ -62,7 +62,7 @@ export default function HotelRateShopper({ data }) {
                 </span>
               )}
               {data.deal && (
-                <span className="rounded-full border border-amber-200/40 bg-amber-500/10 px-3 py-1 text-amber-200">
+                <span className="rounded-full border border-amber-200/40 bg-[var(--warn-soft)] px-3 py-1 text-[var(--warn)]">
                   🔖 {data.deal}
                 </span>
               )}
@@ -90,7 +90,7 @@ export default function HotelRateShopper({ data }) {
                   rel="noreferrer"
                   className="group rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-slate-100 transition hover:border-amber-200/60 hover:bg-amber-400/15"
                 >
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-200/80 mb-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)] mb-2">
                     Sponsored
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -127,7 +127,7 @@ export default function HotelRateShopper({ data }) {
                 href={p.link}
                 target="_blank"
                 rel="noreferrer"
-                className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-slate-100 transition hover:border-blue-300/40 hover:bg-blue-500/10"
+                className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-slate-100 transition hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">

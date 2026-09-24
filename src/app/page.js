@@ -11,6 +11,7 @@ import DynamicPricing from "./components/DynamicPricing";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
+import Icon from "./components/Icon";
 
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
@@ -55,9 +56,19 @@ export default function V2Dashboard() {
         }}
       >
         <div className="p-4">
-          <div className="mb-6">
-            <h1 className="h2">Rate Shopper</h1>
-            <p className="sub text-xs">Distribution &amp; pricing</p>
+          <div className="mb-6 flex items-center gap-2.5">
+            <span
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              RS
+            </span>
+            <span>
+              <span className="block text-sm font-semibold" style={{ color: "var(--text)" }}>
+                Rate Shopper
+              </span>
+              <span className="block text-[11px] faint">Distribution &amp; pricing</span>
+            </span>
           </div>
 
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider faint">
@@ -79,7 +90,7 @@ export default function V2Dashboard() {
                     fontWeight: on ? 600 : 500,
                   }}
                 >
-                  <span className="text-base leading-none">{item.icon}</span>
+                  <Icon name={item.icon} />
                   <span>{item.label}</span>
                 </button>
               );

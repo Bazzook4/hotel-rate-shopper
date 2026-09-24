@@ -235,7 +235,7 @@ export default function AdminUserManager({ session }) {
               type="button"
               onClick={selectAllModules}
               disabled={disabled}
-              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+              className="text-xs text-[var(--accent-text)] hover:text-[var(--accent-text)] transition-colors disabled:opacity-50"
             >
               Select All
             </button>
@@ -257,7 +257,7 @@ export default function AdminUserManager({ session }) {
               key={module.id}
               className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                 form.modules.includes(module.id)
-                  ? "border-indigo-500/50 bg-indigo-500/10"
+                  ? "border-[var(--accent)] bg-[var(--accent)]"
                   : "border-[var(--border)] bg-[var(--surface)] hover:border-white/20"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
@@ -266,7 +266,7 @@ export default function AdminUserManager({ session }) {
                 checked={form.modules.includes(module.id)}
                 onChange={() => toggleModule(module.id)}
                 disabled={disabled}
-                className="mt-0.5 w-4 h-4 rounded border-white/20 bg-[var(--surface-2)] text-indigo-600 focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-0"
+                className="mt-0.5 w-4 h-4 rounded border-white/20 bg-[var(--surface-2)] text-[var(--accent-text)] focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-0"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -280,20 +280,20 @@ export default function AdminUserManager({ session }) {
         </div>
 
         {form.modules.length === 0 && (
-          <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          <div className="rounded-xl border border-amber-300/40 bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn)]">
             ⚠️ No modules selected - user will not be able to access any features
           </div>
         )}
       </div>
 
       {error && (
-        <div className="rounded-2xl border border-rose-300/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+        <div className="rounded-2xl border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-4 py-3 text-xs text-[var(--danger)]">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="rounded-2xl border border-emerald-300/40 bg-emerald-500/10 px-4 py-3 text-xs text-emerald-200">
+        <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-3 text-xs text-[var(--accent-text)]">
           {success}
         </div>
       )}
@@ -302,7 +302,7 @@ export default function AdminUserManager({ session }) {
         <button
           type="submit"
           disabled={disabled}
-          className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl px-4 py-2 h2 text-sm  transition   disabled:opacity-50 "
         >
           {submitting ? "Creating…" : "Create user"}
         </button>

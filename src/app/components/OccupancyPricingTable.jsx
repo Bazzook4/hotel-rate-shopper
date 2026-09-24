@@ -262,7 +262,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
             <div>
               <div className="text-ink text-sm font-medium">Flat Room Rate</div>
               <div className="text-xs muted mt-1">One price per room (any occupancy)</div>
-              <div className="text-xs text-green-400 mt-1">Example: Executive = ₹5000</div>
+              <div className="text-xs text-[var(--accent-text)] mt-1">Example: Executive = ₹5000</div>
             </div>
           </label>
           <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
@@ -277,7 +277,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
             <div>
               <div className="text-ink text-sm font-medium">Occupancy-Based</div>
               <div className="text-xs muted mt-1">Different rate per occupancy type</div>
-              <div className="text-xs text-green-400 mt-1">Example: Single=₹2000, Double=₹2500</div>
+              <div className="text-xs text-[var(--accent-text)] mt-1">Example: Single=₹2000, Double=₹2500</div>
             </div>
           </label>
           <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
@@ -292,7 +292,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
             <div>
               <div className="text-ink text-sm font-medium">Per Adult Rate</div>
               <div className="text-xs muted mt-1">Rate per person × number of adults</div>
-              <div className="text-xs text-green-400 mt-1">Example: ₹1000/adult × 2 = ₹2000</div>
+              <div className="text-xs text-[var(--accent-text)] mt-1">Example: ₹1000/adult × 2 = ₹2000</div>
             </div>
           </label>
         </div>
@@ -340,7 +340,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     <td className="py-2 px-3">
                       {isBaseRoom ? (
                         <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 rounded bg-green-600 text-ink text-xs font-semibold">Master</span>
+                          <span className="px-2 py-0.5 rounded bg-[var(--accent)] text-ink text-xs font-semibold">Master</span>
                           <input
                             type="number"
                             value={roomData.adultPricing[1] || 0}
@@ -498,7 +498,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                   <td className="py-2 px-3">
                     {isBaseRoom ? (
                       <div className="flex items-center gap-1">
-                        <span className="px-2 py-0.5 rounded bg-green-600 text-ink text-xs font-semibold">Master</span>
+                        <span className="px-2 py-0.5 rounded bg-[var(--accent)] text-ink text-xs font-semibold">Master</span>
                         <input
                           type="number"
                           value={roomData.adultPricing[adultCount] || 0}
@@ -609,7 +609,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
         <button
           onClick={handleSaveAll}
           disabled={loading}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
+          className="px-6 py-2.5 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
         >
           {loading ? 'Saving...' : '💾 Save All Occupancy Pricing'}
         </button>

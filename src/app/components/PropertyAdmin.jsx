@@ -27,7 +27,7 @@ function Field({ field, value, onChange }) {
   return (
     <label className="block label">
       {field.label}
-      {field.required && <span className="text-red-400"> *</span>}
+      {field.required && <span className="text-[var(--danger)]"> *</span>}
       <input
         type={field.type || "text"}
         min={field.min}
@@ -143,7 +143,7 @@ export default function PropertyAdmin({ session }) {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+        <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
           {error}
         </div>
       )}

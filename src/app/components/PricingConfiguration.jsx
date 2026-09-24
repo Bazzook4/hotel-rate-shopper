@@ -97,7 +97,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
   }
 
   const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70 mb-2";
-  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-ink placeholder:faint focus:outline-none focus:border-indigo-500/50 focus:bg-[var(--surface-2)] transition-all";
+  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-ink placeholder:faint focus:outline-none focus:border-[var(--accent)] focus:bg-[var(--surface-2)] transition-all";
   const sectionClass = "rounded-2xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-6";
 
   return (
@@ -124,8 +124,8 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
       </div>
 
       {error && (
-        <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-4">
-          <p className="text-rose-400 text-sm">{error}</p>
+        <div className="rounded-xl bg-[var(--danger-soft)] border border-[var(--danger)] p-4">
+          <p className="text-[var(--danger)] text-sm">{error}</p>
         </div>
       )}
 
@@ -166,7 +166,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
             />
             <div className="mt-2 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-green-500 to-indigo-500 transition-all"
+                className="h-full from-green-500  transition-all"
                 style={{ width: `${pricingParams.currentOccupancy}%` }}
               />
             </div>
@@ -178,7 +178,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
                 type="checkbox"
                 checked={pricingParams.includeCompetitors}
                 onChange={(e) => onParamsChange({ ...pricingParams, includeCompetitors: e.target.checked })}
-                className="w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-indigo-600 focus:ring-indigo-500"
+                className="w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-[var(--accent-text)] focus:ring-[var(--accent)]"
               />
               <span className="text-ink text-sm font-medium">Include Competitor Pricing</span>
             </label>
@@ -424,7 +424,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
         <button
           onClick={onCalculate}
           disabled={loading}
-          className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold disabled:opacity-50 transition-all"
+          className="flex-1 px-6 py-3 rounded-xl from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold disabled:opacity-50 transition-all"
         >
           {loading ? "Calculating..." : "Calculate Pricing"}
         </button>

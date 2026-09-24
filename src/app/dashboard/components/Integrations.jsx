@@ -149,7 +149,7 @@ export default function Integrations({ session }) {
       </div>
 
       {error && (
-        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+        <p className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       )}
@@ -214,7 +214,7 @@ export default function Integrations({ session }) {
           <h3 className="h2 text-sm">Aiosell connection</h3>
 
           {!partnerReady && (
-            <p className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            <p className="mt-2 rounded-xl border border-[var(--warn)] bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn)]">
               Aiosell is not yet set up on the platform. Ask your administrator to
               add the API credentials before connecting.
             </p>

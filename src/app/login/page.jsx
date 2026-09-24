@@ -77,7 +77,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="rounded-2xl border border-rose-300/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+          <div className="rounded-2xl border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-4 py-3 text-xs text-[var(--danger)]">
             {error}
           </div>
         )}
@@ -85,7 +85,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2.5 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+          className="w-full rounded-2xl px-4 py-2.5 h2 text-sm  transition   disabled:opacity-50 "
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>

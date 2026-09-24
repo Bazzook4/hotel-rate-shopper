@@ -351,7 +351,7 @@ export default function ComparePanel({ compSet }) {
           <button
             onClick={onCompare}
             disabled={loadingCompare || !normalized?.primary}
-            className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+            className="rounded-2xl px-4 py-2 h2 text-sm  transition   disabled:opacity-50 "
           >
             {loadingCompare ? "Comparing…" : "Compare Now"}
           </button>
@@ -366,7 +366,7 @@ export default function ComparePanel({ compSet }) {
             <button
               onClick={saveSnapshot}
               disabled={saving}
-              className="rounded-2xl bg-gradient-to-r from-emerald-400/80 to-teal-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50"
+              className="rounded-2xl from-emerald-400/80 to-teal-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save snapshot"}
             </button>
@@ -374,7 +374,7 @@ export default function ComparePanel({ compSet }) {
         </div>
       </div>
 
-      {err && <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{err}</div>}
+      {err && <div className="rounded-2xl border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">{err}</div>}
 
       {!compareData ? (
         <div className="card px-4 py-5 sub/70">
@@ -409,7 +409,7 @@ export default function ComparePanel({ compSet }) {
                       {typeof p.diffPct === "number" && (
                         <span
                           className={`ml-2 text-xs font-semibold ${
-                            p.diffPct <= 0 ? "text-emerald-300" : "text-rose-300"
+                            p.diffPct <= 0 ? "text-[var(--accent-text)]" : "text-[var(--danger)]"
                           }`}
                         >
                           {p.diffPct > 0 ? "+" : ""}

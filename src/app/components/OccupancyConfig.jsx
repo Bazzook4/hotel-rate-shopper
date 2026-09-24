@@ -119,7 +119,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
   };
 
   return (
-    <div className="mt-3 p-4 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
+    <div className="mt-3 p-4 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-[var(--accent)]">
       <div className="flex items-center justify-between mb-2">
         <div>
           <h5 className="h2 text-sm flex items-center gap-2">
@@ -136,7 +136,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
           <button
             type="button"
             onClick={() => setShowConfig(true)}
-            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-ink text-xs font-medium transition-all shadow-lg shadow-indigo-500/20"
+            className="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent)] text-ink text-xs font-medium transition-all shadow-lg shadow-indigo-500/20"
           >
             {hasExistingPricing ? "✏️ Edit" : "⚙️ Configure"}
           </button>
@@ -159,14 +159,14 @@ export default function OccupancyConfig({ roomType, onSave }) {
               <div className="text-xs muted mb-2">Extra Charges:</div>
               <div className="grid grid-cols-2 gap-2">
                 {roomType.occupancy_pricing.extraAdult && (
-                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                    <div className="text-xs text-amber-300">Extra Adult</div>
+                  <div className="p-2 rounded-lg bg-[var(--warn-soft)] border border-[var(--warn)]">
+                    <div className="text-xs text-[var(--warn)]">Extra Adult</div>
                     <div className="text-ink font-semibold">+₹{roomType.occupancy_pricing.extraAdult}</div>
                   </div>
                 )}
                 {roomType.occupancy_pricing.extraChild && (
-                  <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                    <div className="text-xs text-blue-300">Extra Child</div>
+                  <div className="p-2 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]">
+                    <div className="text-xs text-[var(--accent-text)]">Extra Child</div>
                     <div className="text-ink font-semibold">+₹{roomType.occupancy_pricing.extraChild}</div>
                   </div>
                 )}
@@ -180,8 +180,8 @@ export default function OccupancyConfig({ roomType, onSave }) {
       {showConfig && (
         <form onSubmit={handleSave} className="mt-4 space-y-4">
           {error && (
-            <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
-              <p className="text-rose-400 text-xs">⚠️ {error}</p>
+            <div className="rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-3">
+              <p className="text-[var(--danger)] text-xs">⚠️ {error}</p>
             </div>
           )}
 
@@ -200,7 +200,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
                 max="10"
                 value={numAdultOptions}
                 onChange={(e) => handleNumAdultOptionsChange(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-4 py-2.5 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm focus:outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]"
                 placeholder="e.g., 3 (for single, double, triple)"
                 required
               />
@@ -210,7 +210,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
           {/* Step 2: Show pricing fields for each adult count */}
           {numAdultsNum > 0 && (
             <div className="space-y-3">
-              <div className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--accent-text)]">
                 💰 Set Price For Each Occupancy Level
               </div>
 
@@ -235,7 +235,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
                           ...adultPricing,
                           [adultCount]: e.target.value
                         })}
-                        className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-indigo-500"
+                        className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-[var(--accent)]"
                         placeholder={adultCount === 1 ? "2500" : adultCount === 2 ? "3500" : adultCount === 3 ? "4500" : ""}
                       />
                     </div>
@@ -251,12 +251,12 @@ export default function OccupancyConfig({ roomType, onSave }) {
 
                 <div className="space-y-3">
                   {/* Extra Adult */}
-                  <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <div className="p-3 rounded-lg bg-[var(--warn-soft)] border border-[var(--warn)]">
                     <label className="block">
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <div className="text-ink font-medium text-sm">➕ Extra Adult Charge</div>
-                          <div className="text-xs text-amber-300">
+                          <div className="text-xs text-[var(--warn)]">
                             Additional charge per extra adult beyond defined capacity
                           </div>
                         </div>
@@ -276,12 +276,12 @@ export default function OccupancyConfig({ roomType, onSave }) {
                   </div>
 
                   {/* Extra Child */}
-                  <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="p-3 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]">
                     <label className="block">
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <div className="text-ink font-medium text-sm">👶 Extra Child Charge</div>
-                          <div className="text-xs text-blue-300">Additional charge per child</div>
+                          <div className="text-xs text-[var(--accent-text)]">Additional charge per child</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
                           step="0.01"
                           value={extraChild}
                           onChange={(e) => setExtraChild(e.target.value)}
-                          className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-blue-500"
+                          className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-[var(--accent)]"
                           placeholder="500"
                         />
                       </div>
@@ -307,7 +307,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
             <button
               type="submit"
               disabled={loading || !numAdultOptions}
-              className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-ink text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
+              className="flex-1 px-4 py-2.5 rounded-lg from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-ink text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
             >
               {loading ? "💾 Saving..." : "✅ Save Occupancy Pricing"}
             </button>

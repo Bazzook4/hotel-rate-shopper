@@ -161,11 +161,11 @@ export default function LocationSearch({ onResult, defaultLocation }) {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-2xl bg-gradient-to-r from-emerald-400/80 to-teal-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl from-emerald-400/80 to-teal-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 "
         >
           {loading ? "Searching..." : "Search by Location"}
         </button>
-        {err && <span className="text-xs text-rose-300">{err}</span>}
+        {err && <span className="text-xs text-[var(--danger)]">{err}</span>}
       </div>
     </form>
   );

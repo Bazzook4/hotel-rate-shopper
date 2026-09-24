@@ -156,7 +156,7 @@ export default function PropertyUsers({ session, property }) {
       </div>
 
       {error && (
-        <p className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+        <p className="mb-3 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
           {error}
         </p>
       )}

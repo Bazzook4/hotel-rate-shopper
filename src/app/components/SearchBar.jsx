@@ -209,7 +209,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
         <button
           type="submit"
           disabled={loading || weeklyLoading}
-          className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl px-5 py-2.5 h2 text-sm  transition   disabled:opacity-50 "
         >
           {loading ? "Tracking Rates..." : "Track My Rates"}
         </button>
@@ -217,11 +217,11 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           type="button"
           onClick={onWeeklySearch}
           disabled={loading || weeklyLoading}
-          className="rounded-2xl bg-gradient-to-r from-purple-500/80 to-pink-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-purple-500/25 transition hover:from-purple-400 hover:to-pink-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl from-purple-500/80 to-pink-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-purple-500/25 transition hover:from-purple-400 hover:to-pink-400 disabled:opacity-50 "
         >
           {weeklyLoading ? "Tracking Week..." : "Track Weekly Rates"}
         </button>
-        {err && <span className={`text-xs ${err.includes('✓') ? 'text-green-300' : 'text-rose-300'}`}>{err}</span>}
+        {err && <span className={`text-xs ${err.includes('✓') ? 'text-[var(--accent-text)]' : 'text-[var(--danger)]'}`}>{err}</span>}
       </div>
     </form>
   );

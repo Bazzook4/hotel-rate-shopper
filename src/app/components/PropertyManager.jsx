@@ -142,7 +142,7 @@ export default function PropertyManager() {
         <h1 className="text-2xl font-bold">Admin</h1>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-blue-600 hover:bg-blue-700 text-ink px-4 py-2 rounded-lg transition"
+          className="bg-[var(--accent)] hover:bg-[var(--accent)] text-ink px-4 py-2 rounded-lg transition"
         >
           {showAddForm ? "Cancel" : "+ Add New Property"}
         </button>
@@ -361,7 +361,7 @@ export default function PropertyManager() {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-ink rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-[var(--accent)] text-ink rounded-md hover:bg-[var(--accent)] transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Creating..." : "Create Property"}
               </button>
@@ -410,7 +410,7 @@ export default function PropertyManager() {
                   </div>
                   <button
                     onClick={() => handleLinkProperty(property.id)}
-                    className="ml-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-ink text-sm rounded-md transition"
+                    className="ml-4 px-4 py-2 bg-[var(--accent)] hover:opacity-90 text-ink text-sm rounded-md transition"
                   >
                     Link to My Account
                   </button>

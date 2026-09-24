@@ -12,11 +12,13 @@ const CHANNEL_LABELS = {
   expedia: "Expedia",
 };
 
+// Each OTA's own brand colour, so these stay fixed rather than following
+// the theme palette.
 const CHANNEL_DOTS = {
-  "booking.com": "bg-blue-500",
+  "booking.com": "bg-[var(--accent)]",
   gommt: "bg-red-500",
   agoda: "bg-purple-500",
-  airbnb: "bg-rose-500",
+  airbnb: "bg-[var(--danger)]",
   google: "bg-emerald-500",
   expedia: "bg-amber-500",
 };
@@ -209,8 +211,8 @@ export default function ChannelManager() {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
-        <p className="text-sm text-red-200">{error}</p>
+      <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4">
+        <p className="text-sm text-[var(--danger)]">{error}</p>
         <button
           type="button"
           onClick={load}
@@ -364,7 +366,7 @@ export default function ChannelManager() {
                   <th
                     key={d}
                     className={`px-3 py-2 text-center text-[11px] font-medium ${
-                      f.weekend ? "text-amber-300" : "muted"
+                      f.weekend ? "text-[var(--warn)]" : "muted"
                     }`}
                   >
                     <div>{f.dow}</div>

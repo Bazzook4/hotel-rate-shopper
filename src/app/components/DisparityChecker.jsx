@@ -17,13 +17,13 @@ function PriceRow({ row, lowest }) {
   let badgeText = "";
 
   if (isLowest) {
-    badgeClass += " bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+    badgeClass += " bg-[var(--accent-soft)] text-[var(--accent-text)] border-[var(--accent)]";
     badgeText = "Best";
   } else if (diffPct != null && diffPct >= 8) {
-    badgeClass += " bg-rose-500/20 text-rose-300 border-rose-500/30";
+    badgeClass += " bg-[var(--danger-soft)] text-[var(--danger)] border-[var(--danger)]";
     badgeText = "High";
   } else if (diffPct != null && diffPct >= 3) {
-    badgeClass += " bg-amber-500/20 text-amber-300 border-amber-500/30";
+    badgeClass += " bg-[var(--warn-soft)] text-[var(--warn)] border-[var(--warn)]";
     badgeText = "Slightly High";
   }
 
@@ -45,9 +45,9 @@ function PriceRow({ row, lowest }) {
       </td>
       <td className="p-3 text-right text-sm">
         {diffPct == null || isLowest ? (
-          isLowest ? <span className="text-emerald-300">—</span> : "—"
+          isLowest ? <span className="text-[var(--accent-text)]">—</span> : "—"
         ) : (
-          <span className={diffPct >= 0 ? "text-rose-300" : "text-emerald-300"}>
+          <span className={diffPct >= 0 ? "text-[var(--danger)]" : "text-[var(--accent-text)]"}>
             {diffPct >= 0 ? "+" : ""}
             {diffPct.toFixed(1)}%
           </span>
@@ -281,11 +281,11 @@ export default function DisparityChecker({ defaultHotelName }) {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-cyan-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-cyan-400 disabled:opacity-50 disabled:shadow-none"
+            className="rounded-2xl to-cyan-500/80 px-5 py-2.5 h2 text-sm  transition  hover:to-cyan-400 disabled:opacity-50 "
           >
             {loading ? "Checking..." : "Check Disparity"}
           </button>
-          {err && <span className="text-xs text-rose-300">{err}</span>}
+          {err && <span className="text-xs text-[var(--danger)]">{err}</span>}
         </div>
       </form>
 
@@ -299,13 +299,13 @@ export default function DisparityChecker({ defaultHotelName }) {
             </div>
             <div>
               <span className="muted/70">Lowest</span>{" "}
-              <span className="text-emerald-300 font-semibold">
+              <span className="text-[var(--accent-text)] font-semibold">
                 {stats.lowest != null ? `₹${stats.lowest}` : "—"}
               </span>
             </div>
             <div>
               <span className="muted/70">Highest</span>{" "}
-              <span className="text-rose-300 font-semibold">
+              <span className="text-[var(--danger)] font-semibold">
                 {stats.highest != null ? `₹${stats.highest}` : "—"}
               </span>
             </div>

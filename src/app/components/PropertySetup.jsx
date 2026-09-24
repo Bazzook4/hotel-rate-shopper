@@ -357,7 +357,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   }
 
   const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70 mb-2";
-  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-ink placeholder:faint focus:outline-none focus:border-indigo-500/50 focus:bg-[var(--surface-2)] transition-all";
+  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-ink placeholder:faint focus:outline-none focus:border-[var(--accent)] focus:bg-[var(--surface-2)] transition-all";
 
   if (!property) {
     return (
@@ -373,31 +373,31 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
           {!loading && (
             <>
-              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-4 mb-6">
+              <div className="bg-[var(--accent)] border border-[var(--accent)] rounded-lg p-4 mb-6">
                 <h4 className="text-ink font-semibold text-sm mb-3">📋 What you can configure:</h4>
                 <ul className="muted text-sm space-y-2">
                   <li className="flex items-start gap-2">
-                    <span className="text-green-400">✓</span>
+                    <span className="text-[var(--accent-text)]">✓</span>
                     <span><strong>Property Details:</strong> Name and location</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-400">✓</span>
+                    <span className="text-[var(--accent-text)]">✓</span>
                     <span><strong>Room Types:</strong> Different room categories with base prices</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-400">✓</span>
+                    <span className="text-[var(--accent-text)]">✓</span>
                     <span><strong>Rate Plans:</strong> Meal plans (EP, CP, MAP, AP)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-green-400">✓</span>
+                    <span className="text-[var(--accent-text)]">✓</span>
                     <span><strong>Occupancy Pricing:</strong> Pricing for different guest counts</span>
                   </li>
                 </ul>
               </div>
 
               {error && (
-                <div className="mb-4 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
-                  <p className="text-rose-400 text-sm">⚠️ {error}</p>
+                <div className="mb-4 rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-3">
+                  <p className="text-[var(--danger)] text-sm">⚠️ {error}</p>
                 </div>
               )}
             </>
@@ -439,7 +439,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           onClick={() => setActiveTab("rooms")}
           className={`px-4 py-2 text-sm font-medium transition-all ${
             activeTab === "rooms"
-              ? "text-ink border-b-2 border-indigo-500"
+              ? "text-ink border-b-2 border-[var(--accent)]"
               : "muted hover:text-ink"
           }`}
         >
@@ -449,7 +449,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           onClick={() => setActiveTab("rates")}
           className={`px-4 py-2 text-sm font-medium transition-all ${
             activeTab === "rates"
-              ? "text-ink border-b-2 border-indigo-500"
+              ? "text-ink border-b-2 border-[var(--accent)]"
               : "muted hover:text-ink"
           }`}
         >
@@ -459,7 +459,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           onClick={() => setActiveTab("occupancy")}
           className={`px-4 py-2 text-sm font-medium transition-all ${
             activeTab === "occupancy"
-              ? "text-ink border-b-2 border-indigo-500"
+              ? "text-ink border-b-2 border-[var(--accent)]"
               : "muted hover:text-ink"
           }`}
         >
@@ -471,12 +471,12 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       {activeTab === "rooms" && (
         <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-4">
           {/* Important Pricing Guidance */}
-          <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
+          <div className="mb-4 rounded-lg bg-[var(--warn-soft)] border border-[var(--warn)] p-3">
             <div className="flex items-start gap-2">
               <span className="text-amber-400 text-lg">💡</span>
               <div>
-                <h5 className="text-amber-300 font-semibold text-sm mb-1">Important: Base Price Guidelines</h5>
-                <p className="text-amber-200/90 text-xs leading-relaxed">
+                <h5 className="text-[var(--warn)] font-semibold text-sm mb-1">Important: Base Price Guidelines</h5>
+                <p className="text-[var(--warn)] text-xs leading-relaxed">
                   Set your <strong>base prices for ONE season only</strong> (recommend: Regular/Off-Season rates).
                   Avoid mixing peak and off-season rates here. The Pricing Calculator will help you adjust prices
                   for different seasons, demand levels, and days of the week using multipliers.
@@ -516,7 +516,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               </button>
               <button
                 onClick={() => setShowAddRoom(!showAddRoom)}
-                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink text-xs font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink text-xs font-medium transition-all"
               >
                 {showAddRoom ? "Cancel" : "+ Add Room"}
               </button>
@@ -524,8 +524,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           </div>
 
         {error && (
-          <div className="mb-3 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
-            <p className="text-rose-400 text-xs">{error}</p>
+          <div className="mb-3 rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-3">
+            <p className="text-[var(--danger)] text-xs">{error}</p>
           </div>
         )}
 
@@ -601,7 +601,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all"
+              className="px-4 py-1.5 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all"
             >
               {loading ? "Adding..." : "Add Room Type"}
             </button>
@@ -663,12 +663,12 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       {activeTab === "occupancy" && (
         <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-4">
           {/* Important Pricing Guidance */}
-          <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
+          <div className="mb-4 rounded-lg bg-[var(--warn-soft)] border border-[var(--warn)] p-3">
             <div className="flex items-start gap-2">
               <span className="text-amber-400 text-lg">💡</span>
               <div>
-                <h5 className="text-amber-300 font-semibold text-sm mb-1">Remember: Consistent Base Pricing</h5>
-                <p className="text-amber-200/90 text-xs leading-relaxed">
+                <h5 className="text-[var(--warn)] font-semibold text-sm mb-1">Remember: Consistent Base Pricing</h5>
+                <p className="text-[var(--warn)] text-xs leading-relaxed">
                   All occupancy prices should reflect the <strong>same season</strong> (regular/off-season).
                   Use the Pricing Calculator later to adjust for peak seasons, high demand, or special events.
                 </p>
@@ -690,8 +690,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
       {/* Success Message */}
       {saveSuccess && (
-        <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
-          <p className="text-green-400 text-sm text-center">✅ All changes saved successfully!</p>
+        <div className="rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)] p-3">
+          <p className="text-[var(--accent-text)] text-sm text-center">✅ All changes saved successfully!</p>
         </div>
       )}
 
@@ -705,7 +705,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               setSaveSuccess(true);
               setTimeout(() => setSaveSuccess(false), 3000);
             }}
-            className="flex-1 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-ink font-semibold text-sm transition-all"
+            className="flex-1 px-5 py-2.5 rounded-lg bg-[var(--accent)] hover:bg-green-500 text-ink font-semibold text-sm transition-all"
           >
             💾 Save All Changes
           </button>
@@ -714,7 +714,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           <button
             onClick={onCalculate}
             disabled={parentLoading}
-            className="flex-1 px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
+            className="flex-1 px-5 py-2.5 rounded-lg from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
           >
             {parentLoading ? "Calculating..." : "📊 Calculate Pricing"}
           </button>

@@ -223,20 +223,20 @@ export default function DynamicPricing() {
       </div>
 
       {error && (
-        <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-2">
-          <p className="text-rose-400 text-xs">{error}</p>
+        <div className="rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-2">
+          <p className="text-[var(--danger)] text-xs">{error}</p>
         </div>
       )}
 
       {/* Step Navigation */}
       <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
         <div className={`flex-1 text-center py-1.5 rounded text-xs font-medium transition-colors ${
-          step === "setup" ? "bg-indigo-500/20 text-indigo-300" : "muted"
+          step === "setup" ? "bg-[var(--accent)] text-[var(--accent-text)]" : "muted"
         }`}>
           Setup
         </div>
         <div className={`flex-1 text-center py-1.5 rounded text-xs font-medium transition-colors ${
-          step === "results" ? "bg-indigo-500/20 text-indigo-300" : "muted"
+          step === "results" ? "bg-[var(--accent)] text-[var(--accent-text)]" : "muted"
         }`}>
           Calculate
         </div>

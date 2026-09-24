@@ -443,7 +443,7 @@ export default function PricingRecommendations({
         <div className="flex gap-2">
           <button
             onClick={onSaveComparison}
-            className="px-2.5 py-1 rounded-lg bg-green-600 hover:bg-green-500 text-ink text-[10px] font-medium transition-all flex items-center gap-1"
+            className="px-2.5 py-1 rounded-lg bg-[var(--accent)] hover:bg-green-500 text-ink text-[10px] font-medium transition-all flex items-center gap-1"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -459,7 +459,7 @@ export default function PricingRecommendations({
           onClick={() => setViewMode("pricing")}
           className={`px-3 py-1 rounded text-[10px] font-medium transition-all ${
             viewMode === "pricing"
-              ? "bg-indigo-600 text-ink"
+              ? "bg-[var(--accent)] text-ink"
               : "muted hover:text-ink"
           }`}
         >
@@ -469,7 +469,7 @@ export default function PricingRecommendations({
           onClick={() => setViewMode("comparison")}
           className={`px-3 py-1 rounded text-[10px] font-medium transition-all ${
             viewMode === "comparison"
-              ? "bg-indigo-600 text-ink"
+              ? "bg-[var(--accent)] text-ink"
               : "muted hover:text-ink"
           }`}
         >
@@ -490,7 +490,7 @@ export default function PricingRecommendations({
                     onClick={() => setPricingMode("simple")}
                     className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                       pricingMode === "simple"
-                        ? "bg-indigo-600 text-ink"
+                        ? "bg-[var(--accent)] text-ink"
                         : "muted hover:text-ink"
                     }`}
                   >
@@ -500,7 +500,7 @@ export default function PricingRecommendations({
                     onClick={() => setPricingMode("advanced")}
                     className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                       pricingMode === "advanced"
-                        ? "bg-indigo-600 text-ink"
+                        ? "bg-[var(--accent)] text-ink"
                         : "muted hover:text-ink"
                     }`}
                   >
@@ -518,7 +518,7 @@ export default function PricingRecommendations({
                       onChange={(e) => setDynamicExtraRates(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-[var(--surface-2)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <div className="w-9 h-5 bg-[var(--surface-2)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--accent)]"></div>
                   </div>
                 </label>
               </div>
@@ -584,13 +584,13 @@ export default function PricingRecommendations({
                         onClick={() => applyCompetitorPreset(option.key)}
                         className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
                           pricingParams.competitorAdjustment === option.amount
-                            ? 'bg-indigo-600 border-indigo-500 text-ink'
+                            ? 'bg-[var(--accent)] border-[var(--accent)] text-ink'
                             : 'bg-[var(--surface)] border-[var(--border)] muted hover:bg-[var(--surface-2)]'
                         }`}
                       >
                         <span className="text-base">{option.emoji}</span>
                         <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
-                        <span className="text-[9px] text-indigo-300 font-mono">
+                        <span className="text-[9px] text-[var(--accent-text)] font-mono">
                           {option.amount > 0 ? '+₹' : option.amount < 0 ? '₹' : '₹'}{option.amount}
                         </span>
                       </button>
@@ -600,7 +600,7 @@ export default function PricingRecommendations({
                       step="1"
                       value={pricingParams.competitorAdjustment}
                       onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
                       placeholder="Custom amount (₹)"
                     />
                   </div>
@@ -613,7 +613,7 @@ export default function PricingRecommendations({
                         step="10"
                         value={pricingParams.competitorAdjustment}
                         onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
-                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-indigo-500"
+                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
@@ -651,13 +651,13 @@ export default function PricingRecommendations({
                         onClick={() => onParamsChange({ ...pricingParams, lastMinuteMultiplier: option.multiplier })}
                         className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
                           pricingParams.lastMinuteMultiplier === option.multiplier
-                            ? 'bg-indigo-600 border-indigo-500 text-ink'
+                            ? 'bg-[var(--accent)] border-[var(--accent)] text-ink'
                             : 'bg-[var(--surface)] border-[var(--border)] muted hover:bg-[var(--surface-2)]'
                         }`}
                       >
                         <span className="text-base">{option.emoji}</span>
                         <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
-                        <span className="text-[9px] text-indigo-300 font-mono">{option.multiplier}x</span>
+                        <span className="text-[9px] text-[var(--accent-text)] font-mono">{option.multiplier}x</span>
                       </button>
                     ))}
                     <input
@@ -666,7 +666,7 @@ export default function PricingRecommendations({
                       min="0"
                       value={pricingParams.lastMinuteMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
                       placeholder="Custom multiplier"
                     />
                   </div>
@@ -680,7 +680,7 @@ export default function PricingRecommendations({
                         min="0"
                         value={pricingParams.lastMinuteMultiplier}
                         onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
-                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-indigo-500"
+                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
@@ -714,7 +714,7 @@ export default function PricingRecommendations({
                         min="0"
                         value={pricingParams.weekday_multipliers?.[day] || 1.0}
                         onChange={(e) => updateWeekdayMultiplier(day, e.target.value)}
-                        className="w-full px-0.5 py-0.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                        className="w-full px-0.5 py-0.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
                       />
                       <div className="text-[8px] muted mt-0.5">
                         {(pricingParams.weekday_multipliers?.[day] || 1.0).toFixed(1)}x
@@ -742,13 +742,13 @@ export default function PricingRecommendations({
                         onClick={() => applyDemandPreset(option.key)}
                         className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
                           pricingParams.demandMultiplier === option.multiplier
-                            ? 'bg-indigo-600 border-indigo-500 text-ink'
+                            ? 'bg-[var(--accent)] border-[var(--accent)] text-ink'
                             : 'bg-[var(--surface)] border-[var(--border)] muted hover:bg-[var(--surface-2)]'
                         }`}
                       >
                         <span className="text-base">{option.emoji}</span>
                         <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
-                        <span className="text-[9px] text-indigo-300 font-mono">{option.multiplier}x</span>
+                        <span className="text-[9px] text-[var(--accent-text)] font-mono">{option.multiplier}x</span>
                       </button>
                     ))}
                     <input
@@ -757,7 +757,7 @@ export default function PricingRecommendations({
                       min="0"
                       value={pricingParams.demandMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
                       placeholder="Custom multiplier"
                     />
                   </div>
@@ -771,7 +771,7 @@ export default function PricingRecommendations({
                         min="0"
                         value={pricingParams.demandMultiplier}
                         onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
-                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-indigo-500"
+                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
@@ -810,13 +810,13 @@ export default function PricingRecommendations({
                         onClick={() => applySeasonalPreset(option.key)}
                         className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
                           pricingParams.seasonalMultiplier === option.multiplier
-                            ? 'bg-indigo-600 border-indigo-500 text-ink'
+                            ? 'bg-[var(--accent)] border-[var(--accent)] text-ink'
                             : 'bg-[var(--surface)] border-[var(--border)] muted hover:bg-[var(--surface-2)]'
                         }`}
                       >
                         <span className="text-base">{option.emoji}</span>
                         <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
-                        <span className="text-[9px] text-indigo-300 font-mono">{option.multiplier}x</span>
+                        <span className="text-[9px] text-[var(--accent-text)] font-mono">{option.multiplier}x</span>
                       </button>
                     ))}
                     <input
@@ -825,7 +825,7 @@ export default function PricingRecommendations({
                       min="0"
                       value={pricingParams.seasonalMultiplier}
                       onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-[10px] text-center focus:outline-none focus:border-[var(--accent)]"
                       placeholder="Custom multiplier"
                     />
                   </div>
@@ -839,7 +839,7 @@ export default function PricingRecommendations({
                         min="0"
                         value={pricingParams.seasonalMultiplier}
                         onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
-                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-indigo-500"
+                        className="w-24 px-2 py-1 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                     <input
@@ -871,14 +871,14 @@ export default function PricingRecommendations({
                 <select
                   value={roomNameDisplay}
                   onChange={(e) => setRoomNameDisplay(e.target.value)}
-                  className="px-3 py-1.5 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-xs font-medium focus:outline-none focus:border-indigo-500"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-xs font-medium focus:outline-none focus:border-[var(--accent)]"
                 >
                   <option value="abbreviation">Abbreviations</option>
                   <option value="full">Full Names</option>
                 </select>
                 <button
                   onClick={copyEntireTableToClipboard}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium transition-all shadow-lg shadow-green-500/20"
+                  className="px-4 py-2 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium transition-all shadow-lg shadow-green-500/20"
                 >
                   {copyStatus['table'] ? (
                     <span className="text-sm">{copyStatus['table']}</span>
@@ -911,7 +911,7 @@ export default function PricingRecommendations({
                           title="Copy row"
                         >
                           {copyStatus[index] ? (
-                            <span className="text-xs text-green-400">{copyStatus[index]}</span>
+                            <span className="text-xs text-[var(--accent-text)]">{copyStatus[index]}</span>
                           ) : (
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -943,7 +943,7 @@ export default function PricingRecommendations({
             {comparisons.length > 0 && (
               <button
                 onClick={() => comparisons.forEach(c => onRemoveComparison(c.id))}
-                className="text-sm text-rose-400 hover:text-rose-300"
+                className="text-sm text-[var(--danger)] hover:text-[var(--danger)]"
               >
                 Clear All
               </button>
@@ -970,7 +970,7 @@ export default function PricingRecommendations({
                     </div>
                     <button
                       onClick={() => onRemoveComparison(comparison.id)}
-                      className="text-rose-400 hover:text-rose-300"
+                      className="text-[var(--danger)] hover:text-[var(--danger)]"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

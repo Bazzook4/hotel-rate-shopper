@@ -7,13 +7,13 @@
  * no longer exist here.
  */
 export const MODULES = [
-  { id: "cm", label: "Channel Manager", icon: "🔗" },
-  { id: "compshopper", label: "Comp Shopper", icon: "📊" },
-  { id: "parity", label: "Rate Parity", icon: "🧭" },
-  { id: "location", label: "Search by Location", icon: "📍" },
-  { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
-  { id: "setup", label: "Property Setup", icon: "⚙️" },
-  { id: "integrations", label: "Integrations", icon: "🔌" },
+  { id: "cm", label: "Channel Manager", icon: "channel" },
+  { id: "compshopper", label: "Comp Shopper", icon: "chart" },
+  { id: "parity", label: "Rate Parity", icon: "compass" },
+  { id: "location", label: "Search by Location", icon: "pin" },
+  { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
+  { id: "setup", label: "Property Setup", icon: "settings" },
+  { id: "integrations", label: "Integrations", icon: "plug" },
 ];
 
 /** Old dashboard ids that map onto a module here. */
@@ -33,7 +33,7 @@ export function visibleModules(session) {
   );
 
   if (session?.canManageUsers === true) {
-    return [...all, { id: "users", label: "Manage Users", icon: "👥" }];
+    return [...all, { id: "users", label: "Manage Users", icon: "users" }];
   }
 
   const granted = session?.modules || [];

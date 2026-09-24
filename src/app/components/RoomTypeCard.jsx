@@ -49,7 +49,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
     setError("");
   }
 
-  const inputClass = "w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm placeholder:faint focus:outline-none focus:border-indigo-500";
+  const inputClass = "w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm placeholder:faint focus:outline-none focus:border-[var(--accent)]";
 
   function handleRankChange(e) {
     const value = e.target.value;
@@ -68,8 +68,8 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
   return (
     <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] hover:border-white/20 transition-all">
       {error && (
-        <div className="mb-3 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
-          <p className="text-rose-400 text-xs">⚠️ {error}</p>
+        <div className="mb-3 rounded-lg bg-[var(--danger-soft)] border border-[var(--danger)] p-3">
+          <p className="text-[var(--danger)] text-xs">⚠️ {error}</p>
         </div>
       )}
 
@@ -85,7 +85,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                 max={totalRooms}
                 value={rankInput}
                 onChange={handleRankChange}
-                className="w-12 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-indigo-500"
+                className="w-12 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-[var(--accent)]"
                 title="Rank"
               />
             </div>
@@ -105,14 +105,14 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
             <div className="flex gap-1">
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-ink text-xs font-medium transition-all"
+                className="px-2 py-1 rounded bg-[var(--accent)] hover:bg-[var(--accent)] text-ink text-xs font-medium transition-all"
                 title="Edit"
               >
                 ✏️
               </button>
               <button
                 onClick={() => onDelete(room)}
-                className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium transition-colors border border-rose-500/20"
+                className="px-2 py-1 rounded bg-[var(--danger-soft)] hover:bg-[var(--danger-soft)] text-[var(--danger)] text-xs font-medium transition-colors border border-[var(--danger)]"
                 title="Delete"
               >
                 🗑️
@@ -196,7 +196,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all shadow-lg shadow-green-500/20"
+                className="flex-1 px-4 py-2 rounded-lg from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all shadow-lg shadow-green-500/20"
               >
                 {loading ? "💾 Saving..." : "✅ Save Changes"}
               </button>

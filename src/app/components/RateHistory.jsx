@@ -272,7 +272,7 @@ export default function RateHistory({ session }) {
   if (error && history.length === 0) {
     return (
       <div className="rounded-3xl border border-amber-300/30 bg-amber-400/10 p-4 backdrop-blur-xl">
-        <p className="text-sm text-amber-100">{error}</p>
+        <p className="text-sm text-[var(--warn)]">{error}</p>
       </div>
     );
   }
@@ -296,7 +296,7 @@ export default function RateHistory({ session }) {
               <h3 className="h2">{monthName}</h3>
               <button
                 onClick={handleToday}
-                className="mt-1 text-xs text-blue-300 hover:text-blue-200 transition"
+                className="mt-1 text-xs text-[var(--accent-text)] hover:text-[var(--accent-text)] transition"
               >
                 Today
               </button>
@@ -343,10 +343,10 @@ export default function RateHistory({ session }) {
                   className={`
                     aspect-square rounded-xl p-2 transition-all relative
                     ${dayData.hasData
-                      ? 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-2 border-blue-400/30 hover:border-blue-400/60 hover:from-blue-500/30 hover:to-purple-500/30 cursor-pointer'
+                      ? 'bg-gradient-to-br  to-purple-500/20 border-2 border-[var(--accent)] hover:border-[var(--accent)] hover: hover:to-purple-500/30 cursor-pointer'
                       : 'bg-[var(--surface)] border border-[var(--border)] cursor-default'
                     }
-                    ${isSelected ? 'ring-2 ring-blue-400 border-blue-400' : ''}
+                    ${isSelected ? 'ring-2 ring-blue-400 border-[var(--accent)]' : ''}
                     ${isToday ? 'ring-1 ring-amber-400' : ''}
                   `}
                 >
@@ -356,10 +356,10 @@ export default function RateHistory({ session }) {
                     </span>
                     {dayData.hasData && (
                       <div className="mt-auto space-y-0.5">
-                        <div className="text-[9px] text-blue-200 font-medium">
+                        <div className="text-[9px] text-[var(--accent-text)] font-medium">
                           {rateCount} rate{rateCount !== 1 ? 's' : ''}
                         </div>
-                        <div className="text-[8px] text-purple-200 font-medium">
+                        <div className="text-[8px] text-[var(--accent-text)] font-medium">
                           {guestInfo}
                         </div>
                         {dayData.searches.length > 1 && (
@@ -376,7 +376,7 @@ export default function RateHistory({ session }) {
           {/* Legend */}
           <div className="mt-6 pt-4 flex items-center justify-center gap-6 text-xs muted">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-2 border-blue-400/30" />
+              <div className="w-4 h-4 rounded bg-gradient-to-br to-purple-500/20 border-2 border-[var(--accent)]" />
               <span>Has data</span>
             </div>
             <div className="flex items-center gap-2">
@@ -409,7 +409,7 @@ export default function RateHistory({ session }) {
                   {selectedDayData.length} search{selectedDayData.length !== 1 ? 'es' : ''} for this date
                 </span>
                 <span className="faint">•</span>
-                <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-2 py-0.5 text-purple-200">
+                <span className="rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2 py-0.5 text-[var(--accent-text)]">
                   {selectedDayData[0].parsedParams?.adults || 2} adults
                   {selectedDayData[0].parsedParams?.children > 0 && `, ${selectedDayData[0].parsedParams.children} children`}
                 </span>
@@ -418,13 +418,13 @@ export default function RateHistory({ session }) {
 
             {/* Latest Search */}
             <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 px-4 py-3 border-b border-[var(--border)]">
+              <div className="to-purple-500/20 px-4 py-3 border-b border-[var(--border)]">
                 <div className="flex items-center justify-between">
                   <h5 className="h2 text-sm">Latest Search</h5>
                   <button
                     onClick={() => handleRefresh(selectedDayData[0])}
                     disabled={refreshingId === selectedDayData[0].id}
-                    className="rounded-lg bg-blue-500/30 px-3 py-1 text-xs font-medium text-blue-100 hover:bg-blue-500/40 disabled:opacity-50 transition"
+                    className="rounded-lg bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent-text)] hover:bg-[var(--accent)]/40 disabled:opacity-50 transition"
                   >
                     {refreshingId === selectedDayData[0].id ? "..." : "↻ Refresh"}
                   </button>
@@ -447,7 +447,7 @@ export default function RateHistory({ session }) {
                       {sortedRates.map(([source, rate], idx) => (
                         <div key={source} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
                           <span className="sub font-medium">{source}</span>
-                          <span className={`text-base font-semibold ${idx === 0 ? 'text-green-300' : 'text-ink'}`}>
+                          <span className={`text-base font-semibold ${idx === 0 ? 'text-[var(--accent-text)]' : 'text-ink'}`}>
                             {params?.currency || 'INR'} {rate?.toLocaleString()}
                           </span>
                         </div>
@@ -485,7 +485,7 @@ export default function RateHistory({ session }) {
                         <button
                           onClick={() => handleDelete(search)}
                           disabled={deletingId === search.id}
-                          className="text-xs text-rose-300 hover:text-rose-200 disabled:opacity-50 transition"
+                          className="text-xs text-[var(--danger)] hover:text-[var(--danger)] disabled:opacity-50 transition"
                         >
                           {deletingId === search.id ? "..." : "Delete"}
                         </button>
@@ -505,9 +505,9 @@ export default function RateHistory({ session }) {
                                 <span
                                   className={`font-semibold ${
                                     data.change > 0
-                                      ? "text-rose-300"
+                                      ? "text-[var(--danger)]"
                                       : data.change < 0
-                                      ? "text-green-300"
+                                      ? "text-[var(--accent-text)]"
                                       : "muted"
                                   }`}
                                 >
@@ -537,7 +537,7 @@ export default function RateHistory({ session }) {
 
       {/* Error Toast */}
       {error && history.length > 0 && (
-        <div className="fixed bottom-4 right-4 rounded-2xl border border-rose-300/30 bg-rose-500/20 backdrop-blur-xl px-4 py-3 text-sm text-rose-100 shadow-lg">
+        <div className="fixed bottom-4 right-4 rounded-2xl border border-[var(--danger)]/30 bg-[var(--danger-soft)] backdrop-blur-xl px-4 py-3 text-sm text-[var(--danger)] shadow-lg">
           {error}
         </div>
       )}

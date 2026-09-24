@@ -168,8 +168,8 @@ export default function PropertySetup({ session }) {
 
   if (error) {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-        <p className="text-sm text-amber-100">{error}</p>
+      <div className="rounded-xl border border-[var(--warn)] bg-[var(--warn-soft)] p-4">
+        <p className="text-sm text-[var(--warn)]">{error}</p>
         <button
           type="button"
           onClick={load}
