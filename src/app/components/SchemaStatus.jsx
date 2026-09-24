@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
  */
 export default function SchemaStatus() {
   const [state, setState] = useState(null);
+  const [copied, setCopied] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,13 +37,32 @@ export default function SchemaStatus() {
         The deployed app expects database columns that do not exist yet. Run
         these from supabase/migrations in order, then reload:
       </p>
-      <ul className="mt-2 space-y-1">
+      <ul className="mt-2 space-y-2">
         {state.migrations.map((m) => (
-          <li key={m} className="text-xs text-[var(--warn)]">
-            <code className="rounded bg-[var(--surface-2)] px-1.5 py-0.5">{m}.sql</code>
+          <li key={m}>
+            <div className="flex items-center gap-2">
+              <code className="rounded bg-[var(--surface-2)] px-1.5 py-0.5 text-xs">
+                {m}.sql
+              </code>
+              {state.sql?.[m] && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(state.sql[m]);
+                    setCopied(m);
+                  }}
+                  className="btn btn-secondary text-xs"
+                >
+                  {copied === m ? "Copied" : "Copy SQL"}
+                </button>
+              )}
+            </div>
           </li>
         ))}
       </ul>
+      <p className="mt-2 text-[11px] muted">
+        Paste each into the Supabase SQL editor, in order, then reload.
+      </p>
     </div>
   );
 }

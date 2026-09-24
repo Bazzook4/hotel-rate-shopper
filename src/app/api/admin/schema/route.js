@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getSupabaseAdmin } from "@/lib/database";
+import { readFile } from "fs/promises";
+import path from "path";
 
 /**
  * Which migrations still need running.
@@ -21,6 +23,10 @@ const CHECKS = [
   { migration: "008_partner_activities", table: "partners", column: "supports_rates_out" },
   { migration: "009_partner_endpoints", table: "partners", column: "rates_url" },
   { migration: "009_partner_endpoints", table: "partner_reservations", column: "payload" },
+  { migration: "010_code_map_occupancy", table: "integration_code_map", column: "occupancy" },
+  { migration: "010_code_map_occupancy", table: "integration_code_map", column: "extra_adult" },
+  { migration: "011_meal_plans", table: "rate_plans", column: "meal_plan" },
+  { migration: "011_meal_plans", table: "rate_plans", column: "max_stay" },
 ];
 
 export async function GET(req) {
@@ -43,10 +49,25 @@ export async function GET(req) {
     }
   }
 
+  const migrations = [...new Set(pending.map((p) => p.migration))].sort();
+
+  // Include the SQL, so the fix does not depend on finding the file.
+  const sql = {};
+  for (const name of migrations) {
+    try {
+      sql[name] = await readFile(
+        path.join(process.cwd(), "supabase", "migrations", `${name}.sql`),
+        "utf8"
+      );
+    } catch {
+      sql[name] = null;
+    }
+  }
+
   return NextResponse.json({
     ok: pending.length === 0,
     pending,
-    // De-duplicated, in the order they must be applied.
-    migrations: [...new Set(pending.map((p) => p.migration))].sort(),
+    migrations,
+    sql,
   });
 }
