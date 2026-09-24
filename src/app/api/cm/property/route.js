@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { getPropertyDetails, isConfigured, defaultHotelCode } from "@/lib/aiosell";
+import { resolveChannelManager } from "@/lib/cmResolver";
 import { MOCK_PROPERTY } from "@/lib/mock/aiosellProperty";
 
 export async function GET(req) {
@@ -9,14 +9,19 @@ export async function GET(req) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const hotelCode = req.nextUrl.searchParams.get("hotelCode") || defaultHotelCode();
+  const propertyId = req.nextUrl.searchParams.get("propertyId") || undefined;
+  const { client, ready } = await resolveChannelManager(session, { propertyId });
 
-  if (!isConfigured()) {
-    return NextResponse.json({ property: MOCK_PROPERTY, source: "mock" });
+  if (!ready) {
+    return NextResponse.json({
+      property: MOCK_PROPERTY,
+      source: "mock",
+      missing: client.missingFields(),
+    });
   }
 
   try {
-    const property = await getPropertyDetails(hotelCode);
+    const property = await client.getPropertyDetails();
     return NextResponse.json({ property, source: "aiosell" });
   } catch (err) {
     console.error("Aiosell property_details failed", err);

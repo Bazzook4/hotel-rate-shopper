@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PropertyAdmin from "../components/PropertyAdmin";
 import UserList from "../components/UserList";
-import { isAnyAdmin } from "@/lib/permissions";
+import PartnerSettings from "../components/PartnerSettings";
+import { isAnyAdmin, isSuperAdmin } from "@/lib/permissions";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function AdminPage() {
           {[
             ["properties", "Properties"],
             ["users", "Users"],
+            ...(isSuperAdmin(session) ? [["partners", "Partners"]] : []),
           ].map(([id, label]) => (
             <button
               key={id}
@@ -85,6 +87,7 @@ export default function AdminPage() {
 
         {tab === "properties" && <PropertyAdmin session={session} />}
         {tab === "users" && <UserList session={session} />}
+        {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
       </div>
     </main>
   );

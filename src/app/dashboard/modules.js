@@ -13,6 +13,7 @@ export const MODULES = [
   { id: "location", label: "Search by Location", icon: "📍" },
   { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
   { id: "setup", label: "Property Setup", icon: "⚙️" },
+  { id: "integrations", label: "Integrations", icon: "🔌" },
 ];
 
 /** Old dashboard ids that map onto a module here. */
@@ -27,7 +28,9 @@ export function visibleModules(session) {
   // pushed to channels, so it is shown only to users who may actually use it.
   // The API enforces this too -- this just avoids offering a tab that 403s.
   const canSetup = session?.canManageSetup === true;
-  const all = MODULES.filter((m) => m.id !== "setup" || canSetup);
+  const all = MODULES.filter(
+    (m) => !["setup", "integrations"].includes(m.id) || canSetup
+  );
 
   if (session?.canManageUsers === true) {
     return [...all, { id: "users", label: "Manage Users", icon: "👥" }];

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { setChannelMultiplier, isConfigured, defaultHotelCode } from "@/lib/aiosell";
+import { resolveChannelManager } from "@/lib/cmResolver";
 
 export async function POST(req) {
   const session = await getSessionFromRequest(req);
@@ -15,7 +15,7 @@ export async function POST(req) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { multiplier, channels, hotelCode = defaultHotelCode() } = body || {};
+  const { multiplier, channels, propertyId } = body || {};
 
   if (typeof multiplier !== "number" || !Number.isFinite(multiplier) || multiplier <= 0) {
     return NextResponse.json(
@@ -30,7 +30,9 @@ export async function POST(req) {
     );
   }
 
-  if (!isConfigured()) {
+  const { client, ready } = await resolveChannelManager(session, { propertyId });
+
+  if (!ready) {
     return NextResponse.json({
       source: "mock",
       message: `Would set ${multiplier}x on ${channels.join(", ")}`,
@@ -38,7 +40,7 @@ export async function POST(req) {
   }
 
   try {
-    const result = await setChannelMultiplier(multiplier, channels, hotelCode);
+    const result = await client.setChannelMultiplier(multiplier, channels);
     return NextResponse.json({ source: "aiosell", result });
   } catch (err) {
     console.error("Aiosell channel_multiplier failed", err);

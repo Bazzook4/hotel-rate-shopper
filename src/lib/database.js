@@ -979,3 +979,144 @@ export async function listUsersForProperty(propertyId) {
 
   return (users || []).map((u) => ({ ...u, modules: byUser[u.id] || [] }));
 }
+
+// ============================================
+// PARTNERS + PROPERTY INTEGRATIONS
+// ============================================
+
+/** All partners, without secrets. Safe to send to the browser. */
+export async function listPartners() {
+  const { data, error } = await supabase
+    .from('partners')
+    .select('id, slug, name, base_url, partner_id, api_username, enabled, notes, updated_at')
+    .order('name');
+
+  if (error) {
+    throw new Error(`Failed to list partners: ${error.message}`);
+  }
+
+  // Never expose the password; say only whether one is set.
+  return (data || []).map((p) => ({ ...p, has_password: Boolean(p.api_username) }));
+}
+
+/** A partner including its password. Server-side use only. */
+export async function getPartnerBySlug(slug) {
+  const { data, error } = await supabase
+    .from('partners')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to get partner: ${error.message}`);
+  }
+
+  return data || null;
+}
+
+export async function updatePartner(id, updates) {
+  const patch = { updated_at: new Date().toISOString() };
+  for (const key of ['name', 'base_url', 'api_username', 'partner_id', 'enabled', 'notes']) {
+    if (key in updates) patch[key] = updates[key];
+  }
+  // An empty password means "leave unchanged", so it is only written when set.
+  if (updates.api_password) patch.api_password = updates.api_password;
+
+  const { data, error } = await supabase
+    .from('partners')
+    .update(patch)
+    .eq('id', id)
+    .select('id, slug, name, base_url, partner_id, api_username, enabled, notes')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update partner: ${error.message}`);
+  }
+
+  return data;
+}
+
+/** A property's integration with one partner, including its code map. */
+export async function getPropertyIntegration(propertyId, partnerSlug) {
+  const partner = await getPartnerBySlug(partnerSlug);
+  if (!partner) return null;
+
+  const { data: integration, error } = await supabase
+    .from('property_integrations')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('partner_id', partner.id)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    throw new Error(`Failed to get integration: ${error.message}`);
+  }
+
+  if (!integration) return { partner, integration: null, codeMap: [] };
+
+  const { data: codeMap } = await supabase
+    .from('integration_code_map')
+    .select('*')
+    .eq('integration_id', integration.id);
+
+  return { partner, integration, codeMap: codeMap || [] };
+}
+
+export async function upsertPropertyIntegration({ propertyId, partnerId, hotelCode, enabled }) {
+  const { data, error } = await supabase
+    .from('property_integrations')
+    .upsert(
+      {
+        property_id: propertyId,
+        partner_id: partnerId,
+        hotel_code: hotelCode ?? null,
+        enabled: Boolean(enabled),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'property_id,partner_id' }
+    )
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to save integration: ${error.message}`);
+  }
+
+  return data;
+}
+
+/** Replace an integration's code map wholesale. */
+export async function saveIntegrationCodeMap(integrationId, rows) {
+  const { error: delError } = await supabase
+    .from('integration_code_map')
+    .delete()
+    .eq('integration_id', integrationId);
+
+  if (delError) {
+    throw new Error(`Failed to clear code map: ${delError.message}`);
+  }
+
+  const clean = (rows || []).filter(
+    (r) => r.partner_room_code || r.partner_rateplan_code
+  );
+  if (clean.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('integration_code_map')
+    .insert(
+      clean.map((r) => ({
+        integration_id: integrationId,
+        room_type_id: r.room_type_id || null,
+        rate_plan_id: r.rate_plan_id || null,
+        partner_room_code: r.partner_room_code || null,
+        partner_rateplan_code: r.partner_rateplan_code || null,
+      }))
+    )
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to save code map: ${error.message}`);
+  }
+
+  return data || [];
+}

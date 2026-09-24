@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import {
-  pushRates,
-  pushInventory,
-  pushInventoryRestrictions,
-  isConfigured,
-  defaultHotelCode,
-} from "@/lib/aiosell";
+import { resolveChannelManager } from "@/lib/cmResolver";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -41,7 +35,7 @@ export async function POST(req) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { kind, updates, toChannels, hotelCode = defaultHotelCode() } = body || {};
+  const { kind, updates, toChannels, propertyId } = body || {};
   const key = kind === "rates" ? "rates" : "rooms";
 
   if (!["rates", "inventory", "restrictions"].includes(kind)) {
@@ -56,7 +50,9 @@ export async function POST(req) {
     return NextResponse.json({ error: invalid }, { status: 400 });
   }
 
-  if (!isConfigured()) {
+  const { client, ready } = await resolveChannelManager(session, { propertyId });
+
+  if (!ready) {
     const count = updates.reduce((n, u) => n + u[key].length, 0);
     return NextResponse.json({
       source: "mock",
@@ -67,11 +63,11 @@ export async function POST(req) {
   try {
     let result;
     if (kind === "rates") {
-      result = await pushRates(updates, hotelCode);
+      result = await client.pushRates(updates);
     } else if (kind === "inventory") {
-      result = await pushInventory(updates, hotelCode);
+      result = await client.pushInventory(updates);
     } else {
-      result = await pushInventoryRestrictions(updates, { hotelCode, toChannels });
+      result = await client.pushInventoryRestrictions(updates, { toChannels });
     }
     return NextResponse.json({ source: "aiosell", result });
   } catch (err) {
