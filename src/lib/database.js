@@ -829,3 +829,60 @@ export async function updateRatePlanDerivation(id, updates) {
 
   return data;
 }
+
+/**
+ * Users visible to an actor.
+ *
+ * A SuperAdmin sees everyone; anyone else is scoped to a single property.
+ * The user -> property link lives in user_properties, so the rows are
+ * gathered from there and merged onto each user.
+ */
+export async function listUsersForActor({ propertyId = null } = {}) {
+  let userIds = null;
+
+  if (propertyId) {
+    const { data: links, error: linkError } = await supabase
+      .from('user_properties')
+      .select('user_id')
+      .eq('property_id', propertyId);
+
+    if (linkError) {
+      throw new Error(`Failed to list property users: ${linkError.message}`);
+    }
+    userIds = (links || []).map((l) => l.user_id);
+    if (userIds.length === 0) return [];
+  }
+
+  let query = supabase
+    .from('users')
+    .select('id, email, role, status, created_at')
+    .order('created_at', { ascending: false });
+
+  if (userIds) {
+    query = query.in('id', userIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list users: ${error.message}`);
+  }
+
+  const users = data || [];
+  if (users.length === 0) return [];
+
+  // Attach each user's properties in one round trip.
+  const { data: allLinks } = await supabase
+    .from('user_properties')
+    .select('user_id, property_id, properties(name)')
+    .in('user_id', users.map((u) => u.id));
+
+  const byUser = {};
+  for (const link of allLinks || []) {
+    (byUser[link.user_id] ||= []).push({
+      id: link.property_id,
+      name: link.properties?.name || null,
+    });
+  }
+
+  return users.map((u) => ({ ...u, properties: byUser[u.id] || [] }));
+}
