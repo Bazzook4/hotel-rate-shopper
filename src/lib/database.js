@@ -720,7 +720,12 @@ export async function canManageSetup(userId) {
     .single();
 
   if (error || !data) return false;
-  return data.role === 'Admin' || data.can_manage_setup === true;
+  // SuperAdmin and PropertyAdmin may configure setup; 'Admin' is the
+  // pre-migration name for SuperAdmin and is still honoured.
+  return (
+    ['SuperAdmin', 'PropertyAdmin', 'Admin'].includes(data.role) ||
+    data.can_manage_setup === true
+  );
 }
 
 export async function setUserCanManageSetup(userId, canManage) {

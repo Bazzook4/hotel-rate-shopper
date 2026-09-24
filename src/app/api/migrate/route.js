@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
+import { isSuperAdmin } from '@/lib/permissions';
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
@@ -15,7 +16,7 @@ export async function POST(req) {
   if (!session) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (session.role !== 'Admin') {
+  if (!isSuperAdmin(session)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

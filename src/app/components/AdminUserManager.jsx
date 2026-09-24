@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-
-const roles = [
-  { value: "PropertyUser", label: "Property User" },
-  { value: "Admin", label: "Admin" },
-];
+import { assignableRoles, canSwitchProperties } from "@/lib/permissions";
 
 const statuses = [
   { value: "Active", label: "Active" },
@@ -13,15 +9,16 @@ const statuses = [
 ];
 
 const availableModules = [
-  { id: "ratetracker", label: "Rate Tracker", icon: "🔍", description: "Single search rate tracking" },
-  { id: "history", label: "Rate History", icon: "📈", description: "View historical rate data" },
-  { id: "compare", label: "Compare Hotels", icon: "🔎", description: "CompSet editor and comparison" },
+  { id: "cm", label: "Channel Manager", icon: "🔗", description: "Rates and inventory to OTAs" },
+  { id: "compshopper", label: "Comp Shopper", icon: "📊", description: "Comp set rate comparison" },
+  { id: "parity", label: "Rate Parity", icon: "🧭", description: "OTA spread analysis" },
   { id: "location", label: "Search by Location", icon: "📍", description: "Location-based search" },
-  { id: "disparity", label: "Disparity Checker", icon: "🧭", description: "OTA spread analysis" },
   { id: "pricing", label: "Dynamic Pricing", icon: "💰", description: "Smart pricing optimization" },
+  { id: "setup", label: "Property Setup", icon: "⚙️", description: "Room types and rate plans" },
 ];
 
-export default function AdminUserManager() {
+export default function AdminUserManager({ session }) {
+  const roles = useMemo(() => assignableRoles(session), [session]);
   const [properties, setProperties] = useState([]);
   const [loadingProps, setLoadingProps] = useState(true);
   const [error, setError] = useState("");
@@ -44,7 +41,10 @@ export default function AdminUserManager() {
         if (!res.ok) throw new Error("Failed to load properties");
         const json = await res.json();
         setProperties(json.properties || []);
-        if (!form.propertyId && json.properties?.length) {
+        // A PropertyAdmin may only create users within their own property.
+        if (!canSwitchProperties(session) && session?.propertyId) {
+          setForm((prev) => ({ ...prev, propertyId: session.propertyId }));
+        } else if (!form.propertyId && json.properties?.length) {
           setForm((prev) => ({ ...prev, propertyId: json.properties[0].id }));
         }
       } catch (err) {

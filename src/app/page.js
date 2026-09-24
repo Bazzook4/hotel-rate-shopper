@@ -153,7 +153,7 @@ export default function V2Dashboard() {
 
               {active === "setup" && <PropertySetup session={session} />}
 
-              {active === "users" && session?.role === "Admin" && (
+              {active === "users" && session?.canManageUsers && (
                 <div className="space-y-4">
                   <div>
                     <h2 className="text-3xl font-semibold text-white">Manage Users</h2>
@@ -161,7 +161,7 @@ export default function V2Dashboard() {
                       Provision access and assign modules.
                     </p>
                   </div>
-                  <AdminUserManager />
+                  <AdminUserManager session={session} />
                 </div>
               )}
             </>

@@ -446,7 +446,7 @@ export default function Page() {
                         </p>
                       </div>
                     </div>
-                    <AdminUserManager />
+                    <AdminUserManager session={session} />
                   </div>
                 )}
               </>

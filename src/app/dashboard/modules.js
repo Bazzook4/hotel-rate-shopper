@@ -26,10 +26,10 @@ export function visibleModules(session) {
   // Property Setup edits room types and rate plans, which drive what gets
   // pushed to channels, so it is shown only to users who may actually use it.
   // The API enforces this too -- this just avoids offering a tab that 403s.
-  const canSetup = session?.role === "Admin" || session?.canManageSetup === true;
+  const canSetup = session?.canManageSetup === true;
   const all = MODULES.filter((m) => m.id !== "setup" || canSetup);
 
-  if (session?.role === "Admin") {
+  if (session?.canManageUsers === true) {
     return [...all, { id: "users", label: "Manage Users", icon: "👥" }];
   }
 

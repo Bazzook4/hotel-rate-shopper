@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import {
+  canManageSetup,
+  canManageUsers,
+  canSwitchProperties,
+  isSuperAdmin,
+} from "@/lib/permissions";
 import { getUserById, getPropertyById, getUserModules } from "@/lib/database";
 
 export async function GET(request) {
@@ -27,7 +33,10 @@ export async function GET(request) {
       id: user.id,
       email: user.email,
       role: user.role || null,
-      canManageSetup: user.role === "Admin" || user.can_manage_setup === true,
+      canManageSetup: canManageSetup(user),
+      canManageUsers: canManageUsers(user),
+      canSwitchProperties: canSwitchProperties(user),
+      isSuperAdmin: isSuperAdmin(user),
       status: user.status || null,
       propertyId,
       propertyName: property?.name || null,

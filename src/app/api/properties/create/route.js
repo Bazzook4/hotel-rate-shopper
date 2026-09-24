@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/permissions";
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -11,7 +12,7 @@ export async function POST(request) {
   const session = await getSessionFromRequest(request);
 
   // Only admins can create properties
-  if (!session || session.role !== "Admin") {
+  if (!session || !isSuperAdmin(session)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
