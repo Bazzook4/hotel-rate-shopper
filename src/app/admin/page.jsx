@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import PropertyManager from "../components/PropertyManager";
 import { canManageProperties } from "@/lib/permissions";
 
-export default function ManagePropertiesPage() {
+export default function AdminPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
