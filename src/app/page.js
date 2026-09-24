@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { visibleModules } from "./dashboard/modules";
+import { visibleAreas, areaForPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
 import ChannelManager from "./dashboard/components/ChannelManager";
 import PropertySetup from "./dashboard/components/PropertySetup";
 import Integrations from "./dashboard/components/Integrations";
@@ -13,10 +13,41 @@ import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
 import Icon from "./components/Icon";
 
+/**
+ * A page that is agreed but not yet built.
+ *
+ * Shown instead of leaving the nav item inert, so it is clear the page is
+ * planned rather than broken.
+ */
+function ComingSoon({ title, children }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="h1">{title}</h2>
+      </div>
+      <div className="card card-pad text-center" style={{ padding: "48px 24px" }}>
+        <span
+          className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full"
+          style={{ background: "var(--surface-2)", color: "var(--text-faint)" }}
+        >
+          <Icon name="info" />
+        </span>
+        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
+          Not built yet
+        </p>
+        <p className="sub mx-auto mt-1 max-w-[420px]">{children}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [active, setActive] = useState("cm");
+  // The sidebar collapses to give the grid its full width, which matters most
+  // on the Channel Manager's 30-day view.
+  const [railOpen, setRailOpen] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,166 +69,260 @@ export default function V2Dashboard() {
     };
   }, []);
 
-  const navItems = useMemo(() => visibleModules(session), [session]);
+  const areas = useMemo(() => visibleAreas(session), [session]);
+
+  // The top bar follows the open page rather than being selected separately,
+  // so switching areas and landing on a page keep one source of truth.
+  const currentArea = useMemo(() => areaForPage(areas, active), [areas, active]);
 
   useEffect(() => {
-    if (navItems.length && !navItems.some((i) => i.id === active)) {
-      setActive(navItems[0].id);
+    const exists = areas.some((a) => a.pages.some((p) => p.id === active));
+    if (areas.length && !exists) {
+      setActive(areas[0].pages[0].id);
     }
-  }, [navItems, active]);
+  }, [areas, active]);
+
+  const pageLabel = currentArea?.pages.find((p) => p.id === active)?.label || "";
 
   return (
-    <main className="flex min-h-screen">
-      <aside
-        className="sticky top-0 h-screen w-[230px] flex-shrink-0 overflow-y-auto"
+    <main className="min-h-screen" style={{ background: "var(--page)" }}>
+      {/* Row 1 — brand, property, account */}
+      <header
+        className="sticky top-0 z-30 flex h-[46px] items-center justify-between px-4"
         style={{
           background: "var(--surface)",
-          borderRight: "1px solid var(--border)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="p-4">
-          <div className="mb-6 flex items-center gap-2.5">
-            <span
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-sm font-bold"
-              style={{ background: "var(--accent)", color: "#fff" }}
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-[22px] w-[22px] items-center justify-center rounded text-[10px] font-bold"
+            style={{ background: "var(--accent)", color: "#fff" }}
+          >
+            RS
+          </span>
+          <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+            Rate Shopper
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {session?.propertyName && (
+            <span className="mr-2 text-sm" style={{ color: "var(--text-muted)" }}>
+              {session.propertyName}
+            </span>
+          )}
+          <Link
+            href="/admin"
+            className="rounded px-2 py-1 text-xs transition hover:opacity-70"
+            style={{ color: "var(--text-muted)" }}
+          >
+            Admin
+          </Link>
+          <ThemeToggle />
+          <LogoutButton />
+        </div>
+      </header>
+
+      {/* Row 2 — areas */}
+      <nav
+        className="sticky top-[46px] z-20 flex items-center gap-1 px-4"
+        style={{
+          background: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        {areas.map((area) => {
+          const on = currentArea?.id === area.id;
+          return (
+            <button
+              key={area.id}
+              type="button"
+              // Entering an area opens its first page, so a tab click always
+              // lands somewhere rather than leaving the content blank.
+              onClick={() => setActive(area.pages[0].id)}
+              className="relative px-3 py-2.5 text-[13px] transition"
+              style={{
+                color: on ? "var(--accent-text)" : "var(--text-muted)",
+                fontWeight: on ? 600 : 500,
+              }}
             >
-              RS
-            </span>
-            <span>
-              <span className="block text-sm font-semibold" style={{ color: "var(--text)" }}>
-                Rate Shopper
-              </span>
-              <span className="block text-[11px] faint">Distribution &amp; pricing</span>
-            </span>
+              {area.label}
+              {on && (
+                <span
+                  className="absolute inset-x-2 bottom-0 h-[2px] rounded-t"
+                  style={{ background: "var(--accent)" }}
+                />
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="flex">
+        {/* Sidebar — the pages of the open area */}
+        <aside
+          className="sticky top-[84px] h-[calc(100vh-84px)] flex-shrink-0 overflow-y-auto transition-all"
+          style={{
+            width: railOpen ? 208 : 44,
+            background: "var(--surface)",
+            borderRight: "1px solid var(--border)",
+          }}
+        >
+          <div className="flex justify-end px-2 py-2">
+            <button
+              type="button"
+              onClick={() => setRailOpen((v) => !v)}
+              aria-label={railOpen ? "Collapse menu" : "Expand menu"}
+              title={railOpen ? "Collapse menu" : "Expand menu"}
+              className="rounded px-1.5 py-1 text-xs transition hover:opacity-70"
+              style={{ color: "var(--text-faint)" }}
+            >
+              {railOpen ? "«" : "»"}
+            </button>
           </div>
 
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider faint">
-            Menu
-          </p>
+          <nav className="flex flex-col gap-0.5 px-2 pb-4">
+            {railOpen && (
+              <p
+                className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--text-faint)" }}
+              >
+                {currentArea?.label}
+              </p>
+            )}
 
-          <nav className="flex flex-col gap-0.5">
-            {navItems.map((item) => {
-              const on = active === item.id;
+            {currentArea?.pages.map((page) => {
+              const on = active === page.id;
+              const soon = PLACEHOLDER_PAGES.has(page.id);
               return (
                 <button
-                  key={item.id}
+                  key={page.id}
                   type="button"
-                  onClick={() => setActive(item.id)}
-                  className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition"
+                  onClick={() => setActive(page.id)}
+                  title={railOpen ? undefined : page.label}
+                  className="flex items-center gap-2.5 rounded px-2 py-[7px] text-left text-[13px] transition"
                   style={{
                     background: on ? "var(--accent-soft)" : "transparent",
                     color: on ? "var(--accent-text)" : "var(--text-muted)",
                     fontWeight: on ? 600 : 500,
                   }}
                 >
-                  <Icon name={item.icon} />
-                  <span>{item.label}</span>
+                  <span className="flex-shrink-0">
+                    <Icon name={page.icon} />
+                  </span>
+                  {railOpen && (
+                    <>
+                      <span className="flex-1 truncate">{page.label}</span>
+                      {soon && (
+                        <span
+                          className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
+                          style={{
+                            background: "var(--surface-2)",
+                            color: "var(--text-faint)",
+                          }}
+                        >
+                          Soon
+                        </span>
+                      )}
+                    </>
+                  )}
                 </button>
               );
             })}
           </nav>
+        </aside>
 
-          <div
-            className="mt-6 space-y-1 pt-4"
-            style={{ borderTop: "1px solid var(--border)" }}
-          >
-            <Link
-              href="/admin"
-              className="block rounded-lg px-3 py-2 text-sm muted transition hover:opacity-80"
-            >
-              Admin
-            </Link>
-            <ThemeToggle className="w-full justify-start px-3" />
-            <LogoutButton />
-          </div>
-        </div>
-      </aside>
-
-      <section className="flex-1 overflow-x-hidden">
-        <div className="mx-auto max-w-[1400px] p-6">
-          {sessionLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="space-y-3 text-center">
-                <div
-                  className="inline-block h-7 w-7 animate-spin rounded-full border-2"
-                  style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }}
-                />
-                <p className="sub">Loading dashboard…</p>
+        {/* Content */}
+        <section className="min-w-0 flex-1">
+          <div className="mx-auto max-w-[1400px] p-6">
+            {sessionLoading ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="space-y-3 text-center">
+                  <div
+                    className="inline-block h-7 w-7 animate-spin rounded-full border-2"
+                    style={{
+                      borderColor: "var(--border)",
+                      borderTopColor: "var(--accent)",
+                    }}
+                  />
+                  <p className="sub">Loading dashboard…</p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {active === "cm" && <ChannelManager />}
+            ) : (
+              <>
+                {active === "cm" && <ChannelManager />}
 
-              {active === "compshopper" && (
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="h1">Comp Shopper</h2>
-                    <p className="sub">
-                      Calendar view of your rate against the comp set median.
-                    </p>
+                {active === "integrations" && <Integrations session={session} />}
+
+                {active === "parity" && (
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="h1">Rate Parity</h2>
+                      <p className="sub">
+                        Audit OTA spreads for a specific hotel and highlight actionable
+                        gaps.
+                      </p>
+                    </div>
+                    <DisparityChecker defaultHotelName={session?.propertyName} />
                   </div>
-                  <div className="card card-pad text-center">
-                    <p className="sub">
-                      Calendar grid is the next build step.
-                    </p>
-                    <p className="mt-1 text-xs faint">
-                      Stored rates with a refresh control, median per date, colour-coded
-                      against your own rate.
-                    </p>
+                )}
+
+                {active === "pricing" && <DynamicPricing />}
+
+                {/* Property Setup renders room types and rate plans together;
+                    both Setup pages open it until they are split apart. */}
+                {(active === "setup" ||
+                  active === "rooms" ||
+                  active === "rateplans") && <PropertySetup session={session} />}
+
+                {active === "users" && session?.canManageUsers && (
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="h1">Users</h2>
+                      <p className="sub">Provision access and assign modules.</p>
+                    </div>
+                    <AdminUserManager session={session} />
                   </div>
-                </div>
-              )}
+                )}
 
-              {active === "parity" && (
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="h1">Rate Parity</h2>
-                    <p className="sub">
-                      Audit OTA spreads for a specific hotel and highlight actionable gaps.
-                    </p>
-                  </div>
-                  <DisparityChecker defaultHotelName={session?.propertyName} />
-                </div>
-              )}
+                {active === "calendar" && (
+                  <ComingSoon title="Calendar">
+                    A month view of arrivals, departures and occupancy. Part of the
+                    Front Office build.
+                  </ComingSoon>
+                )}
 
-              {active === "location" && (
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="h1">Search by Location</h2>
-                    <p className="sub">
-                      Surface the strongest offers in a destination.
-                    </p>
-                  </div>
-                  <div className="card card-pad text-center">
-                    <p className="sub">
-                      Carried over from v1 in the next step.
-                    </p>
-                  </div>
-                </div>
-              )}
+                {active === "reservations" && (
+                  <ComingSoon title="Reservations">
+                    Create and manage direct bookings. Part of the Front Office build.
+                  </ComingSoon>
+                )}
 
-              {active === "pricing" && <DynamicPricing />}
+                {active === "workflow" && (
+                  <ComingSoon title="Workflow">
+                    Automations across distribution — rules that act on rates and
+                    inventory without manual steps.
+                  </ComingSoon>
+                )}
 
-              {active === "setup" && <PropertySetup session={session} />}
+                {active === "compshopper" && (
+                  <ComingSoon title="Competitor Shopper">
+                    A calendar of your rate against the comp set median, colour-coded
+                    per date.
+                  </ComingSoon>
+                )}
 
-              {active === "integrations" && <Integrations session={session} />}
-
-              {active === "users" && session?.canManageUsers && (
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="h1">Manage Users</h2>
-                    <p className="sub">
-                      Provision access and assign modules.
-                    </p>
-                  </div>
-                  <AdminUserManager session={session} />
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </section>
+                {active === "location" && (
+                  <ComingSoon title="Search by Location">
+                    Surface the strongest offers in a destination.
+                  </ComingSoon>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

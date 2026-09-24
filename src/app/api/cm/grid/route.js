@@ -7,6 +7,7 @@ import {
   getPropertyIntegration,
   getUserPropertyId,
   listDailyRates,
+  listDailyRestrictions,
 } from "@/lib/database";
 import { resolveAllRates } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
@@ -44,12 +45,29 @@ export async function GET(req) {
     const start = req.nextUrl.searchParams.get("start");
     const end = req.nextUrl.searchParams.get("end");
 
-    const [roomTypes, ratePlans, integration, stored] = await Promise.all([
-      listRoomTypes(propertyId),
-      listRatePlans(propertyId),
-      getPropertyIntegration(propertyId, "aiosell").catch(() => null),
-      start && end ? listDailyRates(propertyId, start, end).catch(() => []) : [],
-    ]);
+    const [roomTypes, ratePlans, integration, stored, storedRestrictions] =
+      await Promise.all([
+        listRoomTypes(propertyId),
+        listRatePlans(propertyId),
+        getPropertyIntegration(propertyId, "aiosell").catch(() => null),
+        start && end ? listDailyRates(propertyId, start, end).catch(() => []) : [],
+        start && end
+          ? listDailyRestrictions(propertyId, start, end).catch(() => [])
+          : [],
+      ]);
+
+    // Per-date restrictions, keyed "<ratePlanId>|<date>". A null field means
+    // nothing is set for that date, so the plan's own value still applies --
+    // the grid renders that as "inherit", not as a value of its own.
+    const dailyRestrictions = {};
+    for (const row of storedRestrictions) {
+      dailyRestrictions[`${row.rate_plan_id}|${row.stay_date}`] = {
+        stopSell: row.stop_sell,
+        minStay: row.min_stay,
+        maxStay: row.max_stay,
+        pushed: Boolean(row.pushed_at),
+      };
+    }
 
     // Stored rates win over the plan's base price, keyed the same way the
     // grid keys its cells.
@@ -130,6 +148,7 @@ export async function GET(req) {
       propertyId,
       rooms,
       dailyRates,
+      dailyRestrictions,
       connected: Boolean(integration?.integration?.enabled),
       hotelCode: integration?.integration?.hotel_code || null,
       unmappedRooms: unmapped,

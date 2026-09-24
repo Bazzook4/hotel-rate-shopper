@@ -1293,3 +1293,80 @@ export async function markRatesPushed(propertyId, rows) {
       .eq('stay_date', r.stay_date);
   }
 }
+
+// ============================================
+// DAILY RESTRICTIONS
+// ============================================
+
+/** Stored per-date restrictions for a property across a date window. */
+export async function listDailyRestrictions(propertyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('daily_restrictions')
+    .select('rate_plan_id, stay_date, stop_sell, min_stay, max_stay, pushed_at')
+    .eq('property_id', propertyId)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate);
+
+  if (error) {
+    throw new Error(`Failed to list restrictions: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Save edited restrictions. Each row is one (rate plan, date).
+ *
+ * A field left undefined is stored as NULL, meaning "nothing set for this
+ * date" -- the rate plan's own value then applies. That is why the numbers
+ * are not coerced with `|| null`: 0 is invalid here, but undefined and null
+ * both legitimately mean "unset".
+ */
+export async function saveDailyRestrictions(propertyId, rows) {
+  const num = (v) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  };
+
+  const clean = (rows || [])
+    .filter((r) => r.rate_plan_id && r.stay_date)
+    .map((r) => ({
+      property_id: propertyId,
+      rate_plan_id: r.rate_plan_id,
+      stay_date: r.stay_date,
+      stop_sell:
+        r.stop_sell === null || r.stop_sell === undefined
+          ? null
+          : Boolean(r.stop_sell),
+      min_stay: num(r.min_stay),
+      max_stay: num(r.max_stay),
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (clean.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('daily_restrictions')
+    .upsert(clean, { onConflict: 'rate_plan_id,stay_date' })
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to save restrictions: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/** Mark restriction rows as sent, mirroring markRatesPushed. */
+export async function markRestrictionsPushed(propertyId, rows) {
+  const now = new Date().toISOString();
+  for (const r of rows || []) {
+    await supabase
+      .from('daily_restrictions')
+      .update({ pushed_at: now })
+      .eq('property_id', propertyId)
+      .eq('rate_plan_id', r.rate_plan_id)
+      .eq('stay_date', r.stay_date);
+  }
+}

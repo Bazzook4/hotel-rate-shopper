@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 
 const CHANNEL_LABELS = {
@@ -37,6 +37,24 @@ function buildDates(start, days) {
   return out;
 }
 
+/**
+ * Combine two stay limits where null means "no limit set".
+ *
+ * A null side loses to a set value, so merging an unrestricted plan with a
+ * restricted one keeps the restriction rather than discarding it.
+ */
+function maxOf(a, b) {
+  if (a === null || a === undefined) return b ?? null;
+  if (b === null || b === undefined) return a;
+  return Math.max(a, b);
+}
+
+function minOf(a, b) {
+  if (a === null || a === undefined) return b ?? null;
+  if (b === null || b === undefined) return a;
+  return Math.min(a, b);
+}
+
 function formatDay(iso) {
   const d = new Date(`${iso}T00:00:00Z`);
   return {
@@ -65,7 +83,17 @@ export default function ChannelManager() {
   // Edited rates, keyed "<rateplanId>|<date>". Unedited cells fall back to
   // the stored value, so only changes are held here.
   const [rates, setRates] = useState({});
-  const dirty = Object.keys(rates).length;
+  // Edited restrictions, keyed "<rateplanId>|<date>". Each value is a partial
+  // patch -- only the fields actually touched -- merged over the stored row
+  // when rendering and when saving.
+  const [restrictions, setRestrictions] = useState({});
+  // Which metric each rate plan's row is showing, keyed by plan id. Rows
+  // default to rates; picking another metric swaps the cells in place rather
+  // than adding rows, so the grid keeps one line per rate plan.
+  const [planView, setPlanView] = useState({});
+  const dirtyRates = Object.keys(rates).length;
+  const dirtyRestrictions = Object.keys(restrictions).length;
+  const dirty = dirtyRates + dirtyRestrictions;
 
   const dates = useMemo(
     () => buildDates(new Date(`${anchor}T00:00:00Z`), days),
@@ -182,7 +210,22 @@ export default function ChannelManager() {
       return { rate_plan_id, occupancy: Number(occupancy), stay_date, rate: value };
     });
 
-    if (rows.length === 0) {
+    // A restriction patch holds only the fields touched, so it is merged over
+    // whatever is already stored for that date before being sent.
+    const storedRestrictions = grid?.dailyRestrictions || {};
+    const restrictionRows = Object.entries(restrictions).map(([key, patch]) => {
+      const [rate_plan_id, stay_date] = key.split("|");
+      const base = storedRestrictions[key] || {};
+      const merged = {
+        stop_sell: base.stopSell ?? null,
+        min_stay: base.minStay ?? null,
+        max_stay: base.maxStay ?? null,
+        ...patch,
+      };
+      return { rate_plan_id, stay_date, ...merged };
+    });
+
+    if (rows.length === 0 && restrictionRows.length === 0) {
       setNotice("No changes to publish.");
       return;
     }
@@ -191,16 +234,29 @@ export default function ChannelManager() {
     setNotice("");
 
     try {
-      const saveRes = await fetch("/api/cm/rates", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rates: rows }),
-      });
-      const saveJson = await saveRes.json();
-      if (!saveRes.ok) throw new Error(saveJson?.error || "Could not save rates");
+      if (rows.length > 0) {
+        const saveRes = await fetch("/api/cm/rates", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rates: rows }),
+        });
+        const saveJson = await saveRes.json();
+        if (!saveRes.ok) throw new Error(saveJson?.error || "Could not save rates");
+      }
+
+      if (restrictionRows.length > 0) {
+        const res = await fetch("/api/cm/restrictions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ restrictions: restrictionRows }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Could not save restrictions");
+      }
 
       // Saved, so the edits are safe from here on.
       setRates({});
+      setRestrictions({});
 
       const byDate = {};
       for (const row of rows) {
@@ -222,25 +278,109 @@ export default function ChannelManager() {
         rates: entries,
       }));
 
-      const pushRes = await fetch("/api/cm/push", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "rates", updates }),
-      });
-      const pushJson = await pushRes.json();
+      let pushJson = null;
+      if (updates.length > 0) {
+        const pushRes = await fetch("/api/cm/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "rates", updates }),
+        });
+        pushJson = await pushRes.json();
 
-      if (!pushRes.ok) {
-        // The rates are stored; only the send failed.
-        await load();
-        throw new Error(
-          `${pushJson?.error || "Push failed"} Your changes are saved and can be published again.`
+        if (!pushRes.ok) {
+          // The rates are stored; only the send failed.
+          await load();
+          throw new Error(
+            `${pushJson?.error || "Push failed"} Your changes are saved and can be published again.`
+          );
+        }
+      }
+
+      // Aiosell takes restrictions per room type, not per rate plan, so plans
+      // sharing a room on the same date collapse into one entry. Where two
+      // plans on that room disagree, the stricter value is sent: a stop sell
+      // anywhere closes the room, the longest minimum and the shortest
+      // maximum win. Pushing them separately would mean the last one written
+      // silently overwrote the others.
+      const restrictionsByDate = {};
+      for (const row of restrictionRows) {
+        const room = (grid?.rooms || []).find((r) =>
+          r.plans.some((p) => p.id === row.rate_plan_id)
         );
+        if (!room) continue;
+        const byRoom = (restrictionsByDate[row.stay_date] ||= {});
+        const prev = byRoom[room.id];
+        byRoom[room.id] = prev
+          ? {
+              stopSell: Boolean(prev.stopSell || row.stop_sell),
+              minStay: maxOf(prev.minStay, row.min_stay),
+              maxStay: minOf(prev.maxStay, row.max_stay),
+            }
+          : {
+              stopSell: Boolean(row.stop_sell),
+              minStay: row.min_stay ?? null,
+              maxStay: row.max_stay ?? null,
+            };
+      }
+
+      const restrictionUpdates = Object.entries(restrictionsByDate).map(
+        ([date, byRoom]) => ({
+          startDate: date,
+          endDate: date,
+          rooms: Object.entries(byRoom).map(([roomCode, r]) => ({
+            roomCode,
+            restrictions: {
+              stopSell: r.stopSell,
+              minimumStay: r.minStay,
+              maximumStay: r.maxStay,
+              closeOnArrival: false,
+              closeOnDeparture: false,
+              minimumStayArrival: null,
+              maximumStayArrival: null,
+              exactStayArrival: null,
+              minimumAdvanceReservation: null,
+              maximumAdvanceReservation: null,
+            },
+          })),
+        })
+      );
+
+      let restrictionJson = null;
+      if (restrictionUpdates.length > 0) {
+        const res = await fetch("/api/cm/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            kind: "restrictions",
+            updates: restrictionUpdates,
+          }),
+        });
+        restrictionJson = await res.json();
+
+        if (!res.ok) {
+          await load();
+          throw new Error(
+            `${restrictionJson?.error || "Restriction push failed"} Your changes are saved and can be published again.`
+          );
+        }
       }
 
       await load();
+      const parts = [];
+      if (rows.length > 0) {
+        parts.push(`${rows.length} rate${rows.length === 1 ? "" : "s"}`);
+      }
+      if (restrictionRows.length > 0) {
+        parts.push(
+          `${restrictionRows.length} restriction${
+            restrictionRows.length === 1 ? "" : "s"
+          }`
+        );
+      }
       setNotice(
-        pushJson.message ||
-          `Published ${rows.length} rate${rows.length === 1 ? "" : "s"}.`
+        pushJson?.message ||
+          restrictionJson?.message ||
+          `Published ${parts.join(" and ")}.`
       );
     } catch (err) {
       setNotice(err.message);
@@ -475,6 +615,18 @@ export default function ChannelManager() {
                 onRateChange={(key, value) =>
                   setRates((prev) => ({ ...prev, [key]: value }))
                 }
+                restrictions={restrictions}
+                storedRestrictions={grid?.dailyRestrictions || {}}
+                planView={planView}
+                onPlanViewChange={(planId, view) =>
+                  setPlanView((p) => ({ ...p, [planId]: view }))
+                }
+                onRestrictionChange={(key, field, value) =>
+                  setRestrictions((prev) => ({
+                    ...prev,
+                    [key]: { ...prev[key], [field]: value },
+                  }))
+                }
               />
             ))}
             {rooms.length === 0 && (
@@ -503,6 +655,11 @@ function ExpandableRoom({
   rates,
   stored,
   onRateChange,
+  restrictions,
+  storedRestrictions,
+  planView,
+  onPlanViewChange,
+  onRestrictionChange,
 }) {
   return (
     <>
@@ -528,58 +685,181 @@ function ExpandableRoom({
       </tr>
 
       {open &&
-        room.plans.map((plan) =>
-          plan.occupancies.map((occ, i) => (
-            <tr key={`${plan.id}-${occ.occupancy}`}>
-              <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-1.5 pl-10">
-                {i === 0 && (
-                  <span className="flex items-center gap-2">
-                    <span className="chip chip-off font-mono">{plan.label}</span>
-                    <span className="text-sm text-ink">{plan.name}</span>
-                    {plan.restrictions.stopSell && (
-                      <span className="chip chip-warn">Stop sell</span>
+        room.plans.map((plan) => {
+          const view = planView[plan.id] || "rates";
+          // Rates are priced per occupancy; a restriction applies to the whole
+          // rate plan, so those views collapse to a single row.
+          const rows =
+            view === "rates" ? plan.occupancies : [plan.occupancies[0]];
+
+          return (
+            <Fragment key={plan.id}>
+              {rows.map((occ, i) => (
+                <tr key={`${plan.id}-${view}-${occ.occupancy}`}>
+                  <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-1.5 pl-10">
+                    {i === 0 && (
+                      <span className="flex items-center gap-2">
+                        <span className="chip chip-off font-mono">
+                          {plan.label}
+                        </span>
+                        <span className="text-sm text-ink">{plan.name}</span>
+                        {plan.restrictions.stopSell && (
+                          <span className="chip chip-warn">Stop sell</span>
+                        )}
+                        <select
+                          value={view}
+                          onChange={(e) =>
+                            onPlanViewChange(plan.id, e.target.value)
+                          }
+                          title="Choose what this row shows across the dates"
+                          className="rounded border px-1.5 py-0.5 text-xs uppercase tracking-wide"
+                          style={{
+                            background: "var(--surface-2)",
+                            borderColor:
+                              view === "rates"
+                                ? "var(--border)"
+                                : "var(--accent)",
+                            color: "var(--text)",
+                          }}
+                          aria-label={`What to show for ${plan.name}`}
+                        >
+                          <option value="rates">Rates</option>
+                          <option value="min_stay">Min nights</option>
+                          <option value="max_stay">Max nights</option>
+                          <option value="stop_sell">Stop sell</option>
+                        </select>
+                      </span>
                     )}
-                  </span>
-                )}
-                <span className="block text-xs muted">
-                  Adult {occ.occupancy}
-                  {occ.partnerCode ? ` · ${occ.partnerCode}` : " · not mapped"}
-                </span>
-              </td>
-              {dates.map((d) => {
-                const key = `${plan.id}|${occ.occupancy}|${d}`;
-                // An unsaved edit wins, then the stored rate for that date,
-                // and only then the plan's resolved base price.
-                const savedRate = stored[key];
-                const value =
-                  rates[key] ?? savedRate?.rate ?? plan.resolvedRate ?? "";
-                const edited = rates[key] !== undefined;
-                const unpushed = savedRate && !savedRate.pushed;
-                return (
-                  <td key={d} className="px-1.5 py-1.5">
-                    <input
-                      type="number"
-                      value={value}
-                      onChange={(e) => onRateChange(key, e.target.value)}
-                      className="w-full rounded border px-1.5 py-1 text-right text-sm"
-                      style={{
-                        background: "var(--surface)",
-                        borderColor: !occ.partnerCode
-                          ? "var(--warn)"
-                          : edited
-                          ? "var(--accent)"
-                          : "var(--border)",
-                        fontWeight: edited || unpushed ? 600 : 400,
-                        color: "var(--text)",
-                      }}
-                      aria-label={`${plan.label} adult ${occ.occupancy} on ${d}`}
-                    />
+                    {view === "rates" ? (
+                      <span className="block text-xs muted">
+                        Adult {occ.occupancy}
+                        {occ.partnerCode
+                          ? ` · ${occ.partnerCode}`
+                          : " · not mapped"}
+                      </span>
+                    ) : (
+                      <span className="block text-xs muted">
+                        Applies to the whole rate plan
+                      </span>
+                    )}
                   </td>
-                );
-              })}
-            </tr>
-          ))
-        )}
+
+                  {view === "rates"
+                    ? dates.map((d) => {
+                        const key = `${plan.id}|${occ.occupancy}|${d}`;
+                        // An unsaved edit wins, then the stored rate for that
+                        // date, and only then the plan's resolved base price.
+                        const savedRate = stored[key];
+                        const value =
+                          rates[key] ?? savedRate?.rate ?? plan.resolvedRate ?? "";
+                        const edited = rates[key] !== undefined;
+                        const unpushed = savedRate && !savedRate.pushed;
+                        return (
+                          <td key={d} className="px-1.5 py-1.5">
+                            <input
+                              type="number"
+                              value={value}
+                              onChange={(e) => onRateChange(key, e.target.value)}
+                              className="w-full rounded border px-1.5 py-1 text-right text-sm"
+                              style={{
+                                background: "var(--surface)",
+                                borderColor: !occ.partnerCode
+                                  ? "var(--warn)"
+                                  : edited
+                                  ? "var(--accent)"
+                                  : "var(--border)",
+                                fontWeight: edited || unpushed ? 600 : 400,
+                                color: "var(--text)",
+                              }}
+                              aria-label={`${plan.label} adult ${occ.occupancy} on ${d}`}
+                            />
+                          </td>
+                        );
+                      })
+                    : dates.map((d) => (
+                        <RestrictionCell
+                          key={d}
+                          plan={plan}
+                          date={d}
+                          field={view}
+                          edits={restrictions}
+                          stored={storedRestrictions}
+                          onChange={onRestrictionChange}
+                        />
+                      ))}
+                </tr>
+              ))}
+            </Fragment>
+          );
+        })}
     </>
+  );
+}
+
+/**
+ * One date's cell for a restriction field on a rate plan.
+ *
+ * An empty cell means nothing is set for that date, so the rate plan's own
+ * value from Property Setup still applies; that inherited value is shown as
+ * the placeholder so it stays visible without being stored per date.
+ */
+function RestrictionCell({ plan, date, field, edits, stored, onChange }) {
+  const key = `${plan.id}|${date}`;
+  const patch = edits[key];
+  const saved = stored[key];
+
+  const savedValue = {
+    stop_sell: saved?.stopSell,
+    min_stay: saved?.minStay,
+    max_stay: saved?.maxStay,
+  }[field];
+
+  const edited = patch?.[field] !== undefined;
+  const value = edited ? patch[field] : savedValue ?? null;
+  const pending = Boolean(saved && !saved.pushed);
+
+  if (field === "stop_sell") {
+    return (
+      <td className="px-1.5 py-1.5 text-center">
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onChange(key, field, e.target.checked)}
+          className="h-4 w-4 cursor-pointer"
+          style={{ accentColor: edited ? "var(--accent)" : undefined }}
+          aria-label={`${plan.label} stop sell on ${date}`}
+        />
+      </td>
+    );
+  }
+
+  const inherited =
+    field === "min_stay"
+      ? plan.restrictions?.minStay
+      : plan.restrictions?.maxStay;
+
+  return (
+    <td className="px-1.5 py-1.5">
+      <input
+        type="number"
+        min="1"
+        step="1"
+        value={value ?? ""}
+        placeholder={inherited ?? "—"}
+        onChange={(e) =>
+          onChange(key, field, e.target.value === "" ? null : Number(e.target.value))
+        }
+        className="w-full rounded border px-1.5 py-1 text-right text-sm"
+        style={{
+          background: "var(--surface)",
+          borderColor: edited ? "var(--accent)" : "var(--border)",
+          fontWeight: edited || pending ? 600 : 400,
+          color: "var(--text)",
+        }}
+        aria-label={`${plan.label} ${
+          field === "min_stay" ? "minimum" : "maximum"
+        } nights on ${date}`}
+      />
+    </td>
   );
 }
