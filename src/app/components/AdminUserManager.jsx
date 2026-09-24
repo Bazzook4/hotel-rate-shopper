@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { assignableRoles, canSwitchProperties } from "@/lib/permissions";
+import { assignableRoles } from "@/lib/permissions";
+import UserList from "./UserList";
 
 const statuses = [
   { value: "Active", label: "Active" },
@@ -19,28 +20,8 @@ const availableModules = [
 
 export default function AdminUserManager({ session }) {
   const roles = useMemo(() => assignableRoles(session), [session]);
-  const [users, setUsers] = useState([]);
-  const [usersError, setUsersError] = useState("");
-  const [loadingUsers, setLoadingUsers] = useState(true);
-
-  const loadUsers = useCallback(async () => {
-    setLoadingUsers(true);
-    setUsersError("");
-    try {
-      const res = await fetch("/api/users");
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Could not load users");
-      setUsers(json.users || []);
-    } catch (err) {
-      setUsersError(err.message);
-    } finally {
-      setLoadingUsers(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  // Bumped after a user is created so the list below reloads.
+  const [userRefresh, setUserRefresh] = useState(0);
   const [properties, setProperties] = useState([]);
   const [loadingProps, setLoadingProps] = useState(true);
   const [error, setError] = useState("");
@@ -123,7 +104,7 @@ export default function AdminUserManager({ session }) {
         throw new Error(data?.error || "Unable to create user");
       }
       setSuccess(`User ${data.user?.Email || form.email} created with ${form.modules.length} module(s).`);
-      loadUsers();
+      setUserRefresh((n) => n + 1);
       setForm({ email: "", password: "", role: "PropertyUser", status: "Active", propertyId: form.propertyId, modules: [] });
     } catch (err) {
       setError(err.message);
@@ -328,79 +309,7 @@ export default function AdminUserManager({ session }) {
       </div>
     </form>
 
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-semibold text-white">Existing users</h3>
-          <p className="text-xs text-slate-200/70">
-            {canSwitchProperties(session)
-              ? "All users across every property."
-              : "Users attached to your property."}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={loadUsers}
-          className="rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
-        >
-          Refresh
-        </button>
-      </div>
-
-      {usersError && (
-        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-          {usersError}
-        </p>
-      )}
-
-      {loadingUsers ? (
-        <p className="py-6 text-center text-sm text-slate-400">Loading users…</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Role</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Property</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-t border-white/10">
-                  <td className="px-3 py-2 text-white">{u.email}</td>
-                  <td className="px-3 py-2 text-slate-300">{u.role}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={
-                        u.status === "Active"
-                          ? "rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-300"
-                          : "rounded bg-slate-500/20 px-1.5 py-0.5 text-xs text-slate-300"
-                      }
-                    >
-                      {u.status || "—"}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-slate-300">
-                    {u.properties?.length
-                      ? u.properties.map((pr) => pr.name || pr.id).join(", ")
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-sm text-slate-400">
-                    No users found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <UserList session={session} refreshKey={userRefresh} />
     </div>
   );
 }

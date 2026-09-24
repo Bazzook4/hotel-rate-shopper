@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PropertyAdmin from "../components/PropertyAdmin";
+import UserList from "../components/UserList";
 import { isAnyAdmin } from "@/lib/permissions";
 
 export default function AdminPage() {
   const router = useRouter();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("properties");
 
   useEffect(() => {
     let cancelled = false;
@@ -60,8 +62,29 @@ export default function AdminPage() {
         <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
       </div>
-      <div className="mx-auto max-w-6xl p-4">
-        <PropertyAdmin session={session} />
+      <div className="mx-auto max-w-6xl space-y-4 p-4">
+        <div className="flex gap-2">
+          {[
+            ["properties", "Properties"],
+            ["users", "Users"],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={`rounded-xl px-3 py-1.5 text-sm transition ${
+                tab === id
+                  ? "bg-white/15 text-white"
+                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "properties" && <PropertyAdmin session={session} />}
+        {tab === "users" && <UserList session={session} />}
       </div>
     </main>
   );
