@@ -6,6 +6,7 @@ import {
   listRatePlans,
   getPropertyIntegration,
   getUserPropertyId,
+  listDailyRates,
 } from "@/lib/database";
 import { resolveAllRates } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
@@ -40,11 +41,25 @@ export async function GET(req) {
   }
 
   try {
-    const [roomTypes, ratePlans, integration] = await Promise.all([
+    const start = req.nextUrl.searchParams.get("start");
+    const end = req.nextUrl.searchParams.get("end");
+
+    const [roomTypes, ratePlans, integration, stored] = await Promise.all([
       listRoomTypes(propertyId),
       listRatePlans(propertyId),
       getPropertyIntegration(propertyId, "aiosell").catch(() => null),
+      start && end ? listDailyRates(propertyId, start, end).catch(() => []) : [],
     ]);
+
+    // Stored rates win over the plan's base price, keyed the same way the
+    // grid keys its cells.
+    const dailyRates = {};
+    for (const row of stored) {
+      dailyRates[`${row.rate_plan_id}|${row.occupancy}|${row.stay_date}`] = {
+        rate: Number(row.rate),
+        pushed: Boolean(row.pushed_at),
+      };
+    }
 
     // Partner codes, keyed by what they map.
     const codeByRoom = {};
@@ -114,6 +129,7 @@ export async function GET(req) {
     return NextResponse.json({
       propertyId,
       rooms,
+      dailyRates,
       connected: Boolean(integration?.integration?.enabled),
       hotelCode: integration?.integration?.hotel_code || null,
       unmappedRooms: unmapped,

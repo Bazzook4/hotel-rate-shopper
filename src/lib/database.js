@@ -1229,3 +1229,67 @@ export async function listPartnerReservations(propertyId, { limit = 50 } = {}) {
 
   return data || [];
 }
+
+// ============================================
+// DAILY RATES
+// ============================================
+
+/** Stored rates for a property across a date window. */
+export async function listDailyRates(propertyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('daily_rates')
+    .select('rate_plan_id, occupancy, stay_date, rate, pushed_at')
+    .eq('property_id', propertyId)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate);
+
+  if (error) {
+    throw new Error(`Failed to list rates: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Save edited rates. Each row is one (rate plan, occupancy, date), so an
+ * edit to one day does not disturb the rest.
+ */
+export async function saveDailyRates(propertyId, rows) {
+  const clean = (rows || [])
+    .filter((r) => r.rate_plan_id && r.stay_date && Number.isFinite(Number(r.rate)))
+    .map((r) => ({
+      property_id: propertyId,
+      rate_plan_id: r.rate_plan_id,
+      occupancy: Number(r.occupancy) || 2,
+      stay_date: r.stay_date,
+      rate: Number(r.rate),
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (clean.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('daily_rates')
+    .upsert(clean, { onConflict: 'rate_plan_id,occupancy,stay_date' })
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to save rates: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/** Mark rows as sent, so the grid can distinguish pending from pushed. */
+export async function markRatesPushed(propertyId, rows) {
+  const now = new Date().toISOString();
+  for (const r of rows || []) {
+    await supabase
+      .from('daily_rates')
+      .update({ pushed_at: now })
+      .eq('property_id', propertyId)
+      .eq('rate_plan_id', r.rate_plan_id)
+      .eq('occupancy', Number(r.occupancy) || 2)
+      .eq('stay_date', r.stay_date);
+  }
+}

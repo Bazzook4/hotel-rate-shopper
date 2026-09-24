@@ -27,6 +27,7 @@ const CHECKS = [
   { migration: "010_code_map_occupancy", table: "integration_code_map", column: "extra_adult" },
   { migration: "011_meal_plans", table: "rate_plans", column: "meal_plan" },
   { migration: "011_meal_plans", table: "rate_plans", column: "max_stay" },
+  { migration: "012_daily_rates", table: "daily_rates", column: "stay_date" },
 ];
 
 export async function GET(req) {

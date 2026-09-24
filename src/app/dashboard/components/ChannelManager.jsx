@@ -78,7 +78,7 @@ export default function ChannelManager() {
     try {
       const [chRes, gridRes] = await Promise.all([
         fetch("/api/cm/property"),
-        fetch("/api/cm/grid"),
+        fetch(`/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}`),
       ]);
       const json = await chRes.json();
       if (!chRes.ok) throw new Error(json?.error || `Request failed (${chRes.status})`);
@@ -96,7 +96,7 @@ export default function ChannelManager() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dates]);
 
   useEffect(() => {
     load();
@@ -168,6 +168,37 @@ export default function ChannelManager() {
     }
   }
 
+  async function saveRates() {
+    const rows = Object.entries(rates).map(([key, value]) => {
+      const [rate_plan_id, occupancy, stay_date] = key.split("|");
+      return { rate_plan_id, occupancy: Number(occupancy), stay_date, rate: value };
+    });
+    if (rows.length === 0) {
+      setNotice("No changes to save.");
+      return;
+    }
+
+    setBusy(true);
+    setNotice("");
+    try {
+      const res = await fetch("/api/cm/rates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rates: rows }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Save failed");
+      // Reload so the cells read from what was stored, then clear the edits.
+      await load();
+      setRates({});
+      setNotice(`Saved ${json.saved} rate${json.saved === 1 ? "" : "s"}.`);
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function pushAll() {
     if (!grid?.rooms?.length) return;
     setBusy(true);
@@ -209,6 +240,7 @@ export default function ChannelManager() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Push failed");
+      await load();
       setNotice(json.message || `Pushed ${dirty} rate change${dirty === 1 ? "" : "s"}.`);
       setRates({});
     } catch (err) {
@@ -271,6 +303,14 @@ export default function ChannelManager() {
               Aiosell not connected
             </span>
           )}
+          <button
+            type="button"
+            onClick={saveRates}
+            disabled={busy || !dirty}
+            className="btn btn-secondary"
+          >
+            {busy ? "Working…" : dirty ? `Save ${dirty} change${dirty === 1 ? "" : "s"}` : "Save"}
+          </button>
           <button
             type="button"
             onClick={pushAll}
@@ -440,6 +480,7 @@ export default function ChannelManager() {
                   setExpanded((p) => ({ ...p, [room.id]: !p[room.id] }))
                 }
                 rates={rates}
+                stored={grid?.dailyRates || {}}
                 onRateChange={(key, value) =>
                   setRates((prev) => ({ ...prev, [key]: value }))
                 }
@@ -469,6 +510,7 @@ function ExpandableRoom({
   open,
   onToggle,
   rates,
+  stored,
   onRateChange,
 }) {
   return (
@@ -515,9 +557,13 @@ function ExpandableRoom({
               </td>
               {dates.map((d) => {
                 const key = `${plan.id}|${occ.occupancy}|${d}`;
-                // An edited cell wins; otherwise the plan's resolved rate,
-                // which follows its master when it is a derived plan.
-                const value = rates[key] ?? plan.resolvedRate ?? "";
+                // An unsaved edit wins, then the stored rate for that date,
+                // and only then the plan's resolved base price.
+                const savedRate = stored[key];
+                const value =
+                  rates[key] ?? savedRate?.rate ?? plan.resolvedRate ?? "";
+                const edited = rates[key] !== undefined;
+                const unpushed = savedRate && !savedRate.pushed;
                 return (
                   <td key={d} className="px-1.5 py-1.5">
                     <input
@@ -527,9 +573,12 @@ function ExpandableRoom({
                       className="w-full rounded border px-1.5 py-1 text-right text-sm"
                       style={{
                         background: "var(--surface)",
-                        borderColor: occ.partnerCode
-                          ? "var(--border)"
-                          : "var(--warn)",
+                        borderColor: !occ.partnerCode
+                          ? "var(--warn)"
+                          : edited
+                          ? "var(--accent)"
+                          : "var(--border)",
+                        fontWeight: edited || unpushed ? 600 : 400,
                         color: "var(--text)",
                       }}
                       aria-label={`${plan.label} adult ${occ.occupancy} on ${d}`}
