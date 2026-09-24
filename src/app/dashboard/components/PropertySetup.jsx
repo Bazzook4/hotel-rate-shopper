@@ -465,7 +465,7 @@ function RatePlansPanel({
         disabled={busy}
         onClick={() =>
           setEditing({
-            plan_name: "",
+            plan_name: "EP",
             meal_plan: "EP",
             refundable: true,
             stop_sell: false,
@@ -494,7 +494,14 @@ function RatePlansPanel({
             <Field label="Meal plan">
               <select
                 value={editing.meal_plan || "EP"}
-                onChange={(e) => setEditing({ ...editing, meal_plan: e.target.value })}
+                onChange={(e) => {
+                  const next = { ...editing, meal_plan: e.target.value };
+                  // Keep the name in step with the code unless it was edited.
+                  if (!editing.plan_name || editing.plan_name === planLabel(editing)) {
+                    next.plan_name = planLabel(next);
+                  }
+                  setEditing(next);
+                }}
                 className={inputClass}
               >
                 {MEAL_PLANS.map((m) => (
@@ -507,9 +514,13 @@ function RatePlansPanel({
             <Field label="Terms">
               <select
                 value={editing.refundable === false ? "nr" : "ref"}
-                onChange={(e) =>
-                  setEditing({ ...editing, refundable: e.target.value === "ref" })
-                }
+                onChange={(e) => {
+                  const next = { ...editing, refundable: e.target.value === "ref" };
+                  if (!editing.plan_name || editing.plan_name === planLabel(editing)) {
+                    next.plan_name = planLabel(next);
+                  }
+                  setEditing(next);
+                }}
                 className={inputClass}
               >
                 <option value="ref">Refundable</option>
@@ -545,6 +556,42 @@ function RatePlansPanel({
                 className={inputClass}
               />
             </Field>
+          </div>
+
+          <div className="mt-4 card p-3">
+            <p className="label">Restrictions</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="flex items-center gap-2 pt-5 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editing.stop_sell)}
+                  onChange={(e) =>
+                    setEditing({ ...editing, stop_sell: e.target.checked })
+                  }
+                />
+                Stop sell
+              </label>
+              <Field label="Min length of stay">
+                <input
+                  type="number"
+                  min="1"
+                  value={editing.min_stay ?? ""}
+                  onChange={(e) => setEditing({ ...editing, min_stay: e.target.value })}
+                  className={inputClass}
+                  placeholder="1"
+                />
+              </Field>
+              <Field label="Max length of stay">
+                <input
+                  type="number"
+                  min="1"
+                  value={editing.max_stay ?? ""}
+                  onChange={(e) => setEditing({ ...editing, max_stay: e.target.value })}
+                  className={inputClass}
+                  placeholder="14"
+                />
+              </Field>
+            </div>
           </div>
 
           <div className="mt-4 card p-3">
