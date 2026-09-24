@@ -416,7 +416,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
         <button
           onClick={handleSaveFactors}
           disabled={saveStatus === "saving"}
-          className="flex-1 px-6 py-3 rounded-xl bg-[var(--surface-2)] hover:bg-white/15 text-ink font-semibold disabled:opacity-50 transition-all"
+          className="flex-1 px-6 py-3 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--accent-soft)] text-ink font-semibold disabled:opacity-50 transition-all"
         >
           {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Configuration"}
         </button>

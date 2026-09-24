@@ -27,6 +27,12 @@ const inputClass =
   "input mt-1";
 
 export default function PropertySetup({ session }) {
+  // A super admin is not tied to one property, so they choose which to
+  // configure. Everyone else is scoped to their own and sees no picker.
+  const [properties, setProperties] = useState([]);
+  const [propertyId, setPropertyId] = useState(session?.propertyId || "");
+  const canChoose = session?.canSwitchProperties === true;
+
   const [roomTypes, setRoomTypes] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,13 +43,36 @@ export default function PropertySetup({ session }) {
   const [editingRoom, setEditingRoom] = useState(null);
   const [editingPlan, setEditingPlan] = useState(null);
 
+  // Load the property list once, so a super admin has something to pick.
+  useEffect(() => {
+    if (!canChoose) return;
+    let cancelled = false;
+    fetch("/api/properties")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j?.properties) return;
+        setProperties(j.properties);
+        setPropertyId((cur) => cur || j.properties[0]?.id || "");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canChoose]);
+
   const load = useCallback(async () => {
+    // Nothing to load until a property is known.
+    if (canChoose && !propertyId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
+    const qs = propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : "";
     try {
       const [r, p] = await Promise.all([
-        fetch("/api/setup/roomTypes"),
-        fetch("/api/setup/ratePlans"),
+        fetch(`/api/setup/roomTypes${qs}`),
+        fetch(`/api/setup/ratePlans${qs}`),
       ]);
       if (r.status === 403 || p.status === 403) {
         throw new Error(
@@ -61,7 +90,7 @@ export default function PropertySetup({ session }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [propertyId, canChoose]);
 
   useEffect(() => {
     load();
@@ -114,7 +143,7 @@ export default function PropertySetup({ session }) {
     };
     const ok = room.id
       ? await send("/api/setup/roomTypes", "PATCH", { id: room.id, ...payload })
-      : await send("/api/setup/roomTypes", "POST", payload);
+      : await send("/api/setup/roomTypes", "POST", { ...payload, property_id: propertyId || undefined });
     if (ok) {
       setEditingRoom(null);
       setNotice(room.id ? "Room type updated." : "Room type added.");
@@ -134,7 +163,7 @@ export default function PropertySetup({ session }) {
     };
     const ok = plan.id
       ? await send("/api/setup/ratePlans", "PATCH", { id: plan.id, ...payload })
-      : await send("/api/setup/ratePlans", "POST", payload);
+      : await send("/api/setup/ratePlans", "POST", { ...payload, property_id: propertyId || undefined });
     if (ok) {
       setEditingPlan(null);
       setNotice(plan.id ? "Rate plan updated." : "Rate plan added.");
@@ -191,6 +220,24 @@ export default function PropertySetup({ session }) {
         </p>
       </div>
 
+      {canChoose && (
+        <div className="card card-pad">
+          <label className="label">Property</label>
+          <select
+            value={propertyId}
+            onChange={(e) => setPropertyId(e.target.value)}
+            className="input"
+          >
+            {properties.length === 0 && <option value="">No properties found</option>}
+            {properties.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {notice && (
         <div className="card px-4 py-2 sub">
           {notice}
@@ -208,7 +255,7 @@ export default function PropertySetup({ session }) {
             onClick={() => setTab(id)}
             className={`rounded-xl px-3 py-1.5 text-sm transition ${
               tab === id
-                ? "bg-white/15 text-ink"
+                ? "bg-[var(--accent-soft)] text-ink"
                 : "muted hover:bg-[var(--surface-2)] hover:text-ink"
             }`}
           >
@@ -593,7 +640,7 @@ function RatePlansPanel({
                 <td className="px-4 py-3 muted">
                   {describeDerivation(p) ?? "—"}
                 </td>
-                <td className="px-4 py-3 text-right text-slate-100">
+                <td className="px-4 py-3 text-right text-[var(--text)]">
                   {resolved[p.id] === null || resolved[p.id] === undefined
                     ? "—"
                     : Math.round(resolved[p.id]).toLocaleString("en-IN")}

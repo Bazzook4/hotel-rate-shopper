@@ -39,7 +39,7 @@ export default function SchemaStatus() {
       <ul className="mt-2 space-y-1">
         {state.migrations.map((m) => (
           <li key={m} className="text-xs text-[var(--warn)]">
-            <code className="rounded bg-black/30 px-1.5 py-0.5">{m}.sql</code>
+            <code className="rounded bg-[var(--surface-2)] px-1.5 py-0.5">{m}.sql</code>
           </li>
         ))}
       </ul>

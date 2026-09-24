@@ -210,7 +210,7 @@ export default function LocationResults({ data }) {
   }, [filtered, sortBy]);
 
   const selectClasses =
-    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm appearance-none";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--text)] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm appearance-none";
 
   return (
     <div className="space-y-5">
@@ -276,7 +276,7 @@ export default function LocationResults({ data }) {
                 <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-ink/70">
                   {h.stars != null && <span>{h.stars}</span>}
                   {h.rating != null && (
-                    <span className="inline-flex items-center gap-1 normal-case tracking-normal text-slate-100">{h.rating}
+                    <span className="inline-flex items-center gap-1 normal-case tracking-normal text-[var(--text)]">{h.rating}
                     </span>
                   )}
                   {h.reviews != null && <span>{h.reviews} reviews</span>}

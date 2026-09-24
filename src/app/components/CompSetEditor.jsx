@@ -70,7 +70,7 @@ export default function CompSetEditor({ value, onChange, session }) {
   }
 
   const inputClass =
-    "w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
     <div className="space-y-5 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">

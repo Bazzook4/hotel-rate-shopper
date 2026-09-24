@@ -330,7 +330,7 @@ function ModulePicker({ selected = [], onToggle }) {
               type="button"onClick={() => onToggle(m.id)}
               className={`rounded-lg px-2.5 py-1 text-xs transition ${
                 on
-                  ? "bg-white/20 text-ink ring-1 ring-white/30"
+                  ? "bg-[var(--accent-soft)] text-ink ring-1 ring-white/30"
                   : "bg-[var(--surface)] muted hover:bg-[var(--surface-2)]"
               }`}
             >

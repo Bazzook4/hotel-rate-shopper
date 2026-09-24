@@ -124,7 +124,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
 
   const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
   const inputClasses =
-    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
     <form

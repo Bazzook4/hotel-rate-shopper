@@ -316,7 +316,7 @@ export default function ChannelManager() {
         <button
           type="button"
           onClick={() => shiftWindow(-1)}
-          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-white/20"
+          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-[var(--accent-soft)]"
         >
           ‹
         </button>
@@ -326,7 +326,7 @@ export default function ChannelManager() {
         <button
           type="button"
           onClick={() => shiftWindow(1)}
-          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-white/20"
+          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-[var(--accent-soft)]"
         >
           ›
         </button>
@@ -337,7 +337,7 @@ export default function ChannelManager() {
               type="button"
               onClick={() => setDays(n)}
               className={`px-3 py-1.5 text-xs ${
-                days === n ? "bg-white/20 text-ink" : "muted hover:bg-[var(--surface-2)]"
+                days === n ? "bg-[var(--accent-soft)] text-ink" : "muted hover:bg-[var(--surface-2)]"
               }`}
             >
               {n} days
@@ -410,7 +410,7 @@ export default function ChannelManager() {
 function ExpandableRoom({ room, dates, currency, open, onToggle }) {
   return (
     <>
-      <tr className="bg-white/[0.03]">
+      <tr className="bg-[var(--surface-2)]">
         <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-3">
           <button
             type="button"

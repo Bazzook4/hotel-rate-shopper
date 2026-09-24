@@ -51,7 +51,7 @@ export default function HotelRateShopper({ data }) {
 
             <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] text-ink/80">
               {typeof data.overall_rating === "number" && (
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">{data.overall_rating} ({data.reviews} reviews)
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[var(--text)]">{data.overall_rating} ({data.reviews} reviews)
                 </span>
               )}
               {data.location_rating && (
@@ -63,7 +63,7 @@ export default function HotelRateShopper({ data }) {
                 </span>
               )}
               {data.rate_per_night?.lowest && (
-                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">From {data.rate_per_night.lowest}
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-[var(--text)]">From {data.rate_per_night.lowest}
                 </span>
               )}
             </div>
@@ -80,7 +80,7 @@ export default function HotelRateShopper({ data }) {
                 <a
                   key={p.id}
                   href={p.link}
-                  target="_blank"rel="noreferrer"className="group rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-slate-100 transition hover:border-amber-200/60 hover:bg-amber-400/15"
+                  target="_blank"rel="noreferrer"className="group rounded-2xl border border-amber-300/30 bg-amber-400/10 px-4 py-3 text-sm text-[var(--text)] transition hover:border-amber-200/60 hover:bg-amber-400/15"
                 >
                   <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--warn)] mb-2">Sponsored
                   </div>
@@ -91,7 +91,7 @@ export default function HotelRateShopper({ data }) {
                       ) : (
                         <div className="w-6 h-6 rounded bg-[var(--surface-2)]" />
                       )}
-                      <div className="text-slate-100/90 font-medium">{p.source}</div>
+                      <div className="text-[var(--text)]/90 font-medium">{p.source}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-base font-semibold text-ink">
@@ -115,7 +115,7 @@ export default function HotelRateShopper({ data }) {
               <a
                 key={p.id}
                 href={p.link}
-                target="_blank"rel="noreferrer"className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-slate-100 transition hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]"
+                target="_blank"rel="noreferrer"className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-[var(--text)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--accent-soft)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
@@ -124,7 +124,7 @@ export default function HotelRateShopper({ data }) {
                     ) : (
                       <div className="w-6 h-6 rounded bg-[var(--surface-2)]" />
                     )}
-                    <div className="text-slate-100/90 font-medium">{p.source}</div>
+                    <div className="text-[var(--text)]/90 font-medium">{p.source}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-base font-semibold text-ink">

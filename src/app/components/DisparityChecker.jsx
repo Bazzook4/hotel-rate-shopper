@@ -189,7 +189,7 @@ export default function DisparityChecker({ defaultHotelName }) {
 
   const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
   const inputClasses =
-    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text)] placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
     <div className="space-y-5">
@@ -295,7 +295,7 @@ export default function DisparityChecker({ defaultHotelName }) {
           <div className="flex flex-wrap items-center gap-6 sub/80">
             <div>
               <span className="muted/70">OTAs</span>{" "}
-              <span className="text-slate-100 font-semibold">{stats.count}</span>
+              <span className="text-[var(--text)] font-semibold">{stats.count}</span>
             </div>
             <div>
               <span className="muted/70">Lowest</span>{" "}
@@ -311,7 +311,7 @@ export default function DisparityChecker({ defaultHotelName }) {
             </div>
             <div>
               <span className="muted/70">Spread</span>{" "}
-              <span className="text-slate-100 font-semibold">
+              <span className="text-[var(--text)] font-semibold">
                 {stats.disparityPct != null ? `${stats.disparityPct.toFixed(1)}%` : "—"}
               </span>
             </div>
@@ -322,7 +322,7 @@ export default function DisparityChecker({ defaultHotelName }) {
       {/* table */}
       {rows.length > 0 && (
         <div className="overflow-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
-          <table className="min-w-full text-sm text-slate-100">
+          <table className="min-w-full text-sm text-[var(--text)]">
             <thead className="bg-[var(--surface)] text-ink/80">
               <tr>
                 <th className="p-3 text-left font-medium">Channel</th>

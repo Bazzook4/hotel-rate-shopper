@@ -168,7 +168,7 @@ export default function Integrations({ session }) {
               className={`rounded-2xl border p-4 ${
                 tool.available
                   ? "border-[var(--border)] bg-[var(--surface)]"
-                  : "border-[var(--border)] bg-white/[0.02]"
+                  : "border-[var(--border)] bg-[var(--surface-2)]"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
@@ -191,7 +191,7 @@ export default function Integrations({ session }) {
                 <button
                   type="button"
                   onClick={() => setOpen(open === tool.slug ? null : tool.slug)}
-                  className="mt-3 w-full rounded-xl bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-slate-100"
+                  className="btn btn-secondary mt-3 w-full justify-center"
                 >
                   {connected ? "Manage" : "Connect"}
                 </button>
@@ -260,7 +260,7 @@ export default function Integrations({ session }) {
                     className={`flex items-start gap-2 rounded-xl border px-3 py-2 ${
                       supported
                         ? "border-[var(--border)] bg-[var(--surface)]"
-                        : "border-[var(--border)] bg-white/[0.02] opacity-50"
+                        : "border-[var(--border)] bg-[var(--surface-2)] opacity-50"
                     }`}
                   >
                     <input
@@ -292,7 +292,7 @@ export default function Integrations({ session }) {
                 </p>
                 {data?.webhookUrl ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <code className="flex-1 break-all rounded-lg bg-black/40 px-2 py-1.5 text-xs text-ink">
+                    <code className="flex-1 break-all rounded-lg bg-[var(--surface-2)] px-2 py-1.5 text-xs text-ink">
                       {data.webhookUrl}
                     </code>
                     <button

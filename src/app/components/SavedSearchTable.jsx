@@ -147,7 +147,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
                         ? "text-[var(--accent-text)]"
                         : p.isSponsored
                         ? "text-[var(--warn)]"
-                        : "text-slate-100"
+                        : "text-[var(--text)]"
                     }`}
                   >
                     {p.display}

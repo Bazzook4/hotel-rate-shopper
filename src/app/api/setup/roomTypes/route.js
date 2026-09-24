@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/permissions";
 import {
   canManageSetup,
   listRoomTypes,
@@ -26,9 +27,15 @@ async function guard(req) {
 }
 
 async function resolvePropertyId(session, requested) {
-  if (requested) return requested;
-  if (session.property_id) return session.property_id;
-  return getUserPropertyId(session.userId).catch(() => null);
+  const own =
+    session.property_id ||
+    (await getUserPropertyId(session.userId).catch(() => null));
+
+  // Only a super admin may act on a property other than their own; anyone
+  // else passing an id is ignored rather than trusted.
+  if (isSuperAdmin(session)) return requested || own;
+  if (requested && requested !== own) return null;
+  return own;
 }
 
 export async function GET(req) {

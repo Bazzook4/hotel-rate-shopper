@@ -288,7 +288,7 @@ export default function RateHistory({ session }) {
           <div className="flex items-center justify-between">
             <button
               onClick={handlePrevMonth}
-              className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
+              className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--accent-soft)] transition"
             >
               ← Prev
             </button>
@@ -302,7 +302,7 @@ export default function RateHistory({ session }) {
             </div>
             <button
               onClick={handleNextMonth}
-              className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
+              className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-[var(--text)] hover:bg-[var(--accent-soft)] transition"
             >Next →
             </button>
           </div>

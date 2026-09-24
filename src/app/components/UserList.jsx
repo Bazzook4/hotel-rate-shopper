@@ -81,7 +81,7 @@ export default function UserList({ session, refreshKey = 0 }) {
                       className={
                         u.status === "Active"
                           ? "chip chip-ok"
-                          : "rounded bg-slate-500/20 px-1.5 py-0.5 text-xs muted"
+                          : "chip chip-off"
                       }
                     >
                       {u.status || "—"}

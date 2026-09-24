@@ -227,7 +227,7 @@ export default function AdminUserManager({ session }) {
               className="text-xs text-[var(--accent-text)] hover:text-[var(--accent-text)] transition-colors disabled:opacity-50"
             >Select All
             </button>
-            <span className="text-slate-600">|</span>
+            <span className="faint">|</span>
             <button
               type="button"onClick={deselectAllModules}
               disabled={disabled}

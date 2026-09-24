@@ -153,7 +153,7 @@ function SingleSearchPanel({ session }) {
         <button
           type="button"
           onClick={toggleHistory}
-          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/30 hover:bg-white/15"
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:border-[var(--border-strong)] hover:bg-[var(--accent-soft)]"
         >
           {historyOpen ? "Hide Rate History" : "Rate History"}
         </button>
@@ -328,7 +328,7 @@ export default function Page() {
                   style={!isClient ? { opacity: 0 } : {}}
                   className={`group flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition ${
                     activeState
-                      ? "bg-white/15 text-ink shadow-inner"
+                      ? "bg-[var(--accent-soft)] text-ink shadow-inner"
                       : "text-ink/80 hover:bg-[var(--surface-2)] hover:text-ink"
                   }`}
                 >
