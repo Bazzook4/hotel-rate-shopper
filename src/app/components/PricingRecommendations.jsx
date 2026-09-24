@@ -433,19 +433,19 @@ export default function PricingRecommendations({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {/* Compact Header */}
-      <div className="flex items-center justify-between py-1">
+      <div className="flex items-center justify-between py-0.5">
         <div>
-          <h3 className="text-lg font-bold text-white">{hotel.hotelName}</h3>
-          <p className="text-slate-400 text-xs">{hotel.location}</p>
+          <h3 className="text-base font-bold text-white">{hotel.hotelName}</h3>
+          <p className="text-slate-400 text-[10px]">{hotel.location}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={onSaveComparison}
-            className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-all flex items-center gap-1.5"
+            className="px-2.5 py-1 rounded-lg bg-green-600 hover:bg-green-500 text-white text-[10px] font-medium transition-all flex items-center gap-1"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
             Save
@@ -457,7 +457,7 @@ export default function PricingRecommendations({
       <div className="flex gap-1 p-0.5 bg-white/5 rounded-lg border border-white/10 w-fit">
         <button
           onClick={() => setViewMode("pricing")}
-          className={`px-4 py-1.5 rounded text-xs font-medium transition-all ${
+          className={`px-3 py-1 rounded text-[10px] font-medium transition-all ${
             viewMode === "pricing"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:text-white"
@@ -467,7 +467,7 @@ export default function PricingRecommendations({
         </button>
         <button
           onClick={() => setViewMode("comparison")}
-          className={`px-4 py-1.5 rounded text-xs font-medium transition-all ${
+          className={`px-3 py-1 rounded text-[10px] font-medium transition-all ${
             viewMode === "comparison"
               ? "bg-indigo-600 text-white"
               : "text-slate-400 hover:text-white"
@@ -479,62 +479,16 @@ export default function PricingRecommendations({
 
       {viewMode === "pricing" && (
         <>
-          {/* Compact Sticky Pricing Preview - Dense B2B Layout */}
-          <div className="sticky top-2 z-40 mb-2 p-2 rounded-lg bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 backdrop-blur-xl">
-            {roomTypes && roomTypes.length > 0 && calculateTablePrices.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-semibold text-white">💰 Live Pricing</h4>
-                  <button
-                    onClick={() => {
-                      document.getElementById('pricing-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }}
-                    className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-all"
-                  >
-                    View Full ↓
-                  </button>
-                </div>
-                {/* Compact 3-Room Preview Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-white/20">
-                        <th className="text-left py-1 px-2 text-slate-300 font-medium">Room</th>
-                        <th className="text-right py-1 px-2 text-slate-300 font-medium">Mon</th>
-                        <th className="text-right py-1 px-2 text-slate-300 font-medium">Thu</th>
-                        <th className="text-right py-1 px-2 text-slate-300 font-medium">Sat</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {calculateTablePrices
-                        .filter(row => row.mealPlan === 'EP' && row.occupancy === '👤 ×2')
-                        .slice(0, 3)
-                        .map((row, idx) => (
-                          <tr key={idx} className="border-b border-white/10">
-                            <td className="py-1 px-2 text-white font-medium">{displayRoomName(row.roomCategory)}</td>
-                            <td className="py-1 px-2 text-right text-white font-mono">₹{row.prices['Monday']?.toFixed(0)}</td>
-                            <td className="py-1 px-2 text-right text-white font-mono">₹{row.prices['Thursday']?.toFixed(0)}</td>
-                            <td className="py-1 px-2 text-right text-indigo-300 font-mono font-bold">₹{row.prices['Saturday']?.toFixed(0)}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-[10px] text-slate-400">EP Plan, Double Occupancy • Adjust factors below to see real-time changes</p>
-              </div>
-            )}
-          </div>
-
-          {/* Real-time Pricing Factors */}
+          {/* UNIFIED PRICING DASHBOARD - 2 Columns, 4 Rows Grid */}
           <div className={sectionClass}>
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="text-sm font-semibold text-white">Pricing Factors</h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-semibold text-white">📊 Pricing Dashboard</h4>
               <div className="flex items-center gap-2">
-                {/* Mode Toggle */}
-                <div className="flex gap-1 p-1 bg-white/5 rounded-lg border border-white/10">
+                {/* Simple/Advanced Mode Toggle */}
+                <div className="flex gap-1 p-0.5 bg-white/5 rounded-lg border border-white/10">
                   <button
                     onClick={() => setPricingMode("simple")}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                       pricingMode === "simple"
                         ? "bg-indigo-600 text-white"
                         : "text-slate-400 hover:text-white"
@@ -544,7 +498,7 @@ export default function PricingRecommendations({
                   </button>
                   <button
                     onClick={() => setPricingMode("advanced")}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    className={`px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
                       pricingMode === "advanced"
                         ? "bg-indigo-600 text-white"
                         : "text-slate-400 hover:text-white"
@@ -554,8 +508,9 @@ export default function PricingRecommendations({
                   </button>
                 </div>
 
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <span className="text-sm text-slate-300">Dynamic Extra Rates</span>
+                {/* Dynamic Extra Rates Toggle */}
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <span className="text-[10px] text-slate-300">Dynamic Extra</span>
                   <div className="relative">
                     <input
                       type="checkbox"
@@ -563,569 +518,349 @@ export default function PricingRecommendations({
                       onChange={(e) => setDynamicExtraRates(e.target.checked)}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                   </div>
                 </label>
               </div>
             </div>
-            {/* Simple Mode */}
-            {pricingMode === "simple" && (
-              <div className="space-y-2">
-                {/* Question 1: Demand Level */}
-                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="flex items-center gap-2">
-                      <h5 className="text-white font-semibold text-sm">What's your current demand level?</h5>
-                      <Tooltip content={`Demand reflects current booking pressure and occupancy:
 
-Use Cases:
-• Very Low (0.5x): <30% occupancy - attract bookings with aggressive discounts
-• Low (0.7x): 30-50% occupancy - mild discount to increase bookings
-• Normal (1.0x): 50-70% occupancy - standard pricing for typical demand
-• High (1.5x): 70-85% occupancy - premium pricing for strong demand
-• Very High (2.0x): 85-95% occupancy - high premium, almost full
-• Extreme (2.5x): >95% occupancy - maximize revenue from last few rooms
+            {/* 2-COLUMN, 4-ROW GRID LAYOUT */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
 
-Tip: Monitor your booking pace and competitor occupancy to adjust.`}>
-                        <span className="text-slate-400 hover:text-white transition-colors">❓</span>
-                      </Tooltip>
-                    </div>
-                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-                      {pricingParams.demandMultiplier}x
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-6 gap-1.5">
-                    {[
-                      { key: 'very-low', label: 'Very Low', emoji: '🔵', desc: 'Lots of empty', multiplier: 0.5 },
-                      { key: 'low', label: 'Low', emoji: '🟡', desc: 'Below average', multiplier: 0.7 },
-                      { key: 'normal', label: 'Normal', emoji: '🟢', desc: 'Typical', multiplier: 1.0 },
-                      { key: 'high', label: 'High', emoji: '🟠', desc: 'Good demand', multiplier: 1.5 },
-                      { key: 'very-high', label: 'Very High', emoji: '🔥', desc: 'Almost full', multiplier: 2.0 },
-                      { key: 'extreme', label: 'Extreme', emoji: '⚡', desc: 'Sold out soon', multiplier: 2.5 }
-                    ].map(option => (
-                      <button
-                        key={option.key}
-                        onClick={() => applyDemandPreset(option.key)}
-                        className={`p-3 rounded-lg border transition-all ${
-                          pricingParams.demandMultiplier === option.multiplier
-                            ? 'bg-indigo-600 border-indigo-500 text-white'
-                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">{option.emoji}</div>
-                        <div className="text-xs font-semibold">{option.label}</div>
-                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
-                        <div className="text-xs font-bold mt-1 text-indigo-400">{option.multiplier}x</div>
-                      </button>
-                    ))}
-                  </div>
-                  {/* Custom Demand Input */}
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
-                    <label className="text-xs text-slate-400">Custom multiplier:</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={pricingParams.demandMultiplier}
-                      onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g., 1.3, 2.2, 3.5"
-                    />
-                  </div>
+              {/* ROW 1-2 LEFT: Weekly Price Trend Chart (spans 2 rows) */}
+              <div className="lg:row-span-2">
+                <h5 className="text-xs font-semibold text-slate-300 mb-1">📈 Weekly Price Trend</h5>
+                <div className="h-[240px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="day" stroke="#94a3b8" style={{ fontSize: '10px' }} />
+                      <YAxis stroke="#94a3b8" style={{ fontSize: '10px' }} tickFormatter={(value) => `₹${value}`} />
+                      <ChartTooltip
+                        contentStyle={{
+                          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                          border: '1px solid rgba(255,255,255,0.2)',
+                          borderRadius: '8px',
+                          color: '#fff',
+                          fontSize: '10px'
+                        }}
+                        formatter={(value) => [`₹${value}`, '']}
+                        labelStyle={{ color: '#94a3b8', fontSize: '10px' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: '10px', color: '#94a3b8' }} />
+                      {[chartRoomTypes[0]].filter(Boolean).map((roomType) => (
+                        <Line
+                          key={roomType}
+                          type="monotone"
+                          dataKey={roomType}
+                          stroke={colorPalette[0]}
+                          strokeWidth={2}
+                          dot={{ fill: colorPalette[0], r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
+                <p className="text-[9px] text-slate-400 text-center mt-1">
+                  {chartRoomTypes[0]} - Double Occupancy (👤 ×2) EP rates
+                </p>
+              </div>
 
-                {/* Question 2: Season */}
-                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="flex items-center gap-2">
-                      <h5 className="text-white font-semibold text-sm">What season is it?</h5>
-                      <Tooltip content={`Seasonal pricing based on travel patterns and local events:
+              {/* ROW 1 RIGHT: Competitor Adjustment Controller */}
+              <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+                <h5 className="text-xs font-semibold text-white mb-1">💰 Competitor Adjustment</h5>
 
-Use Cases:
-• Off-Season (0.6x): Monsoon, extreme weather - attract any bookings possible
-• Low (0.8x): Shoulder season - moderate travel, mild discount
-• Regular (1.0x): Normal season - standard leisure/business travel
-• High (1.5x): Holiday periods, long weekends - increased travel demand
-• Peak (2.0x): Major holidays (Christmas, New Year), wedding season
-• Super Peak (3.0x): Special events (conferences, concerts, sports)
-• Ultra Peak (4.0x): Rare mega-events (festivals, international events)
-
-Examples: Beach hotels charge peak in summer, hill stations in summer/winter holidays.`}>
-                        <span className="text-slate-400 hover:text-white transition-colors">❓</span>
-                      </Tooltip>
-                    </div>
-                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-                      {pricingParams.seasonalMultiplier}x
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-1.5">
+                {pricingMode === "simple" ? (
+                  <div className="space-y-0.5">
                     {[
-                      { key: 'off-season', label: 'Off-Season', emoji: '❄️', desc: 'Very slow', multiplier: 0.6 },
-                      { key: 'low', label: 'Low', emoji: '🌧️', desc: 'Slow period', multiplier: 0.8 },
-                      { key: 'regular', label: 'Regular', emoji: '☀️', desc: 'Normal', multiplier: 1.0 },
-                      { key: 'high', label: 'High', emoji: '🌸', desc: 'Busy period', multiplier: 1.5 },
-                      { key: 'peak', label: 'Peak', emoji: '🎉', desc: 'Very busy', multiplier: 2.0 },
-                      { key: 'super-peak', label: 'Super Peak', emoji: '🎆', desc: 'Major event', multiplier: 3.0 },
-                      { key: 'ultra-peak', label: 'Ultra Peak', emoji: '🔥', desc: 'Festival', multiplier: 4.0 }
-                    ].map(option => (
-                      <button
-                        key={option.key}
-                        onClick={() => applySeasonalPreset(option.key)}
-                        className={`p-3 rounded-lg border transition-all ${
-                          pricingParams.seasonalMultiplier === option.multiplier
-                            ? 'bg-indigo-600 border-indigo-500 text-white'
-                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="text-2xl mb-1">{option.emoji}</div>
-                        <div className="text-xs font-semibold">{option.label}</div>
-                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
-                        <div className="text-xs font-bold mt-1 text-indigo-400">{option.multiplier}x</div>
-                      </button>
-                    ))}
-                  </div>
-                  {/* Custom Season Input */}
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
-                    <label className="text-xs text-slate-400">Custom multiplier:</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={pricingParams.seasonalMultiplier}
-                      onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g., 1.8, 3.5, 5.0"
-                    />
-                  </div>
-                </div>
-
-                {/* Question 3: Competition */}
-                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="flex items-center gap-2">
-                      <h5 className="text-white font-semibold text-sm">How do you want to price vs competitors?</h5>
-                      <Tooltip content={`Position your pricing relative to nearby competitors (flat amount added/subtracted):
-
-Use Cases:
-• Heavy Undercut (-₹1000): Aggressive pricing to steal market share, when you need occupancy badly
-• Undercut (-₹500): Attract price-sensitive customers, good for new hotels building reputation
-• Slight Undercut (-₹200): Competitive edge while maintaining perceived value
-• Match (₹0): Same as competitors - compete on service/amenities instead of price
-• Slight Premium (+₹200): Better facilities/location justify small premium
-• Premium (+₹500): Superior property, established brand, unique features
-• Heavy Premium (+₹1000): Luxury positioning, exclusive location, peak demand
-
-Strategy: Research OTAs (MakeMyTrip, Booking.com) for competitor rates in your area.`}>
-                        <span className="text-slate-400 hover:text-white transition-colors">❓</span>
-                      </Tooltip>
-                    </div>
-                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-                      {pricingParams.competitorAdjustment > 0 ? '+₹' : pricingParams.competitorAdjustment < 0 ? '₹' : '₹'}{pricingParams.competitorAdjustment}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-2 mb-3">
-                    {[
-                      { key: 'heavy-undercut', label: 'Heavy Undercut', emoji: '🔻', desc: '₹1000 lower', amount: -1000 },
-                      { key: 'undercut', label: 'Undercut', emoji: '💚', desc: '₹500 lower', amount: -500 },
-                      { key: 'slight-undercut', label: 'Slight Under', emoji: '🟢', desc: '₹200 lower', amount: -200 },
-                      { key: 'match', label: 'Match', emoji: '🤝', desc: 'Same price', amount: 0 },
-                      { key: 'slight-premium', label: 'Slight Premium', emoji: '🟡', desc: '₹200 higher', amount: 200 },
-                      { key: 'premium', label: 'Premium', emoji: '💰', desc: '₹500 higher', amount: 500 },
-                      { key: 'heavy-premium', label: 'Heavy Premium', emoji: '🔺', desc: '₹1000 higher', amount: 1000 }
+                      { key: 'undercut', label: 'Undercut', emoji: '💚', amount: -500 },
+                      { key: 'match', label: 'Match', emoji: '🤝', amount: 0 },
+                      { key: 'premium', label: 'Premium', emoji: '💰', amount: 500 },
+                      { key: 'heavy-premium', label: 'Heavy', emoji: '🔺', amount: 1000 }
                     ].map(option => (
                       <button
                         key={option.key}
                         onClick={() => applyCompetitorPreset(option.key)}
-                        className={`p-3 rounded-lg border transition-all ${
+                        className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
                           pricingParams.competitorAdjustment === option.amount
                             ? 'bg-indigo-600 border-indigo-500 text-white'
                             : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                         }`}
                       >
-                        <div className="text-2xl mb-1">{option.emoji}</div>
-                        <div className="text-xs font-semibold">{option.label}</div>
-                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
+                        <span className="text-base">{option.emoji}</span>
+                        <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
+                        <span className="text-[9px] text-indigo-300 font-mono">
+                          {option.amount > 0 ? '+₹' : option.amount < 0 ? '₹' : '₹'}{option.amount}
+                        </span>
                       </button>
                     ))}
-                  </div>
-                  {/* Custom Amount Input */}
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-slate-400">Custom amount:</label>
                     <input
                       type="number"
-                      step="10"
+                      step="1"
                       value={pricingParams.competitorAdjustment}
                       onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
-                      placeholder="Enter custom amount (e.g., -50, +25)"
+                      className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      placeholder="Custom amount (₹)"
                     />
                   </div>
-                </div>
-
-                {/* Question 4: Last Minute Bookings */}
-                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="flex items-center gap-2">
-                      <h5 className="text-white font-semibold text-sm">Is this a last-minute booking?</h5>
-                      <Tooltip content={`Use Cases:
-• Discount (0.7-0.9x): When you have empty rooms 1-2 days before arrival and want to fill them quickly
-• Standard (1.0x): Normal advance bookings (7+ days ahead)
-• Premium (1.3-1.5x): When guest needs urgent booking and you have limited availability - capture urgency value
-
-Strategy: If occupancy is low, offer discounts to fill rooms. If occupancy is high, charge premium for last-minute urgency.`}>
-                        <span className="text-slate-400 hover:text-white transition-colors">❓</span>
-                      </Tooltip>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs text-slate-300">Fixed Amount</label>
+                      <input
+                        type="number"
+                        step="10"
+                        value={pricingParams.competitorAdjustment}
+                        onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
+                        className="w-24 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                      />
                     </div>
-                    <span className="px-3 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 text-xs font-semibold">
-                      {pricingParams.lastMinuteMultiplier}x
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5">
+                    <input
+                      type="range"
+                      min="-1000"
+                      max="1000"
+                      step="50"
+                      value={pricingParams.competitorAdjustment}
+                      onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) })}
+                      className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-slate-400 mt-1">
+                      <span>-₹1000</span>
+                      <span>₹0</span>
+                      <span>+₹1000</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ROW 2 RIGHT: Last Minute Multiplier Controller */}
+              <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+                <h5 className="text-xs font-semibold text-white mb-1">⏰ Last Minute</h5>
+
+                {pricingMode === "simple" ? (
+                  <div className="space-y-0.5">
                     {[
-                      { key: 'discount', label: 'Last Minute Discount', emoji: '💸', desc: 'Fill empty rooms', multiplier: 0.7 },
-                      { key: 'slight-discount', label: 'Slight Discount', emoji: '🟢', desc: 'Minor reduction', multiplier: 0.9 },
-                      { key: 'standard', label: 'Standard', emoji: '⚪', desc: 'Normal rate', multiplier: 1.0 },
-                      { key: 'premium', label: 'Premium', emoji: '⭐', desc: 'Urgency pricing', multiplier: 1.3 },
-                      { key: 'high-premium', label: 'High Premium', emoji: '💎', desc: 'Maximum urgency', multiplier: 1.5 }
+                      { key: 'discount', label: 'Discount', emoji: '💸', multiplier: 0.7 },
+                      { key: 'standard', label: 'Standard', emoji: '⚪', multiplier: 1.0 },
+                      { key: 'premium', label: 'Premium', emoji: '⭐', multiplier: 1.3 },
+                      { key: 'high', label: 'High', emoji: '💎', multiplier: 1.5 }
                     ].map(option => (
                       <button
                         key={option.key}
                         onClick={() => onParamsChange({ ...pricingParams, lastMinuteMultiplier: option.multiplier })}
-                        className={`p-3 rounded-lg border transition-all ${
+                        className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
                           pricingParams.lastMinuteMultiplier === option.multiplier
                             ? 'bg-indigo-600 border-indigo-500 text-white'
                             : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                         }`}
                       >
-                        <div className="text-2xl mb-1">{option.emoji}</div>
-                        <div className="text-xs font-semibold">{option.label}</div>
-                        <div className="text-xs opacity-70 mt-1">{option.desc}</div>
-                        <div className="text-xs font-bold mt-1 text-indigo-400">{option.multiplier}x</div>
+                        <span className="text-base">{option.emoji}</span>
+                        <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
+                        <span className="text-[9px] text-indigo-300 font-mono">{option.multiplier}x</span>
                       </button>
                     ))}
-                  </div>
-                  {/* Custom Last Minute Input */}
-                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-white/10">
-                    <label className="text-xs text-slate-400">Custom multiplier:</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={pricingParams.lastMinuteMultiplier}
-                      onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
-                      className="flex-1 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
-                      placeholder="e.g., 0.8, 1.2, 1.4"
-                    />
-                  </div>
-                </div>
-
-                {/* Question 5: Day-Specific Demand */}
-                <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <h5 className="text-white font-semibold text-sm">Set demand level for each day of the week</h5>
-                    <Tooltip position="top" content={`Adjust pricing for each day based on typical demand patterns:
-
-Use Cases by Property Type:
-• Leisure/Resort Hotels: Higher rates Fri-Sun (1.2-2.0x), lower Mon-Thu (0.7-1.0x)
-  Example: Beach resort charges premium on weekends when families visit
-• Business Hotels: Higher rates Mon-Thu (1.1-1.3x), lower Fri-Sun (0.8-0.9x)
-  Example: City business hotel discounts weekends when corporate travel drops
-• Convention Hotels: Varies by event schedule
-• Budget Hotels: Relatively flat pricing (0.9-1.1x) across all days
-
-Multiplier Guide:
-• 0.7x (Very Low): Typically slowest day for your property type
-• 0.85x (Low): Below average demand day
-• 1.0x (Normal): Average demand day
-• 1.2x (High): Above average demand
-• 1.5x (Very High): Peak demand day
-• 2.0x (Peak): Maximum demand day (e.g., Saturday for leisure hotels)`}>
-                      <span className="text-slate-400 hover:text-white transition-colors">❓</span>
-                    </Tooltip>
-                  </div>
-
-                  {/* Quick Presets */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
-                    <button
-                      onClick={() => applyWeekdayPreset('weekend')}
-                      className="p-2 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all text-xs"
-                    >
-                      🏖️ Leisure Property (Weekend Premium)
-                    </button>
-                    <button
-                      onClick={() => applyWeekdayPreset('flat')}
-                      className="p-2 rounded-lg border bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 transition-all text-xs"
-                    >
-                      📊 Same Demand Every Day
-                    </button>
-                  </div>
-
-                  {/* Individual Day Cards with Dropdown */}
-                  <div className="grid grid-cols-2 md:grid-cols-7 gap-1.5">
-                    {weekdays.map(day => {
-                      const currentMultiplier = pricingParams.weekday_multipliers?.[day] || 1.0;
-                      const demandLevels = [
-                        { label: 'Very Low', key: 'very-low', emoji: '🔵', multiplier: 0.7 },
-                        { label: 'Low', key: 'low', emoji: '🟡', multiplier: 0.85 },
-                        { label: 'Normal', key: 'normal', emoji: '🟢', multiplier: 1.0 },
-                        { label: 'High', key: 'high', emoji: '🟠', multiplier: 1.2 },
-                        { label: 'Very High', key: 'very-high', emoji: '🔥', multiplier: 1.5 },
-                        { label: 'Peak', key: 'peak', emoji: '⚡', multiplier: 2.0 }
-                      ];
-
-                      const currentLevel = demandLevels.find(l => l.multiplier === currentMultiplier) || demandLevels[2];
-
-                      return (
-                        <div
-                          key={day}
-                          className="p-3 rounded-lg border bg-white/5 border-white/10 transition-all hover:bg-white/10"
-                        >
-                          <div className="text-center">
-                            <div className="text-2xl mb-2">{currentLevel.emoji}</div>
-                            <div className="text-xs font-semibold text-white mb-2">{day.slice(0, 3)}</div>
-                            <select
-                              value={currentLevel.key}
-                              onChange={(e) => {
-                                const selected = demandLevels.find(l => l.key === e.target.value);
-                                if (selected) {
-                                  applyDayDemandLevel(day, selected.key);
-                                }
-                              }}
-                              className="w-full px-2 py-1.5 rounded-md bg-white/10 border border-white/20 text-white text-xs focus:outline-none focus:border-indigo-500 cursor-pointer"
-                            >
-                              {demandLevels.map(level => (
-                                <option key={level.key} value={level.key} className="bg-slate-800">
-                                  {level.label}
-                                </option>
-                              ))}
-                            </select>
-                            <div className="text-xs font-bold text-indigo-400 mt-1.5">{currentMultiplier}x</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Advanced Mode */}
-            {pricingMode === "advanced" && (
-              <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {/* Demand Multiplier */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Adjusts prices based on current demand levels. Higher demand = higher multiplier. Range: 0.5x (very low demand) to 2.0x (very high demand)">
-                    Demand Multiplier
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={pricingParams.demandMultiplier}
-                    onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
-                    className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
-                    placeholder="1.0"
-                    title="Enter any decimal value (e.g., 0.9, 1.2, 1.75)"
-                  />
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="2.0"
-                  step="0.05"
-                  value={pricingParams.demandMultiplier}
-                  onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) })}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Low (0.5x)</span>
-                  <span>Normal (1.0x)</span>
-                  <span>High (2.0x)</span>
-                </div>
-              </div>
-
-              {/* Seasonal Multiplier */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Adjusts prices based on the season or time of year. Range: 0.7x (off-season) to 1.5x (peak season). Use lower values during slow periods and higher during holidays/peak times.">
-                    Seasonal Multiplier
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={pricingParams.seasonalMultiplier}
-                    onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
-                    className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
-                    placeholder="1.0"
-                    title="Enter any decimal value (e.g., 0.8, 1.0, 1.3)"
-                  />
-                </div>
-                <input
-                  type="range"
-                  min="0.7"
-                  max="1.5"
-                  step="0.05"
-                  value={pricingParams.seasonalMultiplier}
-                  onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) })}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Off-Season (0.7x)</span>
-                  <span>Regular</span>
-                  <span>Peak (1.5x)</span>
-                </div>
-              </div>
-
-              {/* Last Minute Multiplier */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Adjusts prices for last-minute bookings (1-3 days before arrival).
-
-Use Cases:
-• 0.5-0.7x: Deep discounts to fill empty rooms at the last minute (better than leaving room empty)
-• 0.8-0.9x: Slight discount for walk-ins or same-day bookings when occupancy is moderate
-• 1.0x: Standard rate for normal advance bookings
-• 1.2-1.3x: Premium for urgent bookings when you have good occupancy
-• 1.4-1.5x: High premium when guest desperately needs room and you're nearly full
-
-Strategy: Low occupancy = discount to fill. High occupancy = premium for urgency.">
-                    Last Minute Multiplier
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={pricingParams.lastMinuteMultiplier}
-                    onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
-                    className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
-                    placeholder="1.0"
-                    title="Enter any decimal value (e.g., 0.7, 1.0, 1.3)"
-                  />
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="1.5"
-                  step="0.05"
-                  value={pricingParams.lastMinuteMultiplier}
-                  onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) })}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>Discount (0.5x)</span>
-                  <span>Normal (1.0x)</span>
-                  <span>Premium (1.5x)</span>
-                </div>
-              </div>
-
-              {/* Competitor Adjustment */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-medium text-slate-300 cursor-help" title="Fixed amount to add or subtract from prices based on competitor pricing. Negative values undercut competitors, positive values price higher. This is a flat rate adjustment added after multipliers.">
-                    Competitor Adjustment
-                  </label>
-                  <input
-                    type="number"
-                    step="1"
-                    value={pricingParams.competitorAdjustment}
-                    onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) || 0 })}
-                    className="w-20 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
-                    title="Enter any value (e.g., -25, 0, +15)"
-                  />
-                </div>
-                <input
-                  type="range"
-                  min="-50"
-                  max="50"
-                  step="5"
-                  value={pricingParams.competitorAdjustment}
-                  onChange={(e) => onParamsChange({ ...pricingParams, competitorAdjustment: parseFloat(e.target.value) })}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
-                />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>-$50</span>
-                  <span>$0</span>
-                  <span>+$50</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Weekday Multipliers */}
-            <div>
-              <h5 className="text-sm font-semibold text-slate-300 mb-4 cursor-help" title="Adjust prices for each day of the week. Common uses: higher rates for Friday/Saturday (weekends), lower rates for Monday-Thursday (weekdays). Examples: 0.9 for 10% discount, 1.2 for 20% premium.">
-                Weekday Multipliers
-              </h5>
-              <div className="grid grid-cols-7 gap-3">
-                {weekdays.map(day => (
-                  <div key={day}>
-                    <div className="text-xs text-slate-400 mb-1 text-center">{day.slice(0, 3)}</div>
                     <input
                       type="number"
                       step="0.01"
                       min="0"
-                      value={pricingParams.weekday_multipliers?.[day] || 1.0}
-                      onChange={(e) => updateWeekdayMultiplier(day, e.target.value)}
-                      className="w-full px-2 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
-                      title={`${day} multiplier - enter decimal value (e.g., 0.9, 1.0, 1.2)`}
+                      value={pricingParams.lastMinuteMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
+                      className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      placeholder="Custom multiplier"
                     />
                   </div>
-                ))}
-              </div>
-            </div>
-              </>
-            )}
-          </div>
-
-          {/* Weekly Price Trend Chart */}
-          <div className={sectionClass}>
-            <h4 className="text-lg font-semibold text-white mb-4">Weekly Price Trend</h4>
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis
-                    dataKey="day"
-                    stroke="#94a3b8"
-                    style={{ fontSize: '12px' }}
-                  />
-                  <YAxis
-                    stroke="#94a3b8"
-                    style={{ fontSize: '12px' }}
-                    tickFormatter={(value) => `₹${value}`}
-                  />
-                  <ChartTooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(15, 23, 42, 0.95)',
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                    formatter={(value) => [`₹${value}`, '']}
-                    labelStyle={{ color: '#94a3b8' }}
-                  />
-                  <Legend
-                    wrapperStyle={{ fontSize: '12px', color: '#94a3b8' }}
-                  />
-                  {chartRoomTypes.map((roomType, index) => (
-                    <Line
-                      key={roomType}
-                      type="monotone"
-                      dataKey={roomType}
-                      stroke={colorPalette[index % colorPalette.length]}
-                      strokeWidth={2}
-                      dot={{ fill: colorPalette[index % colorPalette.length], r: 4 }}
-                      activeDot={{ r: 6 }}
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs text-slate-300">Multiplier</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={pricingParams.lastMinuteMultiplier}
+                        onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) || 1.0 })}
+                        className="w-24 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.1"
+                      value={pricingParams.lastMinuteMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, lastMinuteMultiplier: parseFloat(e.target.value) })}
+                      className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
                     />
+                    <div className="flex justify-between text-xs text-slate-400 mt-1">
+                      <span>0.5x</span>
+                      <span>1.0x</span>
+                      <span>2.0x</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ROW 3 FULL WIDTH: Weekly Multipliers Controller */}
+              <div className="lg:col-span-2 p-2 rounded-lg bg-white/5 border border-white/10">
+                <h5 className="text-xs font-semibold text-white mb-1">📅 Weekly Multipliers</h5>
+                <div className="grid grid-cols-7 gap-1">
+                  {weekdays.map(day => (
+                    <div key={day} className="text-center">
+                      <div className="text-[9px] text-slate-300 mb-0.5 font-medium">{day.slice(0, 3)}</div>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={pricingParams.weekday_multipliers?.[day] || 1.0}
+                        onChange={(e) => updateWeekdayMultiplier(day, e.target.value)}
+                        className="w-full px-0.5 py-0.5 rounded bg-white/10 border border-white/20 text-white text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      />
+                      <div className="text-[8px] text-slate-400 mt-0.5">
+                        {(pricingParams.weekday_multipliers?.[day] || 1.0).toFixed(1)}x
+                      </div>
+                    </div>
                   ))}
-                </LineChart>
-              </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* ROW 4 LEFT: Demand Factor Controller */}
+              <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+                <h5 className="text-xs font-semibold text-white mb-1">🎯 Demand Factor</h5>
+
+                {pricingMode === "simple" ? (
+                  <div className="space-y-0.5">
+                    {[
+                      { key: 'low', label: 'Low', emoji: '🟡', multiplier: 0.7 },
+                      { key: 'normal', label: 'Normal', emoji: '🟢', multiplier: 1.0 },
+                      { key: 'high', label: 'High', emoji: '🟠', multiplier: 1.5 },
+                      { key: 'very-high', label: 'Very High', emoji: '🔥', multiplier: 2.0 },
+                      { key: 'extreme', label: 'Extreme', emoji: '⚡', multiplier: 2.5 }
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        onClick={() => applyDemandPreset(option.key)}
+                        className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
+                          pricingParams.demandMultiplier === option.multiplier
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <span className="text-base">{option.emoji}</span>
+                        <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
+                        <span className="text-[9px] text-indigo-300 font-mono">{option.multiplier}x</span>
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={pricingParams.demandMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
+                      className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      placeholder="Custom multiplier"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs text-slate-300">Multiplier</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={pricingParams.demandMultiplier}
+                        onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) || 1.0 })}
+                        className="w-24 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.5"
+                      step="0.1"
+                      value={pricingParams.demandMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, demandMultiplier: parseFloat(e.target.value) })}
+                      className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-slate-400 mt-1">
+                      <span>0.5x</span>
+                      <span>1.5x</span>
+                      <span>2.5x</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ROW 4 RIGHT: Seasonal Factor Controller */}
+              <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+                <h5 className="text-xs font-semibold text-white mb-1">🌍 Seasonal Factor</h5>
+
+                {pricingMode === "simple" ? (
+                  <div className="space-y-0.5">
+                    {[
+                      { key: 'low', label: 'Low', emoji: '🌧️', multiplier: 0.8 },
+                      { key: 'regular', label: 'Regular', emoji: '☀️', multiplier: 1.0 },
+                      { key: 'high', label: 'High', emoji: '🌸', multiplier: 1.5 },
+                      { key: 'peak', label: 'Peak', emoji: '🎉', multiplier: 2.0 },
+                      { key: 'ultra-peak', label: 'Ultra Peak', emoji: '🔥', multiplier: 4.0 }
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        onClick={() => applySeasonalPreset(option.key)}
+                        className={`w-full p-1.5 rounded border transition-all flex items-center gap-2 ${
+                          pricingParams.seasonalMultiplier === option.multiplier
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                        }`}
+                      >
+                        <span className="text-base">{option.emoji}</span>
+                        <span className="text-[10px] font-semibold flex-1 text-left">{option.label}</span>
+                        <span className="text-[9px] text-indigo-300 font-mono">{option.multiplier}x</span>
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={pricingParams.seasonalMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
+                      className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-[10px] text-center focus:outline-none focus:border-indigo-500"
+                      placeholder="Custom multiplier"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs text-slate-300">Multiplier</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={pricingParams.seasonalMultiplier}
+                        onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) || 1.0 })}
+                        className="w-24 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min="0.6"
+                      max="4.0"
+                      step="0.1"
+                      value={pricingParams.seasonalMultiplier}
+                      onChange={(e) => onParamsChange({ ...pricingParams, seasonalMultiplier: parseFloat(e.target.value) })}
+                      className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-slate-400 mt-1">
+                      <span>0.6x</span>
+                      <span>2.0x</span>
+                      <span>4.0x</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
             </div>
-            <p className="text-xs text-slate-400 mt-3">
-              Showing Double Occupancy (👤 ×2) EP rates across the week for all room types
-            </p>
           </div>
 
           {/* Pricing Table */}

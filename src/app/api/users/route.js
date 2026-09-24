@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { createUser, findUserByEmail } from "@/lib/database";
+import { createUser, findUserByEmail, setUserModules } from "@/lib/database";
 import { hashPassword } from "@/lib/password";
 
 export async function POST(request) {
@@ -19,6 +19,7 @@ export async function POST(request) {
     : body?.propertyId
     ? [body.propertyId]
     : [];
+  const modules = Array.isArray(body?.modules) ? body.modules : [];
 
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
@@ -31,6 +32,16 @@ export async function POST(request) {
 
   const passwordHash = hashPassword(password);
   const user = await createUser({ email, passwordHash, role, status, propertyIds });
+
+  // Set module permissions
+  if (modules.length > 0) {
+    try {
+      await setUserModules(user.id, modules);
+    } catch (err) {
+      console.error('Failed to set user modules:', err);
+      // Continue anyway - user is created, just without module permissions
+    }
+  }
 
   return NextResponse.json({ user });
 }

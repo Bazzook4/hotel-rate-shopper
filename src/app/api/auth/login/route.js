@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findUserByEmail, getPropertyById, getUserPropertyId } from "@/lib/database";
+import { findUserByEmail, getPropertyById, getUserPropertyId, getUserModules } from "@/lib/database";
 import { verifyPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 
@@ -31,6 +31,9 @@ export async function POST(request) {
   const propertyId = await getUserPropertyId(user.id);
   const property = propertyId ? await getPropertyById(propertyId).catch(() => null) : null;
 
+  // Get user's module permissions
+  const modules = await getUserModules(user.id).catch(() => []);
+
   const response = NextResponse.json({
     user: {
       id: user.id,
@@ -39,6 +42,7 @@ export async function POST(request) {
       status: user.status || "Active",
       propertyId,
       propertyName: property?.name || null,
+      modules,
     },
   });
 
@@ -47,6 +51,7 @@ export async function POST(request) {
     email: user.email,
     role: user.role || null,
     property_id: propertyId,
+    modules,
   });
 
   return response;

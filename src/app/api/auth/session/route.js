@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { getUserById, getPropertyById } from "@/lib/database";
+import { getUserById, getPropertyById, getUserModules } from "@/lib/database";
 
 export async function GET(request) {
   const session = await getSessionFromRequest(request);
@@ -16,6 +16,12 @@ export async function GET(request) {
   const propertyId = session.property_id || null;
   const property = propertyId ? await getPropertyById(propertyId).catch(() => null) : null;
 
+  // Get modules from session or fetch from database
+  let modules = session.modules || [];
+  if (modules.length === 0) {
+    modules = await getUserModules(user.id).catch(() => []);
+  }
+
   return NextResponse.json({
     user: {
       id: user.id,
@@ -25,6 +31,7 @@ export async function GET(request) {
       propertyId,
       propertyName: property?.name || null,
       propertyLocation: property?.city || null,
+      modules,
     },
   });
 }

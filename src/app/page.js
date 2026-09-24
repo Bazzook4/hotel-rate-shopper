@@ -273,7 +273,7 @@ export default function Page() {
   }, []);
 
   const navItems = useMemo(() => {
-    const items = [
+    const allItems = [
       { id: "ratetracker", label: "Rate Tracker", icon: "📊" },
       { id: "history", label: "Rate History", icon: "📈" },
       { id: "compare", label: "Compare Hotels", icon: "🔎" },
@@ -281,61 +281,75 @@ export default function Page() {
       { id: "disparity", label: "Disparity Checker", icon: "🧭" },
       { id: "pricing", label: "Dynamic Pricing", icon: "💰" },
     ];
+
+    // Admin always gets Manage Users tab
     if (session?.role === "Admin") {
-      items.push({ id: "users", label: "Manage Users", icon: "👥" });
+      allItems.push({ id: "users", label: "Manage Users", icon: "👥" });
+      // Admins get all modules by default
+      return allItems;
     }
-    return items;
+
+    // For non-admin users, filter by module permissions
+    const userModules = session?.modules || [];
+
+    // If no modules are assigned, show all (backward compatibility)
+    if (userModules.length === 0) {
+      return allItems;
+    }
+
+    // Filter items based on user's module permissions
+    return allItems.filter(item => userModules.includes(item.id));
   }, [session]);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <main className="relative min-h-screen bg-slate-950 text-slate-100 flex">
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8 md:px-6 md:py-12">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-[260px_1fr]">
-          {/* Sidebar */}
-          <aside className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl shadow-[0_20px_50px_rgba(15,23,42,0.35)]">
-            <div className="mb-6 space-y-1">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Dashboard</p>
-              <h1 className="text-2xl font-semibold text-white">Rate Shopper</h1>
-              <p className="text-xs text-slate-300/80">
-                Stay on top of parity, compset, and location trends with a single workspace.
-              </p>
-            </div>
+      {/* Sidebar - Sticky to left, full height */}
+      <aside className="w-[180px] flex-shrink-0 border-r border-white/10 bg-white/5 backdrop-blur-xl sticky top-0 h-screen overflow-y-auto">
+        <div className="p-3">
+          <div className="mb-4 space-y-1">
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Dashboard</p>
+            <h1 className="text-xl font-semibold text-white">Rate Shopper</h1>
+            <p className="text-xs text-slate-300/80">
+              Stay on top of parity and compsets.
+            </p>
+          </div>
 
-            <nav className="flex flex-col gap-2">
-              {navItems.map((item) => {
-                const activeState = active === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActive(item.id)}
-                    style={!isClient ? { opacity: 0 } : {}}
-                    className={`group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
-                      activeState
-                        ? "bg-white/15 text-white shadow-inner"
-                        : "text-slate-200/80 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    <span className="text-lg leading-none">{item.icon}</span>
-                    <span className="text-sm font-medium tracking-wide">{item.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+          <nav className="flex flex-col gap-1.5">
+            {navItems.map((item) => {
+              const activeState = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActive(item.id)}
+                  style={!isClient ? { opacity: 0 } : {}}
+                  className={`group flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition ${
+                    activeState
+                      ? "bg-white/15 text-white shadow-inner"
+                      : "text-slate-200/80 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  <span className="text-base leading-none">{item.icon}</span>
+                  <span className="text-xs font-medium">{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-            <div className="mt-8">
-              <LogoutButton />
-            </div>
+          <div className="mt-6">
+            <LogoutButton />
+          </div>
+        </div>
+      </aside>
 
-          </aside>
-
-          {/* Main content */}
-          <section className="space-y-6">
+      {/* Main content - Takes remaining space */}
+      <section className="flex-1 overflow-x-hidden">
+        <div className="p-3">
             {sessionLoading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="text-center space-y-3">
@@ -437,9 +451,8 @@ export default function Page() {
                 )}
               </>
             )}
-          </section>
         </div>
-      </div>
+      </section>
     </main>
   );
 }

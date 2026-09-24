@@ -14,6 +14,11 @@ if (!SUPABASE_SERVICE_KEY) {
 // Create Supabase client with service role key for server-side operations
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+// Export Supabase admin client for use in other modules
+export function getSupabaseAdmin() {
+  return supabase;
+}
+
 // ============================================
 // USER FUNCTIONS
 // ============================================
@@ -589,6 +594,74 @@ export async function listPricingSnapshots(propertyId, { limit = 50 } = {}) {
   }
 
   return data || [];
+}
+
+// ============================================
+// USER MODULES / PERMISSIONS FUNCTIONS
+// ============================================
+
+export async function setUserModules(userId, moduleIds) {
+  if (!userId || !Array.isArray(moduleIds)) {
+    throw new Error('userId and moduleIds array are required');
+  }
+
+  // First, delete existing modules for this user
+  await supabase
+    .from('user_modules')
+    .delete()
+    .eq('user_id', userId);
+
+  // Insert new modules
+  if (moduleIds.length > 0) {
+    const modules = moduleIds.map(moduleId => ({
+      user_id: userId,
+      module_id: moduleId,
+      enabled: true,
+    }));
+
+    const { error } = await supabase
+      .from('user_modules')
+      .insert(modules);
+
+    if (error) {
+      throw new Error(`Failed to set user modules: ${error.message}`);
+    }
+  }
+}
+
+export async function getUserModules(userId) {
+  if (!userId) return [];
+
+  const { data, error } = await supabase
+    .from('user_modules')
+    .select('module_id, enabled')
+    .eq('user_id', userId)
+    .eq('enabled', true);
+
+  if (error) {
+    throw new Error(`Failed to get user modules: ${error.message}`);
+  }
+
+  return data?.map(m => m.module_id) || [];
+}
+
+export async function checkUserModuleAccess(userId, moduleId) {
+  if (!userId || !moduleId) return false;
+
+  const { data, error } = await supabase
+    .from('user_modules')
+    .select('enabled')
+    .eq('user_id', userId)
+    .eq('module_id', moduleId)
+    .eq('enabled', true)
+    .single();
+
+  if (error && error.code !== 'PGRST116') {
+    console.error('Error checking module access:', error);
+    return false;
+  }
+
+  return !!data;
 }
 
 // ============================================

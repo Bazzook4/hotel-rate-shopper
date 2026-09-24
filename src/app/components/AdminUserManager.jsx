@@ -12,6 +12,15 @@ const statuses = [
   { value: "Suspended", label: "Suspended" },
 ];
 
+const availableModules = [
+  { id: "ratetracker", label: "Rate Tracker", icon: "🔍", description: "Single search rate tracking" },
+  { id: "history", label: "Rate History", icon: "📈", description: "View historical rate data" },
+  { id: "compare", label: "Compare Hotels", icon: "🔎", description: "CompSet editor and comparison" },
+  { id: "location", label: "Search by Location", icon: "📍", description: "Location-based search" },
+  { id: "disparity", label: "Disparity Checker", icon: "🧭", description: "OTA spread analysis" },
+  { id: "pricing", label: "Dynamic Pricing", icon: "💰", description: "Smart pricing optimization" },
+];
+
 export default function AdminUserManager() {
   const [properties, setProperties] = useState([]);
   const [loadingProps, setLoadingProps] = useState(true);
@@ -23,6 +32,7 @@ export default function AdminUserManager() {
     role: "PropertyUser",
     status: "Active",
     propertyId: "",
+    modules: [], // Selected module IDs
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -50,6 +60,23 @@ export default function AdminUserManager() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
+  const toggleModule = (moduleId) => {
+    setForm((prev) => {
+      const modules = prev.modules.includes(moduleId)
+        ? prev.modules.filter(id => id !== moduleId)
+        : [...prev.modules, moduleId];
+      return { ...prev, modules };
+    });
+  };
+
+  const selectAllModules = () => {
+    setForm((prev) => ({ ...prev, modules: availableModules.map(m => m.id) }));
+  };
+
+  const deselectAllModules = () => {
+    setForm((prev) => ({ ...prev, modules: [] }));
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
@@ -62,6 +89,7 @@ export default function AdminUserManager() {
         role: form.role,
         status: form.status,
         propertyId: form.propertyId || null,
+        modules: form.modules,
       };
       const res = await fetch("/api/users", {
         method: "POST",
@@ -72,8 +100,8 @@ export default function AdminUserManager() {
       if (!res.ok) {
         throw new Error(data?.error || "Unable to create user");
       }
-      setSuccess(`User ${data.user?.Email || form.email} created.`);
-      setForm({ ...form, password: "" });
+      setSuccess(`User ${data.user?.Email || form.email} created with ${form.modules.length} module(s).`);
+      setForm({ email: "", password: "", role: "PropertyUser", status: "Active", propertyId: form.propertyId, modules: [] });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -184,6 +212,73 @@ export default function AdminUserManager() {
             ))}
           </select>
         </label>
+      </div>
+
+      {/* Module Permissions */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+              Module Access
+            </span>
+            <p className="text-xs text-slate-400 mt-1">
+              Select which modules this user can access
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={selectAllModules}
+              disabled={disabled}
+              className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50"
+            >
+              Select All
+            </button>
+            <span className="text-slate-600">|</span>
+            <button
+              type="button"
+              onClick={deselectAllModules}
+              disabled={disabled}
+              className="text-xs text-slate-400 hover:text-slate-300 transition-colors disabled:opacity-50"
+            >
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {availableModules.map((module) => (
+            <label
+              key={module.id}
+              className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
+                form.modules.includes(module.id)
+                  ? "border-indigo-500/50 bg-indigo-500/10"
+                  : "border-white/10 bg-white/5 hover:border-white/20"
+              } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <input
+                type="checkbox"
+                checked={form.modules.includes(module.id)}
+                onChange={() => toggleModule(module.id)}
+                disabled={disabled}
+                className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/10 text-indigo-600 focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-0"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{module.icon}</span>
+                  <span className="text-sm font-medium text-white">{module.label}</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">{module.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        {form.modules.length === 0 && (
+          <div className="rounded-xl border border-amber-300/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            ⚠️ No modules selected - user will not be able to access any features
+          </div>
+        )}
       </div>
 
       {error && (
