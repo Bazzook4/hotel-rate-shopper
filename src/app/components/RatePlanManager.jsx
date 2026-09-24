@@ -180,21 +180,21 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6">
+      <div className="rounded-2xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-bold text-white">📋 Configure Rate Plans</h3>
-            <p className="text-sm text-slate-400 mt-1">
+            <h3 className="text-xl font-bold text-ink">📋 Configure Rate Plans</h3>
+            <p className="sub mt-1">
               Fine-tune pricing for all combinations of room types, occupancy, and meal plans
             </p>
-            <p className="text-xs text-slate-500 mt-2">
-              Hotel: <span className="text-white font-medium">{hotel.hotelName}</span> •
+            <p className="text-xs faint mt-2">
+              Hotel: <span className="text-ink font-medium">{hotel.hotelName}</span> •
               {roomTypes.length} room types • {ratePlans.length} meal plans • {activeRows.length} rate plan variations
             </p>
           </div>
           <button
             onClick={onBack}
-            className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all"
+            className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
           >
             ← Back to Setup
           </button>
@@ -208,12 +208,12 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
       )}
 
       {/* Rate Plans Table */}
-      <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <h4 className="text-white font-semibold">Rate Plans (in increasing order of intended rack rates)</h4>
+      <div className="rounded-2xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] overflow-hidden">
+        <div className="p-4 border-b border-[var(--border)] flex items-center justify-between">
+          <h4 className="text-ink font-semibold">Rate Plans (in increasing order of intended rack rates)</h4>
           <button
             onClick={addRow}
-            className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-medium transition-all"
+            className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-ink text-xs font-medium transition-all"
           >
             + Add Row
           </button>
@@ -221,33 +221,33 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-white/5 border-b border-white/10">
+            <thead className="bg-[var(--surface)] border-b border-[var(--border)]">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">✓</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Actions</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Room</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Occupancy</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">ID</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider"># Meals</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Base Rate</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">+</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Add. Cost</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-slate-300 uppercase tracking-wider">=</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Total</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Ratio</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-slate-300 uppercase tracking-wider">Actions</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">✓</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Actions</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Room</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Occupancy</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">ID</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider"># Meals</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Base Rate</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold muted uppercase tracking-wider">+</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Add. Cost</th>
+                <th className="px-3 py-3 text-center text-xs font-semibold muted uppercase tracking-wider">=</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Total</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Ratio</th>
+                <th className="px-3 py-3 text-left text-xs font-semibold muted uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {ratePlanRows.map((row) => (
-                <tr key={row.id} className="hover:bg-white/5 transition-colors">
+                <tr key={row.id} className="hover:bg-[var(--surface)] transition-colors">
                   {/* Active Checkbox */}
                   <td className="px-3 py-3">
                     <input
                       type="checkbox"
                       checked={row.isActive}
                       onChange={(e) => handleRowChange(row.id, "isActive", e.target.checked)}
-                      className="w-4 h-4 rounded bg-white/10 border-white/20 text-indigo-600 focus:ring-indigo-500"
+                      className="w-4 h-4 rounded bg-[var(--surface-2)] border-white/20 text-indigo-600 focus:ring-indigo-500"
                     />
                   </td>
 
@@ -256,14 +256,14 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <div className="flex gap-1">
                       <button
                         onClick={() => duplicateRow(row.id)}
-                        className="p-1 rounded bg-green-600 hover:bg-green-500 text-white text-xs"
+                        className="p-1 rounded bg-green-600 hover:bg-green-500 text-ink text-xs"
                         title="Duplicate row"
                       >
                         +
                       </button>
                       <button
                         onClick={() => deleteRow(row.id)}
-                        className="p-1 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs"
+                        className="p-1 rounded bg-rose-600 hover:bg-rose-500 text-ink text-xs"
                         title="Delete row"
                       >
                         −
@@ -281,7 +281,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                         handleRowChange(row.id, "room_type_id", selectedRoom?.id || "");
                         handleRowChange(row.id, "baseRate", selectedRoom?.base_price || 0);
                       }}
-                      className="w-full px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm focus:outline-none focus:border-indigo-500"
                     >
                       {roomTypes.map((room) => (
                         <option key={room.id} value={room.room_type_name}>
@@ -296,7 +296,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <select
                       value={row.occupancyType}
                       onChange={(e) => handleRowChange(row.id, "occupancyType", e.target.value)}
-                      className="w-full px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                      className="w-full px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm focus:outline-none focus:border-indigo-500"
                     >
                       <option value="Single (S)">Single (S)</option>
                       <option value="Double (D)">Double (D)</option>
@@ -314,7 +314,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                         const numMeals = getMealCount(e.target.value, 1);
                         handleRowChange(row.id, "numMeals", numMeals);
                       }}
-                      className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500"
+                      className="w-24 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm focus:outline-none focus:border-indigo-500"
                     >
                       {ratePlans.map((plan) => (
                         <option key={plan.id} value={plan.plan_name}>
@@ -330,7 +330,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                       type="number"
                       value={row.numMeals}
                       onChange={(e) => handleRowChange(row.id, "numMeals", e.target.value)}
-                      className="w-20 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+                      className="w-20 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-indigo-500"
                     />
                   </td>
 
@@ -342,13 +342,13 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                         type="number"
                         value={row.baseRate}
                         onChange={(e) => handleRowChange(row.id, "baseRate", e.target.value)}
-                        className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                        className="w-24 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-indigo-500"
                       />
                     </div>
                   </td>
 
                   {/* Plus sign */}
-                  <td className="px-3 py-3 text-center text-slate-400">+</td>
+                  <td className="px-3 py-3 text-center muted">+</td>
 
                   {/* Additional Cost */}
                   <td className="px-3 py-3">
@@ -356,12 +356,12 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                       type="number"
                       value={row.additionalCost}
                       onChange={(e) => handleRowChange(row.id, "additionalCost", e.target.value)}
-                      className="w-24 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-right focus:outline-none focus:border-indigo-500"
+                      className="w-24 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right focus:outline-none focus:border-indigo-500"
                     />
                   </td>
 
                   {/* Equals sign */}
-                  <td className="px-3 py-3 text-center text-slate-400">=</td>
+                  <td className="px-3 py-3 text-center muted">=</td>
 
                   {/* Total Rate */}
                   <td className="px-3 py-3">
@@ -377,7 +377,7 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                       step="0.01"
                       value={row.ratio}
                       onChange={(e) => handleRowChange(row.id, "ratio", e.target.value)}
-                      className="w-20 px-2 py-1.5 rounded bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+                      className="w-20 px-2 py-1.5 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-indigo-500"
                     />
                   </td>
 
@@ -386,14 +386,14 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                     <div className="flex gap-1">
                       <button
                         onClick={() => duplicateRow(row.id)}
-                        className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs"
+                        className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-ink text-xs"
                         title="Duplicate"
                       >
                         ⬆
                       </button>
                       <button
                         onClick={() => duplicateRow(row.id)}
-                        className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs"
+                        className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-ink text-xs"
                         title="Copy"
                       >
                         ⬇
@@ -411,14 +411,14 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
       <div className="flex gap-3 justify-end">
         <button
           onClick={() => setRatePlanRows([])}
-          className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all"
+          className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
         >
           Reset All
         </button>
         <button
           onClick={handleSave}
           disabled={loading || ratePlanRows.length === 0}
-          className="px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold disabled:opacity-50 transition-all"
+          className="px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold disabled:opacity-50 transition-all"
         >
           {loading ? "💾 Saving..." : "✅ Save Rate Plans & Continue"}
         </button>

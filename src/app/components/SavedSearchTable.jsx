@@ -8,7 +8,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
   if (!entry?.payload) {
     return (
       <tr>
-        <td colSpan="7" className="px-4 py-3 text-center text-sm text-slate-300/70">
+        <td colSpan="7" className="px-4 py-3 text-center sub/70">
           No data available for this search.
         </td>
       </tr>
@@ -96,34 +96,34 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
 
   return (
     <>
-      <tr className="border-b border-white/10 transition hover:bg-white/5">
+      <tr className="border-b border-[var(--border)] transition hover:bg-[var(--surface)]">
         {/* Search Date/Time */}
-        <td className="px-4 py-3 text-sm text-slate-200">
+        <td className="px-4 py-3 sub">
           <div className="font-medium">{searchDate}</div>
         </td>
 
         {/* Hotel Name */}
         <td className="px-4 py-3 text-sm">
-          <div className="font-medium text-white">{entry.query || data.name || "Unknown"}</div>
+          <div className="font-medium text-ink">{entry.query || data.name || "Unknown"}</div>
           {data.overall_rating && (
-            <div className="mt-0.5 text-xs text-slate-300/70">
+            <div className="mt-0.5 text-xs muted/70">
               ⭐ {data.overall_rating} ({data.reviews || 0})
             </div>
           )}
         </td>
 
         {/* Check-in */}
-        <td className="px-4 py-3 text-sm text-slate-200">
+        <td className="px-4 py-3 sub">
           <div>{checkInDate}</div>
-          {nights > 0 && <div className="text-xs text-slate-300/70">({nights}n)</div>}
+          {nights > 0 && <div className="text-xs muted/70">({nights}n)</div>}
         </td>
 
         {/* Check-out */}
-        <td className="px-4 py-3 text-sm text-slate-200">{checkOutDate}</td>
+        <td className="px-4 py-3 sub">{checkOutDate}</td>
 
         {/* Guests */}
-        <td className="px-4 py-3 text-sm text-slate-200">
-          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs">
+        <td className="px-4 py-3 sub">
+          <span className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs">
             {guestInfo}
           </span>
         </td>
@@ -138,7 +138,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
                     href={p.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-2 text-slate-200 transition hover:text-white"
+                    className="flex items-center gap-2 text-ink transition hover:text-ink"
                   >
                     {p.logo && (
                       <img src={p.logo} alt={p.source} className="h-4 w-4 rounded" />
@@ -169,7 +169,7 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
               )}
             </div>
           ) : (
-            <span className="text-xs text-slate-300/70">No prices</span>
+            <span className="text-xs muted/70">No prices</span>
           )}
         </td>
 
@@ -204,36 +204,36 @@ function SavedSearchRow({ entry, onRefresh, onDelete, isRefreshing, isDeleting }
 export default function SavedSearchTable({ history, onRefresh, onDelete, refreshingId, deletingId }) {
   if (!history || history.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-8 text-center text-sm text-slate-200/70">
+      <div className="card px-4 py-8 text-center sub/70">
         No rate history yet. Track your property rates to get started.
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl">
+    <div className="overflow-x-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl">
       <table className="w-full">
         <thead>
-          <tr className="border-b border-white/15 bg-white/5">
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+          <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               Tracked On
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               Property
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               Check-in
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               Check-out
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               Guests
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               OTA Prices
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-200/70">
+            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-ink/70">
               Actions
             </th>
           </tr>

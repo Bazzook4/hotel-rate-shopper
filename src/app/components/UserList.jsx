@@ -33,11 +33,11 @@ export default function UserList({ session, refreshKey = 0 }) {
   }, [load, refreshKey]);
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className="card card-pad">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">Users</h3>
-          <p className="text-xs text-slate-400">
+          <h3 className="h2">Users</h3>
+          <p className="text-xs muted">
             {canSwitchProperties(session)
               ? "All users across every property."
               : "Users attached to your property."}
@@ -46,7 +46,7 @@ export default function UserList({ session, refreshKey = 0 }) {
         <button
           type="button"
           onClick={load}
-          className="rounded-xl bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+          className="btn btn-secondary text-xs"
         >
           Refresh
         </button>
@@ -59,12 +59,12 @@ export default function UserList({ session, refreshKey = 0 }) {
       )}
 
       {loading ? (
-        <p className="py-6 text-center text-sm text-slate-400">Loading users…</p>
+        <p className="py-6 text-center sub">Loading users…</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+              <tr className="text-left text-xs uppercase tracking-wide muted">
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Role</th>
                 <th className="px-3 py-2">Status</th>
@@ -73,21 +73,21 @@ export default function UserList({ session, refreshKey = 0 }) {
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-t border-white/10">
-                  <td className="px-3 py-2 text-white">{u.email}</td>
-                  <td className="px-3 py-2 text-slate-300">{u.role}</td>
+                <tr key={u.id} className="">
+                  <td className="px-3 py-2 text-ink">{u.email}</td>
+                  <td className="px-3 py-2 muted">{u.role}</td>
                   <td className="px-3 py-2">
                     <span
                       className={
                         u.status === "Active"
-                          ? "rounded bg-green-500/10 px-1.5 py-0.5 text-xs text-green-300"
-                          : "rounded bg-slate-500/20 px-1.5 py-0.5 text-xs text-slate-300"
+                          ? "chip chip-ok"
+                          : "rounded bg-slate-500/20 px-1.5 py-0.5 text-xs muted"
                       }
                     >
                       {u.status || "—"}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-slate-300">
+                  <td className="px-3 py-2 muted">
                     {u.properties?.length
                       ? u.properties.map((p) => p.name || p.id).join(", ")
                       : "—"}
@@ -96,7 +96,7 @@ export default function UserList({ session, refreshKey = 0 }) {
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-sm text-slate-400">
+                  <td colSpan={4} className="px-3 py-6 text-center sub">
                     No users found.
                   </td>
                 </tr>

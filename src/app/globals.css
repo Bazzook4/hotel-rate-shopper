@@ -1,26 +1,179 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens.
+ *
+ * Light is the default. Dark is opt-in via [data-theme="dark"] on <html>,
+ * set by the theme toggle, so the OS preference does not silently override
+ * a deliberate choice.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #fafbfc;
+  --border: #e5e7eb;
+  --border-strong: #d1d5db;
+
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+
+  --accent: #15803d;
+  --accent-soft: #dcfce7;
+  --accent-text: #166534;
+
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --warn: #b45309;
+  --warn-soft: #fef3c7;
+
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+}
+
+:root[data-theme="dark"] {
+  --page: #0b0f17;
+  --surface: #141a24;
+  --surface-2: #1a212c;
+  --border: #253040;
+  --border-strong: #344256;
+
+  --text: #e8edf4;
+  --text-muted: #9aa7b8;
+  --text-faint: #6b7a8d;
+
+  --accent: #22c55e;
+  --accent-soft: #14321f;
+  --accent-text: #86efac;
+
+  --danger: #f87171;
+  --danger-soft: #3b1618;
+  --warn: #fbbf24;
+  --warn-soft: #3a2c10;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-ink-muted: var(--text-muted);
+  --color-ink-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-text: var(--accent-text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--page);
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/*
+ * Shared primitives, so a screen does not have to reassemble a card or a
+ * button out of a dozen utility classes each time.
+ */
+@layer components {
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+
+  .card-pad { padding: 1.25rem; }
+
+  .muted { color: var(--text-muted); }
+  .faint { color: var(--text-faint); }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 8px;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, opacity 0.15s;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+
+  .btn-ghost { background: transparent; color: var(--text-muted); }
+  .btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+
+  .btn-danger { background: var(--danger-soft); color: var(--danger); }
+
+  .input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    padding: 0.5rem 0.7rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    outline: none;
+  }
+  .input:focus { border-color: var(--accent); }
+  .input::placeholder { color: var(--text-faint); }
+
+  .label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+  }
+  .chip-ok { background: var(--accent-soft); color: var(--accent-text); }
+  .chip-warn { background: var(--warn-soft); color: var(--warn); }
+  .chip-off { background: var(--surface-2); color: var(--text-muted); }
+
+  .table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .table th {
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .table td {
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .table tr:last-child td { border-bottom: none; }
+
+  .h1 { font-size: 1.5rem; font-weight: 600; color: var(--text); }
+  .h2 { font-size: 1.125rem; font-weight: 600; color: var(--text); }
+  .sub { font-size: 0.875rem; color: var(--text-muted); }
 }

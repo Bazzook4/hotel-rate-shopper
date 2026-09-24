@@ -96,9 +96,9 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
     setFactors({ ...factors, [key]: parseFloat(value) || 0 });
   }
 
-  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70 mb-2";
-  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all";
-  const sectionClass = "rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6";
+  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70 mb-2";
+  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-ink placeholder:faint focus:outline-none focus:border-indigo-500/50 focus:bg-[var(--surface-2)] transition-all";
+  const sectionClass = "rounded-2xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-6";
 
   return (
     <div className="space-y-6">
@@ -106,13 +106,13 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
       <div className={sectionClass}>
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-xl font-bold text-white mb-2">{hotel.hotelName}</h3>
-            <p className="text-slate-400">{hotel.location}</p>
+            <h3 className="text-xl font-bold text-ink mb-2">{hotel.hotelName}</h3>
+            <p className="muted">{hotel.location}</p>
           </div>
           {onEditSetup && (
             <button
               onClick={onEditSetup}
-              className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-sm font-medium transition-colors flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] muted hover:text-ink text-sm font-medium transition-colors flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -131,7 +131,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Pricing Parameters */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-6">Pricing Parameters</h4>
+        <h4 className="h2 mb-6">Pricing Parameters</h4>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -164,7 +164,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
               onChange={(e) => onParamsChange({ ...pricingParams, currentOccupancy: parseInt(e.target.value) || 0 })}
               className={inputClass}
             />
-            <div className="mt-2 h-2 bg-white/10 rounded-full overflow-hidden">
+            <div className="mt-2 h-2 bg-[var(--surface-2)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-green-500 to-indigo-500 transition-all"
                 style={{ width: `${pricingParams.currentOccupancy}%` }}
@@ -178,9 +178,9 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
                 type="checkbox"
                 checked={pricingParams.includeCompetitors}
                 onChange={(e) => onParamsChange({ ...pricingParams, includeCompetitors: e.target.checked })}
-                className="w-5 h-5 rounded bg-white/10 border-white/20 text-indigo-600 focus:ring-indigo-500"
+                className="w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-indigo-600 focus:ring-indigo-500"
               />
-              <span className="text-white text-sm font-medium">Include Competitor Pricing</span>
+              <span className="text-ink text-sm font-medium">Include Competitor Pricing</span>
             </label>
           </div>
         </div>
@@ -188,7 +188,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Occupancy Factors */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-4">Occupancy Multipliers</h4>
+        <h4 className="h2 mb-4">Occupancy Multipliers</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className={controlLabel}>Low (0-30%)</label>
@@ -225,7 +225,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Seasonality */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-4">Seasonality</h4>
+        <h4 className="h2 mb-4">Seasonality</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className={controlLabel}>Peak Season Start</label>
@@ -270,7 +270,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Day of Week */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-4">Day of Week Multipliers</h4>
+        <h4 className="h2 mb-4">Day of Week Multipliers</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => (
             <div key={day}>
@@ -289,7 +289,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Lead Time */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-4">Lead Time Multipliers</h4>
+        <h4 className="h2 mb-4">Lead Time Multipliers</h4>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div>
             <label className={controlLabel}>0-3 Days</label>
@@ -346,7 +346,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Length of Stay */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-4">Length of Stay Multipliers</h4>
+        <h4 className="h2 mb-4">Length of Stay Multipliers</h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className={controlLabel}>1 Night</label>
@@ -393,7 +393,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
 
       {/* Competitor Pricing */}
       <div className={sectionClass}>
-        <h4 className="text-lg font-semibold text-white mb-4">Competitor Pricing</h4>
+        <h4 className="h2 mb-4">Competitor Pricing</h4>
         <div>
           <label className={controlLabel}>Competitor Pricing Weight (0-1)</label>
           <input
@@ -405,7 +405,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
             onChange={(e) => handleFactorChange("competitorPricingWeight", e.target.value)}
             className={inputClass}
           />
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs muted mt-2">
             Higher values give more weight to competitor prices. 0 = ignore competitors, 1 = maximum influence
           </p>
         </div>
@@ -416,7 +416,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
         <button
           onClick={handleSaveFactors}
           disabled={saveStatus === "saving"}
-          className="flex-1 px-6 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-white font-semibold disabled:opacity-50 transition-all"
+          className="flex-1 px-6 py-3 rounded-xl bg-[var(--surface-2)] hover:bg-white/15 text-ink font-semibold disabled:opacity-50 transition-all"
         >
           {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved!" : "Save Configuration"}
         </button>
@@ -424,7 +424,7 @@ export default function PricingConfiguration({ hotel, pricingParams, onParamsCha
         <button
           onClick={onCalculate}
           disabled={loading}
-          className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold disabled:opacity-50 transition-all"
+          className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold disabled:opacity-50 transition-all"
         >
           {loading ? "Calculating..." : "Calculate Pricing"}
         </button>

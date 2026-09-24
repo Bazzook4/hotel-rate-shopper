@@ -122,14 +122,14 @@ export default function SearchBar({ onResult, defaultHotelName }) {
     }
   }
 
-  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70";
+  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
   const inputClasses =
-    "rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
     <form
       onSubmit={onSearch}
-      className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)] space-y-5"
+      className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)] space-y-5"
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="flex flex-col gap-2">
@@ -138,7 +138,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
             value={q}
             readOnly
             placeholder="Your Hotel"
-            className={`${inputClasses} cursor-not-allowed bg-white/5`}
+            className={`${inputClasses} cursor-not-allowed bg-[var(--surface)]`}
             title="This is your property. Contact support to change."
           />
         </div>
@@ -209,7 +209,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
         <button
           type="submit"
           disabled={loading || weeklyLoading}
-          className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? "Tracking Rates..." : "Track My Rates"}
         </button>
@@ -217,7 +217,7 @@ export default function SearchBar({ onResult, defaultHotelName }) {
           type="button"
           onClick={onWeeklySearch}
           disabled={loading || weeklyLoading}
-          className="rounded-2xl bg-gradient-to-r from-purple-500/80 to-pink-500/80 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 transition hover:from-purple-400 hover:to-pink-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl bg-gradient-to-r from-purple-500/80 to-pink-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-purple-500/25 transition hover:from-purple-400 hover:to-pink-400 disabled:opacity-50 disabled:shadow-none"
         >
           {weeklyLoading ? "Tracking Week..." : "Track Weekly Rates"}
         </button>

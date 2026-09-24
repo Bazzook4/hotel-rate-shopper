@@ -330,35 +330,35 @@ export default function ComparePanel({ compSet }) {
     const reviewsText = formatReviews(reviews);
     if (reviewsText) parts.push(`${reviewsText} reviews`);
     if (!parts.length) return null;
-    return <div className="text-[11px] text-slate-200/70 whitespace-nowrap">{parts.join(" · ")}</div>;
+    return <div className="text-[11px] text-ink/70 whitespace-nowrap">{parts.join(" · ")}</div>;
   };
 
   return (
-    <div className="space-y-5 rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">
+    <div className="space-y-5 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h3 className="text-2xl font-semibold text-white">Comparison</h3>
-          <p className="text-xs text-slate-200/70">
+          <h3 className="h1">Comparison</h3>
+          <p className="text-xs text-ink/70">
             Align your primary property with the comp set and inspect channel spreads instantly.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {lastSync && (
-            <span className="text-[11px] text-slate-200/70">
+            <span className="text-[11px] text-ink/70">
               Last sync: {new Date(lastSync).toLocaleString()}
             </span>
           )}
           <button
             onClick={onCompare}
             disabled={loadingCompare || !normalized?.primary}
-            className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+            className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
           >
             {loadingCompare ? "Comparing…" : "Compare Now"}
           </button>
           <button
             onClick={loadSnapshots}
             disabled={loadingSnap}
-            className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/15 disabled:opacity-50"
+            className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/15 disabled:opacity-50"
           >
             {loadingSnap ? "Refreshing…" : "Refresh"}
           </button>
@@ -366,7 +366,7 @@ export default function ComparePanel({ compSet }) {
             <button
               onClick={saveSnapshot}
               disabled={saving}
-              className="rounded-2xl bg-gradient-to-r from-emerald-400/80 to-teal-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50"
+              className="rounded-2xl bg-gradient-to-r from-emerald-400/80 to-teal-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save snapshot"}
             </button>
@@ -377,22 +377,22 @@ export default function ComparePanel({ compSet }) {
       {err && <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{err}</div>}
 
       {!compareData ? (
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-5 text-sm text-slate-200/70">
+        <div className="card px-4 py-5 sub/70">
           Set your comp set and click <b>Compare Now</b>.
         </div>
       ) : (
-        <div className="overflow-auto rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
+        <div className="overflow-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
           <table className="min-w-full text-sm text-slate-100">
-            <thead className="bg-white/5 text-slate-200/80">
+            <thead className="bg-[var(--surface)] text-ink/80">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold uppercase tracking-[0.2em] text-[11px]">Channel</th>
                 <th className="px-4 py-3 text-left">
-                  <div className="text-sm font-semibold text-white">{compareData.primary?.name || "Primary"}</div>
+                  <div className="h2 text-sm">{compareData.primary?.name || "Primary"}</div>
                   {renderMeta(compareData.primary?.rating, compareData.primary?.reviews)}
                 </th>
                 {compareData.competitors?.map((meta, idx) => (
                   <th key={meta?.name || idx} className="px-4 py-3 text-left">
-                    <div className="text-sm font-semibold text-white">{meta?.name || `Competitor ${idx + 1}`}</div>
+                    <div className="h2 text-sm">{meta?.name || `Competitor ${idx + 1}`}</div>
                     {renderMeta(meta?.rating, meta?.reviews)}
                   </th>
                 ))}
@@ -400,8 +400,8 @@ export default function ComparePanel({ compSet }) {
             </thead>
             <tbody>
               {compareData.rows.map((row) => (
-                <tr key={row.channel} className="border-t border-white/10 text-slate-200/80">
-                  <td className="px-4 py-3 text-sm font-medium text-white">{row.channel}</td>
+                <tr key={row.channel} className="text-ink/80">
+                  <td className="px-4 py-3 text-sm font-medium text-ink">{row.channel}</td>
                   <td className="px-4 py-3 text-sm">{row.primaryPrice ?? "-"}</td>
                   {row.competitorPrices.map((p, i) => (
                     <td key={i} className="px-4 py-3 text-sm">
@@ -423,7 +423,7 @@ export default function ComparePanel({ compSet }) {
             </tbody>
           </table>
           {compareData.rows.length === 0 && (
-            <div className="px-4 py-4 text-sm text-slate-200/70">No rates found for the selected hotels and dates.</div>
+            <div className="px-4 py-4 sub/70">No rates found for the selected hotels and dates.</div>
           )}
         </div>
       )}

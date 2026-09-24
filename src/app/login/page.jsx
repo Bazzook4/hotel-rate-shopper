@@ -32,27 +32,23 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 py-12 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute top-[-20%] left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
-        <div className="absolute bottom-[-10%] right-[-10%] h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
-      </div>
+    <div className="flex min-h-screen items-center justify-center px-4 py-12">
 
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
+        className="w-full max-w-sm space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
       >
         <div className="space-y-2 text-center">
-          <p className="text-xs uppercase tracking-[0.4em] text-slate-200/70">Rate Shopper</p>
-          <h1 className="text-2xl font-semibold text-white">Welcome back</h1>
-          <p className="text-xs text-slate-200/70">
+          <p className="text-xs uppercase tracking-[0.4em] text-ink/70">Rate Shopper</p>
+          <h1 className="h1">Welcome back</h1>
+          <p className="text-xs text-ink/70">
             Sign in to access your property dashboard.
           </p>
         </div>
 
         <div className="space-y-4">
           <label className="block space-y-2 text-left">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
               Email
             </span>
             <input
@@ -61,12 +57,12 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm"
+              className="input"
             />
           </label>
 
           <label className="block space-y-2 text-left">
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
               Password
             </span>
             <input
@@ -75,7 +71,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm"
+              className="input"
             />
           </label>
         </div>
@@ -89,7 +85,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+          className="w-full rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2.5 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? "Signing in…" : "Sign in"}
         </button>

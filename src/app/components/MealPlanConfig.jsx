@@ -146,18 +146,18 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
     }
   }
 
-  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70 mb-2";
+  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70 mb-2";
 
   return (
-    <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6">
+    <div className="rounded-2xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h4 className="text-lg font-semibold text-white">Rate Plans / Meal Plans</h4>
-          <p className="text-xs text-slate-400 mt-1">Configure different meal plans with costs or ratios</p>
+          <h4 className="h2">Rate Plans / Meal Plans</h4>
+          <p className="text-xs muted mt-1">Configure different meal plans with costs or ratios</p>
         </div>
         <button
           onClick={() => setShowAddPlan(!showAddPlan)}
-          className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-medium transition-all"
+          className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink text-sm font-medium transition-all"
         >
           {showAddPlan ? "Cancel" : "+ Add Meal Plans"}
         </button>
@@ -170,28 +170,28 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
       )}
 
       {showAddPlan && (
-        <form onSubmit={handleSaveMealPlans} className="mb-6 p-6 rounded-xl bg-white/5 border border-white/10 space-y-6">
+        <form onSubmit={handleSaveMealPlans} className="mb-6 p-6 rounded-xl bg-[var(--surface)] border border-[var(--border)] space-y-6">
           <div className="space-y-4">
             <label className={controlLabel}>Select Meal Plans</label>
 
             {Object.keys(mealPlanInfo).map((planKey) => (
-              <div key={planKey} className="p-4 rounded-lg bg-white/5 border border-white/10">
+              <div key={planKey} className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedMealPlans[planKey]}
                     onChange={(e) => setSelectedMealPlans({ ...selectedMealPlans, [planKey]: e.target.checked })}
-                    className="mt-1 w-5 h-5 rounded bg-white/10 border-white/20 text-indigo-600 focus:ring-indigo-500"
+                    className="mt-1 w-5 h-5 rounded bg-[var(--surface-2)] border-white/20 text-indigo-600 focus:ring-indigo-500"
                   />
                   <div className="flex-1">
-                    <div className="text-white font-semibold">{mealPlanInfo[planKey].name}</div>
-                    <div className="text-xs text-slate-400 mt-1">{mealPlanInfo[planKey].desc}</div>
+                    <div className="text-ink font-semibold">{mealPlanInfo[planKey].name}</div>
+                    <div className="text-xs muted mt-1">{mealPlanInfo[planKey].desc}</div>
 
                     {selectedMealPlans[planKey] && (
                       <div className="mt-3 space-y-3">
                         {/* Pricing Type Selection */}
-                        <div className="p-3 rounded-lg bg-white/5 border border-white/10">
-                          <label className="text-xs text-slate-300 mb-2 block font-semibold">Pricing Method</label>
+                        <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+                          <label className="text-xs muted mb-2 block font-semibold">Pricing Method</label>
                           <div className="flex gap-4">
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
@@ -205,7 +205,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                                 })}
                                 className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                               />
-                              <span className="text-sm text-white">Flat Rate per Adult</span>
+                              <span className="text-sm text-ink">Flat Rate per Adult</span>
                             </label>
                             <label className="flex items-center gap-2 cursor-pointer">
                               <input
@@ -219,7 +219,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                                 })}
                                 className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
                               />
-                              <span className="text-sm text-white">Percentage Multiplier</span>
+                              <span className="text-sm text-ink">Percentage Multiplier</span>
                             </label>
                           </div>
                         </div>
@@ -227,7 +227,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                         {/* Input based on pricing type */}
                         {mealPlanCosts[planKey].pricing_type === 'flat' ? (
                           <div>
-                            <label className="text-xs text-slate-300 mb-1 block">Cost per Adult (₹)</label>
+                            <label className="text-xs muted mb-1 block">Cost per Adult (₹)</label>
                             <input
                               type="number"
                               step="0.01"
@@ -236,17 +236,17 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                                 ...mealPlanCosts,
                                 [planKey]: { ...mealPlanCosts[planKey], cost: e.target.value }
                               })}
-                              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+                              className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm"
                               placeholder={planKey === 'EP' ? '0' : planKey === 'CP' ? '250' : planKey === 'MAP' ? '1000' : '1650'}
                               required
                             />
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs muted mt-1">
                               This amount will be added per adult. E.g., ₹250 for 1 adult, ₹500 for 2 adults.
                             </p>
                           </div>
                         ) : (
                           <div>
-                            <label className="text-xs text-slate-300 mb-1 block">Multiplier Ratio</label>
+                            <label className="text-xs muted mb-1 block">Multiplier Ratio</label>
                             <input
                               type="number"
                               step="0.01"
@@ -255,11 +255,11 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                                 ...mealPlanCosts,
                                 [planKey]: { ...mealPlanCosts[planKey], ratio: e.target.value }
                               })}
-                              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm"
+                              className="w-full px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm"
                               placeholder={planKey === 'EP' ? '1.0' : planKey === 'CP' ? '1.1' : planKey === 'MAP' ? '1.25' : '1.40'}
                               required
                             />
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs muted mt-1">
                               Base price will be multiplied by this ratio. E.g., 1.25x = 25% increase.
                             </p>
                           </div>
@@ -283,7 +283,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium disabled:opacity-50 transition-all"
+            className="w-full px-6 py-3 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-ink font-medium disabled:opacity-50 transition-all"
           >
             {loading ? "Saving..." : "Save Meal Plans"}
           </button>
@@ -291,7 +291,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
       )}
 
       {ratePlans.length === 0 ? (
-        <div className="text-center py-8 text-slate-400">
+        <div className="text-center py-8 muted">
           <p>No meal plans added yet.</p>
           <p className="text-xs mt-2">Add EP, CP, MAP, or AP plans with custom pricing</p>
         </div>
@@ -300,15 +300,15 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
           {ratePlans.map((plan) => (
             <div
               key={plan.id}
-              className="p-4 rounded-xl bg-white/5 border border-white/10 hover:border-white/20 transition-all"
+              className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] hover:border-white/20 transition-all"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h5 className="text-white font-semibold">🍽️ {plan.plan_name}</h5>
+                    <h5 className="text-ink font-semibold">🍽️ {plan.plan_name}</h5>
                   </div>
-                  <p className="text-sm text-slate-300 mt-2">
-                    <span className="text-slate-400">Multiplier:</span> <span className="font-semibold text-indigo-400">{plan.multiplier}x</span>
+                  <p className="sub mt-2">
+                    <span className="muted">Multiplier:</span> <span className="font-semibold text-indigo-400">{plan.multiplier}x</span>
                     {plan.multiplier > 1 && (
                       <span className="text-green-400"> (+{((plan.multiplier - 1) * 100).toFixed(0)}%)</span>
                     )}
@@ -317,7 +317,7 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
                     )}
                   </p>
                   {plan.description && (
-                    <p className="text-xs text-slate-400 mt-1 italic">{plan.description}</p>
+                    <p className="text-xs muted mt-1 italic">{plan.description}</p>
                   )}
                 </div>
                 <div className="flex gap-2">

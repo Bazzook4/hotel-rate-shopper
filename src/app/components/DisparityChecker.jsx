@@ -28,19 +28,19 @@ function PriceRow({ row, lowest }) {
   }
 
   return (
-    <tr className="border-t border-white/10 text-slate-200/80">
+    <tr className="text-ink/80">
       <td className="p-3">
         <div className="flex items-center gap-2">
           {row.logo && (
             <img src={row.logo} alt="" className="h-4 w-4 rounded-full border border-white/20" />
           )}
-          <span className="text-sm font-medium text-white">{row.source}</span>
+          <span className="text-sm font-medium text-ink">{row.source}</span>
         </div>
       </td>
       <td className="p-3 text-sm">
-        {row.remarks?.join(" · ") || <span className="text-slate-400/70">—</span>}
+        {row.remarks?.join(" · ") || <span className="muted/70">—</span>}
       </td>
-      <td className="p-3 text-right text-sm font-semibold text-white">
+      <td className="p-3 text-right h2 text-sm">
         {row.priceText ?? (row.price != null ? `₹${row.price}` : "—")}
       </td>
       <td className="p-3 text-right text-sm">
@@ -67,7 +67,7 @@ function PriceRow({ row, lowest }) {
             View →
           </a>
         ) : (
-          <span className="text-sm text-slate-400/70">—</span>
+          <span className="sub/70">—</span>
         )}
       </td>
     </tr>
@@ -187,18 +187,18 @@ export default function DisparityChecker({ defaultHotelName }) {
     }
   }
 
-  const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70";
+  const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
   const inputClasses =
-    "rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
     <div className="space-y-5">
       <form
         onSubmit={onSearch}
-        className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)] space-y-5"
+        className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)] space-y-5"
       >
-        <div className="flex flex-col gap-2 text-sm text-slate-200/80">
-          <span className="text-xs uppercase tracking-[0.4em] text-slate-200/60">Disparity Audit</span>
+        <div className="flex flex-col gap-2 sub/80">
+          <span className="text-xs uppercase tracking-[0.4em] text-ink/60">Disparity Audit</span>
           <p>
             Enter a single property and compare OTA positioning across your selected dates.
           </p>
@@ -281,7 +281,7 @@ export default function DisparityChecker({ defaultHotelName }) {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-cyan-500/80 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-cyan-400 disabled:opacity-50 disabled:shadow-none"
+            className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-cyan-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-cyan-400 disabled:opacity-50 disabled:shadow-none"
           >
             {loading ? "Checking..." : "Check Disparity"}
           </button>
@@ -291,26 +291,26 @@ export default function DisparityChecker({ defaultHotelName }) {
 
       {/* summary */}
       {stats && (
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
-          <div className="flex flex-wrap items-center gap-6 text-sm text-slate-200/80">
+        <div className="card card-pad shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
+          <div className="flex flex-wrap items-center gap-6 sub/80">
             <div>
-              <span className="text-slate-300/70">OTAs</span>{" "}
+              <span className="muted/70">OTAs</span>{" "}
               <span className="text-slate-100 font-semibold">{stats.count}</span>
             </div>
             <div>
-              <span className="text-slate-300/70">Lowest</span>{" "}
+              <span className="muted/70">Lowest</span>{" "}
               <span className="text-emerald-300 font-semibold">
                 {stats.lowest != null ? `₹${stats.lowest}` : "—"}
               </span>
             </div>
             <div>
-              <span className="text-slate-300/70">Highest</span>{" "}
+              <span className="muted/70">Highest</span>{" "}
               <span className="text-rose-300 font-semibold">
                 {stats.highest != null ? `₹${stats.highest}` : "—"}
               </span>
             </div>
             <div>
-              <span className="text-slate-300/70">Spread</span>{" "}
+              <span className="muted/70">Spread</span>{" "}
               <span className="text-slate-100 font-semibold">
                 {stats.disparityPct != null ? `${stats.disparityPct.toFixed(1)}%` : "—"}
               </span>
@@ -321,9 +321,9 @@ export default function DisparityChecker({ defaultHotelName }) {
 
       {/* table */}
       {rows.length > 0 && (
-        <div className="overflow-auto rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
+        <div className="overflow-auto rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
           <table className="min-w-full text-sm text-slate-100">
-            <thead className="bg-white/5 text-slate-200/80">
+            <thead className="bg-[var(--surface)] text-ink/80">
               <tr>
                 <th className="p-3 text-left font-medium">Channel</th>
                 <th className="p-3 text-left font-medium">Remarks</th>
@@ -343,7 +343,7 @@ export default function DisparityChecker({ defaultHotelName }) {
       )}
 
       {/* tiny note */}
-      <p className="text-xs text-slate-400/80">
+      <p className="text-xs muted/80">
         Notes: We de-dupe channels and prefer rows with numeric prices. "Best / High" badges
         are based on % difference from the lowest price (≥3% = Slightly High, ≥8% = High).
       </p>

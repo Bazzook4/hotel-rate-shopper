@@ -114,7 +114,7 @@ export default function AdminUserManager({ session }) {
   }
 
   const inputClasses =
-    "w-full rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "input";
 
   const disabled = submitting || loadingProps;
 
@@ -122,19 +122,19 @@ export default function AdminUserManager({ session }) {
     <div className="space-y-5">
     <form
       onSubmit={onSubmit}
-      className="space-y-5 rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]"
+      className="space-y-5 card card-pad"
     >
       <div className="space-y-1">
-        <span className="text-xs uppercase tracking-[0.4em] text-slate-200/70">Admin</span>
-        <h3 className="text-xl font-semibold text-white">Create User</h3>
-        <p className="text-xs text-slate-200/70">
+        <span className="text-xs uppercase tracking-[0.4em] text-ink/70">Admin</span>
+        <h3 className="h2">Create User</h3>
+        <p className="text-xs text-ink/70">
           Provision a new login tied to a property. Passwords are stored hashed automatically.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
             Email
           </span>
           <input
@@ -149,7 +149,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
             Password
           </span>
           <input
@@ -164,7 +164,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
             Role
           </span>
           <select
@@ -182,7 +182,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
             Status
           </span>
           <select
@@ -200,7 +200,7 @@ export default function AdminUserManager({ session }) {
         </label>
 
         <label className="flex flex-col gap-2 sm:col-span-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
             Property
           </span>
           <select
@@ -223,10 +223,10 @@ export default function AdminUserManager({ session }) {
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70">
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/70">
               Module Access
             </span>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs muted mt-1">
               Select which modules this user can access
             </p>
           </div>
@@ -244,7 +244,7 @@ export default function AdminUserManager({ session }) {
               type="button"
               onClick={deselectAllModules}
               disabled={disabled}
-              className="text-xs text-slate-400 hover:text-slate-300 transition-colors disabled:opacity-50"
+              className="text-xs muted hover:muted transition-colors disabled:opacity-50"
             >
               Clear All
             </button>
@@ -258,7 +258,7 @@ export default function AdminUserManager({ session }) {
               className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                 form.modules.includes(module.id)
                   ? "border-indigo-500/50 bg-indigo-500/10"
-                  : "border-white/10 bg-white/5 hover:border-white/20"
+                  : "border-[var(--border)] bg-[var(--surface)] hover:border-white/20"
               } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <input
@@ -266,14 +266,14 @@ export default function AdminUserManager({ session }) {
                 checked={form.modules.includes(module.id)}
                 onChange={() => toggleModule(module.id)}
                 disabled={disabled}
-                className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/10 text-indigo-600 focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-0"
+                className="mt-0.5 w-4 h-4 rounded border-white/20 bg-[var(--surface-2)] text-indigo-600 focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-0"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-base">{module.icon}</span>
-                  <span className="text-sm font-medium text-white">{module.label}</span>
+                  <span className="text-sm font-medium text-ink">{module.label}</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">{module.description}</p>
+                <p className="text-xs muted mt-0.5">{module.description}</p>
               </div>
             </label>
           ))}
@@ -302,7 +302,7 @@ export default function AdminUserManager({ session }) {
         <button
           type="submit"
           disabled={disabled}
-          className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400 disabled:opacity-50 disabled:shadow-none"
         >
           {submitting ? "Creating…" : "Create user"}
         </button>

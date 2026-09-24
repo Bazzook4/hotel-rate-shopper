@@ -238,7 +238,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
   if (!roomTypes || roomTypes.length === 0) {
     return (
-      <div className="text-center py-6 text-slate-400 text-sm">
+      <div className="text-center py-6 muted text-sm">
         No room types available. Add room types first in the Room Types tab.
       </div>
     );
@@ -247,10 +247,10 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
   return (
     <div className="space-y-4">
       {/* Pricing Mode Toggle */}
-      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-        <label className="text-sm font-semibold text-white block mb-3">Pricing Mode:</label>
+      <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+        <label className="h2 text-sm block mb-3">Pricing Mode:</label>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-all">
+          <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
             <input
               type="radio"
               name="pricingMode"
@@ -260,12 +260,12 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               className="w-4 h-4 mt-0.5"
             />
             <div>
-              <div className="text-white text-sm font-medium">Flat Room Rate</div>
-              <div className="text-xs text-slate-400 mt-1">One price per room (any occupancy)</div>
+              <div className="text-ink text-sm font-medium">Flat Room Rate</div>
+              <div className="text-xs muted mt-1">One price per room (any occupancy)</div>
               <div className="text-xs text-green-400 mt-1">Example: Executive = ₹5000</div>
             </div>
           </label>
-          <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-all">
+          <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
             <input
               type="radio"
               name="pricingMode"
@@ -275,12 +275,12 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               className="w-4 h-4 mt-0.5"
             />
             <div>
-              <div className="text-white text-sm font-medium">Occupancy-Based</div>
-              <div className="text-xs text-slate-400 mt-1">Different rate per occupancy type</div>
+              <div className="text-ink text-sm font-medium">Occupancy-Based</div>
+              <div className="text-xs muted mt-1">Different rate per occupancy type</div>
               <div className="text-xs text-green-400 mt-1">Example: Single=₹2000, Double=₹2500</div>
             </div>
           </label>
-          <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-all">
+          <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-[var(--border)] hover:bg-[var(--surface)] transition-all">
             <input
               type="radio"
               name="pricingMode"
@@ -290,8 +290,8 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               className="w-4 h-4 mt-0.5"
             />
             <div>
-              <div className="text-white text-sm font-medium">Per Adult Rate</div>
-              <div className="text-xs text-slate-400 mt-1">Rate per person × number of adults</div>
+              <div className="text-ink text-sm font-medium">Per Adult Rate</div>
+              <div className="text-xs muted mt-1">Rate per person × number of adults</div>
               <div className="text-xs text-green-400 mt-1">Example: ₹1000/adult × 2 = ₹2000</div>
             </div>
           </label>
@@ -303,15 +303,15 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-white/20">
-              <th className="text-left py-3 px-3 text-slate-300 font-semibold text-xs">Room</th>
-              <th className="text-center py-3 px-3 text-slate-300 font-semibold text-xs">Base</th>
-              <th className="text-left py-3 px-3 text-slate-300 font-semibold text-xs">Occupancy</th>
-              <th className="text-left py-3 px-3 text-slate-300 font-semibold text-xs">
+              <th className="text-left py-3 px-3 muted font-semibold text-xs">Room</th>
+              <th className="text-center py-3 px-3 muted font-semibold text-xs">Base</th>
+              <th className="text-left py-3 px-3 muted font-semibold text-xs">Occupancy</th>
+              <th className="text-left py-3 px-3 muted font-semibold text-xs">
                 {pricingMode === 'per_adult' ? 'Rate per Adult' : 'Room Rate'}
               </th>
-              <th className="text-left py-3 px-3 text-slate-300 font-semibold text-xs">Calc Type</th>
-              <th className="text-left py-3 px-3 text-slate-300 font-semibold text-xs">Adjustment/Ratio</th>
-              <th className="text-left py-3 px-3 text-slate-300 font-semibold text-xs">Final Price</th>
+              <th className="text-left py-3 px-3 muted font-semibold text-xs">Calc Type</th>
+              <th className="text-left py-3 px-3 muted font-semibold text-xs">Adjustment/Ratio</th>
+              <th className="text-left py-3 px-3 muted font-semibold text-xs">Final Price</th>
             </tr>
           </thead>
           <tbody>
@@ -325,8 +325,8 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               // If flat_room mode, show only one row per room
               if (pricingMode === 'flat_room') {
                 return (
-                  <tr key={room.id} className="border-b border-white/10 hover:bg-white/5">
-                    <td className="py-2 px-3 text-white text-sm">{room.room_type_name}</td>
+                  <tr key={room.id} className="border-b border-[var(--border)] hover:bg-[var(--surface)]">
+                    <td className="py-2 px-3 text-ink text-sm">{room.room_type_name}</td>
                     <td className="py-2 px-3 text-center">
                       <input
                         type="radio"
@@ -336,16 +336,16 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         className="w-4 h-4"
                       />
                     </td>
-                    <td className="py-2 px-3 text-white text-sm">Any</td>
+                    <td className="py-2 px-3 text-ink text-sm">Any</td>
                     <td className="py-2 px-3">
                       {isBaseRoom ? (
                         <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 rounded bg-green-600 text-white text-xs font-semibold">Master</span>
+                          <span className="px-2 py-0.5 rounded bg-green-600 text-ink text-xs font-semibold">Master</span>
                           <input
                             type="number"
                             value={roomData.adultPricing[1] || 0}
                             onChange={(e) => handlePriceChange(room.id, 1, e.target.value)}
-                            className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                            className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                             placeholder="5000"
                           />
                         </div>
@@ -354,7 +354,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                           type="number"
                           value={roomData.adultPricing[1] || 0}
                           onChange={(e) => handlePriceChange(room.id, 1, e.target.value)}
-                          className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                           placeholder="5000"
                         />
                       )}
@@ -364,7 +364,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         <select
                           value={roomData.calcType?.[1] || 'manual'}
                           onChange={(e) => handleCalcTypeChange(room.id, 1, e.target.value)}
-                          className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-xs"
+                          className="px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-xs"
                         >
                           <option value="manual">Manual</option>
                           <option value="fixed">Fixed +/-</option>
@@ -375,31 +375,31 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     <td className="py-2 px-3">
                       {!isBaseRoom && roomData.calcType?.[1] === 'fixed' && (
                         <div className="flex items-center gap-1">
-                          <span className="text-slate-400 text-xs">+</span>
+                          <span className="muted text-xs">+</span>
                           <input
                             type="number"
                             value={roomData.fixedAdjustment?.[1] || 0}
                             onChange={(e) => handleFixedAdjustmentChange(room.id, 1, e.target.value)}
-                            className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                            className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                             placeholder="500"
                           />
                         </div>
                       )}
                       {!isBaseRoom && roomData.calcType?.[1] === 'ratio' && (
                         <div className="flex items-center gap-1">
-                          <span className="text-slate-400 text-xs">×</span>
+                          <span className="muted text-xs">×</span>
                           <input
                             type="number"
                             step="0.1"
                             value={roomData.ratioMultiplier?.[1] || 1}
                             onChange={(e) => handleRatioChange(room.id, 1, e.target.value)}
-                            className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                            className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                             placeholder="1.2"
                           />
                         </div>
                       )}
                     </td>
-                    <td className="py-2 px-3 text-white text-sm font-semibold">
+                    <td className="py-2 px-3 text-ink text-sm font-semibold">
                       ₹{calculateFinalPrice(room.id, 1).toFixed(0)}
                     </td>
                   </tr>
@@ -409,8 +409,8 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
               // If per_adult mode, show only one row
               if (pricingMode === 'per_adult') {
                 return (
-                  <tr key={room.id} className="border-b border-white/10 hover:bg-white/5">
-                    <td className="py-2 px-3 text-white text-sm">{room.room_type_name}</td>
+                  <tr key={room.id} className="border-b border-[var(--border)] hover:bg-[var(--surface)]">
+                    <td className="py-2 px-3 text-ink text-sm">{room.room_type_name}</td>
                     <td className="py-2 px-3 text-center">
                       <input
                         type="radio"
@@ -420,18 +420,18 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         className="w-4 h-4"
                       />
                     </td>
-                    <td className="py-2 px-3 text-white text-sm">Per Adult</td>
+                    <td className="py-2 px-3 text-ink text-sm">Per Adult</td>
                     <td className="py-2 px-3">
                       {isBaseRoom ? (
                         <input
                           type="number"
                           value={roomData.perAdultRate}
                           onChange={(e) => handlePerAdultRateChange(room.id, e.target.value)}
-                          className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                           placeholder="1000"
                         />
                       ) : (
-                        <span className="text-white text-sm">Calculated</span>
+                        <span className="text-ink text-sm">Calculated</span>
                       )}
                     </td>
                     <td className="py-2 px-3">
@@ -439,7 +439,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         <select
                           value={roomData.calcType || 'manual'}
                           onChange={(e) => handleCalcTypeChange(room.id, 'all', e.target.value)}
-                          className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-xs"
+                          className="px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-xs"
                         >
                           <option value="manual">Manual</option>
                           <option value="fixed">Fixed +/-</option>
@@ -453,7 +453,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                           type="number"
                           value={roomData.fixedAdjustment['all'] || 0}
                           onChange={(e) => handleFixedAdjustmentChange(room.id, 'all', e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                           placeholder="+500"
                         />
                       )}
@@ -463,12 +463,12 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                           step="0.1"
                           value={roomData.ratioMultiplier['all'] || 1}
                           onChange={(e) => handleRatioChange(room.id, 'all', e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                           placeholder="1.2"
                         />
                       )}
                     </td>
-                    <td className="py-2 px-3 text-white text-sm font-semibold">
+                    <td className="py-2 px-3 text-ink text-sm font-semibold">
                       ₹{roomData.perAdultRate || 0}
                     </td>
                   </tr>
@@ -477,14 +477,14 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
               // Room level mode - show rows for each occupancy type
               return Array.from({ length: numAdults }, (_, i) => i + 1).map((adultCount) => (
-                <tr key={`${room.id}-${adultCount}`} className="border-b border-white/10 hover:bg-white/5">
+                <tr key={`${room.id}-${adultCount}`} className="border-b border-[var(--border)] hover:bg-[var(--surface)]">
                   {adultCount === 1 && (
-                    <td rowSpan={numAdults} className="py-2 px-3 text-white text-sm border-r border-white/10">
+                    <td rowSpan={numAdults} className="py-2 px-3 text-ink text-sm border-r border-[var(--border)]">
                       {room.room_type_name}
                     </td>
                   )}
                   {adultCount === 1 && (
-                    <td rowSpan={numAdults} className="py-2 px-3 text-center border-r border-white/10">
+                    <td rowSpan={numAdults} className="py-2 px-3 text-center border-r border-[var(--border)]">
                       <input
                         type="radio"
                         name="baseRoom"
@@ -494,16 +494,16 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                       />
                     </td>
                   )}
-                  <td className="py-2 px-3 text-white text-sm">{getOccupancyLabel(adultCount)}</td>
+                  <td className="py-2 px-3 text-ink text-sm">{getOccupancyLabel(adultCount)}</td>
                   <td className="py-2 px-3">
                     {isBaseRoom ? (
                       <div className="flex items-center gap-1">
-                        <span className="px-2 py-0.5 rounded bg-green-600 text-white text-xs font-semibold">Master</span>
+                        <span className="px-2 py-0.5 rounded bg-green-600 text-ink text-xs font-semibold">Master</span>
                         <input
                           type="number"
                           value={roomData.adultPricing[adultCount] || 0}
                           onChange={(e) => handlePriceChange(room.id, adultCount, e.target.value)}
-                          className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                         />
                       </div>
                     ) : (
@@ -511,7 +511,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         type="number"
                         value={roomData.adultPricing[adultCount] || 0}
                         onChange={(e) => handlePriceChange(room.id, adultCount, e.target.value)}
-                        className="w-24 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                        className="w-24 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                       />
                     )}
                   </td>
@@ -520,7 +520,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                       <select
                         value={roomData.calcType?.[adultCount] || 'manual'}
                         onChange={(e) => handleCalcTypeChange(room.id, adultCount, e.target.value)}
-                        className="px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-xs"
+                        className="px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-xs"
                       >
                         <option value="manual">Manual</option>
                         <option value="fixed">Fixed +/-</option>
@@ -531,31 +531,31 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                   <td className="py-2 px-3">
                     {!isBaseRoom && roomData.calcType?.[adultCount] === 'fixed' && (
                       <div className="flex items-center gap-1">
-                        <span className="text-slate-400 text-xs">+</span>
+                        <span className="muted text-xs">+</span>
                         <input
                           type="number"
                           value={roomData.fixedAdjustment?.[adultCount] || 0}
                           onChange={(e) => handleFixedAdjustmentChange(room.id, adultCount, e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                           placeholder="500"
                         />
                       </div>
                     )}
                     {!isBaseRoom && roomData.calcType?.[adultCount] === 'ratio' && (
                       <div className="flex items-center gap-1">
-                        <span className="text-slate-400 text-xs">×</span>
+                        <span className="muted text-xs">×</span>
                         <input
                           type="number"
                           step="0.1"
                           value={roomData.ratioMultiplier?.[adultCount] || 1}
                           onChange={(e) => handleRatioChange(room.id, adultCount, e.target.value)}
-                          className="w-20 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-right"
+                          className="w-20 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-right"
                           placeholder="1.2"
                         />
                       </div>
                     )}
                   </td>
-                  <td className="py-2 px-3 text-white text-sm font-semibold">
+                  <td className="py-2 px-3 text-ink text-sm font-semibold">
                     ₹{calculateFinalPrice(room.id, adultCount).toFixed(0)}
                   </td>
                 </tr>
@@ -566,8 +566,8 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
       </div>
 
       {/* Extra Charges Section */}
-      <div className="p-4 rounded-lg bg-white/5 border border-white/10">
-        <h5 className="text-sm font-semibold text-white mb-3">Extra Charges (Optional)</h5>
+      <div className="p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+        <h5 className="h2 text-sm mb-3">Extra Charges (Optional)</h5>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {roomTypes.map(room => {
             const roomData = occupancyData[room.id];
@@ -575,25 +575,25 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
 
             return (
               <div key={room.id} className="space-y-2">
-                <div className="text-xs text-slate-400 font-semibold">{room.room_type_name}</div>
+                <div className="text-xs muted font-semibold">{room.room_type_name}</div>
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-xs text-slate-300 block mb-1">Extra Adult</label>
+                    <label className="text-xs muted block mb-1">Extra Adult</label>
                     <input
                       type="number"
                       value={roomData.extraAdult || ''}
                       onChange={(e) => handleExtraChange(room.id, 'extraAdult', e.target.value)}
-                      className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm"
                       placeholder="800"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs text-slate-300 block mb-1">Extra Child</label>
+                    <label className="text-xs muted block mb-1">Extra Child</label>
                     <input
                       type="number"
                       value={roomData.extraChild || ''}
                       onChange={(e) => handleExtraChange(room.id, 'extraChild', e.target.value)}
-                      className="w-full px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm"
+                      className="w-full px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm"
                       placeholder="500"
                     />
                   </div>
@@ -609,7 +609,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
         <button
           onClick={handleSaveAll}
           disabled={loading}
-          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold text-sm transition-all disabled:opacity-50"
+          className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
         >
           {loading ? 'Saving...' : '💾 Save All Occupancy Pricing'}
         </button>

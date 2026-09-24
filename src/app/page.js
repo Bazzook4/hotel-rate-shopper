@@ -10,6 +10,7 @@ import DisparityChecker from "./components/DisparityChecker";
 import DynamicPricing from "./components/DynamicPricing";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
+import ThemeToggle from "./components/ThemeToggle";
 
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
@@ -45,57 +46,78 @@ export default function V2Dashboard() {
   }, [navItems, active]);
 
   return (
-    <main className="relative flex min-h-screen bg-slate-950 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
-      </div>
-
-      <aside className="sticky top-0 h-screen w-[200px] flex-shrink-0 overflow-y-auto border-r border-white/10 bg-white/5 backdrop-blur-xl">
-        <div className="p-3">
-          <div className="mb-4 space-y-1">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Dashboard</p>
-            <h1 className="text-xl font-semibold text-white">Rate Shopper</h1>
-            <p className="text-xs text-slate-300/80">Distribution, parity and pricing.</p>
+    <main className="flex min-h-screen">
+      <aside
+        className="sticky top-0 h-screen w-[230px] flex-shrink-0 overflow-y-auto"
+        style={{
+          background: "var(--surface)",
+          borderRight: "1px solid var(--border)",
+        }}
+      >
+        <div className="p-4">
+          <div className="mb-6">
+            <h1 className="h2">Rate Shopper</h1>
+            <p className="sub text-xs">Distribution &amp; pricing</p>
           </div>
 
-          <nav className="flex flex-col gap-1.5">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActive(item.id)}
-                className={`group flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition ${
-                  active === item.id
-                    ? "bg-white/15 text-white shadow-inner"
-                    : "text-slate-200/80 hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                <span className="text-base leading-none">{item.icon}</span>
-                <span className="text-xs font-medium">{item.label}</span>
-              </button>
-            ))}
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider faint">
+            Menu
+          </p>
+
+          <nav className="flex flex-col gap-0.5">
+            {navItems.map((item) => {
+              const on = active === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActive(item.id)}
+                  className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition"
+                  style={{
+                    background: on ? "var(--accent-soft)" : "transparent",
+                    color: on ? "var(--accent-text)" : "var(--text-muted)",
+                    fontWeight: on ? 600 : 500,
+                  }}
+                >
+                  <span className="text-base leading-none">{item.icon}</span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </nav>
 
-          <div className="mt-6 space-y-2">
+          <div
+            className="mt-6 space-y-1 pt-4"
+            style={{ borderTop: "1px solid var(--border)" }}
+          >
+            <Link
+              href="/admin"
+              className="block rounded-lg px-3 py-2 text-sm muted transition hover:opacity-80"
+            >
+              Admin
+            </Link>
             <Link
               href="/v1"
-              className="block rounded-xl px-2.5 py-2 text-xs text-slate-400 transition hover:bg-white/10 hover:text-white"
+              className="block rounded-lg px-3 py-2 text-sm muted transition hover:opacity-80"
             >
-              ← Previous dashboard
+              Previous dashboard
             </Link>
+            <ThemeToggle className="w-full justify-start px-3" />
             <LogoutButton />
           </div>
         </div>
       </aside>
 
       <section className="flex-1 overflow-x-hidden">
-        <div className="p-3">
+        <div className="mx-auto max-w-[1400px] p-6">
           {sessionLoading ? (
             <div className="flex items-center justify-center py-20">
               <div className="space-y-3 text-center">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-                <p className="text-sm text-slate-400">Loading dashboard…</p>
+                <div
+                  className="inline-block h-7 w-7 animate-spin rounded-full border-2"
+                  style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }}
+                />
+                <p className="sub">Loading dashboard…</p>
               </div>
             </div>
           ) : (
@@ -105,16 +127,16 @@ export default function V2Dashboard() {
               {active === "compshopper" && (
                 <div className="space-y-4">
                   <div>
-                    <h2 className="text-3xl font-semibold text-white">Comp Shopper</h2>
-                    <p className="text-sm text-slate-300/80">
+                    <h2 className="h1">Comp Shopper</h2>
+                    <p className="sub">
                       Calendar view of your rate against the comp set median.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-8 text-center">
-                    <p className="text-sm text-slate-300">
+                  <div className="card card-pad text-center">
+                    <p className="sub">
                       Calendar grid is the next build step.
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs faint">
                       Stored rates with a refresh control, median per date, colour-coded
                       against your own rate.
                     </p>
@@ -125,8 +147,8 @@ export default function V2Dashboard() {
               {active === "parity" && (
                 <div className="space-y-4">
                   <div>
-                    <h2 className="text-3xl font-semibold text-white">Rate Parity</h2>
-                    <p className="text-sm text-slate-300/80">
+                    <h2 className="h1">Rate Parity</h2>
+                    <p className="sub">
                       Audit OTA spreads for a specific hotel and highlight actionable gaps.
                     </p>
                   </div>
@@ -137,13 +159,13 @@ export default function V2Dashboard() {
               {active === "location" && (
                 <div className="space-y-4">
                   <div>
-                    <h2 className="text-3xl font-semibold text-white">Search by Location</h2>
-                    <p className="text-sm text-slate-300/80">
+                    <h2 className="h1">Search by Location</h2>
+                    <p className="sub">
                       Surface the strongest offers in a destination.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-8 text-center">
-                    <p className="text-sm text-slate-300">
+                  <div className="card card-pad text-center">
+                    <p className="sub">
                       Carried over from v1 in the next step.
                     </p>
                   </div>
@@ -159,8 +181,8 @@ export default function V2Dashboard() {
               {active === "users" && session?.canManageUsers && (
                 <div className="space-y-4">
                   <div>
-                    <h2 className="text-3xl font-semibold text-white">Manage Users</h2>
-                    <p className="text-sm text-slate-300/80">
+                    <h2 className="h1">Manage Users</h2>
+                    <p className="sub">
                       Provision access and assign modules.
                     </p>
                   </div>

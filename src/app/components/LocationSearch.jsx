@@ -49,18 +49,18 @@ export default function LocationSearch({ onResult, defaultLocation }) {
     }
   }
 
-  const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70";
+  const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
   const inputClasses =
-    "rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 placeholder-slate-300/70 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
     <form
       onSubmit={onSearch}
-      className="rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)] space-y-5"
+      className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)] space-y-5"
     >
       <div className="flex flex-col gap-1">
-        <span className="text-xs uppercase tracking-[0.4em] text-slate-200/60">Location Explorer</span>
-        <p className="text-sm text-slate-200/80">
+        <span className="text-xs uppercase tracking-[0.4em] text-ink/60">Location Explorer</span>
+        <p className="sub/80">
           Search by city or area, then refine by star rating to surface standout deals.
         </p>
       </div>
@@ -161,7 +161,7 @@ export default function LocationSearch({ onResult, defaultLocation }) {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-2xl bg-gradient-to-r from-emerald-400/80 to-teal-500/80 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 disabled:shadow-none"
+          className="rounded-2xl bg-gradient-to-r from-emerald-400/80 to-teal-500/80 px-5 py-2.5 h2 text-sm shadow-lg shadow-emerald-500/20 transition hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 disabled:shadow-none"
         >
           {loading ? "Searching..." : "Search by Location"}
         </button>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import PropertyUsers from "./PropertyUsers";
 
 const inputClass =
-  "mt-1 w-full rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-white/30";
+  "input mt-1";
 
 const FIELDS = [
   { key: "name", label: "Property name", required: true },
@@ -25,7 +25,7 @@ const FIELDS = [
 
 function Field({ field, value, onChange }) {
   return (
-    <label className="block text-[11px] text-slate-400">
+    <label className="block label">
       {field.label}
       {field.required && <span className="text-red-400"> *</span>}
       <input
@@ -104,8 +104,8 @@ export default function PropertyAdmin({ session }) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="space-y-3 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-          <p className="text-sm text-slate-400">Loading properties…</p>
+          <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <p className="sub">Loading properties…</p>
         </div>
       </div>
     );
@@ -115,18 +115,18 @@ export default function PropertyAdmin({ session }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase tracking-[0.2em] muted">
             Hotel Operations
           </p>
-          <h1 className="text-3xl font-semibold text-white">Admin</h1>
-          <p className="text-sm text-slate-300/80">
+          <h1 className="h1">Admin</h1>
+          <p className="sub">
             Property details and settings.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <Link
             href="/"
-            className="rounded-xl bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20"
+            className="btn btn-secondary"
           >
             ← Dashboard
           </Link>
@@ -134,7 +134,7 @@ export default function PropertyAdmin({ session }) {
             <button
               type="button"
               onClick={() => setForm({ name: "" })}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100"
+              className="btn btn-primary"
             >
               + Add property
             </button>
@@ -148,14 +148,14 @@ export default function PropertyAdmin({ session }) {
         </div>
       )}
       {notice && (
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+        <div className="card px-4 py-2 sub">
           {notice}
         </div>
       )}
 
       {form && (
-        <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
-          <h2 className="mb-3 text-sm font-semibold text-white">
+        <div className="card card-pad">
+          <h2 className="mb-3 h2 text-sm">
             {form.id ? `Edit ${form.name}` : "New property"}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -168,7 +168,7 @@ export default function PropertyAdmin({ session }) {
               />
             ))}
           </div>
-          <label className="mt-3 block text-[11px] text-slate-400">
+          <label className="mt-3 block label">
             Description
             <textarea
               rows={2}
@@ -184,7 +184,7 @@ export default function PropertyAdmin({ session }) {
               type="button"
               disabled={busy}
               onClick={() => save(form)}
-              className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-50"
+              className="btn btn-primary"
             >
               {busy ? "Saving…" : "Save"}
             </button>
@@ -194,7 +194,7 @@ export default function PropertyAdmin({ session }) {
                 setForm(null);
                 setNotice("");
               }}
-              className="rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
+              className="btn btn-secondary"
             >
               Cancel
             </button>
@@ -202,10 +202,10 @@ export default function PropertyAdmin({ session }) {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+      <div className="overflow-x-auto card">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr className="text-left text-xs uppercase tracking-wide muted">
               <th className="px-4 py-3">Property</th>
               <th className="px-4 py-3">Location</th>
               <th className="px-4 py-3">Rooms</th>
@@ -216,19 +216,19 @@ export default function PropertyAdmin({ session }) {
           </thead>
           <tbody>
             {properties.map((p) => (
-              <tr key={p.id} className="border-t border-white/10">
+              <tr key={p.id} className="">
                 <td className="px-4 py-3">
-                  <span className="block text-white">{p.name}</span>
+                  <span className="block text-ink">{p.name}</span>
                   {p.email && (
-                    <span className="block text-xs text-slate-400">{p.email}</span>
+                    <span className="block text-xs muted">{p.email}</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-slate-300">
+                <td className="px-4 py-3 muted">
                   {[p.city, p.state, p.country].filter(Boolean).join(", ") || "—"}
                 </td>
-                <td className="px-4 py-3 text-slate-300">{p.total_rooms ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-300">{p.star_rating ?? "—"}</td>
-                <td className="px-4 py-3 text-slate-300">
+                <td className="px-4 py-3 muted">{p.total_rooms ?? "—"}</td>
+                <td className="px-4 py-3 muted">{p.star_rating ?? "—"}</td>
+                <td className="px-4 py-3 muted">
                   {p.check_in_time || "—"} / {p.check_out_time || "—"}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -238,7 +238,7 @@ export default function PropertyAdmin({ session }) {
                       setForm(p);
                       setNotice("");
                     }}
-                    className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-white/20"
+                    className="btn btn-secondary text-xs"
                   >
                     Edit
                   </button>
@@ -247,7 +247,7 @@ export default function PropertyAdmin({ session }) {
             ))}
             {properties.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center sub">
                   No properties yet.
                 </td>
               </tr>

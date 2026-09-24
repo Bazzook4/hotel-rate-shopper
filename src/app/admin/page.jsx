@@ -6,6 +6,7 @@ import PropertyAdmin from "../components/PropertyAdmin";
 import UserList from "../components/UserList";
 import PartnerSettings from "../components/PartnerSettings";
 import SchemaStatus from "../components/SchemaStatus";
+import ThemeToggle from "../components/ThemeToggle";
 import { isAnyAdmin, isSuperAdmin } from "@/lib/permissions";
 
 export default function AdminPage() {
@@ -47,10 +48,10 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-100">
+      <div className="flex min-h-screen items-center justify-center ">
         <div className="space-y-3 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-          <p className="text-sm text-slate-400">Loading…</p>
+          <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <p className="sub">Loading…</p>
         </div>
       </div>
     );
@@ -59,12 +60,12 @@ export default function AdminPage() {
   if (!session) return null;
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
-      </div>
+    <main className="relative min-h-screen ">
       <div className="mx-auto max-w-6xl space-y-4 p-4">
+        <div className="flex items-center justify-between">
+          <h1 className="h1">Admin</h1>
+          <ThemeToggle />
+        </div>
         {isSuperAdmin(session) && <SchemaStatus />}
         <div className="flex gap-2">
           {[
@@ -78,8 +79,8 @@ export default function AdminPage() {
               onClick={() => setTab(id)}
               className={`rounded-xl px-3 py-1.5 text-sm transition ${
                 tab === id
-                  ? "bg-white/15 text-white"
-                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+                  ? "bg-white/15 text-ink"
+                  : "muted hover:bg-[var(--surface-2)] hover:text-ink"
               }`}
             >
               {label}

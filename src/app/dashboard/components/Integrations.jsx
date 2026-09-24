@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 const inputClass =
-  "w-full rounded-lg border border-white/10 bg-slate-900/60 px-2 py-1.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-white/30";
+  "input";
 
 /** Tools a property can connect to. Aiosell is live; the rest are planned. */
 const CATALOGUE = [
@@ -129,8 +129,8 @@ export default function Integrations({ session }) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="space-y-3 text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-          <p className="text-sm text-slate-400">Loading integrations…</p>
+          <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <p className="sub">Loading integrations…</p>
         </div>
       </div>
     );
@@ -142,8 +142,8 @@ export default function Integrations({ session }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-3xl font-semibold text-white">Integrations</h2>
-        <p className="text-sm text-slate-300/80">
+        <h2 className="h1">Integrations</h2>
+        <p className="sub">
           Connect the tools your property already uses.
         </p>
       </div>
@@ -154,7 +154,7 @@ export default function Integrations({ session }) {
         </p>
       )}
       {notice && (
-        <p className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
+        <p className="card px-3 py-2 sub">
           {notice}
         </p>
       )}
@@ -167,25 +167,25 @@ export default function Integrations({ session }) {
               key={tool.slug}
               className={`rounded-2xl border p-4 ${
                 tool.available
-                  ? "border-white/10 bg-white/5"
-                  : "border-white/5 bg-white/[0.02]"
+                  ? "border-[var(--border)] bg-[var(--surface)]"
+                  : "border-[var(--border)] bg-white/[0.02]"
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                  <p className="text-xs uppercase tracking-wide faint">
                     {tool.category}
                   </p>
-                  <h3 className="text-lg font-semibold text-white">{tool.name}</h3>
+                  <h3 className="h2">{tool.name}</h3>
                 </div>
                 {isAiosell && connected && (
-                  <span className="rounded-full bg-green-500/15 px-2 py-0.5 text-[10px] text-green-300 ring-1 ring-green-500/30">
+                  <span className="chip chip-ok">
                     Connected
                   </span>
                 )}
               </div>
 
-              <p className="mt-2 text-xs text-slate-400">{tool.blurb}</p>
+              <p className="mt-2 text-xs muted">{tool.blurb}</p>
 
               {tool.available ? (
                 <button
@@ -199,7 +199,7 @@ export default function Integrations({ session }) {
                 <button
                   type="button"
                   disabled
-                  className="mt-3 w-full rounded-xl bg-white/5 px-3 py-1.5 text-sm text-slate-500"
+                  className="mt-3 w-full rounded-xl bg-[var(--surface)] px-3 py-1.5 text-sm faint"
                 >
                   Coming soon
                 </button>
@@ -210,8 +210,8 @@ export default function Integrations({ session }) {
       </div>
 
       {open === "aiosell" && (
-        <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
-          <h3 className="text-sm font-semibold text-white">Aiosell connection</h3>
+        <div className="card card-pad">
+          <h3 className="h2 text-sm">Aiosell connection</h3>
 
           {!partnerReady && (
             <p className="mt-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
@@ -221,7 +221,7 @@ export default function Integrations({ session }) {
           )}
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="block text-[11px] text-slate-400">
+            <label className="block label">
               Hotel code
               <input
                 value={hotelCode}
@@ -230,7 +230,7 @@ export default function Integrations({ session }) {
                 placeholder="The code Aiosell assigned this property"
               />
             </label>
-            <label className="mt-5 flex items-center gap-2 text-sm text-white">
+            <label className="mt-5 flex items-center gap-2 text-sm text-ink">
               <input
                 type="checkbox"
                 checked={enabled}
@@ -241,10 +241,10 @@ export default function Integrations({ session }) {
           </div>
 
           <div className="mt-4">
-            <p className="text-[11px] uppercase tracking-wide text-slate-500">
+            <p className="text-[11px] uppercase tracking-wide faint">
               Activities
             </p>
-            <p className="mb-2 text-xs text-slate-400">
+            <p className="mb-2 text-xs muted">
               Turn on only what this property should exchange with Aiosell.
             </p>
             <div className="space-y-2">
@@ -259,8 +259,8 @@ export default function Integrations({ session }) {
                     key={key}
                     className={`flex items-start gap-2 rounded-xl border px-3 py-2 ${
                       supported
-                        ? "border-white/10 bg-white/5"
-                        : "border-white/5 bg-white/[0.02] opacity-50"
+                        ? "border-[var(--border)] bg-[var(--surface)]"
+                        : "border-[var(--border)] bg-white/[0.02] opacity-50"
                     }`}
                   >
                     <input
@@ -271,8 +271,8 @@ export default function Integrations({ session }) {
                       className="mt-0.5"
                     />
                     <span>
-                      <span className="block text-sm text-white">{label}</span>
-                      <span className="block text-xs text-slate-400">
+                      <span className="block text-sm text-ink">{label}</span>
+                      <span className="block text-xs muted">
                         {supported ? hint : "Not supported by this partner"}
                       </span>
                     </span>
@@ -282,17 +282,17 @@ export default function Integrations({ session }) {
             </div>
 
             {acts.reservationsIn && (
-              <div className="mt-3 rounded-xl border border-white/10 bg-slate-900/60 p-3">
-                <p className="text-[11px] uppercase tracking-wide text-slate-500">
+              <div className="mt-3 card p-3">
+                <p className="text-[11px] uppercase tracking-wide faint">
                   Reservation webhook
                 </p>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs muted">
                   Give this URL to Aiosell. They will post bookings,
                   modifications and cancellations to it.
                 </p>
                 {data?.webhookUrl ? (
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <code className="flex-1 break-all rounded-lg bg-black/40 px-2 py-1.5 text-xs text-slate-200">
+                    <code className="flex-1 break-all rounded-lg bg-black/40 px-2 py-1.5 text-xs text-ink">
                       {data.webhookUrl}
                     </code>
                     <button
@@ -301,17 +301,17 @@ export default function Integrations({ session }) {
                         navigator.clipboard?.writeText(data.webhookUrl);
                         setNotice("Webhook URL copied.");
                       }}
-                      className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-white/20"
+                      className="btn btn-secondary text-xs"
                     >
                       Copy
                     </button>
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-slate-500">
+                  <p className="mt-2 text-xs faint">
                     Save with this activity on and the URL will be generated.
                   </p>
                 )}
-                <p className="mt-2 text-[10px] text-slate-500">
+                <p className="mt-2 text-[10px] faint">
                   Treat it as a password: anyone holding it can post
                   reservations to this property.
                 </p>
@@ -321,7 +321,7 @@ export default function Integrations({ session }) {
 
           {(data?.roomTypes?.length > 0 || data?.ratePlans?.length > 0) && (
             <div className="mt-4">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs muted">
                 Map each room type to its Aiosell room code, then each rate
                 plan to the Aiosell rate plan code for every occupancy you
                 sell. Aiosell treats each occupancy as a separate rate plan.
@@ -335,12 +335,12 @@ export default function Integrations({ session }) {
                 return (
                   <div
                     key={room.id}
-                    className="mt-3 rounded-xl border border-white/10 bg-slate-900/40 p-3"
+                    className="mt-3 card p-3"
                   >
                     <div className="grid items-center gap-2 sm:grid-cols-2">
-                      <span className="text-sm font-medium text-white">
+                      <span className="text-sm font-medium text-ink">
                         {room.room_type_name}
-                        <span className="ml-2 text-xs text-slate-500">
+                        <span className="ml-2 text-xs faint">
                           up to {maxAdults} adult{maxAdults === 1 ? "" : "s"}
                         </span>
                       </span>
@@ -361,7 +361,7 @@ export default function Integrations({ session }) {
                       <div className="mt-3 overflow-x-auto">
                         <table className="min-w-full text-xs">
                           <thead>
-                            <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                            <tr className="text-left text-[10px] uppercase tracking-wide faint">
                               <th className="py-1 pr-2">Rate plan</th>
                               <th className="py-1 pr-2">Adults</th>
                               <th className="py-1 pr-2">Aiosell rate plan code</th>
@@ -381,11 +381,11 @@ export default function Integrations({ session }) {
                                       [key]: { ...entry, [field]: value },
                                     });
                                   return (
-                                    <tr key={key} className="border-t border-white/5">
-                                      <td className="py-1 pr-2 text-slate-300">
+                                    <tr key={key} className="">
+                                      <td className="py-1 pr-2 muted">
                                         {occ === 1 ? plan.plan_name : ""}
                                       </td>
-                                      <td className="py-1 pr-2 text-slate-400">{occ}</td>
+                                      <td className="py-1 pr-2 muted">{occ}</td>
                                       <td className="py-1 pr-2">
                                         <input
                                           value={entry.code ?? ""}
@@ -438,14 +438,14 @@ export default function Integrations({ session }) {
               type="button"
               disabled={busy}
               onClick={save}
-              className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-50"
+              className="btn btn-primary"
             >
               {busy ? "Saving…" : "Save connection"}
             </button>
             <button
               type="button"
               onClick={() => setOpen(null)}
-              className="rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
+              className="btn btn-secondary"
             >
               Close
             </button>

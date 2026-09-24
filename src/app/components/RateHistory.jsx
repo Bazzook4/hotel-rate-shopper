@@ -263,8 +263,8 @@ export default function RateHistory({ session }) {
 
   if (loading) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl">
-        <p className="text-slate-300">Loading rate history...</p>
+      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center backdrop-blur-xl">
+        <p className="muted">Loading rate history...</p>
       </div>
     );
   }
@@ -284,16 +284,16 @@ export default function RateHistory({ session }) {
       {/* Calendar View */}
       <div className="lg:col-span-2 space-y-4">
         {/* Month Navigation */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <button
               onClick={handlePrevMonth}
-              className="rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
+              className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
             >
               ← Prev
             </button>
             <div className="text-center">
-              <h3 className="text-xl font-semibold text-white">{monthName}</h3>
+              <h3 className="h2">{monthName}</h3>
               <button
                 onClick={handleToday}
                 className="mt-1 text-xs text-blue-300 hover:text-blue-200 transition"
@@ -303,7 +303,7 @@ export default function RateHistory({ session }) {
             </div>
             <button
               onClick={handleNextMonth}
-              className="rounded-xl bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
+              className="rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 hover:bg-white/15 transition"
             >
               Next →
             </button>
@@ -311,11 +311,11 @@ export default function RateHistory({ session }) {
         </div>
 
         {/* Calendar Grid */}
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-xl">
           {/* Week day headers */}
           <div className="grid grid-cols-7 gap-2 mb-4">
             {weekDays.map((day) => (
-              <div key={day} className="text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <div key={day} className="text-center text-xs font-semibold muted uppercase tracking-wider">
                 {day}
               </div>
             ))}
@@ -344,14 +344,14 @@ export default function RateHistory({ session }) {
                     aspect-square rounded-xl p-2 transition-all relative
                     ${dayData.hasData
                       ? 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-2 border-blue-400/30 hover:border-blue-400/60 hover:from-blue-500/30 hover:to-purple-500/30 cursor-pointer'
-                      : 'bg-white/5 border border-white/10 cursor-default'
+                      : 'bg-[var(--surface)] border border-[var(--border)] cursor-default'
                     }
                     ${isSelected ? 'ring-2 ring-blue-400 border-blue-400' : ''}
                     ${isToday ? 'ring-1 ring-amber-400' : ''}
                   `}
                 >
                   <div className="flex flex-col h-full">
-                    <span className={`text-sm font-semibold ${dayData.hasData ? 'text-white' : 'text-slate-400'}`}>
+                    <span className={`text-sm font-semibold ${dayData.hasData ? 'text-ink' : 'muted'}`}>
                       {dayData.day}
                     </span>
                     {dayData.hasData && (
@@ -374,7 +374,7 @@ export default function RateHistory({ session }) {
           </div>
 
           {/* Legend */}
-          <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-6 text-xs text-slate-300">
+          <div className="mt-6 pt-4 flex items-center justify-center gap-6 text-xs muted">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-2 border-blue-400/30" />
               <span>Has data</span>
@@ -395,8 +395,8 @@ export default function RateHistory({ session }) {
       <div className="lg:col-span-1">
         {selectedDayData ? (
           <div className="space-y-4">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
-              <h4 className="text-lg font-semibold text-white mb-2">
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 backdrop-blur-xl">
+              <h4 className="h2 mb-2">
                 {new Date(selectedDate).toLocaleDateString(undefined, {
                   weekday: 'long',
                   month: 'long',
@@ -404,11 +404,11 @@ export default function RateHistory({ session }) {
                   year: 'numeric'
                 })}
               </h4>
-              <div className="flex items-center gap-3 text-xs text-slate-400">
+              <div className="flex items-center gap-3 text-xs muted">
                 <span>
                   {selectedDayData.length} search{selectedDayData.length !== 1 ? 'es' : ''} for this date
                 </span>
-                <span className="text-slate-500">•</span>
+                <span className="faint">•</span>
                 <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-2 py-0.5 text-purple-200">
                   {selectedDayData[0].parsedParams?.adults || 2} adults
                   {selectedDayData[0].parsedParams?.children > 0 && `, ${selectedDayData[0].parsedParams.children} children`}
@@ -417,10 +417,10 @@ export default function RateHistory({ session }) {
             </div>
 
             {/* Latest Search */}
-            <div className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 px-4 py-3 border-b border-white/10">
+            <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 px-4 py-3 border-b border-[var(--border)]">
                 <div className="flex items-center justify-between">
-                  <h5 className="text-sm font-semibold text-white">Latest Search</h5>
+                  <h5 className="h2 text-sm">Latest Search</h5>
                   <button
                     onClick={() => handleRefresh(selectedDayData[0])}
                     disabled={refreshingId === selectedDayData[0].id}
@@ -429,7 +429,7 @@ export default function RateHistory({ session }) {
                     {refreshingId === selectedDayData[0].id ? "..." : "↻ Refresh"}
                   </button>
                 </div>
-                <p className="text-xs text-slate-300 mt-1">
+                <p className="text-xs muted mt-1">
                   {formatDateTime(selectedDayData[0].snapshotDate || selectedDayData[0]["Snapshot Date"] || selectedDayData[0].createdAt)}
                 </p>
               </div>
@@ -445,19 +445,19 @@ export default function RateHistory({ session }) {
                   return sortedRates.length > 0 ? (
                     <>
                       {sortedRates.map(([source, rate], idx) => (
-                        <div key={source} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                          <span className="text-sm text-slate-300 font-medium">{source}</span>
-                          <span className={`text-base font-semibold ${idx === 0 ? 'text-green-300' : 'text-white'}`}>
+                        <div key={source} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
+                          <span className="sub font-medium">{source}</span>
+                          <span className={`text-base font-semibold ${idx === 0 ? 'text-green-300' : 'text-ink'}`}>
                             {params?.currency || 'INR'} {rate?.toLocaleString()}
                           </span>
                         </div>
                       ))}
-                      <div className="pt-2 text-xs text-slate-400">
+                      <div className="pt-2 text-xs muted">
                         {params?.adults} adults {params?.children > 0 ? `, ${params.children} children` : ''}
                       </div>
                     </>
                   ) : (
-                    <p className="text-sm text-slate-400">No rate data available</p>
+                    <p className="sub">No rate data available</p>
                   );
                 })()}
               </div>
@@ -466,7 +466,7 @@ export default function RateHistory({ session }) {
             {/* Historical Searches */}
             {selectedDayData.length > 1 && (
               <div className="space-y-3">
-                <h5 className="text-sm font-semibold text-slate-200 px-2">
+                <h5 className="text-sm font-semibold text-ink px-2">
                   Previous Searches ({selectedDayData.length - 1})
                 </h5>
                 {selectedDayData.slice(1).map((search) => {
@@ -476,10 +476,10 @@ export default function RateHistory({ session }) {
                   return (
                     <div
                       key={search.id}
-                      className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl overflow-hidden"
+                      className="card backdrop-blur-xl overflow-hidden"
                     >
-                      <div className="px-4 py-2 bg-white/5 border-b border-white/10 flex items-center justify-between">
-                        <p className="text-xs text-slate-300">
+                      <div className="px-4 py-2 bg-[var(--surface)] border-b border-[var(--border)] flex items-center justify-between">
+                        <p className="text-xs muted">
                           {formatDateTime(search.snapshotDate || search["Snapshot Date"] || search.createdAt)}
                         </p>
                         <button
@@ -494,10 +494,10 @@ export default function RateHistory({ session }) {
                       <div className="p-3 space-y-2">
                         {Object.entries(comparison).map(([source, data]) => (
                           <div key={source} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-400">{source}</span>
+                            <span className="muted">{source}</span>
                             <div className="flex items-center gap-2">
                               {data.previous && (
-                                <span className="text-slate-500 line-through">
+                                <span className="faint line-through">
                                   {params?.currency || 'INR'} {data.previous?.toLocaleString()}
                                 </span>
                               )}
@@ -508,7 +508,7 @@ export default function RateHistory({ session }) {
                                       ? "text-rose-300"
                                       : data.change < 0
                                       ? "text-green-300"
-                                      : "text-slate-300"
+                                      : "muted"
                                   }`}
                                 >
                                   {data.change > 0 ? "↑" : "↓"}
@@ -526,9 +526,9 @@ export default function RateHistory({ session }) {
             )}
           </div>
         ) : (
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-center backdrop-blur-xl">
+          <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-8 text-center backdrop-blur-xl">
             <div className="text-4xl mb-3">📅</div>
-            <p className="text-sm text-slate-300">
+            <p className="sub">
               Select a date with tracked rates to view details
             </p>
           </div>

@@ -204,10 +204,10 @@ export default function DynamicPricing() {
       {/* Compact Header - Dense B2B Layout */}
       <div className="flex items-center justify-between py-1">
         <div>
-          <h2 className="text-lg font-bold text-white">
+          <h2 className="text-lg font-bold text-ink">
             Dynamic Pricing
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs muted">
             Optimize pricing with real-time factors
           </p>
         </div>
@@ -215,7 +215,7 @@ export default function DynamicPricing() {
         {step === "results" && (
           <button
             onClick={handleBackToSetup}
-            className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-medium transition-colors"
+            className="px-3 py-1.5 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] text-ink text-xs font-medium transition-colors"
           >
             Back
           </button>
@@ -229,14 +229,14 @@ export default function DynamicPricing() {
       )}
 
       {/* Step Navigation */}
-      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-white/5 border border-white/10">
+      <div className="flex items-center gap-1 p-0.5 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
         <div className={`flex-1 text-center py-1.5 rounded text-xs font-medium transition-colors ${
-          step === "setup" ? "bg-indigo-500/20 text-indigo-300" : "text-slate-400"
+          step === "setup" ? "bg-indigo-500/20 text-indigo-300" : "muted"
         }`}>
           Setup
         </div>
         <div className={`flex-1 text-center py-1.5 rounded text-xs font-medium transition-colors ${
-          step === "results" ? "bg-indigo-500/20 text-indigo-300" : "text-slate-400"
+          step === "results" ? "bg-indigo-500/20 text-indigo-300" : "muted"
         }`}>
           Calculate
         </div>

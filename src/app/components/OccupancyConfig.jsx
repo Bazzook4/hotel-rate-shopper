@@ -122,10 +122,10 @@ export default function OccupancyConfig({ roomType, onSave }) {
     <div className="mt-3 p-4 rounded-lg bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border border-indigo-500/20">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h5 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h5 className="h2 text-sm flex items-center gap-2">
             👥 Occupancy Pricing
           </h5>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs muted mt-0.5">
             {hasExistingPricing
               ? `${roomType.occupancy_pricing.numAdultOptions} adult occupancy options configured`
               : "Define pricing for different adult counts"
@@ -136,7 +136,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
           <button
             type="button"
             onClick={() => setShowConfig(true)}
-            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-all shadow-lg shadow-indigo-500/20"
+            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-ink text-xs font-medium transition-all shadow-lg shadow-indigo-500/20"
           >
             {hasExistingPricing ? "✏️ Edit" : "⚙️ Configure"}
           </button>
@@ -148,26 +148,26 @@ export default function OccupancyConfig({ roomType, onSave }) {
         <div className="mt-3 space-y-2">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {Object.entries(roomType.occupancy_pricing.adultPricing || {}).map(([adults, price]) => (
-              <div key={adults} className="p-2 rounded-lg bg-white/5 border border-white/10">
-                <div className="text-xs text-slate-400">{getOccupancyLabel(parseInt(adults))}</div>
-                <div className="text-white font-semibold">₹{price}</div>
+              <div key={adults} className="p-2 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
+                <div className="text-xs muted">{getOccupancyLabel(parseInt(adults))}</div>
+                <div className="text-ink font-semibold">₹{price}</div>
               </div>
             ))}
           </div>
           {(roomType.occupancy_pricing.extraAdult || roomType.occupancy_pricing.extraChild) && (
-            <div className="pt-2 border-t border-white/10">
-              <div className="text-xs text-slate-400 mb-2">Extra Charges:</div>
+            <div className="pt-2 ">
+              <div className="text-xs muted mb-2">Extra Charges:</div>
               <div className="grid grid-cols-2 gap-2">
                 {roomType.occupancy_pricing.extraAdult && (
                   <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                     <div className="text-xs text-amber-300">Extra Adult</div>
-                    <div className="text-white font-semibold">+₹{roomType.occupancy_pricing.extraAdult}</div>
+                    <div className="text-ink font-semibold">+₹{roomType.occupancy_pricing.extraAdult}</div>
                   </div>
                 )}
                 {roomType.occupancy_pricing.extraChild && (
                   <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
                     <div className="text-xs text-blue-300">Extra Child</div>
-                    <div className="text-white font-semibold">+₹{roomType.occupancy_pricing.extraChild}</div>
+                    <div className="text-ink font-semibold">+₹{roomType.occupancy_pricing.extraChild}</div>
                   </div>
                 )}
               </div>
@@ -186,12 +186,12 @@ export default function OccupancyConfig({ roomType, onSave }) {
           )}
 
           {/* Step 1: How many adult capacity options */}
-          <div className="p-4 rounded-lg bg-white/10 border border-white/20">
+          <div className="p-4 rounded-lg bg-[var(--surface-2)] border border-white/20">
             <label className="block">
-              <div className="text-white font-medium text-sm mb-2">
+              <div className="text-ink font-medium text-sm mb-2">
                 🛏️ How many adults can this room accommodate?
               </div>
-              <p className="text-xs text-slate-300 mb-3">
+              <p className="text-xs muted mb-3">
                 Enter the maximum number of adults. We'll ask for pricing for 1 adult, 2 adults, etc. up to your maximum.
               </p>
               <input
@@ -200,7 +200,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
                 max="10"
                 value={numAdultOptions}
                 onChange={(e) => handleNumAdultOptionsChange(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg bg-white/10 border border-white/20 text-white text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full px-4 py-2.5 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                 placeholder="e.g., 3 (for single, double, triple)"
                 required
               />
@@ -215,18 +215,18 @@ export default function OccupancyConfig({ roomType, onSave }) {
               </div>
 
               {Array.from({ length: numAdultsNum }, (_, i) => i + 1).map((adultCount) => (
-                <div key={adultCount} className="p-3 rounded-lg bg-white/5 border border-white/10">
+                <div key={adultCount} className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)]">
                   <label className="block">
                     <div className="flex items-center justify-between mb-2">
                       <div>
-                        <div className="text-white font-medium text-sm">
+                        <div className="text-ink font-medium text-sm">
                           {"🧍".repeat(adultCount)} {getOccupancyLabel(adultCount)}
                         </div>
-                        <div className="text-xs text-slate-400">Price for {adultCount} adult{adultCount > 1 ? 's' : ''}</div>
+                        <div className="text-xs muted">Price for {adultCount} adult{adultCount > 1 ? 's' : ''}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-sm">₹</span>
+                      <span className="muted text-sm">₹</span>
                       <input
                         type="number"
                         step="0.01"
@@ -235,7 +235,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
                           ...adultPricing,
                           [adultCount]: e.target.value
                         })}
-                        className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                        className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-indigo-500"
                         placeholder={adultCount === 1 ? "2500" : adultCount === 2 ? "3500" : adultCount === 3 ? "4500" : ""}
                       />
                     </div>
@@ -244,8 +244,8 @@ export default function OccupancyConfig({ roomType, onSave }) {
               ))}
 
               {/* Extra charges section */}
-              <div className="pt-2 border-t border-white/10">
-                <div className="text-xs font-semibold uppercase tracking-wider text-slate-300 mb-3">
+              <div className="pt-2 ">
+                <div className="text-xs font-semibold uppercase tracking-wider muted mb-3">
                   ➕ Extra Charges (Optional)
                 </div>
 
@@ -255,20 +255,20 @@ export default function OccupancyConfig({ roomType, onSave }) {
                     <label className="block">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <div className="text-white font-medium text-sm">➕ Extra Adult Charge</div>
+                          <div className="text-ink font-medium text-sm">➕ Extra Adult Charge</div>
                           <div className="text-xs text-amber-300">
                             Additional charge per extra adult beyond defined capacity
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-sm">+₹</span>
+                        <span className="muted text-sm">+₹</span>
                         <input
                           type="number"
                           step="0.01"
                           value={extraAdult}
                           onChange={(e) => setExtraAdult(e.target.value)}
-                          className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
+                          className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-amber-500"
                           placeholder="800"
                         />
                       </div>
@@ -280,18 +280,18 @@ export default function OccupancyConfig({ roomType, onSave }) {
                     <label className="block">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <div className="text-white font-medium text-sm">👶 Extra Child Charge</div>
+                          <div className="text-ink font-medium text-sm">👶 Extra Child Charge</div>
                           <div className="text-xs text-blue-300">Additional charge per child</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-sm">+₹</span>
+                        <span className="muted text-sm">+₹</span>
                         <input
                           type="number"
                           step="0.01"
                           value={extraChild}
                           onChange={(e) => setExtraChild(e.target.value)}
-                          className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+                          className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-ink text-sm placeholder:faint focus:outline-none focus:border-blue-500"
                           placeholder="500"
                         />
                       </div>
@@ -307,7 +307,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
             <button
               type="submit"
               disabled={loading || !numAdultOptions}
-              className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
+              className="flex-1 px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-ink text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20"
             >
               {loading ? "💾 Saving..." : "✅ Save Occupancy Pricing"}
             </button>
@@ -315,7 +315,7 @@ export default function OccupancyConfig({ roomType, onSave }) {
               type="button"
               onClick={handleCancel}
               disabled={loading}
-              className="px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all"
+              className="px-4 py-2.5 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
             >
               Cancel
             </button>

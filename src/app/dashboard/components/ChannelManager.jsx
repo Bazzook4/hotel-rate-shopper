@@ -200,8 +200,8 @@ export default function ChannelManager() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center space-y-3">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-          <p className="text-sm text-slate-400">Loading channels…</p>
+          <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
+          <p className="sub">Loading channels…</p>
         </div>
       </div>
     );
@@ -214,7 +214,7 @@ export default function ChannelManager() {
         <button
           type="button"
           onClick={load}
-          className="mt-3 rounded-lg bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+          className="mt-3 btn btn-secondary text-xs"
         >
           Retry
         </button>
@@ -228,18 +228,18 @@ export default function ChannelManager() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+          <p className="text-xs uppercase tracking-[0.2em] muted">
             Hotel Operations / Distribution
           </p>
-          <h2 className="text-3xl font-semibold text-white">Channel Manager</h2>
-          <p className="text-sm text-slate-300/80">
+          <h2 className="h1">Channel Manager</h2>
+          <p className="sub">
             Inventory is shared per room type. Rate multipliers apply per channel,
             property-wide.
           </p>
         </div>
         <div className="flex items-center gap-2">
           {source === "mock" && (
-            <span className="rounded-full bg-amber-500/15 px-3 py-1 text-xs text-amber-200 ring-1 ring-amber-500/30">
+            <span className="chip chip-warn">
               Mock data — Aiosell not configured
             </span>
           )}
@@ -247,7 +247,7 @@ export default function ChannelManager() {
             type="button"
             onClick={pushAll}
             disabled={busy}
-            className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-50"
+            className="btn btn-primary"
           >
             {busy ? "Working…" : "Push All to Channels"}
           </button>
@@ -255,32 +255,32 @@ export default function ChannelManager() {
       </div>
 
       {notice && (
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200">
+        <div className="card px-4 py-2 sub">
           {notice}
         </div>
       )}
 
       {/* Channel cards — multiplier is per channel, matching the Aiosell API */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <p className="text-xs uppercase tracking-wide text-slate-400">All channels</p>
-          <p className="mt-2 text-3xl font-semibold text-white">{connectedCount}</p>
-          <p className="text-xs text-slate-400">connected</p>
+        <div className="card card-pad">
+          <p className="text-xs uppercase tracking-wide muted">All channels</p>
+          <p className="mt-2 h1">{connectedCount}</p>
+          <p className="text-xs muted">connected</p>
         </div>
         {rateChannels.map((c) => (
           <div
             key={c.partner_id}
-            className="rounded-2xl border border-white/10 bg-white/5 p-4"
+            className="card card-pad"
           >
             <div className="flex items-center gap-2">
               <span
                 className={`h-2 w-2 rounded-full ${CHANNEL_DOTS[c.partner_id] || "bg-slate-400"}`}
               />
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-300">
+              <p className="text-xs font-medium uppercase tracking-wide muted">
                 {CHANNEL_LABELS[c.partner_id] || c.partner_id}
               </p>
             </div>
-            <label className="mt-3 block text-[11px] text-slate-400">
+            <label className="mt-3 block label">
               Rate multiplier
               <input
                 type="number"
@@ -298,10 +298,10 @@ export default function ChannelManager() {
                     applyMultiplier(c.partner_id, next);
                   }
                 }}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900/60 px-2 py-1.5 text-lg font-semibold text-white outline-none focus:border-white/30"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 h2 outline-none focus:border-white/30"
               />
             </label>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] faint">
               {((c.rate_multiplier ?? 1) - 1) * 100 >= 0 ? "+" : ""}
               {(((c.rate_multiplier ?? 1) - 1) * 100).toFixed(0)}% on pushed rates
             </p>
@@ -310,32 +310,32 @@ export default function ChannelManager() {
       </div>
 
       {/* Date window controls */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+      <div className="flex flex-wrap items-center gap-2 card p-3">
         <button
           type="button"
           onClick={() => shiftWindow(-1)}
-          className="rounded-lg bg-white/10 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-white/20"
         >
           ‹
         </button>
-        <span className="text-sm text-slate-200">
+        <span className="sub">
           {dates[0]} → {dates[dates.length - 1]}
         </span>
         <button
           type="button"
           onClick={() => shiftWindow(1)}
-          className="rounded-lg bg-white/10 px-2.5 py-1.5 text-sm text-white hover:bg-white/20"
+          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-white/20"
         >
           ›
         </button>
-        <div className="ml-2 flex overflow-hidden rounded-lg border border-white/10">
+        <div className="ml-2 flex overflow-hidden rounded-lg border border-[var(--border)]">
           {[15, 30].map((n) => (
             <button
               key={n}
               type="button"
               onClick={() => setDays(n)}
               className={`px-3 py-1.5 text-xs ${
-                days === n ? "bg-white/20 text-white" : "text-slate-300 hover:bg-white/10"
+                days === n ? "bg-white/20 text-ink" : "muted hover:bg-[var(--surface-2)]"
               }`}
             >
               {n} days
@@ -346,16 +346,16 @@ export default function ChannelManager() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           placeholder="Filter room type or plan…"
-          className="ml-auto w-56 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1.5 text-sm text-white outline-none placeholder:text-slate-500 focus:border-white/30"
+          className="ml-auto input w-56"
         />
       </div>
 
       {/* Grid */}
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+      <div className="overflow-x-auto card">
         <table className="min-w-full border-collapse text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-slate-900/95 px-4 py-3 text-left text-xs uppercase tracking-wide text-slate-400">
+              <th className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-3 text-left text-xs uppercase tracking-wide muted">
                 Room type &amp; rate plan
               </th>
               {dates.map((d) => {
@@ -364,12 +364,12 @@ export default function ChannelManager() {
                   <th
                     key={d}
                     className={`px-3 py-2 text-center text-[11px] font-medium ${
-                      f.weekend ? "text-amber-300" : "text-slate-300"
+                      f.weekend ? "text-amber-300" : "muted"
                     }`}
                   >
                     <div>{f.dow}</div>
-                    <div className="text-base font-semibold text-white">{f.day}</div>
-                    <div className="text-[10px] text-slate-500">{f.mon}</div>
+                    <div className="text-base font-semibold text-ink">{f.day}</div>
+                    <div className="text-[10px] faint">{f.mon}</div>
                   </th>
                 );
               })}
@@ -392,7 +392,7 @@ export default function ChannelManager() {
               <tr>
                 <td
                   colSpan={dates.length + 1}
-                  className="px-4 py-8 text-center text-sm text-slate-400"
+                  className="px-4 py-8 text-center sub"
                 >
                   No room types match “{filter}”.
                 </td>
@@ -408,37 +408,37 @@ export default function ChannelManager() {
 function ExpandableRoom({ room, dates, currency, open, onToggle }) {
   return (
     <>
-      <tr className="border-t border-white/10 bg-white/[0.03]">
-        <td className="sticky left-0 z-10 bg-slate-900/95 px-4 py-3">
+      <tr className="bg-white/[0.03]">
+        <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-3">
           <button
             type="button"
             onClick={onToggle}
             className="flex items-center gap-2 text-left"
           >
-            <span className="text-slate-400">{open ? "▾" : "▸"}</span>
+            <span className="muted">{open ? "▾" : "▸"}</span>
             <span>
-              <span className="block font-medium text-white">{room.room_name}</span>
-              <span className="block text-xs text-slate-400">
+              <span className="block font-medium text-ink">{room.room_name}</span>
+              <span className="block text-xs muted">
                 {room.rateplans.length} rate plans · {room.count} rooms
               </span>
             </span>
           </button>
         </td>
         {dates.map((d) => (
-          <td key={d} className="px-3 py-3 text-center text-slate-200">
+          <td key={d} className="px-3 py-3 text-center text-ink">
             {mockInventory(room.room_id, d)}
           </td>
         ))}
       </tr>
       {open &&
         room.rateplans.map((plan) => (
-          <tr key={plan.rateplan_id} className="border-t border-white/5">
-            <td className="sticky left-0 z-10 bg-slate-900/95 px-4 py-2 pl-10">
-              <span className="block text-sm text-white">{plan.rateplan_name}</span>
-              <span className="block text-xs text-slate-400">{plan.description}</span>
+          <tr key={plan.rateplan_id} className="">
+            <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-2 pl-10">
+              <span className="block text-sm text-ink">{plan.rateplan_name}</span>
+              <span className="block text-xs muted">{plan.description}</span>
             </td>
             {dates.map((d) => (
-              <td key={d} className="px-3 py-2 text-center text-slate-200">
+              <td key={d} className="px-3 py-2 text-center text-ink">
                 {currency}
                 {mockRate(room.room_id, plan.rateplan_id, d).toLocaleString("en-IN")}
               </td>

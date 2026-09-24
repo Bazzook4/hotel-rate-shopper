@@ -26,10 +26,10 @@ export default function HotelRateShopper({ data }) {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">
+      <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 md:p-8 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">
         <div className="flex flex-col gap-6 md:flex-row md:items-start">
           {/* Image */}
-          <div className="w-full max-w-[180px] overflow-hidden rounded-2xl border border-white/15 bg-white/10 backdrop-blur" >
+          <div className="w-full max-w-[180px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] backdrop-blur" >
             {Array.isArray(data.images) && data.images[0]?.thumbnail ? (
               <img
                 src={data.images[0].thumbnail}
@@ -37,7 +37,7 @@ export default function HotelRateShopper({ data }) {
                 className="h-36 w-full object-cover"
               />
             ) : (
-              <div className="flex h-36 w-full items-center justify-center bg-gradient-to-br from-slate-800/80 to-slate-900/80 text-xs text-slate-300">
+              <div className="flex h-36 w-full items-center justify-center bg-gradient-to-br from-slate-800/80 to-slate-900/80 text-xs muted">
                 No Image
               </div>
             )}
@@ -46,18 +46,18 @@ export default function HotelRateShopper({ data }) {
           {/* Header */}
           <div className="flex-1 space-y-3">
             <div>
-              <h3 className="text-2xl font-semibold text-white">{data.name}</h3>
-              <p className="text-sm text-slate-300/80">{data.address}</p>
+              <h3 className="h1">{data.name}</h3>
+              <p className="sub">{data.address}</p>
             </div>
 
-            <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] text-slate-200/80">
+            <div className="flex flex-wrap gap-2 text-xs uppercase tracking-[0.15em] text-ink/80">
               {typeof data.overall_rating === "number" && (
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-slate-100">
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">
                   ⭐ {data.overall_rating} ({data.reviews} reviews)
                 </span>
               )}
               {data.location_rating && (
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1">
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1">
                   📍 Location {data.location_rating}
                 </span>
               )}
@@ -67,7 +67,7 @@ export default function HotelRateShopper({ data }) {
                 </span>
               )}
               {data.rate_per_night?.lowest && (
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-slate-100">
+                <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-slate-100">
                   From {data.rate_per_night.lowest}
                 </span>
               )}
@@ -78,7 +78,7 @@ export default function HotelRateShopper({ data }) {
         {/* Sponsored */}
         {sponsored.length > 0 && (
           <div className="mt-6">
-            <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-200/70 mb-3">
+            <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 mb-3">
               Sponsored
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -98,15 +98,15 @@ export default function HotelRateShopper({ data }) {
                       {p.logo ? (
                         <img src={p.logo} alt={p.source} className="w-6 h-6 rounded" />
                       ) : (
-                        <div className="w-6 h-6 rounded bg-white/10" />
+                        <div className="w-6 h-6 rounded bg-[var(--surface-2)]" />
                       )}
                       <div className="text-slate-100/90 font-medium">{p.source}</div>
                     </div>
                     <div className="text-right">
-                      <div className="text-base font-semibold text-white">
+                      <div className="text-base font-semibold text-ink">
                         {p.display || (p.price ? `₹${p.price}` : "—")}
                       </div>
-                      <div className="text-xs text-slate-200/70">per night</div>
+                      <div className="text-xs text-ink/70">per night</div>
                     </div>
                   </div>
                 </a>
@@ -117,7 +117,7 @@ export default function HotelRateShopper({ data }) {
 
         {/* Organic */}
         <div className="mt-6">
-          <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-200/70 mb-3">
+          <h4 className="text-xs font-semibold uppercase tracking-[0.3em] text-ink/70 mb-3">
             Available rates
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -127,28 +127,28 @@ export default function HotelRateShopper({ data }) {
                 href={p.link}
                 target="_blank"
                 rel="noreferrer"
-                className="group rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-slate-100 transition hover:border-blue-300/40 hover:bg-blue-500/10"
+                className="group rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-slate-100 transition hover:border-blue-300/40 hover:bg-blue-500/10"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     {p.logo ? (
                       <img src={p.logo} alt={p.source} className="w-6 h-6 rounded" />
                     ) : (
-                      <div className="w-6 h-6 rounded bg-white/10" />
+                      <div className="w-6 h-6 rounded bg-[var(--surface-2)]" />
                     )}
                     <div className="text-slate-100/90 font-medium">{p.source}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-base font-semibold text-white">
+                    <div className="text-base font-semibold text-ink">
                       {p.display || (p.price ? `₹${p.price}` : "—")}
                     </div>
-                    <div className="text-xs text-slate-200/70">per night</div>
+                    <div className="text-xs text-ink/70">per night</div>
                   </div>
                 </div>
               </a>
             ))}
             {organicSorted.length === 0 && (
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200/70">
+              <div className="card card-pad sub/70">
                 No rates found.
               </div>
             )}

@@ -70,21 +70,21 @@ export default function CompSetEditor({ value, onChange, session }) {
   }
 
   const inputClass =
-    "w-full rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
+    "w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm";
 
   return (
-    <div className="space-y-5 rounded-3xl border border-white/10 bg-white/5 p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">
+    <div className="space-y-5 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-5 md:p-6 backdrop-blur-xl shadow-[0_16px_40px_rgba(15,23,42,0.35)]">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-white">Comp Set</h3>
-          <p className="text-xs text-slate-200/70">
+          <h3 className="h2">Comp Set</h3>
+          <p className="text-xs text-ink/70">
             Keep your primary property first; additional rows become competitors in comparisons.
           </p>
         </div>
         <button
           onClick={addRow}
           type="button"
-          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400"
+          className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500/80 to-indigo-500/80 px-4 py-2 h2 text-sm shadow-lg shadow-blue-500/25 transition hover:from-blue-400 hover:to-indigo-400"
         >
           + Add Hotel
         </button>
@@ -93,7 +93,7 @@ export default function CompSetEditor({ value, onChange, session }) {
         {rows.map((r, i) => (
           <div
             key={i}
-            className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-md md:grid-cols-6"
+            className="grid grid-cols-1 gap-3 card card-pad backdrop-blur-md md:grid-cols-6"
           >
             <input
               className={inputClass}
@@ -145,7 +145,7 @@ export default function CompSetEditor({ value, onChange, session }) {
               <button
                 onClick={() => remove(i)}
                 type="button"
-                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/10 px-2 py-2 text-sm text-slate-200/80 transition hover:border-rose-300/40 hover:bg-rose-500/20 hover:text-white"
+                className="inline-flex items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 sub/80 transition hover:border-rose-300/40 hover:bg-rose-500/20 hover:text-ink"
                 aria-label="Remove hotel"
               >
                 ✕
@@ -154,7 +154,7 @@ export default function CompSetEditor({ value, onChange, session }) {
           </div>
         ))}
       </div>
-      <p className="text-xs text-slate-200/70">
+      <p className="text-xs text-ink/70">
         Tip: dates start at today/tomorrow for quick comps—adjust per property if needed.
       </p>
     </div>

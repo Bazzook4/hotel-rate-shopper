@@ -28,7 +28,7 @@ export default function Tooltip({ content, children, position = "bottom" }) {
       </div>
 
       {isVisible && (
-        <div className={`absolute z-50 w-80 p-4 ${positionClasses[position]} bg-slate-900 border border-slate-700 rounded-xl shadow-2xl text-xs text-slate-200 leading-relaxed whitespace-pre-line`}>
+        <div className={`absolute z-50 w-80 p-4 ${positionClasses[position]} bg-slate-900 border border-slate-700 rounded-xl shadow-2xl text-xs text-ink leading-relaxed whitespace-pre-line`}>
           <div className={`absolute w-4 h-4 bg-slate-900 border-l border-t border-slate-700 ${arrowClasses[position]}`}></div>
           {content}
         </div>

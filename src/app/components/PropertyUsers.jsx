@@ -15,7 +15,7 @@ const MODULES = [
 const STATUSES = ["Active", "Suspended"];
 
 const inputClass =
-  "mt-1 w-full rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-white/30";
+  "input mt-1";
 
 /** Users attached to one property, editable in place. */
 export default function PropertyUsers({ session, property }) {
@@ -127,13 +127,13 @@ export default function PropertyUsers({ session, property }) {
   if (!property?.id) return null;
 
   return (
-    <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/40 p-4">
+    <div className="mt-4 card card-pad">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-white">
+          <h3 className="h2 text-sm">
             Users at {property.name}
           </h3>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs muted">
             Role, status and module access for this property.
           </p>
         </div>
@@ -148,7 +148,7 @@ export default function PropertyUsers({ session, property }) {
                 modules: [],
               })
             }
-            className="rounded-xl bg-white px-3 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-100"
+            className="btn btn-primary text-xs"
           >
             + Add user
           </button>
@@ -161,15 +161,15 @@ export default function PropertyUsers({ session, property }) {
         </p>
       )}
       {notice && (
-        <p className="mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-200">
+        <p className="mb-3 card px-3 py-2 sub">
           {notice}
         </p>
       )}
 
       {adding && (
-        <div className="mb-3 rounded-xl border border-white/15 bg-white/5 p-3">
+        <div className="mb-3 card p-3">
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className="block text-[11px] text-slate-400">
+            <label className="block label">
               Email
               <input
                 type="email"
@@ -178,7 +178,7 @@ export default function PropertyUsers({ session, property }) {
                 className={inputClass}
               />
             </label>
-            <label className="block text-[11px] text-slate-400">
+            <label className="block label">
               Password
               <input
                 type="password"
@@ -187,7 +187,7 @@ export default function PropertyUsers({ session, property }) {
                 className={inputClass}
               />
             </label>
-            <label className="block text-[11px] text-slate-400">
+            <label className="block label">
               Role
               <select
                 value={adding.role}
@@ -213,14 +213,14 @@ export default function PropertyUsers({ session, property }) {
               type="button"
               disabled={busy}
               onClick={() => addUser(adding)}
-              className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-50"
+              className="btn btn-primary"
             >
               {busy ? "Adding…" : "Add user"}
             </button>
             <button
               type="button"
               onClick={() => setAdding(null)}
-              className="rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
+              className="btn btn-secondary"
             >
               Cancel
             </button>
@@ -229,18 +229,18 @@ export default function PropertyUsers({ session, property }) {
       )}
 
       {loading ? (
-        <p className="py-4 text-center text-sm text-slate-400">Loading users…</p>
+        <p className="py-4 text-center sub">Loading users…</p>
       ) : (
         <div className="space-y-2">
           {users.map((u) =>
             editing?.id === u.id ? (
               <div
                 key={u.id}
-                className="rounded-xl border border-white/15 bg-white/5 p-3"
+                className="card p-3"
               >
-                <p className="mb-2 text-sm text-white">{u.email}</p>
+                <p className="mb-2 text-sm text-ink">{u.email}</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="block text-[11px] text-slate-400">
+                  <label className="block label">
                     Role
                     <select
                       value={editing.role}
@@ -256,7 +256,7 @@ export default function PropertyUsers({ session, property }) {
                       ))}
                     </select>
                   </label>
-                  <label className="block text-[11px] text-slate-400">
+                  <label className="block label">
                     Status
                     <select
                       value={editing.status || "Active"}
@@ -284,14 +284,14 @@ export default function PropertyUsers({ session, property }) {
                     type="button"
                     disabled={busy}
                     onClick={() => saveUser(editing)}
-                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-50"
+                    className="btn btn-primary"
                   >
                     {busy ? "Saving…" : "Save"}
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditing(null)}
-                    className="rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white hover:bg-white/20"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
@@ -300,11 +300,11 @@ export default function PropertyUsers({ session, property }) {
             ) : (
               <div
                 key={u.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-2 card px-3 py-2"
               >
                 <div>
-                  <span className="text-sm text-white">{u.email}</span>
-                  <span className="ml-2 text-xs text-slate-400">
+                  <span className="text-sm text-ink">{u.email}</span>
+                  <span className="ml-2 text-xs muted">
                     {u.role} · {u.status || "Active"} ·{" "}
                     {u.modules?.length
                       ? `${u.modules.length} module${u.modules.length === 1 ? "" : "s"}`
@@ -317,7 +317,7 @@ export default function PropertyUsers({ session, property }) {
                     setEditing({ ...u, modules: u.modules || [] });
                     setNotice("");
                   }}
-                  className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-white hover:bg-white/20"
+                  className="btn btn-secondary text-xs"
                 >
                   Edit
                 </button>
@@ -325,7 +325,7 @@ export default function PropertyUsers({ session, property }) {
             )
           )}
           {users.length === 0 && (
-            <p className="py-4 text-center text-sm text-slate-400">
+            <p className="py-4 text-center sub">
               No users at this property yet.
             </p>
           )}
@@ -333,7 +333,7 @@ export default function PropertyUsers({ session, property }) {
       )}
 
       {!isSuperAdmin(session) && (
-        <p className="mt-3 text-[11px] text-slate-500">
+        <p className="mt-3 text-[11px] faint">
           Only a super admin can move a user to a different property.
         </p>
       )}
@@ -344,7 +344,7 @@ export default function PropertyUsers({ session, property }) {
 function ModulePicker({ selected = [], onToggle }) {
   return (
     <div className="mt-3">
-      <p className="mb-1 text-[11px] text-slate-400">Module access</p>
+      <p className="mb-1 label">Module access</p>
       <div className="flex flex-wrap gap-2">
         {MODULES.map((m) => {
           const on = selected.includes(m.id);
@@ -355,8 +355,8 @@ function ModulePicker({ selected = [], onToggle }) {
               onClick={() => onToggle(m.id)}
               className={`rounded-lg px-2.5 py-1 text-xs transition ${
                 on
-                  ? "bg-white/20 text-white ring-1 ring-white/30"
-                  : "bg-white/5 text-slate-400 hover:bg-white/10"
+                  ? "bg-white/20 text-ink ring-1 ring-white/30"
+                  : "bg-[var(--surface)] muted hover:bg-[var(--surface-2)]"
               }`}
             >
               {on ? "✓ " : ""}

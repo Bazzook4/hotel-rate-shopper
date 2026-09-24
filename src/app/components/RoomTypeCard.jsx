@@ -49,7 +49,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
     setError("");
   }
 
-  const inputClass = "w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:border-indigo-500";
+  const inputClass = "w-full px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-sm placeholder:faint focus:outline-none focus:border-indigo-500";
 
   function handleRankChange(e) {
     const value = e.target.value;
@@ -66,7 +66,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
   }, [index]);
 
   return (
-    <div className="p-3 rounded-lg bg-white/5 border border-white/10 hover:border-white/20 transition-all">
+    <div className="p-3 rounded-lg bg-[var(--surface)] border border-[var(--border)] hover:border-white/20 transition-all">
       {error && (
         <div className="mb-3 rounded-lg bg-rose-500/10 border border-rose-500/20 p-3">
           <p className="text-rose-400 text-xs">⚠️ {error}</p>
@@ -85,19 +85,19 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
                 max={totalRooms}
                 value={rankInput}
                 onChange={handleRankChange}
-                className="w-12 px-2 py-1 rounded bg-white/10 border border-white/20 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+                className="w-12 px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-sm text-center focus:outline-none focus:border-indigo-500"
                 title="Rank"
               />
             </div>
 
             {/* Room Info - Compact */}
             <div className="flex-1 flex items-center gap-4">
-              <h5 className="text-white font-semibold text-sm">🏠 {room.room_type_name}</h5>
-              <span className="text-xs text-slate-400">
+              <h5 className="text-ink font-semibold text-sm">🏠 {room.room_type_name}</h5>
+              <span className="text-xs muted">
                 ₹{room.base_price} • {room.number_of_rooms} rooms • Max {room.max_adults || 2} adults
               </span>
               {room.description && (
-                <span className="text-xs text-slate-500 italic truncate max-w-xs">{room.description}</span>
+                <span className="text-xs faint italic truncate max-w-xs">{room.description}</span>
               )}
             </div>
 
@@ -105,7 +105,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
             <div className="flex gap-1">
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-all"
+                className="px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-ink text-xs font-medium transition-all"
                 title="Edit"
               >
                 ✏️
@@ -125,12 +125,12 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
           {/* Edit Mode */}
           <div className="space-y-3">
             <div className="flex items-center justify-between mb-2">
-              <h5 className="text-white font-semibold text-sm">✏️ Editing Room Type</h5>
+              <h5 className="text-ink font-semibold text-sm">✏️ Editing Room Type</h5>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-slate-300 mb-1">Room Type Name *</label>
+                <label className="block text-xs muted mb-1">Room Type Name *</label>
                 <input
                   type="text"
                   value={editData.room_type_name}
@@ -142,7 +142,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               </div>
 
               <div>
-                <label className="block text-xs text-slate-300 mb-1">Base Price (₹) *</label>
+                <label className="block text-xs muted mb-1">Base Price (₹) *</label>
                 <input
                   type="number"
                   step="0.01"
@@ -155,7 +155,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               </div>
 
               <div>
-                <label className="block text-xs text-slate-300 mb-1">Number of Rooms *</label>
+                <label className="block text-xs muted mb-1">Number of Rooms *</label>
                 <input
                   type="number"
                   value={editData.number_of_rooms}
@@ -167,7 +167,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               </div>
 
               <div>
-                <label className="block text-xs text-slate-300 mb-1">Max Adults *</label>
+                <label className="block text-xs muted mb-1">Max Adults *</label>
                 <input
                   type="number"
                   min="1"
@@ -181,7 +181,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-xs text-slate-300 mb-1">Description (Optional)</label>
+                <label className="block text-xs muted mb-1">Description (Optional)</label>
                 <input
                   type="text"
                   value={editData.description}
@@ -196,14 +196,14 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
               <button
                 onClick={handleSave}
                 disabled={loading}
-                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-medium disabled:opacity-50 transition-all shadow-lg shadow-green-500/20"
+                className="flex-1 px-4 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all shadow-lg shadow-green-500/20"
               >
                 {loading ? "💾 Saving..." : "✅ Save Changes"}
               </button>
               <button
                 onClick={handleCancel}
                 disabled={loading}
-                className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all"
+                className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
               >
                 Cancel
               </button>

@@ -210,21 +210,21 @@ export default function LocationResults({ data }) {
   }, [filtered, sortBy]);
 
   const selectClasses =
-    "rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm appearance-none";
+    "rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-100 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-400/60 backdrop-blur-sm appearance-none";
 
   return (
     <div className="space-y-5">
       {/* controls */}
-      <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1 text-xs text-slate-200/70">
+      <div className="flex flex-col gap-4 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-1 text-xs text-ink/70">
           <span className="font-semibold uppercase tracking-[0.4em]">Results</span>
-          <p className="text-[11px] text-slate-200/60">
+          <p className="text-[11px] text-ink/60">
             Sort and refine your compset leads directly from SerpAPI responses.
           </p>
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-200/70">
+          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/70">
             Sort by
           </label>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={`${selectClasses} pr-8`}>
@@ -232,7 +232,7 @@ export default function LocationResults({ data }) {
             <option value="reviews">Reviews (high → low)</option>
             <option value="rating">Rating (high → low)</option>
           </select>
-          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-200/70">
+          <label className="text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/70">
             Min stars
           </label>
           <select
@@ -252,7 +252,7 @@ export default function LocationResults({ data }) {
 
       {/* results */}
       {sorted.length === 0 ? (
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-slate-200/70 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 sub/70 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)]">
           No results (try lowering the Min stars or changing dates).
         </div>
       ) : (
@@ -260,7 +260,7 @@ export default function LocationResults({ data }) {
           {sorted.map((h) => (
             <article
               key={h.key}
-              className="group flex h-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] transition hover:border-blue-300/40 hover:bg-white/10"
+              className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl shadow-[0_12px_32px_rgba(15,23,42,0.3)] transition hover:border-blue-300/40 hover:bg-[var(--surface-2)]"
             >
               {h.thumb ? (
                 <img src={h.thumb} alt={h.name} className="h-40 w-full object-cover" />
@@ -270,7 +270,7 @@ export default function LocationResults({ data }) {
 
               <div className="flex flex-1 flex-col gap-3 p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-lg font-semibold text-white leading-tight">{h.name}</h3>
+                  <h3 className="h2 leading-tight">{h.name}</h3>
                   {h.sponsored && (
                     <span className="rounded-full border border-amber-300/40 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-amber-200">
                       Sponsored
@@ -278,7 +278,7 @@ export default function LocationResults({ data }) {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-200/70">
+                <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-ink/70">
                   {h.stars != null && <span>{h.stars}★</span>}
                   {h.rating != null && (
                     <span className="inline-flex items-center gap-1 normal-case tracking-normal text-slate-100">
@@ -289,11 +289,11 @@ export default function LocationResults({ data }) {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="text-xl font-semibold text-white">
+                  <div className="h2">
                     {h.priceText ? h.priceText : h.priceNum != null ? `₹${h.priceNum}` : "—"}
                   </div>
                   {h.source && (
-                    <div className="flex items-center gap-2 text-xs text-slate-200/70">
+                    <div className="flex items-center gap-2 text-xs text-ink/70">
                       {h.source_icon && (
                         <img src={h.source_icon} alt="" className="h-4 w-4 rounded-full border border-white/20" />
                       )}
@@ -305,7 +305,7 @@ export default function LocationResults({ data }) {
                 {h.reviewSnippets.length > 0 && (
                   <div className="space-y-1 pt-1">
                     {h.reviewSnippets.map((snippet, idx) => (
-                      <p key={`${h.key}-review-${idx}`} className="text-xs italic text-slate-200/70">
+                      <p key={`${h.key}-review-${idx}`} className="text-xs italic text-ink/70">
                         "{snippet}"
                       </p>
                     ))}
@@ -317,13 +317,13 @@ export default function LocationResults({ data }) {
                     {h.amenities.slice(0, 6).map((amenity, idx) => (
                       <span
                         key={`${h.key}-amenity-${idx}`}
-                        className="rounded-full border border-white/10 bg-white/10 px-2 py-1 text-[11px] text-slate-200/80"
+                        className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1 text-[11px] text-ink/80"
                       >
                         {amenity}
                       </span>
                     ))}
                     {h.amenities.length > 6 && (
-                      <span className="text-[11px] text-slate-200/60 px-2 py-1">
+                      <span className="text-[11px] text-ink/60 px-2 py-1">
                         +{h.amenities.length - 6} more
                       </span>
                     )}

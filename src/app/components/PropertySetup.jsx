@@ -356,17 +356,17 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
     }
   }
 
-  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-slate-200/70 mb-2";
-  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all";
+  const controlLabel = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70 mb-2";
+  const inputClass = "w-full px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-ink placeholder:faint focus:outline-none focus:border-indigo-500/50 focus:bg-[var(--surface-2)] transition-all";
 
   if (!property) {
     return (
       <div className="max-w-2xl mx-auto">
-        <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-8">
+        <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-8">
           <div className="text-center mb-6">
             <div className="text-5xl mb-4">🏨</div>
-            <h3 className="text-2xl font-bold text-white mb-3">Dynamic Pricing</h3>
-            <p className="text-slate-400 text-sm mb-6">
+            <h3 className="text-2xl font-bold text-ink mb-3">Dynamic Pricing</h3>
+            <p className="muted text-sm mb-6">
               {loading ? "Loading your property..." : "No property found. Please contact your administrator to set up your property."}
             </p>
           </div>
@@ -374,8 +374,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           {!loading && (
             <>
               <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-4 mb-6">
-                <h4 className="text-white font-semibold text-sm mb-3">📋 What you can configure:</h4>
-                <ul className="text-slate-300 text-sm space-y-2">
+                <h4 className="text-ink font-semibold text-sm mb-3">📋 What you can configure:</h4>
+                <ul className="muted text-sm space-y-2">
                   <li className="flex items-start gap-2">
                     <span className="text-green-400">✓</span>
                     <span><strong>Property Details:</strong> Name and location</span>
@@ -410,11 +410,11 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
   return (
     <div className="space-y-4">
       {/* Property Info - Compact Header */}
-      <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
+      <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-base font-semibold text-white">{property.Name}</h3>
-            <p className="text-xs text-slate-400">{property.Location}</p>
+            <h3 className="text-base font-semibold text-ink">{property.Name}</h3>
+            <p className="text-xs muted">{property.Location}</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -425,7 +425,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                   handleUpdateProperty(name, loc);
                 }
               }}
-              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium transition-all"
+              className="px-3 py-1.5 rounded-lg bg-[var(--surface-2)] hover:bg-white/20 text-ink text-xs font-medium transition-all"
             >
               ✏️ Edit Property
             </button>
@@ -434,13 +434,13 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-white/10">
+      <div className="flex gap-2 border-b border-[var(--border)]">
         <button
           onClick={() => setActiveTab("rooms")}
           className={`px-4 py-2 text-sm font-medium transition-all ${
             activeTab === "rooms"
-              ? "text-white border-b-2 border-indigo-500"
-              : "text-slate-400 hover:text-white"
+              ? "text-ink border-b-2 border-indigo-500"
+              : "muted hover:text-ink"
           }`}
         >
           Room Types
@@ -449,8 +449,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           onClick={() => setActiveTab("rates")}
           className={`px-4 py-2 text-sm font-medium transition-all ${
             activeTab === "rates"
-              ? "text-white border-b-2 border-indigo-500"
-              : "text-slate-400 hover:text-white"
+              ? "text-ink border-b-2 border-indigo-500"
+              : "muted hover:text-ink"
           }`}
         >
           Rate Plans
@@ -459,8 +459,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           onClick={() => setActiveTab("occupancy")}
           className={`px-4 py-2 text-sm font-medium transition-all ${
             activeTab === "occupancy"
-              ? "text-white border-b-2 border-indigo-500"
-              : "text-slate-400 hover:text-white"
+              ? "text-ink border-b-2 border-indigo-500"
+              : "muted hover:text-ink"
           }`}
         >
           Occupancy Pricing
@@ -469,7 +469,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
       {/* Room Types Tab */}
       {activeTab === "rooms" && (
-        <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
+        <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-4">
           {/* Important Pricing Guidance */}
           <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
             <div className="flex items-start gap-2">
@@ -486,7 +486,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           </div>
 
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-base font-semibold text-white">Room Types</h4>
+            <h4 className="text-base font-semibold text-ink">Room Types</h4>
             <div className="flex gap-2">
               <button
                 onClick={async () => {
@@ -509,14 +509,14 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
                     }
                   }
                 }}
-                className="px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-xs font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-ink text-xs font-medium transition-all"
                 title="Initialize ranks for existing rooms"
               >
                 🔄 Init Ranks
               </button>
               <button
                 onClick={() => setShowAddRoom(!showAddRoom)}
-                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink text-xs font-medium transition-all"
               >
                 {showAddRoom ? "Cancel" : "+ Add Room"}
               </button>
@@ -530,7 +530,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
         )}
 
         {showAddRoom && (
-          <form onSubmit={handleAddRoomType} className="mb-4 p-4 rounded-lg bg-white/5 border border-white/10 space-y-3">
+          <form onSubmit={handleAddRoomType} className="mb-4 p-4 rounded-lg bg-[var(--surface)] border border-[var(--border)] space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={controlLabel}>Room Type Name</label>
@@ -601,7 +601,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white text-sm font-medium disabled:opacity-50 transition-all"
+              className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-ink text-sm font-medium disabled:opacity-50 transition-all"
             >
               {loading ? "Adding..." : "Add Room Type"}
             </button>
@@ -609,7 +609,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
         )}
 
         {roomTypes.length === 0 ? (
-          <div className="text-center py-6 text-slate-400 text-sm">
+          <div className="text-center py-6 muted text-sm">
             No room types added yet. Add your first room type to continue.
           </div>
         ) : (
@@ -642,9 +642,9 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
       {/* Rate Plans Tab */}
       {activeTab === "rates" && (
-        <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
+        <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-4">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-base font-semibold text-white">Meal Plans / Rate Plans</h4>
+            <h4 className="text-base font-semibold text-ink">Meal Plans / Rate Plans</h4>
           </div>
           <MealPlanConfig
             property={property}
@@ -661,7 +661,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
 
       {/* Occupancy Pricing Tab */}
       {activeTab === "occupancy" && (
-        <div className="rounded-xl bg-white/5 backdrop-blur-xl border border-white/10 p-4">
+        <div className="rounded-xl bg-[var(--surface)] backdrop-blur-xl border border-[var(--border)] p-4">
           {/* Important Pricing Guidance */}
           <div className="mb-4 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3">
             <div className="flex items-start gap-2">
@@ -677,8 +677,8 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           </div>
 
           <div className="mb-4">
-            <h4 className="text-base font-semibold text-white">Occupancy-Based Pricing</h4>
-            <p className="text-xs text-slate-400 mt-1">Set one room as Base (Master) and calculate others using Fixed Price or Multiplier</p>
+            <h4 className="text-base font-semibold text-ink">Occupancy-Based Pricing</h4>
+            <p className="text-xs muted mt-1">Set one room as Base (Master) and calculate others using Fixed Price or Multiplier</p>
           </div>
 
           <OccupancyPricingTable
@@ -705,7 +705,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
               setSaveSuccess(true);
               setTimeout(() => setSaveSuccess(false), 3000);
             }}
-            className="flex-1 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white font-semibold text-sm transition-all"
+            className="flex-1 px-5 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-ink font-semibold text-sm transition-all"
           >
             💾 Save All Changes
           </button>
@@ -714,7 +714,7 @@ export default function PropertySetup({ property, roomTypes: initialRoomTypes, r
           <button
             onClick={onCalculate}
             disabled={parentLoading}
-            className="flex-1 px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-semibold text-sm transition-all disabled:opacity-50"
+            className="flex-1 px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-ink font-semibold text-sm transition-all disabled:opacity-50"
           >
             {parentLoading ? "Calculating..." : "📊 Calculate Pricing"}
           </button>

@@ -152,22 +152,22 @@ function SingleSearchPanel({ session }) {
         <button
           type="button"
           onClick={toggleHistory}
-          className="rounded-2xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/30 hover:bg-white/15"
+          className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2 text-sm font-medium text-slate-100 transition hover:border-white/30 hover:bg-white/15"
         >
           {historyOpen ? "Hide Rate History" : "Rate History"}
         </button>
       </div>
 
       {historyOpen && (
-        <div className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl">
+        <div className="space-y-3 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 backdrop-blur-xl">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-200/70">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.3em] text-ink/70">
               Rate Tracking History
             </h3>
             <button
               type="button"
               onClick={loadHistory}
-              className="text-xs text-slate-300/70 hover:text-white"
+              className="text-xs muted/70 hover:text-ink"
               disabled={historyLoading}
             >
               {historyLoading ? "Refreshing..." : "Refresh list"}
@@ -196,8 +196,8 @@ function SingleSearchPanel({ session }) {
       {data ? (
         <HotelRateShopper data={data} />
       ) : (
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200/70">
-          Select your dates and click <span className="text-white font-semibold">Track My Rates</span> to get started.
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 sub/70">
+          Select your dates and click <span className="text-ink font-semibold">Track My Rates</span> to get started.
         </div>
       )}
     </div>
@@ -213,8 +213,8 @@ function LocationSearchPanel({ session }) {
       {results ? (
         <LocationResults data={results} />
       ) : (
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-slate-200/70">
-          Enter a city/area (optionally lat/lng), then hit <span className="text-white font-semibold">Search by Location</span>.
+        <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-4 sub/70">
+          Enter a city/area (optionally lat/lng), then hit <span className="text-ink font-semibold">Search by Location</span>.
         </div>
       )}
     </div>
@@ -303,19 +303,15 @@ export default function Page() {
   }, [session]);
 
   return (
-    <main className="relative min-h-screen bg-slate-950 text-slate-100 flex">
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-32 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-blue-500/30 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-[420px] w-[420px] rounded-full bg-purple-500/20 blur-3xl" />
-      </div>
+    <main className="relative min-h-screen flex">
 
       {/* Sidebar - Sticky to left, full height */}
-      <aside className="w-[180px] flex-shrink-0 border-r border-white/10 bg-white/5 backdrop-blur-xl sticky top-0 h-screen overflow-y-auto">
+      <aside className="w-[180px] flex-shrink-0 border-r border-[var(--border)] bg-[var(--surface)] backdrop-blur-xl sticky top-0 h-screen overflow-y-auto">
         <div className="p-3">
           <div className="mb-4 space-y-1">
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Dashboard</p>
-            <h1 className="text-xl font-semibold text-white">Rate Shopper</h1>
-            <p className="text-xs text-slate-300/80">
+            <p className="text-xs uppercase tracking-[0.2em] muted">Dashboard</p>
+            <h1 className="h2">Rate Shopper</h1>
+            <p className="text-xs muted">
               Stay on top of parity and compsets.
             </p>
           </div>
@@ -331,8 +327,8 @@ export default function Page() {
                   style={!isClient ? { opacity: 0 } : {}}
                   className={`group flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition ${
                     activeState
-                      ? "bg-white/15 text-white shadow-inner"
-                      : "text-slate-200/80 hover:bg-white/10 hover:text-white"
+                      ? "bg-white/15 text-ink shadow-inner"
+                      : "text-ink/80 hover:bg-[var(--surface-2)] hover:text-ink"
                   }`}
                 >
                   <span className="text-base leading-none">{item.icon}</span>
@@ -355,7 +351,7 @@ export default function Page() {
               <div className="flex items-center justify-center py-20">
                 <div className="text-center space-y-3">
                   <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-white/20 border-t-white"></div>
-                  <p className="text-sm text-slate-400">Loading dashboard...</p>
+                  <p className="sub">Loading dashboard...</p>
                 </div>
               </div>
             ) : (
@@ -364,8 +360,8 @@ export default function Page() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-semibold text-white">Rate Tracker</h2>
-                        <p className="text-sm text-slate-300/80">
+                        <h2 className="h1">Rate Tracker</h2>
+                        <p className="sub">
                           Track your property&apos;s rates across multiple OTAs over time.
                         </p>
                       </div>
@@ -378,8 +374,8 @@ export default function Page() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-semibold text-white">Rate History</h2>
-                        <p className="text-sm text-slate-300/80">
+                        <h2 className="h1">Rate History</h2>
+                        <p className="sub">
                           View and compare historical rate searches grouped by check-in date.
                         </p>
                       </div>
@@ -392,8 +388,8 @@ export default function Page() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-semibold text-white">Compare Hotels</h2>
-                        <p className="text-sm text-slate-300/80">
+                        <h2 className="h1">Compare Hotels</h2>
+                        <p className="sub">
                           Define your comp set and monitor channel-level deltas in real time.
                         </p>
                       </div>
@@ -407,8 +403,8 @@ export default function Page() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-semibold text-white">Search by Location</h2>
-                        <p className="text-sm text-slate-300/80">
+                        <h2 className="h1">Search by Location</h2>
+                        <p className="sub">
                           Surface the strongest offers in a destination, filtered by rating and amenities.
                         </p>
                       </div>
@@ -421,8 +417,8 @@ export default function Page() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-semibold text-white">Disparity Checker</h2>
-                        <p className="text-sm text-slate-300/80">
+                        <h2 className="h1">Disparity Checker</h2>
+                        <p className="sub">
                           Audit OTA spreads for a specific hotel and highlight actionable gaps.
                         </p>
                       </div>
@@ -441,8 +437,8 @@ export default function Page() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h2 className="text-3xl font-semibold text-white">Manage Users</h2>
-                        <p className="text-sm text-slate-300/80">
+                        <h2 className="h1">Manage Users</h2>
+                        <p className="sub">
                           Provision login access for teammates and assign them to properties.
                         </p>
                       </div>

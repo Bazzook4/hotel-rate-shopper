@@ -48,10 +48,10 @@ export default function WeeklyPricingTable({ hotel, roomTypes, weeklyPrices, pri
     <div className="space-y-4">
       {/* Header with copy button */}
       <div className="flex items-center justify-between">
-        <h4 className="text-lg font-semibold text-white">Weekly Pricing Table</h4>
+        <h4 className="h2">Weekly Pricing Table</h4>
         <button
           onClick={handleCopyTable}
-          className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-white text-sm font-medium transition-all flex items-center gap-2"
+          className="px-4 py-2 rounded-lg bg-[var(--surface-2)] hover:bg-white/15 text-ink text-sm font-medium transition-all flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -61,38 +61,38 @@ export default function WeeklyPricingTable({ hotel, roomTypes, weeklyPrices, pri
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-white/10">
+      <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-white/10 bg-white/5">
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider muted">
                 Room Category
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider muted">
                 Meal Plan
               </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider muted">
                 Occupancy
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Monday
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Tuesday
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Wednesday
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Thursday
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Friday
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Saturday
               </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-300">
+              <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider muted">
                 Sunday
               </th>
             </tr>
@@ -101,17 +101,17 @@ export default function WeeklyPricingTable({ hotel, roomTypes, weeklyPrices, pri
             {roomTypes.map((room, index) => {
               const prices = weeklyPrices[index];
               return (
-                <tr key={room.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                  <td className="px-4 py-3 text-white font-medium">{room.room_type_name}</td>
-                  <td className="px-4 py-3 text-slate-300">EP</td>
-                  <td className="px-4 py-3 text-slate-300">Single</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Monday.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Tuesday.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Wednesday.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Thursday.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Friday.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Saturday.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right text-white font-mono">{prices.Sunday.toFixed(2)}</td>
+                <tr key={room.id} className="border-b border-[var(--border)] hover:bg-[var(--surface)] transition-colors">
+                  <td className="px-4 py-3 text-ink font-medium">{room.room_type_name}</td>
+                  <td className="px-4 py-3 muted">EP</td>
+                  <td className="px-4 py-3 muted">Single</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Monday.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Tuesday.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Wednesday.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Thursday.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Friday.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Saturday.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-ink font-mono">{prices.Sunday.toFixed(2)}</td>
                 </tr>
               );
             })}
@@ -120,7 +120,7 @@ export default function WeeklyPricingTable({ hotel, roomTypes, weeklyPrices, pri
       </div>
 
       {/* Legend */}
-      <div className="text-xs text-slate-400">
+      <div className="text-xs muted">
         <p>* EP = European Plan (Room Only)</p>
         <p>* Prices shown are AI-recommended rates based on current occupancy, seasonality, and market conditions</p>
       </div>
