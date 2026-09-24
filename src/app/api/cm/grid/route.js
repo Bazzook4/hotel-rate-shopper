@@ -121,13 +121,28 @@ export async function GET(req) {
      * discounted, since the rate is for the room.
      */
     const rateForOccupancy = (planId, roomId, base, occupancy) => {
-      if (base === null || base === undefined) return null;
       const a = assignmentFor[`${planId}|${roomId}`];
-      const included = Number(a?.included_occupancy);
+      const room = roomById[roomId];
+      const baseAdults = Math.max(1, Number(room?.base_adults) || 0);
+
+      // Within base occupancy the rate is set per adult, since a single and a
+      // double are different prices rather than the same room half-empty.
+      const perAdult = a?.adult_rates || null;
+      if (perAdult && occupancy <= baseAdults) {
+        const own = Number(perAdult[occupancy] ?? perAdult[String(occupancy)]);
+        if (Number.isFinite(own)) return own;
+      }
+
+      if (base === null || base === undefined) return null;
+
+      // Beyond base occupancy, each further adult adds the extra person rate
+      // on top of the base-occupancy rate.
+      const atBase = perAdult
+        ? Number(perAdult[baseAdults] ?? perAdult[String(baseAdults)] ?? base)
+        : base;
       const extra = Number(a?.extra_adult_rate);
-      if (!Number.isFinite(included) || !Number.isFinite(extra)) return base;
-      const additional = Math.max(0, occupancy - included);
-      return base + additional * extra;
+      if (!Number.isFinite(extra) || !Number.isFinite(atBase)) return base;
+      return atBase + Math.max(0, occupancy - baseAdults) * extra;
     };
 
     const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));

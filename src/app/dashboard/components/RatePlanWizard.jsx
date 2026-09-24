@@ -60,7 +60,6 @@ export default function RatePlanWizard({
     min_stay: plan?.min_stay ?? "",
     max_stay: plan?.max_stay ?? "",
     release_period: plan?.release_period ?? "",
-    stop_sell: Boolean(plan?.stop_sell),
     is_master: Boolean(plan?.is_master),
     derive_from_id: plan?.derive_from_id ?? "",
     derive_method: plan?.derive_method ?? "percent",
@@ -75,8 +74,7 @@ export default function RatePlanWizard({
       if (plan?.id && a.rate_plan_id !== plan.id) continue;
       out[a.room_type_id] = {
         room_type_id: a.room_type_id,
-        full_rate: a.full_rate ?? "",
-        included_occupancy: a.included_occupancy ?? "",
+        adult_rates: a.adult_rates || {},
         extra_adult_rate: a.extra_adult_rate ?? "",
         extra_child_rate: a.extra_child_rate ?? "",
       };
@@ -97,10 +95,7 @@ export default function RatePlanWizard({
       if (on) {
         next[room.id] = next[room.id] || {
           room_type_id: room.id,
-          full_rate: "",
-          // Most rates are quoted for two adults; the room's own limit wins
-          // where it is lower.
-          included_occupancy: Math.min(room.max_adults || 2, 2),
+          adult_rates: {},
           extra_adult_rate: "",
           extra_child_rate: "",
         };
@@ -117,6 +112,28 @@ export default function RatePlanWizard({
       [roomId]: { ...prev[roomId], [field]: value },
     }));
   }
+
+  /** The rate for one adult count in one room. */
+  function setAdultRate(roomId, adults, value) {
+    setRooms((prev) => ({
+      ...prev,
+      [roomId]: {
+        ...prev[roomId],
+        adult_rates: { ...prev[roomId].adult_rates, [adults]: value },
+      },
+    }));
+  }
+
+  /** How many adults a room is priced for, adult by adult. */
+  const baseAdultsOf = (room) => Math.max(1, Number(room.base_adults) || 2);
+
+  // The widest room decides how many rate columns the table needs; rooms with
+  // fewer base adults leave the surplus columns blank rather than disabled, so
+  // the header stays honest about what each column means.
+  const maxBaseAdults = Math.max(
+    1,
+    ...roomTypes.map((r) => baseAdultsOf(r))
+  );
 
   /** What blocks leaving the current step, or "" when it is complete. */
   function problemWith(index) {
@@ -148,9 +165,14 @@ export default function RatePlanWizard({
       }
     }
     if (index === 3) {
-      for (const r of Object.values(rooms)) {
-        if (r.full_rate === "" || Number(r.full_rate) < 0) {
-          return "Every assigned room needs a full rate.";
+      for (const [roomId, r] of Object.entries(rooms)) {
+        const room = roomTypes.find((x) => x.id === roomId);
+        const base = room ? Math.max(1, Number(room.base_adults) || 2) : 1;
+        for (let a = 1; a <= base; a += 1) {
+          const v = r.adult_rates?.[a];
+          if (v === undefined || v === "" || Number(v) < 0) {
+            return `${room?.room_type_name || "Every assigned room"} needs a rate for ${a} adult${a === 1 ? "" : "s"}.`;
+          }
         }
       }
     }
@@ -179,7 +201,16 @@ export default function RatePlanWizard({
       }
     }
     setError("");
-    onSave(form, Object.values(rooms));
+    // base_adults rides along so the save can drop rates above it.
+    onSave(
+      form,
+      Object.values(rooms).map((r) => ({
+        ...r,
+        base_adults: baseAdultsOf(
+          roomTypes.find((x) => x.id === r.room_type_id) || {}
+        ),
+      }))
+    );
   }
 
   const derived = Boolean(form.derive_from_id);
@@ -354,15 +385,6 @@ export default function RatePlanWizard({
                   it in the first step.
                 </p>
               </div>
-
-              <label className="flex items-center gap-2 text-sm text-ink">
-                <input
-                  type="checkbox"
-                  checked={form.stop_sell}
-                  onChange={(e) => set({ stop_sell: e.target.checked })}
-                />
-                Stop sell — close this plan by default
-              </label>
             </div>
           )}
 
@@ -514,9 +536,12 @@ export default function RatePlanWizard({
                     <thead>
                       <tr className="text-left text-xs uppercase tracking-wide muted">
                         <th className="px-3 py-2.5">Room type</th>
-                        <th className="px-3 py-2.5">Full rate *</th>
-                        <th className="px-3 py-2.5">Included occupancy</th>
-                        <th className="px-3 py-2.5">Extra adult</th>
+                        {Array.from({ length: maxBaseAdults }, (_, i) => (
+                          <th key={i} className="px-3 py-2.5">
+                            Adult {i + 1} *
+                          </th>
+                        ))}
+                        <th className="px-3 py-2.5">Extra person</th>
                         <th className="px-3 py-2.5">Extra child</th>
                       </tr>
                     </thead>
@@ -524,6 +549,12 @@ export default function RatePlanWizard({
                       {roomTypes.map((room) => {
                         const on = Boolean(rooms[room.id]);
                         const row = rooms[room.id];
+                        const base = baseAdultsOf(room);
+                        const max = Math.max(base, Number(room.max_adults) || base);
+                        // Nobody can stay beyond base, so there is no extra
+                        // person to charge for.
+                        const takesExtra = max > base;
+
                         return (
                           <tr key={room.id}>
                             <td className="px-3 py-2">
@@ -536,30 +567,75 @@ export default function RatePlanWizard({
                                 <span>
                                   {room.room_type_name}
                                   <span className="block text-xs faint">
-                                    max {room.max_adults || 2} adults
+                                    {base} base · max {max}
                                   </span>
                                 </span>
                               </label>
                             </td>
-                            {["full_rate", "included_occupancy", "extra_adult_rate", "extra_child_rate"].map(
-                              (field) => (
-                                <td key={field} className="px-3 py-2">
-                                  <input
-                                    type="number"
-                                    min={field === "included_occupancy" ? "1" : "0"}
-                                    step={field === "included_occupancy" ? "1" : "0.01"}
-                                    disabled={!on}
-                                    value={on ? row[field] : ""}
-                                    onChange={(e) =>
-                                      setRoomField(room.id, field, e.target.value)
-                                    }
-                                    className={inputClass}
-                                    style={{ opacity: on ? 1 : 0.4, width: 96 }}
-                                    aria-label={`${room.room_type_name} ${field}`}
-                                  />
+
+                            {Array.from({ length: maxBaseAdults }, (_, i) => {
+                              const adults = i + 1;
+                              const applies = adults <= base;
+                              return (
+                                <td key={adults} className="px-3 py-2">
+                                  {applies ? (
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      disabled={!on}
+                                      value={on ? row.adult_rates?.[adults] ?? "" : ""}
+                                      onChange={(e) =>
+                                        setAdultRate(room.id, adults, e.target.value)
+                                      }
+                                      className={inputClass}
+                                      style={{ opacity: on ? 1 : 0.4, width: 92 }}
+                                      aria-label={`${room.room_type_name} rate for ${adults} adults`}
+                                    />
+                                  ) : (
+                                    <span className="text-xs faint">—</span>
+                                  )}
                                 </td>
-                              )
-                            )}
+                              );
+                            })}
+
+                            <td className="px-3 py-2">
+                              {takesExtra ? (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  disabled={!on}
+                                  value={on ? row.extra_adult_rate : ""}
+                                  onChange={(e) =>
+                                    setRoomField(room.id, "extra_adult_rate", e.target.value)
+                                  }
+                                  className={inputClass}
+                                  style={{ opacity: on ? 1 : 0.4, width: 92 }}
+                                  aria-label={`${room.room_type_name} extra person rate`}
+                                />
+                              ) : (
+                                <span className="text-xs faint" title="Max equals base">
+                                  n/a
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                disabled={!on}
+                                value={on ? row.extra_child_rate : ""}
+                                onChange={(e) =>
+                                  setRoomField(room.id, "extra_child_rate", e.target.value)
+                                }
+                                className={inputClass}
+                                style={{ opacity: on ? 1 : 0.4, width: 92 }}
+                                aria-label={`${room.room_type_name} extra child rate`}
+                              />
+                            </td>
                           </tr>
                         );
                       })}

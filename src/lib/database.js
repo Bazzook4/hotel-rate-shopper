@@ -340,7 +340,7 @@ export async function deleteSnapshotById(id) {
 // ROOM TYPE FUNCTIONS
 // ============================================
 
-export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, max_adults, description, amenities }) {
+export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, base_adults, max_adults, description, amenities }) {
   const roomTypeId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const roomType = {
@@ -349,6 +349,7 @@ export async function createRoomType({ property_id, room_type_name, base_price, 
     room_type_name: room_type_name,
     base_price: Number(base_price),
     number_of_rooms: Number(number_of_rooms),
+    base_adults: base_adults ? Number(base_adults) : null,
     max_adults: max_adults ? Number(max_adults) : null,
     description: description || '',
     amenities: amenities || [],
@@ -390,6 +391,12 @@ export async function updateRoomType(id, updates) {
   }
   if (sanitizedUpdates.number_of_rooms !== undefined) {
     sanitizedUpdates.number_of_rooms = Number(sanitizedUpdates.number_of_rooms);
+  }
+  if (sanitizedUpdates.base_adults !== undefined) {
+    sanitizedUpdates.base_adults =
+      sanitizedUpdates.base_adults === '' || !sanitizedUpdates.base_adults
+        ? null
+        : Number(sanitizedUpdates.base_adults);
   }
   if (sanitizedUpdates.max_adults !== undefined) {
     if (sanitizedUpdates.max_adults === '' || !sanitizedUpdates.max_adults) {
@@ -1460,7 +1467,7 @@ export async function markRestrictionsPushed(propertyId, rows) {
 export async function listRatePlanRooms(propertyId) {
   const { data, error } = await supabase
     .from('rate_plan_rooms')
-    .select('id, rate_plan_id, room_type_id, full_rate, included_occupancy, extra_adult_rate, extra_child_rate')
+    .select('id, rate_plan_id, room_type_id, full_rate, adult_rates, included_occupancy, extra_adult_rate, extra_child_rate')
     .eq('property_id', propertyId);
 
   if (error) {
@@ -1485,21 +1492,57 @@ export async function saveRatePlanRooms(propertyId, ratePlanId, rows) {
     return Number.isFinite(n) && n >= 0 ? n : null;
   };
 
+  /**
+   * The per-adult rates, keyed by adult count: {"1": 3500, "2": 4000}.
+   *
+   * Entries outside 1..baseAdults are dropped, so lowering a room's base
+   * adults does not leave rates for occupancies it no longer sells.
+   */
+  const adultRates = (value, baseAdults) => {
+    if (!value || typeof value !== 'object') return null;
+    const out = {};
+    const limit = Number.isFinite(Number(baseAdults)) ? Number(baseAdults) : null;
+    for (const [k, v] of Object.entries(value)) {
+      const adults = Number(k);
+      if (!Number.isInteger(adults) || adults < 1) continue;
+      if (limit !== null && adults > limit) continue;
+      const rate = num(v);
+      if (rate !== null) out[adults] = rate;
+    }
+    return Object.keys(out).length > 0 ? out : null;
+  };
+
   const clean = (rows || [])
     .filter((r) => r.room_type_id)
-    .map((r) => ({
-      property_id: propertyId,
-      rate_plan_id: ratePlanId,
-      room_type_id: r.room_type_id,
-      full_rate: num(r.full_rate),
-      included_occupancy:
-        r.included_occupancy === null || r.included_occupancy === undefined || r.included_occupancy === ''
-          ? null
-          : Math.max(1, Math.trunc(Number(r.included_occupancy))) || null,
-      extra_adult_rate: num(r.extra_adult_rate),
-      extra_child_rate: num(r.extra_child_rate),
-      updated_at: new Date().toISOString(),
-    }));
+    .map((r) => {
+      const rates = adultRates(r.adult_rates, r.base_adults);
+      // full_rate stays written as the rate at base occupancy, so anything
+      // still reading it -- and the fallback for rooms with no per-adult
+      // rates -- keeps working.
+      const atBase =
+        rates && r.base_adults != null && rates[Number(r.base_adults)] != null
+          ? rates[Number(r.base_adults)]
+          : rates
+          ? Math.max(...Object.values(rates))
+          : num(r.full_rate);
+
+      return {
+        property_id: propertyId,
+        rate_plan_id: ratePlanId,
+        room_type_id: r.room_type_id,
+        full_rate: atBase,
+        adult_rates: rates,
+        included_occupancy:
+          r.included_occupancy === null ||
+          r.included_occupancy === undefined ||
+          r.included_occupancy === ''
+            ? null
+            : Math.max(1, Math.trunc(Number(r.included_occupancy))) || null,
+        extra_adult_rate: num(r.extra_adult_rate),
+        extra_child_rate: num(r.extra_child_rate),
+        updated_at: new Date().toISOString(),
+      };
+    });
 
   const keep = clean.map((r) => r.room_type_id);
 

@@ -145,6 +145,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
       room_type_name: room.room_type_name,
       base_price: Number(room.base_price),
       number_of_rooms: Number(room.number_of_rooms),
+      base_adults: room.base_adults ? Number(room.base_adults) : null,
       max_adults: room.max_adults ? Number(room.max_adults) : null,
       description: room.description || "",
     };
@@ -333,6 +334,7 @@ function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy
             room_type_name: "",
             base_price: "",
             number_of_rooms: "",
+            base_adults: "",
             max_adults: "",
             description: "",
           })
@@ -374,13 +376,32 @@ function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy
                 className={inputClass}
               />
             </Field>
+            <Field label="Base adults">
+              <input
+                type="number"
+                min="1"
+                value={editing.base_adults ?? ""}
+                onChange={(e) =>
+                  setEditing({ ...editing, base_adults: e.target.value })
+                }
+                className={inputClass}
+                placeholder="2"
+              />
+              <span className="mt-1 block text-xs faint">
+                How many adults the room is priced for, adult by adult.
+              </span>
+            </Field>
             <Field label="Max adults">
               <input
                 type="number"
+                min="1"
                 value={editing.max_adults ?? ""}
                 onChange={(e) => setEditing({ ...editing, max_adults: e.target.value })}
                 className={inputClass}
               />
+              <span className="mt-1 block text-xs faint">
+                The ceiling. Adults beyond base pay the extra person rate.
+              </span>
             </Field>
           </div>
           <Field label="Description">
@@ -417,7 +438,7 @@ function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy
               <th className="px-4 py-3">Room type</th>
               <th className="px-4 py-3">Base price</th>
               <th className="px-4 py-3">Rooms</th>
-              <th className="px-4 py-3">Max adults</th>
+              <th className="px-4 py-3">Adults (base / max)</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -432,7 +453,9 @@ function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy
                 </td>
                 <td className="px-4 py-3 text-ink">{r.base_price}</td>
                 <td className="px-4 py-3 text-ink">{r.number_of_rooms}</td>
-                <td className="px-4 py-3 text-ink">{r.max_adults ?? "—"}</td>
+                <td className="px-4 py-3 text-ink">
+                  {r.base_adults ?? "—"} / {r.max_adults ?? "—"}
+                </td>
                 <td className="px-4 py-3 text-right">
                   <button
                     type="button"

@@ -1,27 +1,24 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-
-
+/**
+ * Aiosell's channel slugs are not what a hotelier calls them.
+ */
 const CHANNEL_LABELS = {
-  "booking.com": "Booking.com",
-  gommt: "MakeMyTrip",
+  gommt: "MakeMyTrip / Goibibo",
   agoda: "Agoda",
   airbnb: "Airbnb",
   google: "Google",
+  "booking.com": "Booking.com",
   expedia: "Expedia",
 };
 
+
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+
+
+
 // Each OTA's own brand colour, so these stay fixed rather than following
 // the theme palette.
-const CHANNEL_DOTS = {
-  "booking.com": "bg-[var(--accent)]",
-  gommt: "bg-red-500",
-  agoda: "bg-purple-500",
-  airbnb: "bg-[var(--danger)]",
-  google: "bg-emerald-500",
-  expedia: "bg-amber-500",
-};
 
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
@@ -80,6 +77,8 @@ export default function ChannelManager() {
   // Bumped when a multiplier update is rejected, to remount the input so it
   // snaps back to the value actually live on the channel.
   const [revert, setRevert] = useState(0);
+  // Rate plans whose channel breakdown is open, keyed by "<planId>|<roomId>".
+  const [openChannels, setOpenChannels] = useState({});
   // Edited rates, keyed "<rateplanId>|<date>". Unedited cells fall back to
   // the stored value, so only changes are held here.
   const [rates, setRates] = useState({});
@@ -130,7 +129,8 @@ export default function ChannelManager() {
     load();
   }, [load]);
 
-  // Channels that carry rates — these are the ones a multiplier applies to.
+  // Channels that carry rates. The multiplier applies to one of these across
+  // the whole property, so each rate plan row shows the same set.
   const rateChannels = useMemo(() => {
     const seen = new Map();
     for (const c of property?.connected_channels || []) {
@@ -139,10 +139,6 @@ export default function ChannelManager() {
       }
     }
     return [...seen.values()];
-  }, [property]);
-
-  const connectedCount = useMemo(() => {
-    return new Set((property?.connected_channels || []).map((c) => c.partner_id)).size;
   }, [property]);
 
   const rooms = useMemo(() => {
@@ -160,12 +156,22 @@ export default function ChannelManager() {
       .filter(Boolean);
   }, [grid, filter]);
 
+
+  /**
+   * Set a channel's markup.
+   *
+   * Aiosell holds one multiplier per channel for the whole property, so this
+   * is edited from a rate plan row for convenience but applies to every plan.
+   * The rows say as much, rather than implying a per-plan setting.
+   */
   async function applyMultiplier(channel, value) {
     const multiplier = Number(value);
     if (!Number.isFinite(multiplier) || multiplier <= 0) {
-      setNotice("Multiplier must be a positive number.");
+      setNotice("A multiplier must be a number above zero.");
+      setRevert((n) => n + 1);
       return;
     }
+
     setBusy(true);
     setNotice("");
     try {
@@ -175,22 +181,29 @@ export default function ChannelManager() {
         body: JSON.stringify({ multiplier, channels: [channel] }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Multiplier update failed");
-      setNotice(json.message || `${CHANNEL_LABELS[channel] || channel} set to ${multiplier}x`);
-      setProperty((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          connected_channels: prev.connected_channels.map((c) =>
-            c.operation === "rates" && c.partner_id === channel
-              ? { ...c, rate_multiplier: multiplier }
-              : c
-          ),
-        };
-      });
+      if (!res.ok) throw new Error(json?.error || "Could not set the multiplier");
+
+      // Reflect it locally rather than reloading the whole grid.
+      setProperty((prev) =>
+        prev
+          ? {
+              ...prev,
+              connected_channels: (prev.connected_channels || []).map((c) =>
+                c.operation === "rates" && c.partner_id === channel
+                  ? { ...c, rate_multiplier: multiplier }
+                  : c
+              ),
+            }
+          : prev
+      );
+      setNotice(
+        json.message ||
+          `${CHANNEL_LABELS[channel] || channel} set to ${multiplier}x on every rate plan.`
+      );
     } catch (err) {
-      setNotice(`${CHANNEL_LABELS[channel] || channel}: ${err.message}`);
+      // Snap the input back to what is actually live on the channel.
       setRevert((n) => n + 1);
+      setNotice(`${CHANNEL_LABELS[channel] || channel}: ${err.message}`);
     } finally {
       setBusy(false);
     }
@@ -466,55 +479,6 @@ export default function ChannelManager() {
         </div>
       )}
 
-      {/* Channel cards — multiplier is per channel, matching the Aiosell API */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="card card-pad">
-          <p className="text-xs uppercase tracking-wide muted">All channels</p>
-          <p className="mt-2 h1">{connectedCount}</p>
-          <p className="text-xs muted">connected</p>
-        </div>
-        {rateChannels.map((c) => (
-          <div
-            key={c.partner_id}
-            className="card card-pad"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${CHANNEL_DOTS[c.partner_id] || "bg-slate-400"}`}
-              />
-              <p className="text-xs font-medium uppercase tracking-wide muted">
-                {CHANNEL_LABELS[c.partner_id] || c.partner_id}
-              </p>
-            </div>
-            <label className="mt-3 block label">
-              Rate multiplier
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                // Keyed on the live value so a rejected update snaps back to
-                // what is actually set on the channel, rather than leaving the
-                // input showing a multiplier that was never applied.
-                key={`${c.partner_id}-${c.rate_multiplier ?? 1}-${revert}`}
-                defaultValue={c.rate_multiplier ?? 1}
-                disabled={busy}
-                onBlur={(e) => {
-                  const next = Number(e.target.value);
-                  if (next !== (c.rate_multiplier ?? 1)) {
-                    applyMultiplier(c.partner_id, next);
-                  }
-                }}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 h2 outline-none focus:border-white/30"
-              />
-            </label>
-            <p className="mt-1 text-[11px] faint">
-              {((c.rate_multiplier ?? 1) - 1) * 100 >= 0 ? "+" : ""}
-              {(((c.rate_multiplier ?? 1) - 1) * 100).toFixed(0)}% on pushed rates
-            </p>
-          </div>
-        ))}
-      </div>
-
       {/* Date window controls */}
       <div className="flex flex-wrap items-center gap-2 card p-3">
         <button
@@ -577,12 +541,25 @@ export default function ChannelManager() {
         </div>
       )}
 
-      {/* Grid */}
-      <div className="overflow-x-auto card">
-        <table className="min-w-full border-collapse text-sm">
+      {/* Grid — every cell is ruled, so a rate can be read across a row and
+          down a date without losing its place. Weekends are tinted, since
+          they are what a revenue manager scans for. */}
+      <div className="overflow-x-auto card" style={{ padding: 0 }}>
+        <table
+          className="min-w-full text-sm"
+          style={{ borderCollapse: "separate", borderSpacing: 0 }}
+        >
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-3 text-left text-xs uppercase tracking-wide muted">
+              <th
+                className="sticky left-0 z-20 px-4 py-2.5 text-left text-xs uppercase tracking-wide muted"
+                style={{
+                  background: "var(--surface-2)",
+                  borderBottom: "1px solid var(--border-strong)",
+                  borderRight: "1px solid var(--border-strong)",
+                  minWidth: 260,
+                }}
+              >
                 Room type &amp; rate plan
               </th>
               {dates.map((d) => {
@@ -590,12 +567,24 @@ export default function ChannelManager() {
                 return (
                   <th
                     key={d}
-                    className={`px-3 py-2 text-center text-[11px] font-medium ${
-                      f.weekend ? "text-[var(--warn)]" : "muted"
-                    }`}
+                    className="px-3 py-2 text-center text-[11px] font-medium"
+                    style={{
+                      background: f.weekend
+                        ? "var(--warn-soft)"
+                        : "var(--surface-2)",
+                      borderBottom: "1px solid var(--border-strong)",
+                      borderRight: "1px solid var(--border)",
+                      color: f.weekend ? "var(--warn)" : "var(--text-muted)",
+                      minWidth: 74,
+                    }}
                   >
                     <div>{f.dow}</div>
-                    <div className="text-base font-semibold text-ink">{f.day}</div>
+                    <div
+                      className="text-base font-semibold"
+                      style={{ color: f.weekend ? "var(--warn)" : "var(--text)" }}
+                    >
+                      {f.day}
+                    </div>
                     <div className="text-[10px] faint">{f.mon}</div>
                   </th>
                 );
@@ -630,6 +619,14 @@ export default function ChannelManager() {
                     [key]: { ...prev[key], [field]: value },
                   }))
                 }
+                channels={rateChannels}
+                openChannels={openChannels}
+                onToggleChannels={(key) =>
+                  setOpenChannels((p) => ({ ...p, [key]: !p[key] }))
+                }
+                onMultiplier={applyMultiplier}
+                revert={revert}
+                busy={busy}
               />
             ))}
             {rooms.length === 0 && (
@@ -663,11 +660,24 @@ function ExpandableRoom({
   planView,
   onPlanViewChange,
   onRestrictionChange,
+  channels,
+  openChannels,
+  onToggleChannels,
+  onMultiplier,
+  revert,
+  busy,
 }) {
   return (
     <>
-      <tr className="bg-[var(--surface-2)]">
-        <td className="sticky left-0 z-10 bg-[var(--surface-2)] px-4 py-3">
+      <tr>
+        <td
+          className="sticky left-0 z-10 px-4 py-2.5"
+          style={{
+            background: "var(--surface-2)",
+            borderBottom: "1px solid var(--border-strong)",
+            borderRight: "1px solid var(--border-strong)",
+          }}
+        >
           <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
             <span className="muted">{open ? "▾" : "▸"}</span>
             <span>
@@ -681,7 +691,15 @@ function ExpandableRoom({
           </button>
         </td>
         {dates.map((d) => (
-          <td key={d} className="px-3 py-3 text-center muted">
+          <td
+            key={d}
+            className="px-3 py-2.5 text-center muted"
+            style={{
+              background: "var(--surface-2)",
+              borderBottom: "1px solid var(--border-strong)",
+              borderRight: "1px solid var(--border)",
+            }}
+          >
             {room.count ?? "—"}
           </td>
         ))}
@@ -699,7 +717,14 @@ function ExpandableRoom({
             <Fragment key={plan.id}>
               {rows.map((occ, i) => (
                 <tr key={`${plan.id}-${view}-${occ.occupancy}`}>
-                  <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-1.5 pl-10">
+                  <td
+                    className="sticky left-0 z-10 px-4 py-1.5 pl-10"
+                    style={{
+                      background: "var(--surface)",
+                      borderBottom: "1px solid var(--border)",
+                      borderRight: "1px solid var(--border-strong)",
+                    }}
+                  >
                     {i === 0 && (
                       <span className="flex items-center gap-2">
                         <span className="chip chip-off font-mono">
@@ -731,6 +756,22 @@ function ExpandableRoom({
                           <option value="max_stay">Max nights</option>
                           <option value="stop_sell">Stop sell</option>
                         </select>
+
+                        {channels.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => onToggleChannels(`${plan.id}|${room.id}`)}
+                            aria-expanded={Boolean(
+                              openChannels[`${plan.id}|${room.id}`]
+                            )}
+                            title="What each channel receives after its markup"
+                            className="rounded px-1.5 py-0.5 text-xs muted hover:bg-[var(--surface-2)]"
+                          >
+                            {openChannels[`${plan.id}|${room.id}`] ? "▾" : "▸"}{" "}
+                            {channels.length} channel
+                            {channels.length === 1 ? "" : "s"}
+                          </button>
+                        )}
                       </span>
                     )}
                     {view === "rates" ? (
@@ -762,7 +803,17 @@ function ExpandableRoom({
                         const edited = rates[key] !== undefined;
                         const unpushed = savedRate && !savedRate.pushed;
                         return (
-                          <td key={d} className="px-1.5 py-1.5">
+                          <td
+                            key={d}
+                            className="px-1.5 py-1.5"
+                            style={{
+                              background: formatDay(d).weekend
+                                ? "var(--warn-soft)"
+                                : undefined,
+                              borderBottom: "1px solid var(--border)",
+                              borderRight: "1px solid var(--border)",
+                            }}
+                          >
                             <input
                               type="number"
                               value={value}
@@ -797,10 +848,125 @@ function ExpandableRoom({
                       ))}
                 </tr>
               ))}
+
+              {view === "rates" &&
+                openChannels[`${plan.id}|${room.id}`] &&
+                channels.map((ch) => (
+                  <ChannelRow
+                    key={`${plan.id}-${room.id}-${ch.partner_id}`}
+                    channel={ch}
+                    plan={plan}
+                    room={room}
+                    dates={dates}
+                    rates={rates}
+                    stored={stored}
+                    revert={revert}
+                    busy={busy}
+                    onMultiplier={onMultiplier}
+                  />
+                ))}
             </Fragment>
           );
         })}
     </>
+  );
+}
+
+/**
+ * What one channel receives for a rate plan, after its markup.
+ *
+ * Aiosell applies the multiplier on top of whatever rate is pushed, so these
+ * figures are calculated rather than stored, and they follow the rate above
+ * as it is edited. The multiplier itself is property-wide: changing it here
+ * changes it for every rate plan, which the row says outright.
+ */
+function ChannelRow({
+  channel,
+  plan,
+  room,
+  dates,
+  rates,
+  stored,
+  revert,
+  busy,
+  onMultiplier,
+}) {
+  const mult = channel.rate_multiplier ?? 1;
+  const pct = Math.round((mult - 1) * 100);
+
+  // A channel is quoted at the rate plan's base occupancy, which is the
+  // headline figure a guest sees on the OTA.
+  const occ = plan.occupancies[plan.occupancies.length - 1] || plan.occupancies[0];
+
+  return (
+    <tr>
+      <td
+        className="sticky left-0 z-10 px-4 py-1 pl-16"
+        style={{
+          background: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+          borderRight: "1px solid var(--border-strong)",
+        }}
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-xs text-ink">
+            {CHANNEL_LABELS[channel.partner_id] || channel.partner_id}
+          </span>
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            // Keyed on the live value so a rejected update snaps back to what
+            // is actually set on the channel.
+            key={`${channel.partner_id}-${mult}-${revert}`}
+            defaultValue={mult}
+            disabled={busy}
+            onBlur={(e) => {
+              const next = Number(e.target.value);
+              if (next !== mult) onMultiplier(channel.partner_id, next);
+            }}
+            title="Applies to this channel on every rate plan"
+            className="w-16 rounded border px-1 py-0.5 text-right text-xs"
+            style={{
+              background: "var(--surface-2)",
+              borderColor: "var(--border)",
+              color: "var(--text)",
+            }}
+            aria-label={`${channel.partner_id} multiplier`}
+          />
+          <span
+            className="text-[10px]"
+            style={{ color: pct === 0 ? "var(--text-faint)" : "var(--accent-text)" }}
+          >
+            {pct > 0 ? "+" : ""}
+            {pct}%
+          </span>
+        </span>
+      </td>
+
+      {dates.map((d) => {
+        const key = `${plan.id}|${room.id}|${occ.occupancy}|${d}`;
+        const base =
+          rates[key] ?? stored[key]?.rate ?? occ.resolvedRate ?? plan.resolvedRate;
+        const value = Number.isFinite(Number(base))
+          ? Math.round(Number(base) * mult)
+          : null;
+        return (
+          <td
+            key={d}
+            className="px-1.5 py-1 text-right text-xs"
+            style={{
+              background: formatDay(d).weekend ? "var(--warn-soft)" : undefined,
+              borderBottom: "1px solid var(--border)",
+              borderRight: "1px solid var(--border)",
+              color: "var(--text-muted)",
+            }}
+          >
+            {value === null ? "—" : value.toLocaleString("en-IN")}
+          </td>
+        );
+      })}
+    </tr>
   );
 }
 
@@ -822,13 +988,21 @@ function RestrictionCell({ plan, roomId, date, field, edits, stored, onChange })
     max_stay: saved?.maxStay,
   }[field];
 
+  const weekend = formatDay(date).weekend;
   const edited = patch?.[field] !== undefined;
   const value = edited ? patch[field] : savedValue ?? null;
   const pending = Boolean(saved && !saved.pushed);
 
   if (field === "stop_sell") {
     return (
-      <td className="px-1.5 py-1.5 text-center">
+      <td
+        className="px-1.5 py-1.5 text-center"
+        style={{
+          background: weekend ? "var(--warn-soft)" : undefined,
+          borderBottom: "1px solid var(--border)",
+          borderRight: "1px solid var(--border)",
+        }}
+      >
         <input
           type="checkbox"
           checked={Boolean(value)}
@@ -847,7 +1021,14 @@ function RestrictionCell({ plan, roomId, date, field, edits, stored, onChange })
       : plan.restrictions?.maxStay;
 
   return (
-    <td className="px-1.5 py-1.5">
+    <td
+      style={{
+        background: weekend ? "var(--warn-soft)" : undefined,
+        borderBottom: "1px solid var(--border)",
+        borderRight: "1px solid var(--border)",
+      }}
+      className="px-1.5 py-1.5"
+    >
       <input
         type="number"
         min="1"
