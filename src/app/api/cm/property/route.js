@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { resolveChannelManager } from "@/lib/cmResolver";
-import { MOCK_PROPERTY } from "@/lib/mock/aiosellProperty";
 
 export async function GET(req) {
   const session = await getSessionFromRequest(req);
@@ -13,9 +12,11 @@ export async function GET(req) {
   const { client, ready } = await resolveChannelManager(session, { propertyId });
 
   if (!ready) {
+    // No fixture: an unconfigured connection reports what it needs rather
+    // than showing data that is not this property's.
     return NextResponse.json({
-      property: MOCK_PROPERTY,
-      source: "mock",
+      property: null,
+      source: "unconfigured",
       missing: client.missingFields(),
     });
   }

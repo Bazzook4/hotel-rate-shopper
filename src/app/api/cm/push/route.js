@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { resolveChannelManager } from "@/lib/cmResolver";
+import { getPropertyIntegration, getUserPropertyId } from "@/lib/database";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -53,6 +54,59 @@ export async function POST(req) {
   const cm = await resolveChannelManager(session, { propertyId });
   const { client, ready } = cm;
 
+  // Our ids mean nothing to the partner, so every code is translated through
+  // the property's mapping. A push with an unmapped code would be rejected,
+  // so it is refused here with a message naming what is missing.
+  const resolvedProperty =
+    propertyId ||
+    session.property_id ||
+    (await getUserPropertyId(session.userId).catch(() => null));
+
+  const found = resolvedProperty
+    ? await getPropertyIntegration(resolvedProperty, "aiosell").catch(() => null)
+    : null;
+
+  const roomCodes = {};
+  const planCodes = {};
+  for (const row of found?.codeMap || []) {
+    if (row.rate_plan_id) {
+      planCodes[`${row.rate_plan_id}|${row.occupancy ?? 1}`] =
+        row.partner_rateplan_code;
+    } else if (row.room_type_id) {
+      roomCodes[row.room_type_id] = row.partner_room_code;
+    }
+  }
+
+  const missing = [];
+  const translated = (updates || []).map((u) => {
+    const entries = (u[key] || []).map((entry) => {
+      const roomCode = roomCodes[entry.roomCode] || entry.roomCode;
+      if (!roomCodes[entry.roomCode] && found) missing.push(entry.roomCode);
+
+      if (key === "rooms") return { ...entry, roomCode };
+
+      const planKey = `${entry.rateplanCode}|${entry.occupancy ?? 1}`;
+      const rateplanCode = planCodes[planKey] || entry.rateplanCode;
+      if (!planCodes[planKey] && found) missing.push(entry.rateplanCode);
+
+      // occupancy is ours, not part of the partner payload.
+      const { occupancy, ...rest } = entry;
+      return { ...rest, roomCode, rateplanCode };
+    });
+    return { ...u, [key]: entries };
+  });
+
+  if (ready && missing.length > 0) {
+    return NextResponse.json(
+      {
+        error:
+          "Some room types or rate plans are not mapped to partner codes yet. Set them under Integrations before pushing.",
+        missing: [...new Set(missing)],
+      },
+      { status: 409 }
+    );
+  }
+
   // Each activity is enabled separately, so a connection that only sends
   // rates must not be able to push inventory.
   if (ready && !cm.allows(kind)) {
@@ -74,11 +128,11 @@ export async function POST(req) {
   try {
     let result;
     if (kind === "rates") {
-      result = await client.pushRates(updates);
+      result = await client.pushRates(translated);
     } else if (kind === "inventory") {
-      result = await client.pushInventory(updates);
+      result = await client.pushInventory(translated);
     } else {
-      result = await client.pushInventoryRestrictions(updates, { toChannels });
+      result = await client.pushInventoryRestrictions(translated, { toChannels });
     }
     return NextResponse.json({ source: "aiosell", result });
   } catch (err) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { mockRate, mockInventory } from "@/lib/mock/aiosellProperty";
+
 
 const CHANNEL_LABELS = {
   "booking.com": "Booking.com",
@@ -49,6 +49,7 @@ function formatDay(iso) {
 
 export default function ChannelManager() {
   const [property, setProperty] = useState(null);
+  const [grid, setGrid] = useState(null);
   const [source, setSource] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -75,13 +76,20 @@ export default function ChannelManager() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/cm/property");
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`);
+      const [chRes, gridRes] = await Promise.all([
+        fetch("/api/cm/property"),
+        fetch("/api/cm/grid"),
+      ]);
+      const json = await chRes.json();
+      if (!chRes.ok) throw new Error(json?.error || `Request failed (${chRes.status})`);
       setProperty(json.property);
       setSource(json.source);
+
+      // The grid comes from this property's own setup, not from the partner.
+      const gridJson = gridRes.ok ? await gridRes.json() : null;
+      setGrid(gridJson);
       setExpanded(
-        Object.fromEntries((json.property?.rooms || []).map((r) => [r.room_id, true]))
+        Object.fromEntries((gridJson?.rooms || []).map((r) => [r.id, true]))
       );
     } catch (err) {
       setError(err.message);
@@ -111,19 +119,18 @@ export default function ChannelManager() {
 
   const rooms = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    const list = property?.rooms || [];
+    const list = grid?.rooms || [];
     if (!q) return list;
     return list
       .map((r) => {
-        const roomHit = r.room_name.toLowerCase().includes(q);
-        const plans = r.rateplans.filter((p) =>
-          p.rateplan_name.toLowerCase().includes(q)
+        if (r.name.toLowerCase().includes(q)) return r;
+        const plans = r.plans.filter((p) =>
+          `${p.name} ${p.label}`.toLowerCase().includes(q)
         );
-        if (roomHit) return r;
-        return plans.length ? { ...r, rateplans: plans } : null;
+        return plans.length ? { ...r, plans } : null;
       })
       .filter(Boolean);
-  }, [property, filter]);
+  }, [grid, filter]);
 
   async function applyMultiplier(channel, value) {
     const multiplier = Number(value);
@@ -162,7 +169,7 @@ export default function ChannelManager() {
   }
 
   async function pushAll() {
-    if (!property) return;
+    if (!grid?.rooms?.length) return;
     setBusy(true);
     setNotice("");
     try {
@@ -170,14 +177,16 @@ export default function ChannelManager() {
       // not overwrite the whole window.
       const byDate = {};
       for (const [key, value] of Object.entries(rates)) {
-        const [rateplanId, date] = key.split("|");
-        const room = property.rooms.find((r) =>
-          r.rateplans.some((p) => p.rateplan_id === rateplanId)
+        const [planId, occupancy, date] = key.split("|");
+        const room = (grid?.rooms || []).find((r) =>
+          r.plans.some((p) => p.id === planId)
         );
         if (!room) continue;
+        // Our own ids: the push route maps them to partner codes.
         (byDate[date] ||= []).push({
-          roomCode: room.room_id,
-          rateplanCode: rateplanId,
+          roomCode: room.id,
+          rateplanCode: planId,
+          occupancy: Number(occupancy),
           rate: Number(value),
         });
       }
@@ -259,7 +268,7 @@ export default function ChannelManager() {
         <div className="flex items-center gap-2">
           {source === "mock" && (
             <span className="chip chip-warn">
-              Mock data — Aiosell not configured
+              Aiosell not connected
             </span>
           )}
           <button
@@ -373,6 +382,27 @@ export default function ChannelManager() {
         />
       </div>
 
+      {grid && grid.rooms.length === 0 && (
+        <div className="card card-pad text-center">
+          <p className="sub">No room types set up yet.</p>
+          <p className="mt-1 text-xs muted">
+            Add room types and rate plans under Property Setup, then map them
+            to partner codes under Integrations.
+          </p>
+        </div>
+      )}
+
+      {grid && grid.unmappedRooms > 0 && (
+        <div className="card card-pad" style={{ borderColor: "var(--warn)" }}>
+          <p className="text-sm" style={{ color: "var(--warn)" }}>
+            {grid.unmappedRooms} room type
+            {grid.unmappedRooms === 1 ? " is" : "s are"} not mapped to partner
+            codes. Rates for those cannot be pushed until they are set under
+            Integrations.
+          </p>
+        </div>
+      )}
+
       {/* Grid */}
       <div className="overflow-x-auto card">
         <table className="min-w-full border-collapse text-sm">
@@ -401,13 +431,13 @@ export default function ChannelManager() {
           <tbody>
             {rooms.map((room) => (
               <ExpandableRoom
-                key={room.room_id}
+                key={room.id}
                 room={room}
                 dates={dates}
                 currency={currency}
-                open={expanded[room.room_id]}
+                open={expanded[room.id]}
                 onToggle={() =>
-                  setExpanded((p) => ({ ...p, [room.room_id]: !p[room.room_id] }))
+                  setExpanded((p) => ({ ...p, [room.id]: !p[room.id] }))
                 }
                 rates={rates}
                 onRateChange={(key, value) =>
@@ -441,66 +471,53 @@ function ExpandableRoom({
   rates,
   onRateChange,
 }) {
-  // Aiosell exposes one rate plan per occupancy, so several entries share a
-  // name and differ only by occupancy. They are grouped back together here so
-  // the grid reads as "Standard EP / Adult 1, Adult 2" rather than as four
-  // unrelated plans.
-  const groups = [];
-  for (const plan of room.rateplans) {
-    let group = groups.find((g) => g.name === plan.rateplan_name);
-    if (!group) {
-      group = { name: plan.rateplan_name, description: plan.description, plans: [] };
-      groups.push(group);
-    }
-    group.plans.push(plan);
-  }
-  for (const g of groups) {
-    g.plans.sort((a, b) => (a.occupancy || 0) - (b.occupancy || 0));
-  }
-
   return (
     <>
       <tr className="bg-[var(--surface-2)]">
         <td className="sticky left-0 z-10 bg-[var(--surface-2)] px-4 py-3">
-          <button
-            type="button"
-            onClick={onToggle}
-            className="flex items-center gap-2 text-left"
-          >
+          <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
             <span className="muted">{open ? "▾" : "▸"}</span>
             <span>
-              <span className="block font-medium text-ink">{room.room_name}</span>
+              <span className="block font-medium text-ink">{room.name}</span>
               <span className="block text-xs muted">
-                {groups.length} rate plan{groups.length === 1 ? "" : "s"} ·{" "}
+                {room.plans.length} rate plan{room.plans.length === 1 ? "" : "s"} ·{" "}
                 {room.count} rooms
+                {room.partnerCode ? ` · ${room.partnerCode}` : " · not mapped"}
               </span>
             </span>
           </button>
         </td>
         {dates.map((d) => (
-          <td key={d} className="px-3 py-3 text-center text-ink">
-            {mockInventory(room.room_id, d)}
+          <td key={d} className="px-3 py-3 text-center muted">
+            {room.count ?? "—"}
           </td>
         ))}
       </tr>
 
       {open &&
-        groups.map((group) =>
-          group.plans.map((plan, i) => (
-            <tr key={plan.rateplan_id}>
+        room.plans.map((plan) =>
+          plan.occupancies.map((occ, i) => (
+            <tr key={`${plan.id}-${occ.occupancy}`}>
               <td className="sticky left-0 z-10 bg-[var(--surface)] px-4 py-1.5 pl-10">
                 {i === 0 && (
-                  <span className="block text-sm text-ink">{group.name}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="chip chip-off font-mono">{plan.label}</span>
+                    <span className="text-sm text-ink">{plan.name}</span>
+                    {plan.restrictions.stopSell && (
+                      <span className="chip chip-warn">Stop sell</span>
+                    )}
+                  </span>
                 )}
                 <span className="block text-xs muted">
-                  Adult {plan.occupancy ?? 1}
-                  {plan.no_of_meals > 0 ? " · incl. meals" : ""}
+                  Adult {occ.occupancy}
+                  {occ.partnerCode ? ` · ${occ.partnerCode}` : " · not mapped"}
                 </span>
               </td>
               {dates.map((d) => {
-                const key = `${plan.rateplan_id}|${d}`;
-                const value =
-                  rates[key] ?? mockRate(room.room_id, plan.rateplan_id, d);
+                const key = `${plan.id}|${occ.occupancy}|${d}`;
+                // An edited cell wins; otherwise the plan's resolved rate,
+                // which follows its master when it is a derived plan.
+                const value = rates[key] ?? plan.resolvedRate ?? "";
                 return (
                   <td key={d} className="px-1.5 py-1.5">
                     <input
@@ -510,10 +527,12 @@ function ExpandableRoom({
                       className="w-full rounded border px-1.5 py-1 text-right text-sm"
                       style={{
                         background: "var(--surface)",
-                        borderColor: "var(--border)",
+                        borderColor: occ.partnerCode
+                          ? "var(--border)"
+                          : "var(--warn)",
                         color: "var(--text)",
                       }}
-                      aria-label={`${group.name} adult ${plan.occupancy} on ${d}`}
+                      aria-label={`${plan.label} adult ${occ.occupancy} on ${d}`}
                     />
                   </td>
                 );
