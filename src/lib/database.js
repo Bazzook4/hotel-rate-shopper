@@ -1127,6 +1127,9 @@ export async function saveIntegrationCodeMap(integrationId, rows) {
         rate_plan_id: r.rate_plan_id || null,
         partner_room_code: r.partner_room_code || null,
         partner_rateplan_code: r.partner_rateplan_code || null,
+        occupancy: Number.isFinite(Number(r.occupancy)) ? Number(r.occupancy) : null,
+        extra_adult: Number.isFinite(Number(r.extra_adult)) ? Number(r.extra_adult) : null,
+        no_of_meals: Number.isFinite(Number(r.no_of_meals)) ? Number(r.no_of_meals) : null,
       }))
     )
     .select();

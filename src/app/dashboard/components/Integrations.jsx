@@ -54,8 +54,15 @@ export default function Integrations({ session }) {
 
       const map = {};
       for (const row of json.codeMap || []) {
-        if (row.rate_plan_id) map[`plan:${row.rate_plan_id}`] = row.partner_rateplan_code || "";
-        else if (row.room_type_id) map[`room:${row.room_type_id}`] = row.partner_room_code || "";
+        if (row.rate_plan_id) {
+          map[`plan:${row.room_type_id || ""}:${row.rate_plan_id}:${row.occupancy ?? ""}`] = {
+            code: row.partner_rateplan_code || "",
+            extra_adult: row.extra_adult ?? "",
+            no_of_meals: row.no_of_meals ?? "",
+          };
+        } else if (row.room_type_id) {
+          map[`room:${row.room_type_id}`] = { code: row.partner_room_code || "" };
+        }
       }
       setCodes(map);
     } catch (err) {
@@ -73,16 +80,34 @@ export default function Integrations({ session }) {
     setBusy(true);
     setNotice("");
     try {
-      const codeMap = [
-        ...(data?.roomTypes || []).map((r) => ({
+      const codeMap = [];
+
+      for (const r of data?.roomTypes || []) {
+        codeMap.push({
           room_type_id: r.id,
-          partner_room_code: codes[`room:${r.id}`] || "",
-        })),
-        ...(data?.ratePlans || []).map((p) => ({
-          rate_plan_id: p.id,
-          partner_rateplan_code: codes[`plan:${p.id}`] || "",
-        })),
-      ];
+          partner_room_code: codes[`room:${r.id}`]?.code || "",
+        });
+      }
+
+      // A rate plan maps once per occupancy, because the partner treats each
+      // occupancy as its own rate plan code.
+      for (const r of data?.roomTypes || []) {
+        for (const p of data?.ratePlans || []) {
+          if (p.room_type_id && p.room_type_id !== r.id) continue;
+          for (let occ = 1; occ <= (r.max_adults || 2); occ += 1) {
+            const entry = codes[`plan:${r.id}:${p.id}:${occ}`];
+            if (!entry?.code) continue;
+            codeMap.push({
+              room_type_id: r.id,
+              rate_plan_id: p.id,
+              occupancy: occ,
+              partner_rateplan_code: entry.code,
+              extra_adult: entry.extra_adult === "" ? null : entry.extra_adult,
+              no_of_meals: entry.no_of_meals === "" ? null : entry.no_of_meals,
+            });
+          }
+        }
+      }
 
       const res = await fetch("/api/integrations", {
         method: "PUT",
@@ -297,54 +322,114 @@ export default function Integrations({ session }) {
           {(data?.roomTypes?.length > 0 || data?.ratePlans?.length > 0) && (
             <div className="mt-4">
               <p className="text-xs text-slate-400">
-                Map each of your room types and rate plans to its Aiosell code.
+                Map each room type to its Aiosell room code, then each rate
+                plan to the Aiosell rate plan code for every occupancy you
+                sell. Aiosell treats each occupancy as a separate rate plan.
               </p>
 
-              {data.roomTypes.length > 0 && (
-                <div className="mt-2">
-                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
-                    Room types
-                  </p>
-                  <div className="space-y-2">
-                    {data.roomTypes.map((r) => (
-                      <div key={r.id} className="grid grid-cols-2 items-center gap-2">
-                        <span className="text-sm text-slate-200">{r.room_type_name}</span>
-                        <input
-                          value={codes[`room:${r.id}`] ?? ""}
-                          onChange={(e) =>
-                            setCodes({ ...codes, [`room:${r.id}`]: e.target.value })
-                          }
-                          className={inputClass}
-                          placeholder="Aiosell room code"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {(data.roomTypes || []).map((room) => {
+                const maxAdults = room.max_adults || 2;
+                const plans = (data.ratePlans || []).filter(
+                  (p) => !p.room_type_id || p.room_type_id === room.id
+                );
+                return (
+                  <div
+                    key={room.id}
+                    className="mt-3 rounded-xl border border-white/10 bg-slate-900/40 p-3"
+                  >
+                    <div className="grid items-center gap-2 sm:grid-cols-2">
+                      <span className="text-sm font-medium text-white">
+                        {room.room_type_name}
+                        <span className="ml-2 text-xs text-slate-500">
+                          up to {maxAdults} adult{maxAdults === 1 ? "" : "s"}
+                        </span>
+                      </span>
+                      <input
+                        value={codes[`room:${room.id}`]?.code ?? ""}
+                        onChange={(e) =>
+                          setCodes({
+                            ...codes,
+                            [`room:${room.id}`]: { code: e.target.value },
+                          })
+                        }
+                        className={inputClass}
+                        placeholder="Aiosell room code, e.g. executive"
+                      />
+                    </div>
 
-              {data.ratePlans.length > 0 && (
-                <div className="mt-3">
-                  <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
-                    Rate plans
-                  </p>
-                  <div className="space-y-2">
-                    {data.ratePlans.map((p) => (
-                      <div key={p.id} className="grid grid-cols-2 items-center gap-2">
-                        <span className="text-sm text-slate-200">{p.plan_name}</span>
-                        <input
-                          value={codes[`plan:${p.id}`] ?? ""}
-                          onChange={(e) =>
-                            setCodes({ ...codes, [`plan:${p.id}`]: e.target.value })
-                          }
-                          className={inputClass}
-                          placeholder="Aiosell rateplan code"
-                        />
+                    {plans.length > 0 && (
+                      <div className="mt-3 overflow-x-auto">
+                        <table className="min-w-full text-xs">
+                          <thead>
+                            <tr className="text-left text-[10px] uppercase tracking-wide text-slate-500">
+                              <th className="py-1 pr-2">Rate plan</th>
+                              <th className="py-1 pr-2">Adults</th>
+                              <th className="py-1 pr-2">Aiosell rate plan code</th>
+                              <th className="py-1 pr-2">Extra adult</th>
+                              <th className="py-1">Meals</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {plans.map((plan) =>
+                              Array.from({ length: maxAdults }, (_, i) => i + 1).map(
+                                (occ) => {
+                                  const key = `plan:${room.id}:${plan.id}:${occ}`;
+                                  const entry = codes[key] || {};
+                                  const set = (field, value) =>
+                                    setCodes({
+                                      ...codes,
+                                      [key]: { ...entry, [field]: value },
+                                    });
+                                  return (
+                                    <tr key={key} className="border-t border-white/5">
+                                      <td className="py-1 pr-2 text-slate-300">
+                                        {occ === 1 ? plan.plan_name : ""}
+                                      </td>
+                                      <td className="py-1 pr-2 text-slate-400">{occ}</td>
+                                      <td className="py-1 pr-2">
+                                        <input
+                                          value={entry.code ?? ""}
+                                          onChange={(e) => set("code", e.target.value)}
+                                          className={inputClass}
+                                          placeholder={
+                                            occ === 1
+                                              ? "executive-s-ep"
+                                              : occ === 2
+                                              ? "executive-d-ep"
+                                              : "code"
+                                          }
+                                        />
+                                      </td>
+                                      <td className="py-1 pr-2">
+                                        <input
+                                          type="number"
+                                          value={entry.extra_adult ?? ""}
+                                          onChange={(e) => set("extra_adult", e.target.value)}
+                                          className={inputClass}
+                                          placeholder="500"
+                                        />
+                                      </td>
+                                      <td className="py-1">
+                                        <input
+                                          type="number"
+                                          value={entry.no_of_meals ?? ""}
+                                          onChange={(e) => set("no_of_meals", e.target.value)}
+                                          className={inputClass}
+                                          placeholder="0"
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                              )
+                            )}
+                          </tbody>
+                        </table>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
           )}
 
