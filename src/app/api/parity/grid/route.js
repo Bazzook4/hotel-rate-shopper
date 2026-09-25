@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
-import { getPropertyById, getUserPropertyId, listParityRates } from "@/lib/database";
+import { getPropertyById, getUserPropertyId, listParityRates, getParityChannelOrder } from "@/lib/database";
 import { parityStatus } from "@/lib/parity";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
@@ -110,6 +110,19 @@ export async function GET(req) {
   // most -- is read first. A channel selling nothing all week has no rate to
   // order by and sinks to the bottom, where the alphabet keeps it stable
   // rather than letting it shuffle between refreshes.
+  // A property can pin its own order, in which case that is what it gets.
+  // Everything it has not placed keeps the default below, after the pinned
+  // rows, so adding a channel never silently reshuffles the rest.
+  let chosenOrder = {};
+  try {
+    chosenOrder = await getParityChannelOrder(propertyId);
+  } catch (err) {
+    // An unreadable preference is not worth failing the grid over; the
+    // default ordering is a perfectly good answer.
+    console.error("Channel order read failed:", err.message);
+  }
+  const hasChosenOrder = Object.keys(chosenOrder).length > 0;
+
   const ordered = [...channels.values()]
     .map((channel) => {
       let cheapest = null;
@@ -117,9 +130,15 @@ export async function GET(req) {
         const rate = channel.cells[date]?.rate;
         if (rate != null && (cheapest == null || rate < cheapest)) cheapest = rate;
       }
-      return { channel, cheapest };
+      return { channel, cheapest, pinned: chosenOrder[channel.key] };
     })
     .sort((a, b) => {
+      // Pinned channels lead, in the order the hotelier arranged them.
+      if (a.pinned != null || b.pinned != null) {
+        if (a.pinned == null) return 1;
+        if (b.pinned == null) return -1;
+        if (a.pinned !== b.pinned) return a.pinned - b.pinned;
+      }
       if (a.cheapest == null && b.cheapest == null) {
         return a.channel.name.localeCompare(b.channel.name);
       }
@@ -151,5 +170,8 @@ export async function GET(req) {
     lowestByDate,
     channels: ordered,
     checkedAt,
+    // Whether the order above is the hotelier's own, so the grid can offer to
+    // reset it rather than leaving them guessing why rows stopped moving.
+    customOrder: hasChosenOrder,
   });
 }

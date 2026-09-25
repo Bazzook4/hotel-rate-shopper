@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import GoogleListingSetup from "./GoogleListingSetup";
+import ParityTrend from "./ParityTrend";
 
 /**
  * How many nights the grid shows and a refresh scrapes.
@@ -100,84 +101,6 @@ function RateCell({ cell }) {
   );
 }
 
-/**
- * The headline above the grid.
- *
- * Written from the stored data rather than from a language model, so it says
- * only what the numbers support: how wide the spread is, and where the worst
- * of it falls.
- */
-function ParitySummary({ data }) {
-  const insight = useMemo(() => {
-    if (!data?.channels?.length) return null;
-
-    let breaches = 0;
-    let observed = 0;
-    let worst = null;
-
-    for (const channel of data.channels) {
-      for (const date of data.dates) {
-        const cell = channel.cells[date];
-        if (!cell || cell.rate == null) continue;
-        observed += 1;
-        if (cell.status === "breach") breaches += 1;
-
-        const lowest = data.lowestByDate[date];
-        if (lowest == null || lowest <= 0 || cell.rate === lowest) continue;
-        const gap = ((cell.rate - lowest) / lowest) * 100;
-        if (!worst || gap > worst.gap) {
-          worst = { gap, channel: channel.name, date, rate: cell.rate, lowest };
-        }
-      }
-    }
-
-    if (observed === 0) return null;
-    return { breaches, observed, worst };
-  }, [data]);
-
-  if (!insight) return null;
-
-  const clean = insight.breaches === 0;
-
-  return (
-    <div
-      className="card card-pad"
-      style={{
-        borderColor: clean ? "var(--accent)" : "var(--warn)",
-        background: clean ? "var(--accent-soft)" : "var(--warn-soft)",
-      }}
-    >
-      <p className="text-sm" style={{ color: clean ? "var(--accent-text)" : "var(--warn)" }}>
-        {clean ? (
-          <>
-            Your channels are in parity across all {data.dates.length} dates shown. No channel is
-            selling more than 1% above the cheapest.
-          </>
-        ) : (
-          <>
-            {insight.breaches} of {insight.observed} channel rates are more than 5% above the
-            cheapest channel for the same night.
-            {insight.worst && (
-              <>
-                {" "}
-                The widest gap is <strong>{insight.worst.channel}</strong> on{" "}
-                {parseDateISO(insight.worst.date)?.toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "short",
-                })}
-                , at {money(insight.worst.rate)} against {money(insight.worst.lowest)} — a{" "}
-                {insight.worst.gap.toFixed(0)}% difference.
-              </>
-            )}{" "}
-            Guests comparing channels will book the cheapest, so the higher listings earn nothing
-            while still costing commission on the impressions.
-          </>
-        )}
-      </p>
-    </div>
-  );
-}
-
 export default function RateParity({ session }) {
   const propertyId = session?.propertyId || session?.property_id || null;
 
@@ -195,6 +118,10 @@ export default function RateParity({ session }) {
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // The row being dragged, and the live order while dragging. Kept separate
+  // from `data` so an abandoned drag leaves the saved order untouched.
+  const [dragKey, setDragKey] = useState(null);
+  const [order, setOrder] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -313,6 +240,74 @@ export default function RateParity({ session }) {
       setRefreshing(false);
       setProgress(null);
     }
+  }
+
+  // What the grid draws: the live order while dragging, otherwise the order
+  // the server sent. Recomputed rather than stored so a refresh cannot leave
+  // a stale arrangement on screen.
+  const channels = useMemo(() => {
+    if (!data?.channels) return [];
+    if (!order) return data.channels;
+    const byKey = new Map(data.channels.map((c) => [c.key, c]));
+    const arranged = order.map((k) => byKey.get(k)).filter(Boolean);
+    // Anything the saved order does not mention keeps its place at the end,
+    // so a newly appearing channel is never dropped from the grid.
+    for (const c of data.channels) if (!order.includes(c.key)) arranged.push(c);
+    return arranged;
+  }, [data?.channels, order]);
+
+  /** The property's own listing, which the chart draws against the rest. */
+  const ownChannelKey = useMemo(() => {
+    if (!data?.channels?.length || !data?.propertyName) return null;
+    const mine = String(data.propertyName).trim().toLowerCase();
+    const hit = data.channels.find((c) => {
+      const name = String(c.name || "").trim().toLowerCase();
+      // Google labels the direct rate with the hotel's own trading name,
+      // which is rarely written exactly as the property is recorded here, so
+      // containment either way is the workable test.
+      return name === mine || name.includes(mine) || mine.includes(name);
+    });
+    return hit?.key || null;
+  }, [data?.channels, data?.propertyName]);
+
+  /** Move the dragged channel above the one it was dropped on. */
+  function reorder(fromKey, toKey) {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const keys = channels.map((c) => c.key);
+    const from = keys.indexOf(fromKey);
+    const to = keys.indexOf(toKey);
+    if (from === -1 || to === -1) return;
+    keys.splice(to, 0, keys.splice(from, 1)[0]);
+    setOrder(keys);
+  }
+
+  /**
+   * Persist the arrangement.
+   *
+   * Saved on drop rather than behind a Save button: the grid already shows
+   * the new order, so a button would only invite leaving it unsaved.
+   */
+  async function saveOrder(keys) {
+    try {
+      const res = await fetch("/api/parity/channel-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId, channelKeys: keys }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json?.error || "Could not save the channel order.");
+      }
+    } catch {
+      setError("Could not save the channel order.");
+    }
+  }
+
+  /** Drop the saved order and return to cheapest-first. */
+  async function resetOrder() {
+    setOrder(null);
+    await saveOrder([]);
+    await load();
   }
 
   function exportCsv() {
@@ -459,7 +454,6 @@ export default function RateParity({ session }) {
 
           {notice && <p className="sub">{notice}</p>}
 
-          <ParitySummary data={data} />
 
           {data?.channels?.length ? (
             <div className="card" style={{ overflowX: "auto" }}>
@@ -473,8 +467,25 @@ export default function RateParity({ session }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.channels.map((channel) => (
-                    <tr key={channel.key}>
+                  {channels.map((channel) => (
+                    <tr
+                      key={channel.key}
+                      draggable
+                      onDragStart={() => setDragKey(channel.key)}
+                      onDragOver={(e) => {
+                        // Without this the browser refuses the drop outright.
+                        e.preventDefault();
+                        reorder(dragKey, channel.key);
+                      }}
+                      onDragEnd={() => {
+                        if (order) saveOrder(order);
+                        setDragKey(null);
+                      }}
+                      style={{
+                        cursor: "grab",
+                        opacity: dragKey === channel.key ? 0.4 : 1,
+                      }}
+                    >
                       <td
                         style={{
                           position: "sticky",
@@ -484,6 +495,13 @@ export default function RateParity({ session }) {
                         }}
                       >
                         <span className="inline-flex items-center gap-2">
+                          <span
+                            aria-hidden
+                            title="Drag to reorder"
+                            style={{ color: "var(--text-faint)", cursor: "grab", fontSize: "0.8rem" }}
+                          >
+                            ⠿
+                          </span>
                           {channel.logo && (
                             <img src={channel.logo} alt="" style={{ height: 16, width: 16 }} />
                           )}
@@ -507,6 +525,31 @@ export default function RateParity({ session }) {
                 </p>
               </div>
             )
+          )}
+
+          {data?.channels?.length > 0 && (
+            <ParityTrend data={data} ownChannelKey={ownChannelKey} />
+          )}
+
+          {(order || data?.customOrder) && (
+            <p className="text-xs" style={{ color: "var(--text-faint)" }}>
+              Channels are in your own order.{" "}
+              <button
+                type="button"
+                onClick={resetOrder}
+                style={{
+                  color: "var(--accent-text)",
+                  textDecoration: "underline",
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  font: "inherit",
+                }}
+              >
+                Reset to cheapest first
+              </button>
+            </p>
           )}
 
           <p className="text-xs" style={{ color: "var(--text-faint)" }}>

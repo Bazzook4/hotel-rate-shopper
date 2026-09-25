@@ -2061,3 +2061,61 @@ export async function decideRecommendations(propertyId, ids, status, decidedBy =
   if (error) throw new Error(`Failed to update recommendations: ${error.message}`);
   return data || [];
 }
+
+/**
+ * The channel order a property has chosen for its parity grid.
+ *
+ * Returns a map of channel_key -> position. Empty when the property has
+ * never reordered, which the grid reads as "fall back to cheapest first".
+ */
+export async function getParityChannelOrder(propertyId) {
+  const { data, error } = await supabase
+    .from('parity_channel_order')
+    .select('channel_key, position')
+    .eq('property_id', propertyId)
+    .order('position', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load channel order: ${error.message}`);
+  }
+
+  const order = {};
+  for (const row of data || []) order[row.channel_key] = row.position;
+  return order;
+}
+
+/**
+ * Save a property's channel order.
+ *
+ * Replaces the whole order rather than patching positions: the client sends
+ * the list as the hotelier arranged it, and renumbering from scratch keeps
+ * the stored positions dense and unambiguous. A channel dropped from the list
+ * loses its row and returns to the default ordering.
+ */
+export async function saveParityChannelOrder(propertyId, channelKeys) {
+  const { error: clearError } = await supabase
+    .from('parity_channel_order')
+    .delete()
+    .eq('property_id', propertyId);
+
+  if (clearError) {
+    throw new Error(`Failed to clear channel order: ${clearError.message}`);
+  }
+
+  const rows = (channelKeys || [])
+    .filter(Boolean)
+    .map((channel_key, position) => ({
+      property_id: propertyId,
+      channel_key,
+      position,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (rows.length === 0) return 0;
+
+  const { error } = await supabase.from('parity_channel_order').insert(rows);
+  if (error) {
+    throw new Error(`Failed to save channel order: ${error.message}`);
+  }
+  return rows.length;
+}

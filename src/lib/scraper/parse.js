@@ -109,6 +109,11 @@ export function parseHotelOffers(html) {
       link && link.startsWith("/") ? `https://www.google.com${link}` : link;
     const roomMatch = /class="QcMSrf[^"]*">([^<]+)/.exec(block);
 
+    // Google serves each channel's mark from its own branding host, as a
+    // protocol-relative URL the browser cannot load as written.
+    const logoMatch = /<img[^>]+src="(\/\/www\.gstatic\.com\/travel-hotels\/branding\/[^"]+)"/.exec(block);
+    const logo = logoMatch ? `https:${logoMatch[1]}` : null;
+
     prices.push({
       source: channel,
       // SerpAPI nested the rate this way and the downstream helpers read
@@ -116,6 +121,7 @@ export function parseHotelOffers(html) {
       rate_per_night: { extracted_lowest: rate, lowest: priceMatch[1].trim() },
       extracted_price: rate,
       link: absoluteLink,
+      logo,
       free_cancellation: /free cancellation/i.test(cancelText),
       rooms: roomMatch ? [{ name: textOf(roomMatch[1]) }] : [],
       remarks: cancelText ? [cancelText] : [],
