@@ -1771,3 +1771,117 @@ export async function clearParityRatesForDates(propertyId, dates, { nights = 1, 
     throw new Error(`Failed to clear parity rates: ${error.message}`);
   }
 }
+
+// ============================================
+// COMPETITOR SHOPPER
+// ============================================
+
+export async function listCompetitors(propertyId) {
+  const { data, error } = await supabase
+    .from('competitors')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load competitors: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Replace the competitor list in one go.
+ *
+ * The Manage competitors panel edits the whole set and saves once, so this
+ * mirrors that: rows the hotelier removed are deleted, the rest upserted.
+ * Deleting a competitor takes its stored rates with it via the foreign key,
+ * which is intended -- rates for a hotel nobody is tracking are noise.
+ */
+export async function saveCompetitors(propertyId, rows) {
+  const keep = (rows || []).filter((r) => r.property_token && r.name);
+
+  // Remove anything no longer on the list before inserting, so a swap that
+  // takes the list back to its cap does not trip the limit mid-save.
+  const tokens = keep.map((r) => r.property_token);
+  let remove = supabase.from('competitors').delete().eq('property_id', propertyId);
+  if (tokens.length > 0) {
+    remove = remove.not('property_token', 'in', `(${tokens.map((t) => `"${t}"`).join(',')})`);
+  }
+  const { error: deleteError } = await remove;
+  if (deleteError) {
+    throw new Error(`Failed to update competitors: ${deleteError.message}`);
+  }
+
+  if (keep.length === 0) return [];
+
+  const payload = keep.map((r) => ({
+    property_id: propertyId,
+    property_token: r.property_token,
+    name: r.name,
+    address: r.address || null,
+    hotel_class: r.hotel_class || null,
+    latitude: r.latitude ?? null,
+    longitude: r.longitude ?? null,
+    added_via: r.added_via === 'manual' ? 'manual' : 'suggested',
+  }));
+
+  const { data, error } = await supabase
+    .from('competitors')
+    .upsert(payload, { onConflict: 'property_id,property_token' })
+    .select();
+
+  if (error) {
+    throw new Error(`Failed to save competitors: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/** Stored competitor rates across a date window. */
+export async function listCompetitorRates(propertyId, startDate, endDate, { nights = 1, guests = 2 } = {}) {
+  const { data, error } = await supabase
+    .from('competitor_rates')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('nights', nights)
+    .eq('guests', guests)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate);
+
+  if (error) {
+    throw new Error(`Failed to load competitor rates: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/** Upserted one cell at a time, so a part-finished refresh keeps what it got. */
+export async function saveCompetitorRates(propertyId, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  const payload = rows.map((r) => ({
+    property_id: propertyId,
+    competitor_id: r.competitor_id,
+    stay_date: r.stay_date,
+    nights: r.nights ?? 1,
+    guests: r.guests ?? 2,
+    rate: r.rate ?? null,
+    currency: r.currency || 'INR',
+    channel: r.channel || null,
+    link: r.link || null,
+    sold_out: r.sold_out === true,
+    checked_at: now,
+  }));
+
+  const { error } = await supabase
+    .from('competitor_rates')
+    .upsert(payload, { onConflict: 'competitor_id,stay_date,nights,guests' });
+
+  if (error) {
+    throw new Error(`Failed to save competitor rates: ${error.message}`);
+  }
+
+  return payload.length;
+}

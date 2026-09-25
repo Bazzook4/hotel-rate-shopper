@@ -9,6 +9,7 @@ import Integrations from "./dashboard/components/Integrations";
 import ActivityLog from "./dashboard/components/ActivityLog";
 import RateParity from "./dashboard/components/RateParity";
 import GoogleListingSetup from "./dashboard/components/GoogleListingSetup";
+import CompetitorShopper from "./dashboard/components/CompetitorShopper";
 import DynamicPricing from "./components/DynamicPricing";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
@@ -380,12 +381,7 @@ export default function V2Dashboard() {
                   </ComingSoon>
                 )}
 
-                {active === "compshopper" && (
-                  <ComingSoon title="Competitor Shopper">
-                    A calendar of your rate against the comp set median, colour-coded
-                    per date.
-                  </ComingSoon>
-                )}
+                {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
 
                 {active === "location" && (
                   <ComingSoon title="Search by Location">

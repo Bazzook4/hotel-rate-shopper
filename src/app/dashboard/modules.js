@@ -84,7 +84,6 @@ export const PLACEHOLDER_PAGES = new Set([
   "calendar",
   "reservations",
   "workflow",
-  "compshopper",
   "location",
 ]);
 
