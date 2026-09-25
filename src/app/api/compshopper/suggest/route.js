@@ -87,10 +87,27 @@ export async function GET(req) {
 
   // Hotels already on the list are dropped rather than shown as addable.
   const existing = await listCompetitors(propertyId);
+
+  // Searching our own name puts us at or near the top of our own results, so
+  // the first hit that matches is taken as us -- it also supplies the
+  // coordinates the property record does not hold, which is what makes
+  // distance ranking possible at all.
+  const selfNames = [property.name, property.google_place_query, query].filter(Boolean);
+  const selfHit = (json.properties || []).find((p) => {
+    const candidate = String(p?.name || "").trim().toLowerCase();
+    return selfNames.some((n) => {
+      const mine = String(n).trim().toLowerCase();
+      return mine === candidate || mine.includes(candidate) || candidate.includes(mine);
+    });
+  });
+
   const suggestions = rankSuggestions(json.properties, {
     self: {
-      name: property.name,
-      hotel_class: property.star_rating ? `${property.star_rating}-star hotel` : null,
+      names: selfNames,
+      property_token: selfHit?.property_token || null,
+      hotel_class: selfHit?.hotel_class || (property.star_rating ? `${property.star_rating}-star hotel` : null),
+      latitude: selfHit?.gps_coordinates?.latitude ?? null,
+      longitude: selfHit?.gps_coordinates?.longitude ?? null,
     },
     excludeTokens: existing.map((c) => c.property_token),
   });

@@ -63,7 +63,16 @@ export function rankSuggestions(properties, { self, excludeTokens = [] } = {}) {
     // themselves back first.
     .filter((p) => {
       if (self?.property_token && p.property_token === self.property_token) return false;
-      if (self?.name && p.name.trim().toLowerCase() === self.name.trim().toLowerCase()) {
+      // Matched against every name we hold for ourselves, not just the one in
+      // the database: a property is often recorded under a short internal
+      // name ("Sarjapur") while Google knows it by its full trading name, and
+      // comparing only the short one lets the hotel offer itself as its own
+      // competitor.
+      const mine = (self?.names || [self?.name])
+        .filter(Boolean)
+        .map((n) => String(n).trim().toLowerCase());
+      const candidate = p.name.trim().toLowerCase();
+      if (mine.some((n) => n === candidate || n.includes(candidate) || candidate.includes(n))) {
         return false;
       }
       return true;
