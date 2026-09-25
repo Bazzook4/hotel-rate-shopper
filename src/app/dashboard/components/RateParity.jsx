@@ -243,6 +243,13 @@ export default function RateParity({ session }) {
 
     let cursor = 0;
     let failed = 0;
+    // A sweep that ends without the server saying "finished" is incomplete,
+    // however normal the button looks afterwards. Tracked explicitly so a
+    // partial refresh cannot be mistaken for a successful one.
+    let finished = false;
+    // Kept outside the loop so the message after it can say how far we got.
+    let done = 0;
+    let total = WINDOW_DAYS;
 
     try {
       // Bounded rather than `while (true)`: a server that kept returning the
@@ -271,16 +278,30 @@ export default function RateParity({ session }) {
         }
 
         failed += json.failures?.length || 0;
-        if (json.total) setProgress({ done: json.done, total: json.total });
+        if (json.total) {
+          done = json.done;
+          total = json.total;
+          setProgress({ done, total });
+        }
 
-        if (json.cursor == null) break;
+        if (json.cursor == null) {
+          finished = true;
+          break;
+        }
         // A cursor that has not moved means the server made no progress, and
         // asking again would only repeat it.
         if (json.cursor <= cursor) break;
         cursor = json.cursor;
       }
 
-      if (failed) {
+      // Said plainly, and as an error rather than a notice: stopping early
+      // leaves later nights showing rates from the last successful run, which
+      // read as current when they are not.
+      if (!finished) {
+        setError(
+          `Only ${done} of ${total} nights were checked before the refresh stopped. The rest still show their previous rates — refresh again to finish.`
+        );
+      } else if (failed) {
         setNotice(
           `${failed} of ${WINDOW_DAYS} dates could not be checked and kept their previous rates.`
         );

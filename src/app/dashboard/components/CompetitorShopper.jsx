@@ -189,6 +189,13 @@ export default function CompetitorShopper({ session }) {
     let cursor = 0;
     let failed = 0;
     let last = null;
+    // A sweep that ends without the server saying "finished" is incomplete,
+    // however normal the button looks afterwards. Tracked explicitly so a
+    // partial refresh cannot be mistaken for a successful one.
+    let finished = false;
+    // Kept outside the loop so the message after it can say how far we got.
+    let done = 0;
+    let total = 0;
 
     try {
       // Bounded rather than `while (true)`: a server that kept returning the
@@ -216,16 +223,30 @@ export default function CompetitorShopper({ session }) {
 
         last = json;
         failed += json.failures?.length || 0;
-        if (json.total) setProgress({ done: json.done, total: json.total });
+        if (json.total) {
+          done = json.done;
+          total = json.total;
+          setProgress({ done, total });
+        }
 
-        if (json.cursor == null) break;
+        if (json.cursor == null) {
+          finished = true;
+          break;
+        }
         // A cursor that has not moved means the server made no progress, and
         // asking again would only repeat it.
         if (json.cursor <= cursor) break;
         cursor = json.cursor;
       }
 
-      if (last) {
+      // Said plainly, and as an error rather than a notice: stopping early
+      // leaves the unchecked cells showing rates from the last successful
+      // run, which read as current when they are not.
+      if (!finished) {
+        setError(
+          `Only ${done} of ${total} lookups completed before the refresh stopped. The rest still show their previous rates — refresh again to finish.`
+        );
+      } else if (last) {
         setNotice(
           failed > 0
             ? `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}. ${failed} lookups failed and kept their previous rates.`
