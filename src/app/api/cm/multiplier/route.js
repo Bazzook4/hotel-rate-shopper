@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { resolveChannelManager } from "@/lib/cmResolver";
+import { recordSyncLog } from "@/lib/database";
 
 export async function POST(req) {
   const session = await getSessionFromRequest(req);
@@ -30,20 +31,55 @@ export async function POST(req) {
     );
   }
 
-  const { client, ready } = await resolveChannelManager(session, { propertyId });
+  const cm = await resolveChannelManager(session, { propertyId });
+  const { client, ready, integration } = cm;
+
+  const logBase = {
+    property_id: cm.propertyId || null,
+    integration_id: integration?.id || null,
+    kind: "multiplier",
+    direction: "out",
+    user_id: session.userId,
+    user_email: session.email,
+    entry_count: channels.length,
+    summary: `${multiplier}x on ${channels.join(", ")}`,
+  };
 
   if (!ready) {
-    return NextResponse.json({
+    const message = `Would set ${multiplier}x on ${channels.join(", ")}`;
+    await recordSyncLog({
+      ...logBase,
+      status: "skipped",
       source: "mock",
-      message: `Would set ${multiplier}x on ${channels.join(", ")}`,
+      summary: `${message} — connection not live`,
+      request: { multiplier, channels },
     });
+    return NextResponse.json({ source: "mock", message });
   }
+
+  const startedAt = Date.now();
 
   try {
     const result = await client.setChannelMultiplier(multiplier, channels);
+    await recordSyncLog({
+      ...logBase,
+      status: "success",
+      source: "aiosell",
+      duration_ms: Date.now() - startedAt,
+      request: { multiplier, channels },
+      response: result,
+    });
     return NextResponse.json({ source: "aiosell", result });
   } catch (err) {
     console.error("Aiosell channel_multiplier failed", err);
+    await recordSyncLog({
+      ...logBase,
+      status: "failed",
+      source: "aiosell",
+      error: err.message,
+      duration_ms: Date.now() - startedAt,
+      request: { multiplier, channels },
+    });
     return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
-import { saveDailyRates, getUserPropertyId } from "@/lib/database";
+import {
+  saveDailyRates,
+  getUserPropertyId,
+  recordSyncLog,
+} from "@/lib/database";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -59,10 +63,42 @@ export async function PUT(req) {
     }
   }
 
+  // The span the edit covers, so the log reads without opening the payload.
+  const dates = rows.map((r) => r.stay_date).sort();
+
   try {
     const saved = await saveDailyRates(propertyId, rows);
+    await recordSyncLog({
+      property_id: propertyId,
+      kind: "rates",
+      direction: "out",
+      status: "success",
+      source: "local",
+      user_id: session.userId,
+      user_email: session.email,
+      date_from: dates[0],
+      date_to: dates[dates.length - 1],
+      entry_count: saved.length,
+      summary: `Saved ${saved.length} rate${saved.length === 1 ? "" : "s"}`,
+      request: { rates: rows },
+    });
     return NextResponse.json({ saved: saved.length });
   } catch (err) {
+    await recordSyncLog({
+      property_id: propertyId,
+      kind: "rates",
+      direction: "out",
+      status: "failed",
+      source: "local",
+      user_id: session.userId,
+      user_email: session.email,
+      date_from: dates[0],
+      date_to: dates[dates.length - 1],
+      entry_count: rows.length,
+      summary: "Saving rates failed",
+      error: err.message,
+      request: { rates: rows },
+    });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -1574,3 +1574,112 @@ export async function saveRatePlanRooms(propertyId, ratePlanId, rows) {
 
   return data || [];
 }
+
+// ============================================
+// SYNC LOGS
+// ============================================
+
+/** JSON stored per log row is capped so one push cannot bloat the table. */
+const LOG_JSON_LIMIT = 20000;
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Trim a payload down to something worth keeping.
+ *
+ * A year-long push is far larger than anyone reads, so the body is truncated
+ * rather than refused: a clipped record still settles "what did we send".
+ */
+function trimForLog(value) {
+  if (value === null || value === undefined) return null;
+  try {
+    const json = JSON.stringify(value);
+    if (json.length <= LOG_JSON_LIMIT) return value;
+    return {
+      truncated: true,
+      original_bytes: json.length,
+      preview: json.slice(0, LOG_JSON_LIMIT),
+    };
+  } catch {
+    return { truncated: true, error: "payload could not be serialised" };
+  }
+}
+
+/**
+ * Write one activity-log row.
+ *
+ * Never throws: a failed log must not fail the push it describes. Callers get
+ * the row back, or null if the write did not land.
+ */
+export async function recordSyncLog(entry) {
+  try {
+    const row = {
+      property_id: entry.property_id || null,
+      integration_id: entry.integration_id || null,
+      kind: entry.kind,
+      direction: entry.direction || "out",
+      status: entry.status,
+      source: entry.source || null,
+      // Dev sessions carry a non-UUID user id, and the column is a real
+      // foreign key, so anything that is not a uuid is kept as the email only.
+      user_id: UUID_RE.test(entry.user_id || "") ? entry.user_id : null,
+      user_email: entry.user_email || null,
+      date_from: entry.date_from || null,
+      date_to: entry.date_to || null,
+      entry_count: Number.isFinite(entry.entry_count) ? entry.entry_count : null,
+      summary: entry.summary || null,
+      error: entry.error ? String(entry.error).slice(0, 2000) : null,
+      duration_ms: Number.isFinite(entry.duration_ms) ? entry.duration_ms : null,
+      request: trimForLog(entry.request),
+      response: trimForLog(entry.response),
+    };
+
+    const { data, error } = await supabase
+      .from('sync_logs')
+      .insert(row)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to write sync log:", error.message);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    console.error("Failed to write sync log:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Read the log for a property, newest first.
+ *
+ * `kinds` filters to given activities; `status` to success/failed/skipped.
+ * Returns the page of rows plus the total, so the UI can page through.
+ */
+export async function listSyncLogs(
+  propertyId,
+  { kinds, status, from, to, limit = 100, offset = 0 } = {}
+) {
+  let query = supabase
+    .from('sync_logs')
+    .select('*', { count: 'exact' })
+    .eq('property_id', propertyId);
+
+  if (Array.isArray(kinds) && kinds.length > 0) query = query.in('kind', kinds);
+  if (status) query = query.eq('status', status);
+  if (from) query = query.gte('created_at', from);
+  if (to) query = query.lte('created_at', to);
+
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    throw new Error(`Failed to list sync logs: ${error.message}`);
+  }
+
+  return { rows: data || [], total: count ?? (data || []).length };
+}

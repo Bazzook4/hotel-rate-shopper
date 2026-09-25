@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { resolveChannelManager } from "@/lib/cmResolver";
-import { getPropertyIntegration, getUserPropertyId } from "@/lib/database";
+import {
+  getPropertyIntegration,
+  getUserPropertyId,
+  recordSyncLog,
+} from "@/lib/database";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -21,6 +25,19 @@ function validateUpdates(updates, key) {
     }
   }
   return null;
+}
+
+/** The date span and entry count a set of updates covers, for the log. */
+function describe(updates, key) {
+  let from = null;
+  let to = null;
+  let count = 0;
+  for (const u of updates || []) {
+    if (!from || u.startDate < from) from = u.startDate;
+    if (!to || u.endDate > to) to = u.endDate;
+    count += (u[key] || []).length;
+  }
+  return { from, to, count };
 }
 
 export async function POST(req) {
@@ -77,6 +94,21 @@ export async function POST(req) {
     }
   }
 
+  // The log describes the change in our own terms, so it stays readable even
+  // after a partner code is remapped.
+  const span = describe(updates, key);
+  const logBase = {
+    property_id: resolvedProperty || null,
+    integration_id: found?.integration?.id || null,
+    kind,
+    direction: "out",
+    user_id: session.userId,
+    user_email: session.email,
+    date_from: span.from,
+    date_to: span.to,
+    entry_count: span.count,
+  };
+
   const missing = [];
   const translated = (updates || []).map((u) => {
     const entries = (u[key] || []).map((entry) => {
@@ -97,6 +129,14 @@ export async function POST(req) {
   });
 
   if (ready && missing.length > 0) {
+    await recordSyncLog({
+      ...logBase,
+      status: "failed",
+      source: "local",
+      summary: "Blocked: room types or rate plans are not mapped to partner codes",
+      error: `Unmapped codes: ${[...new Set(missing)].join(", ")}`,
+      request: { updates },
+    });
     return NextResponse.json(
       {
         error:
@@ -111,6 +151,13 @@ export async function POST(req) {
   // rates must not be able to push inventory.
   if (ready && !cm.allows(kind)) {
     const label = kind === "rates" ? "Rates out" : "Inventory out";
+    await recordSyncLog({
+      ...logBase,
+      status: "skipped",
+      source: "local",
+      summary: `${label} is turned off for this property's connection`,
+      request: { updates },
+    });
     return NextResponse.json(
       { error: `${label} is turned off for this property's connection.` },
       { status: 409 }
@@ -118,12 +165,19 @@ export async function POST(req) {
   }
 
   if (!ready) {
-    const count = updates.reduce((n, u) => n + u[key].length, 0);
-    return NextResponse.json({
+    const count = span.count;
+    const message = `Would push ${count} ${kind} entr${count === 1 ? "y" : "ies"}`;
+    await recordSyncLog({
+      ...logBase,
+      status: "skipped",
       source: "mock",
-      message: `Would push ${count} ${kind} entr${count === 1 ? "y" : "ies"}`,
+      summary: `${message} — connection not live`,
+      request: { updates },
     });
+    return NextResponse.json({ source: "mock", message });
   }
+
+  const startedAt = Date.now();
 
   try {
     let result;
@@ -134,9 +188,31 @@ export async function POST(req) {
     } else {
       result = await client.pushInventoryRestrictions(translated, { toChannels });
     }
+
+    await recordSyncLog({
+      ...logBase,
+      status: "success",
+      source: "aiosell",
+      summary: `Sent ${span.count} ${kind} entr${span.count === 1 ? "y" : "ies"} to Aiosell`,
+      duration_ms: Date.now() - startedAt,
+      // The translated payload is what actually went out; partner codes in it
+      // are the point of the record.
+      request: { updates: translated, toChannels: toChannels || null },
+      response: result,
+    });
+
     return NextResponse.json({ source: "aiosell", result });
   } catch (err) {
     console.error(`Aiosell ${kind} push failed`, err);
+    await recordSyncLog({
+      ...logBase,
+      status: "failed",
+      source: "aiosell",
+      summary: `Push of ${span.count} ${kind} entr${span.count === 1 ? "y" : "ies"} failed`,
+      error: err.message,
+      duration_ms: Date.now() - startedAt,
+      request: { updates: translated, toChannels: toChannels || null },
+    });
     return NextResponse.json({ error: err.message }, { status: 502 });
   }
 }

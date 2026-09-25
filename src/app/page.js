@@ -6,6 +6,7 @@ import { visibleAreas, areaForPage, PLACEHOLDER_PAGES } from "./dashboard/module
 import ChannelManager from "./dashboard/components/ChannelManager";
 import PropertySetup from "./dashboard/components/PropertySetup";
 import Integrations from "./dashboard/components/Integrations";
+import ActivityLog from "./dashboard/components/ActivityLog";
 import DisparityChecker from "./components/DisparityChecker";
 import DynamicPricing from "./components/DynamicPricing";
 import AdminUserManager from "./components/AdminUserManager";
@@ -317,6 +318,8 @@ export default function V2Dashboard() {
                 {active === "cm" && <ChannelManager />}
 
                 {active === "integrations" && <Integrations session={scopedSession} />}
+
+                {active === "logs" && <ActivityLog session={scopedSession} />}
 
                 {active === "parity" && (
                   <div className="space-y-4">

@@ -27,6 +27,7 @@ export const AREAS = [
     pages: [
       { id: "cm", label: "Rates & Inventory", icon: "channel" },
       { id: "integrations", label: "Integrations", icon: "plug" },
+      { id: "logs", label: "Activity Log", icon: "list" },
       { id: "workflow", label: "Workflow", icon: "refresh" },
     ],
   },

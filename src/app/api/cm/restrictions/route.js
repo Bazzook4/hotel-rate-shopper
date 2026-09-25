@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
-import { saveDailyRestrictions, getUserPropertyId } from "@/lib/database";
+import {
+  saveDailyRestrictions,
+  getUserPropertyId,
+  recordSyncLog,
+} from "@/lib/database";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -84,10 +88,41 @@ export async function PUT(req) {
     }
   }
 
+  const dates = rows.map((r) => r.stay_date).sort();
+
   try {
     const saved = await saveDailyRestrictions(propertyId, rows);
+    await recordSyncLog({
+      property_id: propertyId,
+      kind: "restrictions",
+      direction: "out",
+      status: "success",
+      source: "local",
+      user_id: session.userId,
+      user_email: session.email,
+      date_from: dates[0],
+      date_to: dates[dates.length - 1],
+      entry_count: saved.length,
+      summary: `Saved ${saved.length} restriction${saved.length === 1 ? "" : "s"}`,
+      request: { restrictions: rows },
+    });
     return NextResponse.json({ saved: saved.length });
   } catch (err) {
+    await recordSyncLog({
+      property_id: propertyId,
+      kind: "restrictions",
+      direction: "out",
+      status: "failed",
+      source: "local",
+      user_id: session.userId,
+      user_email: session.email,
+      date_from: dates[0],
+      date_to: dates[dates.length - 1],
+      entry_count: rows.length,
+      summary: "Saving restrictions failed",
+      error: err.message,
+      request: { restrictions: rows },
+    });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

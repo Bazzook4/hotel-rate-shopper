@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   getIntegrationByWebhookToken,
   recordPartnerReservation,
+  recordSyncLog,
 } from "@/lib/database";
 
 /**
@@ -56,6 +57,17 @@ export async function POST(req, { params }) {
   }
 
   if (integration.reservations_in !== true) {
+    // Logged, because a partner sending bookings we refuse is something the
+    // hotel needs to see rather than discover from a missing reservation.
+    await recordSyncLog({
+      property_id: integration.property_id,
+      integration_id: integration.id,
+      kind: "reservation",
+      direction: "in",
+      status: "skipped",
+      source: "aiosell",
+      summary: "Reservation refused — reservations in is turned off",
+    });
     return NextResponse.json(
       { error: "Reservations are not enabled for this property." },
       { status: 409 }
@@ -70,12 +82,35 @@ export async function POST(req, { params }) {
   }
 
   const summary = summarise(body);
+  const action = readAction(body);
+
+  // What the log row says at a glance: the action, who it is for and when.
+  const logLine = [
+    action === "book" ? "Booking" : action === "cancel" ? "Cancellation" : "Modification",
+    summary.partner_booking_id ? `#${summary.partner_booking_id}` : null,
+    summary.guest_name,
+    summary.channel ? `via ${summary.channel}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const logBase = {
+    property_id: integration.property_id,
+    integration_id: integration.id,
+    kind: "reservation",
+    direction: "in",
+    source: "aiosell",
+    date_from: summary.check_in || null,
+    date_to: summary.check_out || null,
+    entry_count: 1,
+    summary: logLine,
+  };
 
   try {
     await recordPartnerReservation({
       integration_id: integration.id,
       property_id: integration.property_id,
-      action: readAction(body),
+      action,
       partner_booking_id: summary.partner_booking_id,
       channel: summary.channel,
       guest_name: summary.guest_name,
@@ -86,10 +121,18 @@ export async function POST(req, { params }) {
       payload: body,
     });
 
+    await recordSyncLog({ ...logBase, status: "success", request: body });
+
     // Partners generally expect a simple acknowledgement.
     return NextResponse.json({ success: true, message: "Reservation received" });
   } catch (err) {
     console.error("Failed to record inbound reservation", err);
+    await recordSyncLog({
+      ...logBase,
+      status: "failed",
+      error: err.message,
+      request: body,
+    });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
