@@ -109,6 +109,7 @@ export async function POST(req) {
 
   const rows = [];
   const failures = [];
+  let saved = 0;
 
   // Sequential and paced, like the parity refresh: concurrency is the
   // loudest signal available to Google's bot detection, so cells are fetched
@@ -148,7 +149,21 @@ export async function POST(req) {
     if (index > from) await sleep(jitterDelay());
 
     try {
-      rows.push(await fetchOne(competitor, stayDate, nights, guests, sessionId));
+      const row = await fetchOne(competitor, stayDate, nights, guests, sessionId);
+      rows.push(row);
+
+      // Saved as it arrives rather than banked until the batch ends. A
+      // request killed mid-batch -- a hung page against the platform's own
+      // limit -- would otherwise discard every lookup already paid for and
+      // re-fetch them on the next attempt.
+      try {
+        saved += await saveCompetitorRates(propertyId, [row]);
+      } catch (err) {
+        // The rate was read; only storing it failed. Worth reporting, but not
+        // worth abandoning a sweep that is otherwise working.
+        console.error("Saving a competitor rate failed:", err.message);
+        failures.push({ competitor: competitor.name, date: stayDate, message: "Could not be saved." });
+      }
     } catch (err) {
       // One bad cell should not lose the rest of the sweep.
       failures.push({ competitor: competitor.name, date: stayDate, message: err.message });
@@ -165,14 +180,6 @@ export async function POST(req) {
   }
 
   const attempted = index - from;
-
-  let saved = 0;
-  try {
-    saved = await saveCompetitorRates(propertyId, rows);
-  } catch (err) {
-    console.error("Saving competitor rates failed:", err.message);
-    return NextResponse.json({ error: "Could not save the rates we found." }, { status: 500 });
-  }
 
   // Everything in this batch failing is a real failure -- usually a refusal
   // or a layout change -- and should not read as a refresh that found nothing.

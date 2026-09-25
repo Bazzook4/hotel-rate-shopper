@@ -110,6 +110,7 @@ export async function POST(req) {
   const rows = [];
   const emptyDates = [];
   const failures = [];
+  let saved = 0;
 
   // Resume where the previous batch stopped. A refresh of more than a couple
   // of dates cannot finish inside one request, so the client calls back with
@@ -141,10 +142,31 @@ export async function POST(req) {
       const channels = await fetchDate(null, property.google_place_query, stayDate, nights, guests, sessionId);
       if (channels.length === 0) {
         emptyDates.push(stayDate);
+        // Cleared as it is found, for the same reason the rates below are
+        // saved as they arrive: a request killed mid-batch would otherwise
+        // leave last week's rates standing on a night nobody is selling.
+        try {
+          await clearParityRatesForDates(propertyId, [stayDate], { nights, guests });
+        } catch (err) {
+          console.error("Clearing a sold-out date failed:", err.message);
+        }
         continue;
       }
-      for (const channel of channels) {
-        rows.push({ ...channel, stay_date: stayDate, nights, guests });
+
+      const dateRows = channels.map((channel) => ({ ...channel, stay_date: stayDate, nights, guests }));
+      rows.push(...dateRows);
+
+      // Saved a date at a time rather than banked until the batch ends. A
+      // request killed mid-batch -- a hung page against the platform's own
+      // limit -- would otherwise discard every night already paid for and
+      // re-fetch them on the next attempt.
+      try {
+        saved += await saveParityRates(propertyId, dateRows);
+      } catch (err) {
+        // The rates were read; only storing them failed. Worth reporting, but
+        // not worth abandoning a sweep that is otherwise working.
+        console.error("Saving a night's rates failed:", err.message);
+        failures.push({ date: stayDate, message: "Could not be saved." });
       }
     } catch (err) {
       // A refusal or a stale parser applies to every remaining date, so the
@@ -162,19 +184,6 @@ export async function POST(req) {
   }
 
   const attempted = index - from;
-
-  let saved = 0;
-  try {
-    saved = await saveParityRates(propertyId, rows);
-    // A date Google answered for with no channel at all means nobody is
-    // selling that night; the old rates for it would otherwise read as
-    // current.
-    if (emptyDates.length > 0) {
-      await clearParityRatesForDates(propertyId, emptyDates, { nights, guests });
-    }
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
 
   // Every date in this batch failing is a real failure, not a partial one --
   // usually a refusal or a layout change -- and should not look like a
