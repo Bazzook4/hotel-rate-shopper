@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import ManageCompetitors from "./ManageCompetitors";
+import CompetitorDay from "./CompetitorDay";
 
 /** A refresh fills one week of the month; paging then refreshing walks across. */
 const REFRESH_DAYS = 7;
@@ -31,7 +32,7 @@ function money(value) {
  * are below the median, red above; a day we have not priced shows the median
  * alone so the column is still worth reading.
  */
-function DayCell({ date, own, median, diff, inMonth, isToday }) {
+function DayCell({ date, own, median, diff, inMonth, isToday, onOpen }) {
   const tone =
     diff == null
       ? {}
@@ -62,12 +63,16 @@ function DayCell({ date, own, median, diff, inMonth, isToday }) {
           </span>
         )}
       </div>
-      <div
+      <button
+        type="button"
         className="card"
+        onClick={() => onOpen?.(date)}
         style={{
           padding: "0.4rem",
           minHeight: 58,
           textAlign: "center",
+          width: "100%",
+          cursor: "pointer",
           ...tone,
         }}
       >
@@ -97,7 +102,7 @@ function DayCell({ date, own, median, diff, inMonth, isToday }) {
             )}
           </>
         )}
-      </div>
+      </button>
     </td>
   );
 }
@@ -122,6 +127,7 @@ export default function CompetitorShopper({ session }) {
   const [managing, setManaging] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [openDay, setOpenDay] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -228,6 +234,35 @@ export default function CompetitorShopper({ session }) {
 
   if (loading && !data) {
     return <p className="sub">Loading competitor rates…</p>;
+  }
+
+  // Opening a day replaces the calendar rather than overlaying it: the detail
+  // is a table of its own and a modal over a table reads badly on a laptop.
+  if (openDay && data) {
+    const step = (by) => {
+      const next = formatDateISO(addDays(parseDateISO(openDay), by));
+      // Paging past the month edge moves the calendar with it, so the day
+      // view never shows a date the loaded month does not cover.
+      if (next < data.start || next > data.end) {
+        setMonth(formatDateISO(new Date(parseDateISO(next).getFullYear(), parseDateISO(next).getMonth(), 1)));
+      }
+      setOpenDay(next);
+    };
+    return (
+      <div className="space-y-4">
+        <div>
+          <h2 className="h1">Competitor rates</h2>
+          <p className="sub">{data.propertyName}</p>
+        </div>
+        <CompetitorDay
+          date={openDay}
+          data={data}
+          onClose={() => setOpenDay(null)}
+          onPrev={() => step(-1)}
+          onNext={() => step(1)}
+        />
+      </div>
+    );
   }
 
   return (
@@ -379,6 +414,7 @@ export default function CompetitorShopper({ session }) {
                       diff={data.diffByDate?.[date] ?? null}
                       inMonth={date >= data.start && date <= data.end}
                       isToday={date === today}
+                      onOpen={setOpenDay}
                     />
                   ))}
                 </tr>
@@ -403,8 +439,9 @@ export default function CompetitorShopper({ session }) {
       )}
 
       <p className="text-xs" style={{ color: "var(--text-faint)" }}>
-        {ageLabel(data?.checkedAt)} · Your rate comes from Rate Parity; the median is across the
-        competitors you track. A refresh covers one week at a time.
+        {ageLabel(data?.checkedAt)} · Choose any day to see it competitor by competitor. Your rate
+        comes from Rate Parity; the median is across the competitors you track. A refresh covers
+        one week at a time.
       </p>
     </div>
   );

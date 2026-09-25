@@ -73,7 +73,10 @@ export async function GET(req) {
       currency: row.currency,
       channel: row.channel,
       link: row.link,
+      roomName: row.room_name,
+      freeCancellation: row.free_cancellation,
       soldOut: row.sold_out,
+      checkedAt: row.checked_at,
     };
   }
 

@@ -1871,6 +1871,8 @@ export async function saveCompetitorRates(propertyId, rows) {
     currency: r.currency || 'INR',
     channel: r.channel || null,
     link: r.link || null,
+    room_name: r.room_name || null,
+    free_cancellation: r.free_cancellation === true,
     sold_out: r.sold_out === true,
     checked_at: now,
   }));

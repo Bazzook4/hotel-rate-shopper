@@ -106,25 +106,51 @@ export function cheapestQuote(json) {
     ...(Array.isArray(json?.prices) ? json.prices : []),
   ];
 
+  const rateOf = (p) =>
+    typeof p?.rate_per_night?.extracted_lowest === "number"
+      ? p.rate_per_night.extracted_lowest
+      : typeof p?.extracted_price === "number"
+      ? p.extracted_price
+      : null;
+
   let best = null;
   for (const p of all) {
-    const rate =
-      typeof p?.rate_per_night?.extracted_lowest === "number"
-        ? p.rate_per_night.extracted_lowest
-        : typeof p?.extracted_price === "number"
-        ? p.extracted_price
-        : null;
+    const rate = rateOf(p);
     if (rate == null) continue;
     if (!best || rate < best.rate) {
-      best = { rate, channel: p?.source ?? p?.platform ?? null, link: p?.link ?? null };
+      best = {
+        rate,
+        channel: p?.source ?? p?.platform ?? null,
+        link: p?.link ?? null,
+        room_name: p?.rooms?.[0]?.name ?? null,
+        free_cancellation: p?.free_cancellation === true,
+      };
     }
+  }
+
+  if (best && !best.room_name) {
+    // Google only names the room on its featured rows, and the cheapest quote
+    // is often the hotel's own direct rate, which carries none. Rather than
+    // leave the column empty we take the name from the cheapest row that has
+    // one -- it describes the same property on the same night, which is what
+    // the column is for, even though it is not always the headline rate.
+    let named = null;
+    for (const p of all) {
+      const rate = rateOf(p);
+      const name = p?.rooms?.[0]?.name;
+      if (rate == null || !name) continue;
+      if (!named || rate < named.rate) named = { rate, name };
+    }
+    if (named) best.room_name = named.name;
   }
 
   // Google sometimes gives a headline rate with no channel breakdown at all,
   // which is still a real price and better than showing the night as unknown.
   if (!best) {
     const headline = json?.rate_per_night?.extracted_lowest;
-    if (typeof headline === "number") return { rate: headline, channel: null, link: null };
+    if (typeof headline === "number") {
+      return { rate: headline, channel: null, link: null, room_name: null, free_cancellation: false };
+    }
   }
 
   return best;

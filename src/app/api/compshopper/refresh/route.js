@@ -46,6 +46,8 @@ async function fetchOne(apiKey, competitor, stayDate, nights, guests) {
     rate: quote?.rate ?? null,
     channel: quote?.channel ?? null,
     link: quote?.link ?? null,
+    room_name: quote?.room_name ?? null,
+    free_cancellation: quote?.free_cancellation === true,
     // No price from any channel means nobody is selling it that night, which
     // the calendar shows as SOLD rather than as a gap in the data.
     sold_out: quote == null,
