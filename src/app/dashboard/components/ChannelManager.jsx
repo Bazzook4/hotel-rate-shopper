@@ -246,6 +246,39 @@ export default function ChannelManager() {
   }, [grid, filter]);
 
 
+  // Roughly how many rate rows a resync would send: every mapped
+  // room/plan/occupancy across the range, since dates without a stored row
+  // now fall back to the rack rate. Shown before sending so the size of the
+  // push is never a surprise.
+  const resyncEstimate = useMemo(() => {
+    if (!resyncOpen || !resyncWhat.rates) return 0;
+    let days = 0;
+    for (
+      let d = new Date(`${resyncFrom}T00:00:00Z`);
+      isoDate(d) <= resyncTo && days < 400;
+      d.setUTCDate(d.getUTCDate() + 1)
+    ) {
+      days += 1;
+    }
+    let cells = 0;
+    for (const room of grid?.rooms || []) {
+      if (resyncRooms.length && !resyncRooms.includes(room.id)) continue;
+      for (const plan of room.plans || []) {
+        if (resyncPlans.length && !resyncPlans.includes(plan.id)) continue;
+        cells += (plan.occupancies || []).length;
+      }
+    }
+    return days * cells;
+  }, [
+    resyncOpen,
+    resyncWhat.rates,
+    resyncFrom,
+    resyncTo,
+    grid,
+    resyncRooms,
+    resyncPlans,
+  ]);
+
   // Every distinct rate plan across the rooms, for the resync picker. A plan
   // sold on several rooms is listed once.
   const allPlans = useMemo(() => {
@@ -451,9 +484,10 @@ export default function ChannelManager() {
    * -- a rejected push, or a mapping fixed after the fact -- so it reads the
    * stored rows back and sends them again exactly as Publish would.
    *
-   * Only stored rows are sent. A date never explicitly priced has nothing to
-   * resend, and the channel manager keeps whatever it already holds for it
-   * rather than being handed a fallback rate nobody chose.
+   * Rates are sent for every date in the range, not only the dates with a
+   * stored row: a date never explicitly priced falls back to the plan's rack
+   * rate for that room and adult count, which is what the grid shows for it.
+   * Restrictions have no such fallback, so only stored ones are sent.
    */
   async function resync() {
     if (resyncFrom > resyncTo) {
@@ -477,6 +511,17 @@ export default function ChannelManager() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Could not read stored rates");
 
+      // Every date in the range, since a resync now sends a rate for dates
+      // that have no stored row of their own.
+      const resyncDates = [];
+      for (
+        let d = new Date(`${resyncFrom}T00:00:00Z`);
+        isoDate(d) <= resyncTo;
+        d.setUTCDate(d.getUTCDate() + 1)
+      ) {
+        resyncDates.push(isoDate(d));
+      }
+
       // An empty selection means everything, so a resync with no boxes
       // ticked still does the obvious thing.
       const roomWanted = (id) =>
@@ -484,20 +529,39 @@ export default function ChannelManager() {
       const planWanted = (id) =>
         resyncPlans.length === 0 || resyncPlans.includes(id);
 
+      // Walk the grid itself rather than the stored rows, so a date that was
+      // never explicitly priced still sends the rate the grid shows for it:
+      // the plan's rack rate, resolved for that room and adult count. The
+      // fallback order matches what a cell displays, so what goes out is
+      // what is on screen.
       const rateRows = [];
       if (resyncWhat.rates) {
-        for (const [key, value] of Object.entries(json.dailyRates || {})) {
-          const [rate_plan_id, room_type_id, occupancy, stay_date] =
-            key.split("|");
-          if (!room_type_id) continue;
-          if (!roomWanted(room_type_id) || !planWanted(rate_plan_id)) continue;
-          rateRows.push({
-            rate_plan_id,
-            room_type_id,
-            occupancy: Number(occupancy),
-            stay_date,
-            rate: value.rate,
-          });
+        const storedRates = json.dailyRates || {};
+        for (const room of json.rooms || []) {
+          if (!roomWanted(room.id)) continue;
+          for (const plan of room.plans || []) {
+            if (!planWanted(plan.id)) continue;
+            for (const occ of plan.occupancies || []) {
+              for (const stay_date of resyncDates) {
+                const key = `${plan.id}|${room.id}|${occ.occupancy}|${stay_date}`;
+                const rate =
+                  storedRates[key]?.rate ??
+                  occ.resolvedRate ??
+                  plan.resolvedRate ??
+                  null;
+                // A plan with no rate anywhere in the chain has nothing to
+                // send; pushing a null would blank it on the channel.
+                if (rate === null || rate === undefined || rate === "") continue;
+                rateRows.push({
+                  rate_plan_id: plan.id,
+                  room_type_id: room.id,
+                  occupancy: occ.occupancy,
+                  stay_date,
+                  rate,
+                });
+              }
+            }
+          }
         }
       }
 
@@ -521,9 +585,7 @@ export default function ChannelManager() {
       }
 
       if (rateRows.length === 0 && restrictionRows.length === 0) {
-        setNotice(
-          "Nothing stored to resend for those dates and selection."
-        );
+        setNotice("Nothing to resend for those dates and selection.");
         return;
       }
 
@@ -665,7 +727,8 @@ export default function ChannelManager() {
           <div>
             <h3 className="text-sm font-semibold text-ink">Resync to Aiosell</h3>
             <p className="mt-1 text-xs muted">
-              Resends what is already stored for these dates. Nothing is
+              Resends the rates this grid shows for these dates, including
+              dates priced only by the plan&rsquo;s rack rate. Nothing is
               changed here — use it when the channel manager has drifted out
               of step with this grid.
             </p>
@@ -784,6 +847,12 @@ export default function ChannelManager() {
             >
               Cancel
             </button>
+            {resyncEstimate > 0 && (
+              <span className="text-xs muted">
+                about {resyncEstimate.toLocaleString()} rate
+                {resyncEstimate === 1 ? "" : "s"}
+              </span>
+            )}
             {(resyncRooms.length > 0 || resyncPlans.length > 0) && (
               <button
                 type="button"
