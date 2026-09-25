@@ -99,13 +99,34 @@ export async function POST(req) {
       continue;
     }
     for (const link of links) {
-      rateRows.push({
-        rate_plan_id: link.rate_plan_id,
-        room_type_id: rec.room_type_id,
-        occupancy: link.included_occupancy || 2,
-        stay_date: rec.stay_date,
-        rate: Number(rec.recommended_rate),
-      });
+      // A room is priced per adult, not at one rate, so a recommendation has
+      // to move every occupancy the plan sells rather than just the headline
+      // one -- otherwise single occupancy keeps its old price and can end up
+      // dearer than double.
+      //
+      // The proposed rate is for the room's full occupancy, so the others
+      // keep their existing relationship to it. Scaling preserves the
+      // hotelier's own differential instead of imposing a flat one.
+      const adultRates = link.adult_rates || {};
+      const base = Number(link.full_rate) || null;
+      const occupancies = Object.keys(adultRates).length > 0 ? Object.keys(adultRates) : ["2"];
+
+      for (const occ of occupancies) {
+        const occRate = Number(adultRates[occ]);
+        let rate = Number(rec.recommended_rate);
+
+        if (base && Number.isFinite(occRate) && occRate > 0 && base > 0) {
+          rate = Math.round((occRate / base) * Number(rec.recommended_rate));
+        }
+
+        rateRows.push({
+          rate_plan_id: link.rate_plan_id,
+          room_type_id: rec.room_type_id,
+          occupancy: Number(occ),
+          stay_date: rec.stay_date,
+          rate,
+        });
+      }
     }
   }
 
