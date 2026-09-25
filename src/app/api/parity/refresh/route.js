@@ -175,7 +175,15 @@ export async function POST(req) {
       // it into a hard one. The cursor is cleared with it, so the client
       // stops asking for more instead of resuming into the same wall.
       failures.push({ date: stayDate, message: err.message });
-      if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
+      if (
+        err.code === "blocked" ||
+        err.code === "consent_wall" ||
+        err.code === "selectors_stale" ||
+        // Google pricing a different night applies to every remaining date in
+        // the sweep, not just this one, so there is nothing to gain by paying
+        // a proxy to be told the same thing six more times.
+        err.code === "wrong_date"
+      ) {
         index = dates.length;
         stopped = true;
         break;
@@ -192,6 +200,7 @@ export async function POST(req) {
     return NextResponse.json(
       {
         error: `Could not reach the rate data service. ${failures[0]?.message || ""}`.trim(),
+        code: failures[0]?.code || null,
       },
       { status: 502 }
     );

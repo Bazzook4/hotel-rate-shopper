@@ -14,7 +14,7 @@
  * blocked exit costs one request rather than the whole deployment.
  */
 
-import { parseHotelOffers, parseSearchResults, parseHealth } from "./parse.js";
+import { parseHotelOffers, parseSearchResults, parseHealth, pricedStayDate } from "./parse.js";
 
 /** Chrome on macOS. The headers below must stay consistent with this. */
 const USER_AGENT =
@@ -197,6 +197,23 @@ export async function fetchHotel(query, options = {}) {
   const sessionId = options.sessionId || sessionIdFor(query);
   const url = travelUrl(query, options);
   const { html } = await fetchPage(url, { sessionId, expect: "hotel" });
+
+  // Google accepts a check-in date, echoes it back in the page furniture, and
+  // then serves whatever stay its server-rendered response already had --
+  // in practice the next bookable night, whatever was asked for. Storing
+  // those numbers against the requested date fills the grid with prices for
+  // a different night, which is worse than an empty cell because it reads as
+  // fact. So the page has to say it priced the night we asked about.
+  const priced = pricedStayDate(html);
+  if (options.checkIn && priced && priced !== options.checkIn) {
+    const err = new Error(
+      `Google priced ${priced}, not ${options.checkIn}. It does not sell future dates from this page.`
+    );
+    err.code = "wrong_date";
+    err.pricedDate = priced;
+    throw err;
+  }
+
   return parseHotelOffers(html);
 }
 

@@ -16,10 +16,18 @@
 
 import { fetchHotel, fetchSearch, isScraperConfigured, jitterDelay, sleep } from "../src/lib/scraper/fetch.js";
 
-/** Two weeks out: far enough to be sellable, near enough to be priced. */
+/**
+ * Tomorrow.
+ *
+ * Not an arbitrary choice: Google's server-rendered page prices only the next
+ * bookable night, whatever check-in is asked for, so a date further out comes
+ * back priced for tomorrow anyway and the fetch rejects it. Measured across
+ * several URL shapes -- /travel/search, a ts token, and /travel/hotels/entity
+ * -- all of which returned the same night.
+ */
 function stayDates() {
-  const checkIn = new Date(Date.now() + 14 * 86400000);
-  const checkOut = new Date(Date.now() + 15 * 86400000);
+  const checkIn = new Date(Date.now() + 86400000);
+  const checkOut = new Date(Date.now() + 2 * 86400000);
   const iso = (d) => d.toISOString().slice(0, 10);
   return { checkIn: iso(checkIn), checkOut: iso(checkOut) };
 }
@@ -37,6 +45,21 @@ const checks = [
         // One channel is not proof of health: a page that half-parses is how
         // a partial layout change would show up.
         ok: json.prices.length >= 2,
+      };
+    },
+  },
+  {
+    name: "rates belong to the night we asked for",
+    run: async () => {
+      // The failure this guards against is silent and the worst kind: a page
+      // that parses perfectly into prices for a different night, stored as
+      // though they were today's answer.
+      const { checkIn, checkOut } = stayDates();
+      const json = await fetchHotel("Taj MG Road Bengaluru", { checkIn, checkOut });
+      return {
+        count: json.prices.length,
+        detail: `priced for ${checkIn}`,
+        ok: json.prices.length > 0,
       };
     },
   },

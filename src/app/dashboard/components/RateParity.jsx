@@ -199,7 +199,14 @@ export default function RateParity({ session }) {
         });
         const json = await res.json();
         if (!res.ok) {
-          setError(json?.error || "Could not refresh rates.");
+          // Google only prices the next bookable night from the page we can
+          // read, so a window further out cannot be filled at all. Saying so
+          // is better than a generic failure the hotelier would retry.
+          setError(
+            json?.code === "wrong_date"
+              ? "Google only publishes rates for the next night or two on the page we read, so these dates cannot be checked yet. Move the window closer to today and refresh."
+              : json?.error || "Could not refresh rates."
+          );
           // A refresh blocked for want of a Google URL should drop the grid
           // back to the setup prompt rather than leaving a dead button.
           if (json?.needsSetup) setData((d) => (d ? { ...d, configured: false } : d));

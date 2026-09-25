@@ -171,7 +171,15 @@ export async function POST(req) {
       // run stops rather than spending requests against an address Google has
       // just turned away. The cursor is cleared with it, so the client stops
       // asking for more instead of resuming into the same wall.
-      if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
+      if (
+        err.code === "blocked" ||
+        err.code === "consent_wall" ||
+        err.code === "selectors_stale" ||
+        // Google pricing a different night applies to every remaining date in
+        // the sweep, not just this one, so there is nothing to gain by paying
+        // a proxy to be told the same thing six more times.
+        err.code === "wrong_date"
+      ) {
         index = cells.length;
         stopped = true;
         break;

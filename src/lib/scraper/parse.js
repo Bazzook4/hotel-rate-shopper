@@ -19,6 +19,22 @@
  * `parseHealth()` rather than as a grid that quietly fills with blanks.
  */
 
+/**
+ * Which stay the prices on this page actually belong to.
+ *
+ * Google echoes the requested check-in in the page furniture but prices
+ * whatever stay its server-rendered response happens to carry, which is not
+ * the same thing. Each offer embeds its own stay dates, and that is the only
+ * honest answer to "what night is this rate for".
+ *
+ * Returns the check-in date as YYYY-MM-DD, or null when the page embeds none.
+ */
+export function pricedStayDate(html) {
+  // ["2026-09-26","2026-09-27",1,1,2,...] sits beside each offer's price.
+  const match = /\["(\d{4}-\d{2}-\d{2})","(\d{4}-\d{2}-\d{2})",\d+,\d+,\d+/.exec(String(html || ""));
+  return match ? match[1] : null;
+}
+
 /** "₹12,980" / "₹1,574" -> 12980. Null when there is no number in there. */
 export function extractPrice(text) {
   if (!text) return null;
