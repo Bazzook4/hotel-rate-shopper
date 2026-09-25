@@ -1887,3 +1887,177 @@ export async function saveCompetitorRates(propertyId, rows) {
 
   return payload.length;
 }
+
+// ============================================
+// DYNAMIC PRICING
+// ============================================
+
+/** Floor and ceiling per room type. */
+export async function listPricingBounds(propertyId) {
+  const { data, error } = await supabase
+    .from('pricing_bounds')
+    .select('*')
+    .eq('property_id', propertyId);
+
+  if (error) throw new Error(`Failed to load pricing bounds: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Save bounds for several room types at once.
+ *
+ * A row with neither bound set is deleted rather than stored: "no floor and
+ * no ceiling" is the absence of a rule, not a rule.
+ */
+export async function savePricingBounds(propertyId, rows) {
+  const keep = [];
+  const drop = [];
+
+  for (const row of rows || []) {
+    if (!row.room_type_id) continue;
+    const floor = row.floor_rate === "" || row.floor_rate == null ? null : Number(row.floor_rate);
+    const ceiling = row.ceiling_rate === "" || row.ceiling_rate == null ? null : Number(row.ceiling_rate);
+    if (floor == null && ceiling == null) {
+      drop.push(row.room_type_id);
+    } else {
+      keep.push({
+        property_id: propertyId,
+        room_type_id: row.room_type_id,
+        floor_rate: floor,
+        ceiling_rate: ceiling,
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  if (drop.length > 0) {
+    const { error } = await supabase
+      .from('pricing_bounds')
+      .delete()
+      .eq('property_id', propertyId)
+      .in('room_type_id', drop);
+    if (error) throw new Error(`Failed to clear pricing bounds: ${error.message}`);
+  }
+
+  if (keep.length > 0) {
+    const { error } = await supabase
+      .from('pricing_bounds')
+      .upsert(keep, { onConflict: 'property_id,room_type_id' });
+    if (error) throw new Error(`Failed to save pricing bounds: ${error.message}`);
+  }
+
+  return listPricingBounds(propertyId);
+}
+
+/**
+ * The property's strategy, or the defaults it has not overridden yet.
+ *
+ * Returns a usable strategy rather than null, so the engine never has to
+ * decide what an unconfigured property means.
+ */
+export async function getPricingStrategy(propertyId) {
+  const { data, error } = await supabase
+    .from('pricing_strategy')
+    .select('*')
+    .eq('property_id', propertyId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to load pricing strategy: ${error.message}`);
+
+  return (
+    data || {
+      property_id: propertyId,
+      weight_compset: 1.0,
+      weight_occupancy: 1.0,
+      weight_weekday: 0.5,
+      weight_pickup: 1.0,
+      weight_adr_90: 0.5,
+      weight_adr_ly: 0.5,
+      weight_events: 1.0,
+      max_change_pct: 25.0,
+    }
+  );
+}
+
+export async function savePricingStrategy(propertyId, updates) {
+  const row = {
+    property_id: propertyId,
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('pricing_strategy')
+    .upsert(row, { onConflict: 'property_id' })
+    .select()
+    .single();
+
+  if (error) throw new Error(`Failed to save pricing strategy: ${error.message}`);
+  return data;
+}
+
+export async function listPricingRecommendations(propertyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('pricing_recommendations')
+    .select('*')
+    .eq('property_id', propertyId)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate)
+    .order('stay_date', { ascending: true });
+
+  if (error) throw new Error(`Failed to load recommendations: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Replace the recommendations for the cells just recalculated.
+ *
+ * A cell a hotelier has already decided on is left alone: recalculating
+ * should not quietly reopen a decision they made, nor discard a rate they
+ * accepted but that has not yet been pushed.
+ */
+export async function savePricingRecommendations(propertyId, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  const payload = rows.map((r) => ({
+    property_id: propertyId,
+    room_type_id: r.room_type_id,
+    stay_date: r.stay_date,
+    current_rate: r.current_rate ?? null,
+    recommended_rate: r.recommended_rate,
+    reasons: r.reasons || null,
+    bounded_by: r.bounded_by || null,
+    status: 'pending',
+    decided_by: null,
+    decided_at: null,
+    updated_at: now,
+  }));
+
+  const { error } = await supabase
+    .from('pricing_recommendations')
+    .upsert(payload, { onConflict: 'property_id,room_type_id,stay_date' });
+
+  if (error) throw new Error(`Failed to save recommendations: ${error.message}`);
+  return payload.length;
+}
+
+/** Mark recommendations decided, by a person or by automation. */
+export async function decideRecommendations(propertyId, ids, status, decidedBy = 'manual') {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('pricing_recommendations')
+    .update({
+      status,
+      decided_by: decidedBy,
+      decided_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('property_id', propertyId)
+    .in('id', ids)
+    .select();
+
+  if (error) throw new Error(`Failed to update recommendations: ${error.message}`);
+  return data || [];
+}

@@ -10,7 +10,7 @@ import ActivityLog from "./dashboard/components/ActivityLog";
 import RateParity from "./dashboard/components/RateParity";
 import GoogleListingSetup from "./dashboard/components/GoogleListingSetup";
 import CompetitorShopper from "./dashboard/components/CompetitorShopper";
-import DynamicPricing from "./components/DynamicPricing";
+import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -325,7 +325,7 @@ export default function V2Dashboard() {
 
                 {active === "parity" && <RateParity session={scopedSession} />}
 
-                {active === "pricing" && <DynamicPricing />}
+                {active === "pricing" && <DynamicPricingGrid session={scopedSession} />}
 
                 {/* Rooms and rate plans are separate pages; the component
                     renders one panel or the other. */}
