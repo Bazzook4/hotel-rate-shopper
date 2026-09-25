@@ -9,6 +9,7 @@ import {
 } from "@/lib/database";
 import { normaliseChannels } from "@/lib/parity";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
+import { createBudget, cursorFrom } from "@/lib/scraper/budget";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -110,16 +111,31 @@ export async function POST(req) {
   const emptyDates = [];
   const failures = [];
 
+  // Resume where the previous batch stopped. A refresh of more than a couple
+  // of dates cannot finish inside one request, so the client calls back with
+  // the cursor it was given until the window is done.
+  const from = Math.min(Math.max(Number(body?.from) || 0, 0), dates.length);
+
   // One session for the whole sweep, so every date leaves from the same
-  // address carrying the same cookies: one person planning one trip. A new
-  // exit address per date is what reads as automated.
+  // address carrying the same cookies: one person planning one trip. Derived
+  // from the property alone, so the batches of one refresh keep sharing an
+  // address instead of hopping between them.
   const sessionId = sessionIdFor(propertyId);
+
+  const budget = createBudget();
+  let index = from;
+  let stopped = false;
 
   // Sequential, and deliberately unhurried. Concurrency is the loudest signal
   // available to Google's bot detection, so dates are fetched one at a time
   // with a randomised gap rather than in a burst.
-  for (const [index, stayDate] of dates.entries()) {
-    if (index > 0) await sleep(jitterDelay());
+  for (; index < dates.length; index += 1) {
+    // Checked before starting, never during: a fetch already under way has to
+    // be allowed to finish and be saved.
+    if (index > from && !budget.canContinue()) break;
+
+    const stayDate = dates[index];
+    if (index > from) await sleep(jitterDelay());
 
     try {
       const channels = await fetchDate(null, property.google_place_query, stayDate, nights, guests, sessionId);
@@ -134,13 +150,18 @@ export async function POST(req) {
       // A refusal or a stale parser applies to every remaining date, so the
       // sweep stops rather than spending more requests on an address Google
       // has just turned away -- retrying through a soft block is what turns
-      // it into a hard one.
+      // it into a hard one. The cursor is cleared with it, so the client
+      // stops asking for more instead of resuming into the same wall.
       failures.push({ date: stayDate, message: err.message });
       if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
+        index = dates.length;
+        stopped = true;
         break;
       }
     }
   }
+
+  const attempted = index - from;
 
   let saved = 0;
   try {
@@ -155,10 +176,10 @@ export async function POST(req) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 
-  // Every date failing is a real failure, not a partial one -- usually a bad
-  // key or an exhausted quota -- and should not look like a successful
-  // refresh that found nothing.
-  if (failures.length === dates.length) {
+  // Every date in this batch failing is a real failure, not a partial one --
+  // usually a refusal or a layout change -- and should not look like a
+  // successful refresh that found nothing.
+  if (attempted > 0 && failures.length === attempted) {
     return NextResponse.json(
       {
         error: `Could not reach the rate data service. ${failures[0]?.message || ""}`.trim(),
@@ -169,8 +190,13 @@ export async function POST(req) {
 
   return NextResponse.json({
     saved,
-    datesChecked: dates.length - failures.length,
+    datesChecked: attempted - failures.length,
     failures,
     checkedAt: new Date().toISOString(),
+    // Where the next batch resumes, or null when the window is finished.
+    // `total` and `done` are what the button counts progress with.
+    cursor: stopped ? null : cursorFrom(index, dates.length),
+    done: index,
+    total: dates.length,
   });
 }

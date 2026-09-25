@@ -190,6 +190,9 @@ export default function RateParity({ session }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // How far through the window a running refresh is, for the button label: a
+  // scraped sweep takes minutes, and an unchanging spinner reads as a hang.
+  const [progress, setProgress] = useState(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -223,33 +226,63 @@ export default function RateParity({ session }) {
     load();
   }, [load]);
 
+  /**
+   * Refresh the visible window, one batch per request.
+   *
+   * Reading each night's rates from Google takes seconds, so a week does not
+   * fit in a single request. The server does what it can inside its own time
+   * budget and replies with a cursor; this keeps calling from there until the
+   * window is finished. Each batch is saved as it completes, so a refresh
+   * that is interrupted leaves real rates behind rather than nothing.
+   */
   async function refresh() {
     setRefreshing(true);
     setError("");
     setNotice("");
+    setProgress(null);
+
+    let cursor = 0;
+    let failed = 0;
+
     try {
-      const res = await fetch("/api/parity/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          propertyId,
-          start: anchor,
-          days: WINDOW_DAYS,
-          nights,
-          guests,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json?.error || "Could not refresh rates.");
-        // A refresh blocked for want of a Google URL should drop the grid back
-        // to the setup prompt rather than leaving a dead button.
-        if (json?.needsSetup) setData((d) => (d ? { ...d, configured: false } : d));
-        return;
+      // Bounded rather than `while (true)`: a server that kept returning the
+      // same cursor would otherwise spin forever. One request per date in the
+      // window is far more than batching should ever need.
+      for (let guard = 0; guard <= WINDOW_DAYS; guard += 1) {
+        const res = await fetch("/api/parity/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            start: anchor,
+            days: WINDOW_DAYS,
+            nights,
+            guests,
+            from: cursor,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setError(json?.error || "Could not refresh rates.");
+          // A refresh blocked for want of a Google URL should drop the grid
+          // back to the setup prompt rather than leaving a dead button.
+          if (json?.needsSetup) setData((d) => (d ? { ...d, configured: false } : d));
+          return;
+        }
+
+        failed += json.failures?.length || 0;
+        if (json.total) setProgress({ done: json.done, total: json.total });
+
+        if (json.cursor == null) break;
+        // A cursor that has not moved means the server made no progress, and
+        // asking again would only repeat it.
+        if (json.cursor <= cursor) break;
+        cursor = json.cursor;
       }
-      if (json.failures?.length) {
+
+      if (failed) {
         setNotice(
-          `${json.failures.length} of ${WINDOW_DAYS} dates could not be checked and kept their previous rates.`
+          `${failed} of ${WINDOW_DAYS} dates could not be checked and kept their previous rates.`
         );
       }
       await load();
@@ -257,6 +290,7 @@ export default function RateParity({ session }) {
       setError("Network error. Please try again.");
     } finally {
       setRefreshing(false);
+      setProgress(null);
     }
   }
 
@@ -385,7 +419,11 @@ export default function RateParity({ session }) {
 
             <div className="ml-auto">
               <button type="button" className="btn btn-primary" onClick={refresh} disabled={refreshing}>
-                {refreshing ? "Checking channels…" : "Refresh"}
+                {refreshing
+                  ? progress
+                    ? `Checking… ${progress.done} of ${progress.total} nights`
+                    : "Checking channels…"
+                  : "Refresh"}
               </button>
             </div>
           </div>

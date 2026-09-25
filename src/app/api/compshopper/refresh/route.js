@@ -4,6 +4,7 @@ import { listCompetitors, saveCompetitorRates } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { cheapestQuote, MAX_COMPETITORS } from "@/lib/competitors";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
+import { createBudget, cursorFrom } from "@/lib/scraper/budget";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -113,34 +114,57 @@ export async function POST(req) {
   // loudest signal available to Google's bot detection, so cells are fetched
   // one at a time with a randomised gap.
   let stopped = false;
+  // The sweep is competitors x dates, flattened so one cursor addresses a
+  // single cell. A nested pair would have to be serialised and revalidated on
+  // the way back in; one integer cannot disagree with itself.
+  const cells = [];
   for (const competitor of tracked) {
-    if (stopped) break;
+    for (const stayDate of dates) cells.push({ competitor, stayDate });
+  }
+
+  // Resume where the previous batch stopped. Six competitors across a week is
+  // several minutes of deliberately slow fetching, far past any single
+  // request, so the client calls back with the cursor until the grid is done.
+  const from = Math.min(Math.max(Number(body?.from) || 0, 0), cells.length);
+
+  const budget = createBudget();
+  let index = from;
+
+  // Sequential and paced. Concurrency is the loudest signal available to
+  // Google's bot detection, so cells are fetched one at a time.
+  for (; index < cells.length; index += 1) {
+    // Checked before starting, never during: a fetch already under way has to
+    // be allowed to finish and be saved.
+    if (index > from && !budget.canContinue()) break;
+
+    const { competitor, stayDate } = cells[index];
 
     // A session per competitor: one address reading one hotel's calendar
-    // looks like a guest comparing dates, where a single session sweeping
-    // six different hotels does not.
+    // looks like a guest comparing dates, where a single session sweeping six
+    // different hotels does not. Keyed by competitor rather than by batch, so
+    // resuming mid-hotel keeps the address it was already using.
     const sessionId = sessionIdFor(`${propertyId}${competitor.id}`);
-    let first = true;
 
-    for (const stayDate of dates) {
-      if (!first) await sleep(jitterDelay());
-      first = false;
+    if (index > from) await sleep(jitterDelay());
 
-      try {
-        rows.push(await fetchOne(competitor, stayDate, nights, guests, sessionId));
-      } catch (err) {
-        // One bad cell should not lose the rest of the sweep.
-        failures.push({ competitor: competitor.name, date: stayDate, message: err.message });
-        // A refusal or a stale parser applies to every remaining cell, so the
-        // run stops rather than spending requests against an address Google
-        // has just turned away.
-        if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
-          stopped = true;
-          break;
-        }
+    try {
+      rows.push(await fetchOne(competitor, stayDate, nights, guests, sessionId));
+    } catch (err) {
+      // One bad cell should not lose the rest of the sweep.
+      failures.push({ competitor: competitor.name, date: stayDate, message: err.message });
+      // A refusal or a stale parser applies to every remaining cell, so the
+      // run stops rather than spending requests against an address Google has
+      // just turned away. The cursor is cleared with it, so the client stops
+      // asking for more instead of resuming into the same wall.
+      if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
+        index = cells.length;
+        stopped = true;
+        break;
       }
     }
   }
+
+  const attempted = index - from;
 
   let saved = 0;
   try {
@@ -150,9 +174,9 @@ export async function POST(req) {
     return NextResponse.json({ error: "Could not save the rates we found." }, { status: 500 });
   }
 
-  // Everything failing is a real failure -- usually a bad key or an exhausted
-  // quota -- and should not read as a refresh that found nothing.
-  if (rows.length === 0 && failures.length > 0) {
+  // Everything in this batch failing is a real failure -- usually a refusal
+  // or a layout change -- and should not read as a refresh that found nothing.
+  if (rows.length === 0 && attempted > 0 && failures.length === attempted) {
     return NextResponse.json(
       { error: `Could not reach the rate data service. ${failures[0]?.message || ""}`.trim() },
       { status: 502 }
@@ -167,5 +191,11 @@ export async function POST(req) {
     to: dates[dates.length - 1],
     failures,
     checkedAt: new Date().toISOString(),
+    // Where the next batch resumes, or null when the sweep is finished.
+    // `total` and `done` count cells, which is what the button shows progress
+    // against.
+    cursor: stopped ? null : cursorFrom(index, cells.length),
+    done: index,
+    total: cells.length,
   });
 }

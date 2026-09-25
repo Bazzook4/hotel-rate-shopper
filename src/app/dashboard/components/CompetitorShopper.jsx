@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import ManageCompetitors from "./ManageCompetitors";
 import CompetitorDay from "./CompetitorDay";
+import { MAX_COMPETITORS } from "@/lib/competitors";
 
 /** A refresh fills one week of the month; paging then refreshing walks across. */
 const REFRESH_DAYS = 7;
@@ -126,6 +127,10 @@ export default function CompetitorShopper({ session }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // How far through the sweep a running refresh is, for the button label: six
+  // competitors across a week takes minutes, and an unchanging spinner reads
+  // as a hang.
+  const [progress, setProgress] = useState(null);
   const [managing, setManaging] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -166,33 +171,73 @@ export default function CompetitorShopper({ session }) {
     }
   }, [data?.start, data?.end, weekStart]);
 
+  /**
+   * Refresh the visible week, one batch per request.
+   *
+   * Six competitors across seven nights is well over a hundred page reads at
+   * several seconds each, so the sweep cannot finish in one request. The
+   * server does what fits in its time budget and replies with a cursor; this
+   * keeps calling from there. Each batch is saved as it completes, so an
+   * interrupted refresh leaves real rates behind rather than nothing.
+   */
   async function refresh() {
     setRefreshing(true);
     setError("");
     setNotice("");
+    setProgress(null);
+
+    let cursor = 0;
+    let failed = 0;
+    let last = null;
+
     try {
-      const res = await fetch("/api/compshopper/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ propertyId, start: weekStart, days: REFRESH_DAYS, nights, guests }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json?.error || "Could not refresh competitor rates.");
-        if (json?.needsCompetitors) setManaging(true);
-        return;
+      // Bounded rather than `while (true)`: a server that kept returning the
+      // same cursor would otherwise spin forever. One request per cell is far
+      // more than batching should ever need.
+      for (let guard = 0; guard <= REFRESH_DAYS * MAX_COMPETITORS; guard += 1) {
+        const res = await fetch("/api/compshopper/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            propertyId,
+            start: weekStart,
+            days: REFRESH_DAYS,
+            nights,
+            guests,
+            from: cursor,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setError(json?.error || "Could not refresh competitor rates.");
+          if (json?.needsCompetitors) setManaging(true);
+          return;
+        }
+
+        last = json;
+        failed += json.failures?.length || 0;
+        if (json.total) setProgress({ done: json.done, total: json.total });
+
+        if (json.cursor == null) break;
+        // A cursor that has not moved means the server made no progress, and
+        // asking again would only repeat it.
+        if (json.cursor <= cursor) break;
+        cursor = json.cursor;
       }
-      const failed = json.failures?.length || 0;
-      setNotice(
-        failed > 0
-          ? `Checked ${json.competitorsChecked} competitors for ${json.from} to ${json.to}. ${failed} lookups failed and kept their previous rates.`
-          : `Checked ${json.competitorsChecked} competitors for ${json.from} to ${json.to}.`
-      );
+
+      if (last) {
+        setNotice(
+          failed > 0
+            ? `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}. ${failed} lookups failed and kept their previous rates.`
+            : `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}.`
+        );
+      }
       await load();
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setRefreshing(false);
+      setProgress(null);
     }
   }
 
@@ -381,7 +426,11 @@ export default function CompetitorShopper({ session }) {
             onClick={refresh}
             disabled={refreshing || !data?.hasCompetitors}
           >
-            {refreshing ? "Checking competitors…" : "Refresh week"}
+            {refreshing
+              ? progress
+                ? `Checking… ${progress.done} of ${progress.total}`
+                : "Checking competitors…"
+              : "Refresh week"}
           </button>
         </div>
       </div>
