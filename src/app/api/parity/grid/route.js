@@ -11,6 +11,9 @@ import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
  * Reads only -- never calls Google -- so opening the page is instant and
  * costs nothing. Refreshing is an explicit action on its own route.
  */
+/** The window read when the caller does not ask for one; matches the grid. */
+const DEFAULT_DAYS = 7;
+
 export async function GET(req) {
   const session = await getSessionFromRequest(req);
   if (!session?.userId) {
@@ -27,7 +30,7 @@ export async function GET(req) {
   }
 
   const start = parseDateISO(searchParams.get("start")) || new Date();
-  const days = Math.min(Math.max(Number(searchParams.get("days")) || 14, 1), 90);
+  const days = Math.min(Math.max(Number(searchParams.get("days")) || DEFAULT_DAYS, 1), 90);
   const nights = Math.min(Math.max(Number(searchParams.get("nights")) || 1, 1), 30);
   const guests = Math.min(Math.max(Number(searchParams.get("guests")) || 2, 1), 20);
 

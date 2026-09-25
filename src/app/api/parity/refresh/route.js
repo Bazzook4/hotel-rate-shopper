@@ -18,6 +18,9 @@ import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
  */
 const MAX_DATES_PER_REFRESH = 31;
 
+/** The window a refresh covers when the caller does not ask for one. */
+const DEFAULT_DAYS = 7;
+
 /** One stay date, priced across every channel Google knows. */
 async function fetchDate(apiKey, query, stayDate, nights, guests) {
   const checkOut = formatDateISO(addDays(parseDateISO(stayDate), nights));
@@ -89,7 +92,7 @@ export async function POST(req) {
   }
 
   const start = parseDateISO(body?.start) || new Date();
-  const days = Math.min(Math.max(Number(body?.days) || 14, 1), MAX_DATES_PER_REFRESH);
+  const days = Math.min(Math.max(Number(body?.days) || DEFAULT_DAYS, 1), MAX_DATES_PER_REFRESH);
   const nights = Math.min(Math.max(Number(body?.nights) || 1, 1), 30);
   const guests = Math.min(Math.max(Number(body?.guests) || 2, 1), 20);
 

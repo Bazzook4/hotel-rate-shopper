@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import GoogleListingSetup from "./GoogleListingSetup";
 
-const WINDOW_DAYS = 14;
+/**
+ * How many nights the grid shows and a refresh scrapes.
+ *
+ * Seven, because Google prices one stay at a time: a refresh costs one API
+ * call per date, so the window is what the hotelier can see and act on in a
+ * week rather than the furthest ahead they could book.
+ */
+const WINDOW_DAYS = 7;
 
 /** How long ago a refresh ran, in the words the header uses. */
 function ageLabel(iso) {
