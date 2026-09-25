@@ -383,11 +383,6 @@ export default function V2Dashboard() {
 
                 {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
 
-                {active === "location" && (
-                  <ComingSoon title="Search by Location">
-                    Surface the strongest offers in a destination.
-                  </ComingSoon>
-                )}
               </>
             )}
           </div>

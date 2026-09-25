@@ -13,7 +13,6 @@ const availableModules = [
   { id: "cm", label: "Channel Manager", icon: "", description: "Rates and inventory to OTAs" },
   { id: "compshopper", label: "Comp Shopper", icon: "", description: "Comp set rate comparison" },
   { id: "parity", label: "Rate Parity", icon: "", description: "OTA spread analysis" },
-  { id: "location", label: "Search by Location", icon: "", description: "Location-based search" },
   { id: "pricing", label: "Dynamic Pricing", icon: "", description: "Smart pricing optimization" },
   { id: "setup", label: "Property Setup", icon: "", description: "Room types and rate plans" },
 ];

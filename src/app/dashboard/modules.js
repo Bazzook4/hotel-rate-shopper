@@ -37,7 +37,6 @@ export const AREAS = [
     pages: [
       { id: "parity", label: "Rate Parity", icon: "compass" },
       { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
-      { id: "location", label: "Search by Location", icon: "pin" },
       { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
     ],
   },
@@ -63,6 +62,10 @@ const LEGACY_ALIASES = {
   disparity: "parity",
   ratetracker: "compshopper",
   compare: "compshopper",
+  // Search by Location was folded into Competitor Shopper, which finds
+  // nearby hotels from the property's own listing. A user still holding the
+  // old grant keeps access to what it was for.
+  location: "compshopper",
 };
 
 /**
@@ -84,7 +87,6 @@ export const PLACEHOLDER_PAGES = new Set([
   "calendar",
   "reservations",
   "workflow",
-  "location",
 ]);
 
 /**

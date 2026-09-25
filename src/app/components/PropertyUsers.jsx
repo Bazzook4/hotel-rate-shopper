@@ -7,7 +7,6 @@ const MODULES = [
   { id: "cm", label: "Channel Manager" },
   { id: "compshopper", label: "Comp Shopper" },
   { id: "parity", label: "Rate Parity" },
-  { id: "location", label: "Search by Location" },
   { id: "pricing", label: "Dynamic Pricing" },
   { id: "setup", label: "Property Setup" },
 ];
