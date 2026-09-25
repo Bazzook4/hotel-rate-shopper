@@ -122,7 +122,15 @@ export default function V2Dashboard() {
 
   // The top bar follows the open page rather than being selected separately,
   // so switching areas and landing on a page keep one source of truth.
-  const currentArea = useMemo(() => areaForPage(areas, active), [areas, active]);
+  //
+  // Nothing is selected until a page is. `areaForPage` falls back to the first
+  // area for a page it does not know, which before a page is settled would
+  // light up Front Office and its sidebar for as long as the session takes to
+  // load, then jump to the real page -- a visible flash on every refresh.
+  const currentArea = useMemo(
+    () => (active ? areaForPage(areas, active) : null),
+    [areas, active]
+  );
 
   // Settle on a page: the hash if it names one this session may see,
   // otherwise the first page available.
