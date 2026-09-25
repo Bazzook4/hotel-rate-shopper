@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import ManageCompetitors from "./ManageCompetitors";
 import CompetitorDay from "./CompetitorDay";
 
@@ -119,7 +119,9 @@ export default function CompetitorShopper({ session }) {
 
   // Which week a refresh will fill. Starts at today when the open month
   // contains it, so the first press covers the dates that matter most.
-  const [weekStart, setWeekStart] = useState(() => formatDateISO(new Date()));
+  // Sent to the rate service, so it follows the service's today, not the
+  // browser's -- east of UTC the two disagree for part of every evening.
+  const [weekStart, setWeekStart] = useState(() => todayUTC());
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -157,7 +159,11 @@ export default function CompetitorShopper({ session }) {
   // silently scrapes dates the hotelier cannot see.
   useEffect(() => {
     if (!data?.start || !data?.end) return;
-    if (weekStart < data.start || weekStart > data.end) setWeekStart(data.start);
+    if (weekStart < data.start || weekStart > data.end) {
+      // A past month has no week worth refreshing, so the picker starts at
+      // today instead of a date the service would reject.
+      setWeekStart(clampToToday(data.start));
+    }
   }, [data?.start, data?.end, weekStart]);
 
   async function refresh() {

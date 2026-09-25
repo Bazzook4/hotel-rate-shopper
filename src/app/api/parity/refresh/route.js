@@ -8,7 +8,7 @@ import {
   clearParityRatesForDates,
 } from "@/lib/database";
 import { normaliseChannels } from "@/lib/parity";
-import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
  * Google Hotels prices one stay at a time, so a window of dates costs one
@@ -91,12 +91,28 @@ export async function POST(req) {
     );
   }
 
-  const start = parseDateISO(body?.start) || new Date();
+  // Clamped rather than trusted: the rate service refuses a check-in before
+  // today, and a browser east of UTC sends "today" as a date this server still
+  // considers yesterday, which would fail the whole window.
+  const start = parseDateISO(clampToToday(body?.start)) || new Date();
   const days = Math.min(Math.max(Number(body?.days) || DEFAULT_DAYS, 1), MAX_DATES_PER_REFRESH);
   const nights = Math.min(Math.max(Number(body?.nights) || 1, 1), 30);
   const guests = Math.min(Math.max(Number(body?.guests) || 2, 1), 20);
 
-  const dates = Array.from({ length: days }, (_, i) => formatDateISO(addDays(start, i)));
+  // Any date still in the past -- a window opened yesterday and refreshed
+  // today, say -- is dropped rather than sent, since the service rejects the
+  // whole call over one dead date.
+  const today = todayUTC();
+  const dates = Array.from({ length: days }, (_, i) => formatDateISO(addDays(start, i))).filter(
+    (d) => d >= today
+  );
+
+  if (dates.length === 0) {
+    return NextResponse.json(
+      { error: "Those dates have passed. Choose today or later and refresh again." },
+      { status: 400 }
+    );
+  }
 
   const rows = [];
   const emptyDates = [];

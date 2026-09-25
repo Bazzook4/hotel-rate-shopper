@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import GoogleListingSetup from "./GoogleListingSetup";
 
 /**
@@ -181,7 +181,9 @@ function ParitySummary({ data }) {
 export default function RateParity({ session }) {
   const propertyId = session?.propertyId || session?.property_id || null;
 
-  const [anchor, setAnchor] = useState(() => formatDateISO(new Date()));
+  // Sent to the rate service, so it uses the service's idea of today rather
+  // than the browser's: east of UTC they disagree for part of every evening.
+  const [anchor, setAnchor] = useState(() => todayUTC());
   const [nights, setNights] = useState(1);
   const [guests, setGuests] = useState(2);
 
@@ -324,7 +326,9 @@ export default function RateParity({ session }) {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setAnchor(formatDateISO(addDays(parseDateISO(anchor), -WINDOW_DAYS)))}
+                  onClick={() =>
+                    setAnchor(clampToToday(formatDateISO(addDays(parseDateISO(anchor), -WINDOW_DAYS))))
+                  }
                   aria-label="Previous dates"
                 >
                   ‹
