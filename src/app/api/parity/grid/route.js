@@ -5,15 +5,15 @@ import { getPropertyById, getUserPropertyId, listParityRates } from "@/lib/datab
 import { parityStatus } from "@/lib/parity";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
+/** The window read when the caller does not ask for one; matches the grid. */
+const DEFAULT_DAYS = 7;
+
 /**
  * The stored parity grid for a date window.
  *
  * Reads only -- never calls Google -- so opening the page is instant and
  * costs nothing. Refreshing is an explicit action on its own route.
  */
-/** The window read when the caller does not ask for one; matches the grid. */
-const DEFAULT_DAYS = 7;
-
 export async function GET(req) {
   const session = await getSessionFromRequest(req);
   if (!session?.userId) {
@@ -105,6 +105,33 @@ export async function GET(req) {
     }
   }
 
+  // Channels are ordered by the cheapest rate each one shows anywhere in the
+  // window, so whoever is undercutting hardest -- the channel costing the
+  // most -- is read first. A channel selling nothing all week has no rate to
+  // order by and sinks to the bottom, where the alphabet keeps it stable
+  // rather than letting it shuffle between refreshes.
+  const ordered = [...channels.values()]
+    .map((channel) => {
+      let cheapest = null;
+      for (const date of dates) {
+        const rate = channel.cells[date]?.rate;
+        if (rate != null && (cheapest == null || rate < cheapest)) cheapest = rate;
+      }
+      return { channel, cheapest };
+    })
+    .sort((a, b) => {
+      if (a.cheapest == null && b.cheapest == null) {
+        return a.channel.name.localeCompare(b.channel.name);
+      }
+      if (a.cheapest == null) return 1;
+      if (b.cheapest == null) return -1;
+      // Two channels on the same rate keep a fixed order rather than the
+      // arbitrary one the map happened to hold.
+      if (a.cheapest !== b.cheapest) return a.cheapest - b.cheapest;
+      return a.channel.name.localeCompare(b.channel.name);
+    })
+    .map((entry) => entry.channel);
+
   const checkedAt = rows.reduce(
     (latest, r) => (!latest || r.checked_at > latest ? r.checked_at : latest),
     null
@@ -122,7 +149,7 @@ export async function GET(req) {
     guests,
     dates,
     lowestByDate,
-    channels: [...channels.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    channels: ordered,
     checkedAt,
   });
 }
