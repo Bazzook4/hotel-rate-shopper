@@ -170,6 +170,8 @@ export default function RateParity({ session }) {
 
     let cursor = 0;
     let failed = 0;
+    // Kept so the notice can say what went wrong, not just how many did.
+    let firstFailure = null;
     // A sweep that ends without the server saying "finished" is incomplete,
     // however normal the button looks afterwards. Tracked explicitly so a
     // partial refresh cannot be mistaken for a successful one.
@@ -205,6 +207,7 @@ export default function RateParity({ session }) {
         }
 
         failed += json.failures?.length || 0;
+        if (!firstFailure && json.failures?.length) firstFailure = json.failures[0];
         if (json.total) {
           done = json.done;
           total = json.total;
@@ -230,7 +233,9 @@ export default function RateParity({ session }) {
         );
       } else if (failed) {
         setNotice(
-          `${failed} of ${WINDOW_DAYS} dates could not be checked and kept their previous rates.`
+          `${failed} of ${WINDOW_DAYS} dates could not be checked and kept their previous rates${
+            firstFailure ? ` (${firstFailure.date}: ${firstFailure.message})` : ""
+          }.`
         );
       }
       await load();

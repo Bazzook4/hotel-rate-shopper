@@ -189,6 +189,10 @@ export default function CompetitorShopper({ session }) {
     let cursor = 0;
     let failed = 0;
     let last = null;
+    // Kept so the notice can say what went wrong, not just how many did.
+    // Counting alone leaves a hotelier unable to tell a slow page from a
+    // hotel Google has stopped listing.
+    let firstFailure = null;
     // A sweep that ends without the server saying "finished" is incomplete,
     // however normal the button looks afterwards. Tracked explicitly so a
     // partial refresh cannot be mistaken for a successful one.
@@ -223,6 +227,7 @@ export default function CompetitorShopper({ session }) {
 
         last = json;
         failed += json.failures?.length || 0;
+        if (!firstFailure && json.failures?.length) firstFailure = json.failures[0];
         if (json.total) {
           done = json.done;
           total = json.total;
@@ -249,7 +254,11 @@ export default function CompetitorShopper({ session }) {
       } else if (last) {
         setNotice(
           failed > 0
-            ? `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}. ${failed} lookups failed and kept their previous rates.`
+            ? `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}. ${failed} lookup${failed === 1 ? "" : "s"} failed and kept previous rates${
+                firstFailure
+                  ? ` (${firstFailure.competitor} on ${firstFailure.date}: ${firstFailure.message})`
+                  : ""
+              }.`
             : `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}.`
         );
       }
