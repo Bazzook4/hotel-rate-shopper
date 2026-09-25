@@ -221,7 +221,11 @@ export default function CompetitorShopper({ session }) {
         const json = await res.json();
         if (!res.ok) {
           setError(json?.error || "Could not refresh competitor rates.");
-          if (json?.needsCompetitors) setManaging(true);
+          // Only when there is genuinely nothing to refresh. A sweep that got
+          // part way and then failed has competitors already, and throwing
+          // the hotelier into the editor loses the calendar they were reading
+          // to fix something that is not broken.
+          if (json?.needsCompetitors && !data?.hasCompetitors) setManaging(true);
           return;
         }
 
