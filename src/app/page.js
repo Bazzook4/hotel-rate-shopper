@@ -12,8 +12,9 @@ import GoogleListingSetup from "./dashboard/components/GoogleListingSetup";
 import CompetitorShopper from "./dashboard/components/CompetitorShopper";
 import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
 import Reservations from "./dashboard/components/Reservations";
-import PmsCalendar from "./dashboard/components/PmsCalendar";
+import TapeChart from "./dashboard/components/TapeChart";
 import RoomInventory from "./dashboard/components/RoomInventory";
+import ExtrasSetup from "./dashboard/components/ExtrasSetup";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -380,9 +381,21 @@ export default function V2Dashboard() {
                 {/* Rooms and rate plans are separate pages; the component
                     renders one panel or the other. */}
                 {active === "rooms" && (
+                  <PropertySetup session={scopedSession} only="rooms" />
+                )}
+
+                {active === "pmssetup" && (
                   <div className="space-y-4">
-                    <PropertySetup session={scopedSession} only="rooms" />
+                    <div>
+                      <h2 className="h1">PMS Setup</h2>
+                      <p className="sub">
+                        What the front office needs before it can work: the actual
+                        rooms guests are checked into, and what can be added to a
+                        stay.
+                      </p>
+                    </div>
                     <RoomInventory session={scopedSession} />
+                    <ExtrasSetup session={scopedSession} />
                   </div>
                 )}
 
@@ -414,7 +427,7 @@ export default function V2Dashboard() {
                   </div>
                 )}
 
-                {active === "calendar" && <PmsCalendar session={scopedSession} />}
+                {active === "calendar" && <TapeChart session={scopedSession} />}
 
                 {active === "reservations" && <Reservations session={scopedSession} />}
 

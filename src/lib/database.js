@@ -2694,3 +2694,411 @@ export async function getAvailabilityGrid(propertyId, startDate, endDate) {
     }),
   };
 }
+
+// ============================================
+// PMS — THE FOLIO: GUESTS, EXTRAS, PAYMENTS, INVOICES
+// ============================================
+
+/** Named guests on a booking, primary first. */
+export async function listReservationGuests(reservationId) {
+  const { data, error } = await supabase
+    .from('reservation_guests')
+    .select('*')
+    .eq('reservation_id', reservationId)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(`Failed to load guests: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Add or update a guest on a booking.
+ *
+ * The primary guest's name is mirrored onto the reservation, because every
+ * list and search reads it from there rather than joining.
+ */
+export async function saveReservationGuest(reservationId, guest) {
+  const row = {
+    reservation_id: reservationId,
+    first_name: guest.first_name?.trim(),
+    last_name: guest.last_name?.trim() || null,
+    email: guest.email?.trim() || null,
+    phone: guest.phone?.trim() || null,
+    gender: guest.gender || null,
+    is_primary: guest.is_primary === true,
+  };
+
+  // Only one guest may be primary, so promoting this one demotes the rest
+  // before the write rather than letting the partial index reject it.
+  if (row.is_primary) {
+    const { error: demoteError } = await supabase
+      .from('reservation_guests')
+      .update({ is_primary: false })
+      .eq('reservation_id', reservationId)
+      .neq('id', guest.id || '00000000-0000-0000-0000-000000000000');
+    if (demoteError) {
+      throw new Error(`Failed to update guests: ${demoteError.message}`);
+    }
+  }
+
+  const query = guest.id
+    ? supabase.from('reservation_guests').update(row).eq('id', guest.id)
+    : supabase.from('reservation_guests').insert(row);
+
+  const { data, error } = await query.select('*').single();
+  if (error) throw new Error(`Failed to save guest: ${error.message}`);
+
+  if (data.is_primary) {
+    const name = [data.first_name, data.last_name].filter(Boolean).join(' ');
+    await supabase
+      .from('reservations')
+      .update({
+        guest_name: name,
+        guest_email: data.email,
+        guest_phone: data.phone,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', reservationId);
+  }
+
+  return data;
+}
+
+export async function deleteReservationGuest(id) {
+  const { error } = await supabase.from('reservation_guests').delete().eq('id', id);
+  if (error) throw new Error(`Failed to remove guest: ${error.message}`);
+  return true;
+}
+
+/** The property's menu of extras and inclusions. */
+export async function listPropertyExtras(propertyId) {
+  const { data, error } = await supabase
+    .from('property_extras')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('is_active', true)
+    .order('kind', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (error) throw new Error(`Failed to load extras: ${error.message}`);
+  return data || [];
+}
+
+export async function savePropertyExtra(row) {
+  const query = row.id
+    ? supabase.from('property_extras').update(row).eq('id', row.id)
+    : supabase.from('property_extras').insert(row);
+
+  const { data, error } = await query.select('*').single();
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`“${row.name}” is already on the list.`);
+    }
+    throw new Error(`Failed to save extra: ${error.message}`);
+  }
+  return data;
+}
+
+export async function listReservationExtras(reservationId) {
+  const { data, error } = await supabase
+    .from('reservation_extras')
+    .select('*')
+    .eq('reservation_id', reservationId)
+    .order('created_at', { ascending: true });
+
+  if (error) throw new Error(`Failed to load extras: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Put a line on a stay's folio.
+ *
+ * The name and price are copied from the menu rather than referenced, so
+ * re-pricing breakfast next month cannot rewrite what this guest was charged.
+ * A `per_night` item is multiplied out here, at the one moment the stay's
+ * length is known to be what the line was priced against.
+ */
+export async function addReservationExtra(reservationId, line) {
+  let { name, unit_price, quantity = 1, kind = 'extra', extra_id = null, stay_date = null } = line;
+
+  if (extra_id) {
+    const { data: menuItem, error } = await supabase
+      .from('property_extras')
+      .select('*')
+      .eq('id', extra_id)
+      .single();
+
+    if (error) throw new Error(`Failed to read the extras list: ${error.message}`);
+
+    name = name || menuItem.name;
+    unit_price = unit_price ?? menuItem.unit_price;
+    kind = menuItem.kind;
+
+    if (menuItem.charge_type === 'per_night' && !line.quantity) {
+      const reservation = await getReservation(reservationId);
+      quantity = Math.max(1, nightsBetween(reservation.check_in, reservation.check_out).length);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('reservation_extras')
+    .insert({
+      reservation_id: reservationId,
+      extra_id,
+      name,
+      unit_price: Number(unit_price) || 0,
+      quantity: Number(quantity) || 1,
+      kind,
+      stay_date,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to add the line: ${error.message}`);
+  return data;
+}
+
+export async function deleteReservationExtra(id) {
+  const { error } = await supabase.from('reservation_extras').delete().eq('id', id);
+  if (error) throw new Error(`Failed to remove the line: ${error.message}`);
+  return true;
+}
+
+export async function listReservationPayments(reservationId) {
+  const { data, error } = await supabase
+    .from('reservation_payments')
+    .select('*')
+    .eq('reservation_id', reservationId)
+    .order('paid_at', { ascending: true });
+
+  if (error) throw new Error(`Failed to load payments: ${error.message}`);
+  return data || [];
+}
+
+export async function addReservationPayment(reservationId, payment, userId = null) {
+  const { data, error } = await supabase
+    .from('reservation_payments')
+    .insert({
+      reservation_id: reservationId,
+      amount: Number(payment.amount),
+      method: payment.method || 'cash',
+      reference: payment.reference?.trim() || null,
+      notes: payment.notes?.trim() || null,
+      paid_at: payment.paid_at || new Date().toISOString(),
+      recorded_by: userId,
+    })
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to record the payment: ${error.message}`);
+  return data;
+}
+
+export async function deleteReservationPayment(id) {
+  const { error } = await supabase.from('reservation_payments').delete().eq('id', id);
+  if (error) throw new Error(`Failed to remove the payment: ${error.message}`);
+  return true;
+}
+
+/**
+ * What a stay owes, worked out from the rows beneath it.
+ *
+ * Computed rather than stored. A stored balance is a number that can quietly
+ * disagree with the lines it came from, and once it does there is no way to
+ * tell which one is lying.
+ */
+export async function getReservationFolio(reservationId) {
+  const [reservation, extras, payments, guests, invoices] = await Promise.all([
+    getReservation(reservationId),
+    listReservationExtras(reservationId),
+    listReservationPayments(reservationId),
+    listReservationGuests(reservationId),
+    listReservationInvoices(reservationId),
+  ]);
+
+  const room = Number(reservation.total_amount) || 0;
+  // Inclusions come with the rate, so they are shown but never charged.
+  const extrasTotal = extras
+    .filter((e) => e.kind === 'extra')
+    .reduce((sum, e) => sum + Number(e.unit_price) * Number(e.quantity), 0);
+  const paid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  const total = room + extrasTotal;
+
+  return {
+    reservation,
+    guests,
+    extras,
+    payments,
+    invoices,
+    totals: {
+      room,
+      extras: Number(extrasTotal.toFixed(2)),
+      total: Number(total.toFixed(2)),
+      paid: Number(paid.toFixed(2)),
+      balance: Number((total - paid).toFixed(2)),
+    },
+  };
+}
+
+export async function listReservationInvoices(reservationId) {
+  const { data, error } = await supabase
+    .from('reservation_invoices')
+    .select('*')
+    .eq('reservation_id', reservationId)
+    .order('issued_at', { ascending: false });
+
+  if (error) throw new Error(`Failed to load invoices: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Issue an invoice for a stay.
+ *
+ * The document is frozen into `snapshot` rather than recomputed when opened:
+ * an invoice must keep saying what it said on the day it was issued, even if
+ * the stay is later extended, re-priced or paid off.
+ *
+ * Numbering is sequential per property. The count could race under two
+ * simultaneous issues, so the unique constraint is the real guard and a
+ * collision is retried with the next number up.
+ */
+export async function createReservationInvoice(reservationId, userId = null) {
+  const folio = await getReservationFolio(reservationId);
+  const { reservation, totals } = folio;
+
+  const year = new Date().getFullYear();
+
+  const { count, error: countError } = await supabase
+    .from('reservation_invoices')
+    .select('*', { count: 'exact', head: true })
+    .eq('property_id', reservation.property_id);
+
+  if (countError) {
+    throw new Error(`Failed to allocate an invoice number: ${countError.message}`);
+  }
+
+  const snapshot = {
+    guest_name: reservation.guest_name,
+    guest_email: reservation.guest_email,
+    guest_phone: reservation.guest_phone,
+    reference: reservation.reference,
+    check_in: reservation.check_in,
+    check_out: reservation.check_out,
+    room_type: reservation.room_types?.room_type_name || null,
+    room_number: reservation.rooms?.room_number || null,
+    adults: reservation.adults,
+    children: reservation.children,
+    lines: [
+      {
+        description: `Accommodation — ${reservation.room_types?.room_type_name || 'room'}`,
+        amount: totals.room,
+      },
+      ...folio.extras
+        .filter((e) => e.kind === 'extra')
+        .map((e) => ({
+          description: e.name,
+          quantity: Number(e.quantity),
+          unit_price: Number(e.unit_price),
+          amount: Number(e.unit_price) * Number(e.quantity),
+        })),
+    ],
+    totals,
+    payments: folio.payments.map((p) => ({
+      amount: Number(p.amount),
+      method: p.method,
+      paid_at: p.paid_at,
+      reference: p.reference,
+    })),
+  };
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const invoice_number = `INV-${year}-${String((count || 0) + 1 + attempt).padStart(4, '0')}`;
+
+    const { data, error } = await supabase
+      .from('reservation_invoices')
+      .insert({
+        reservation_id: reservationId,
+        property_id: reservation.property_id,
+        invoice_number,
+        total_amount: totals.total,
+        currency: reservation.currency || 'INR',
+        snapshot,
+        created_by: userId,
+      })
+      .select('*')
+      .single();
+
+    if (!error) return data;
+    if (error.code !== '23505') {
+      throw new Error(`Failed to issue the invoice: ${error.message}`);
+    }
+  }
+
+  throw new Error('Failed to issue the invoice: could not allocate a number.');
+}
+
+/**
+ * Void an invoice.
+ *
+ * Never deleted: an issued invoice that vanishes leaves a gap in the number
+ * sequence that nobody can later account for.
+ */
+export async function voidReservationInvoice(id, reason) {
+  const { data, error } = await supabase
+    .from('reservation_invoices')
+    .update({ voided_at: new Date().toISOString(), void_reason: reason || null })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to void the invoice: ${error.message}`);
+  return data;
+}
+
+/**
+ * The tape chart: every room as a row, with the stays that fall in the window.
+ *
+ * Rooms with no bookings still come back -- an empty row is the point, since
+ * it is what tells the desk the room is free. Unassigned stays are returned
+ * separately rather than being dropped, because a booking with no room yet is
+ * exactly what the desk needs to see and place.
+ */
+export async function getTapeChart(propertyId, startDate, endDate) {
+  const [rooms, roomTypes, reservations] = await Promise.all([
+    listRooms(propertyId),
+    listRoomTypes(propertyId),
+    listReservations(propertyId, { from: startDate, to: endDate, limit: 1000 }),
+  ]);
+
+  const live = reservations.filter(
+    (r) => r.status !== 'cancelled' && r.status !== 'no_show'
+  );
+
+  const byRoom = {};
+  const unassigned = [];
+  for (const r of live) {
+    if (r.room_id) (byRoom[r.room_id] = byRoom[r.room_id] || []).push(r);
+    else unassigned.push(r);
+  }
+
+  const typeName = {};
+  for (const rt of roomTypes) typeName[rt.id] = rt.room_type_name;
+
+  return {
+    // Grouped by type so the chart can show "Deluxe" once above its rooms.
+    roomTypes: roomTypes.map((rt) => ({
+      id: rt.id,
+      name: rt.room_type_name,
+      rooms: rooms
+        .filter((room) => room.room_type_id === rt.id)
+        .map((room) => ({
+          ...room,
+          room_type_name: typeName[room.room_type_id],
+          reservations: byRoom[room.id] || [],
+        })),
+    })),
+    unassigned,
+  };
+}

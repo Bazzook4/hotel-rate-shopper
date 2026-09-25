@@ -3,12 +3,13 @@ import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { getAvailabilityGrid, listReservations } from "@/lib/database";
 
 /**
- * The calendar's data: availability per room type per date, plus the stays
- * that overlap the window.
+ * Availability per room type per date, plus the stays overlapping the window.
  *
- * Both come back from one call because the calendar is useless with only one
- * of them -- a free count with no way to see who is in the rooms is not a
- * front office view.
+ * No screen calls this today -- the Calendar page is the tape chart, which
+ * reads /api/pms/tape and shows actual rooms rather than counts. This is kept
+ * because occupancy per date is what pricing wants to reason about, and it is
+ * the one place that already computes it; it is not a leftover of the tape
+ * chart replacing the counts view.
  */
 
 /** Guard against a window so wide it would pull the whole booking history. */

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { assignableRoles } from "@/lib/permissions";
+import { AREAS, PLACEHOLDER_PAGES } from "@/app/dashboard/modules";
 import UserList from "./UserList";
 
 const statuses = [
@@ -9,13 +10,26 @@ const statuses = [
   { value: "Suspended", label: "Suspended" },
 ];
 
-const availableModules = [
-  { id: "cm", label: "Channel Manager", icon: "", description: "Rates and inventory to OTAs" },
-  { id: "compshopper", label: "Comp Shopper", icon: "", description: "Comp set rate comparison" },
-  { id: "parity", label: "Rate Parity", icon: "", description: "OTA spread analysis" },
-  { id: "pricing", label: "Dynamic Pricing", icon: "", description: "Smart pricing optimization" },
-  { id: "setup", label: "Property Setup", icon: "", description: "Room types and rate plans" },
-];
+/**
+ * The modules that can be granted, taken from the navigation registry.
+ *
+ * This used to be a hand-written list, and it drifted: every page added to the
+ * dashboard after it was written -- the whole Front Office, Room Setup, the
+ * Activity Log -- could not be granted to anyone, so a user with explicit
+ * grants simply never saw them. Deriving it from AREAS means a page added to
+ * the sidebar is grantable the same day.
+ *
+ * Placeholders are left out: there is nothing behind them to grant access to.
+ */
+const availableModules = AREAS.flatMap((area) =>
+  area.pages
+    .filter((page) => !PLACEHOLDER_PAGES.has(page.id))
+    .map((page) => ({
+      id: page.id,
+      label: page.label,
+      description: area.label,
+    }))
+);
 
 export default function AdminUserManager({ session }) {
   const roles = useMemo(() => assignableRoles(session), [session]);
@@ -254,7 +268,6 @@ export default function AdminUserManager({ session }) {
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">{module.icon}</span>
                   <span className="text-sm font-medium text-ink">{module.label}</span>
                 </div>
                 <p className="text-xs muted mt-0.5">{module.description}</p>

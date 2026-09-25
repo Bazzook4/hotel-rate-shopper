@@ -59,14 +59,18 @@ function toForm(reservation) {
 export default function BookingForm({
   session,
   reservation,
+  prefill,
   roomTypes,
   rooms,
   ratePlans,
+  embedded = false,
   onSaved,
   onCancel,
 }) {
+  // A booking started by clicking an empty cell on the tape chart arrives with
+  // the room and date already chosen, which is most of the form filled in.
   const [form, setForm] = useState(() =>
-    reservation ? toForm(reservation) : emptyBooking()
+    reservation ? toForm(reservation) : { ...emptyBooking(), ...(prefill || {}) }
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -141,15 +145,17 @@ export default function BookingForm({
   }
 
   return (
-    <div className="card card-pad space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 style={{ fontWeight: 600 }}>
-          {reservation ? `Edit ${reservation.reference}` : "New booking"}
-        </h3>
-        <button className="btn btn-ghost text-sm" onClick={onCancel}>
-          Close
-        </button>
-      </div>
+    <div className={embedded ? "space-y-4" : "card card-pad space-y-4"}>
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <h3 style={{ fontWeight: 600 }}>
+            {reservation ? `Edit ${reservation.reference}` : "New booking"}
+          </h3>
+          <button className="btn btn-ghost text-sm" onClick={onCancel}>
+            Close
+          </button>
+        </div>
+      )}
 
       {roomTypes.length === 0 && (
         <p className="sub" style={{ color: "var(--warn)" }}>
@@ -347,9 +353,11 @@ export default function BookingForm({
         >
           {saving ? "Saving…" : reservation ? "Save changes" : "Create booking"}
         </button>
-        <button className="btn btn-ghost text-sm" onClick={onCancel} disabled={saving}>
-          Cancel
-        </button>
+        {!embedded && (
+          <button className="btn btn-ghost text-sm" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   );

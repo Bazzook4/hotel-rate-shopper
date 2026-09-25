@@ -48,6 +48,7 @@ export const AREAS = [
       { id: "setup", label: "Property Setup", icon: "building" },
       { id: "rooms", label: "Room Setup", icon: "bed" },
       { id: "rateplans", label: "Rate Plan Setup", icon: "money" },
+      { id: "pmssetup", label: "PMS Setup", icon: "bed" },
     ],
   },
 ];
@@ -73,7 +74,13 @@ const LEGACY_ALIASES = {
  * shown only to users who may actually change setup -- the API enforces this
  * too, so this just avoids offering a page that 403s.
  */
-const SETUP_PAGES = new Set(["setup", "rooms", "rateplans", "integrations"]);
+const SETUP_PAGES = new Set([
+  "setup",
+  "rooms",
+  "rateplans",
+  "pmssetup",
+  "integrations",
+]);
 
 /** Pages only an admin may see at all. */
 const ADMIN_PAGES = new Set(["users"]);

@@ -1,0 +1,615 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import BookingModal from "./BookingModal";
+
+/**
+ * The tape chart: one row per physical room, each stay a bar across its nights.
+ *
+ * This is the front desk's working view. A count of free rooms answers whether
+ * anything is left to sell; this answers the question that follows -- which
+ * room, and who is either side of it. Seeing that 204 is empty Tuesday to
+ * Thursday between two bookings is the whole point, and no count can show it.
+ *
+ * Layout is a CSS grid of fixed-width day columns rather than a table, because
+ * a bar spans nights and has to be positioned across cell boundaries. Bars sit
+ * in an absolutely positioned layer over each room's row, offset by the nights
+ * between the window start and the stay's arrival.
+ */
+
+/** Width of one night, in pixels. Bars are positioned in multiples of this. */
+const DAY_WIDTH = 44;
+/** Width of the fixed room-name column on the left. */
+const ROOM_COL = 150;
+
+const WINDOWS = [
+  { days: 14, label: "14 days" },
+  { days: 30, label: "30 days" },
+];
+
+/** How a bar is coloured, which is how status reads at a glance. */
+const BAR_STYLE = {
+  confirmed: { background: "var(--accent)", color: "#fff" },
+  in_house: { background: "var(--warn)", color: "#fff" },
+  checked_out: { background: "var(--surface-2)", color: "var(--text-muted)" },
+};
+
+function daysBetween(a, b) {
+  return Math.round(
+    (new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000
+  );
+}
+
+function shiftDate(date, days) {
+  return formatDateISO(addDays(parseDateISO(date), days));
+}
+
+export default function TapeChart({ session }) {
+  const propertyId = session?.propertyId || null;
+
+  const [anchor, setAnchor] = useState(() => formatDateISO(todayUTC()));
+  const [windowDays, setWindowDays] = useState(14);
+  const [chart, setChart] = useState(null);
+  const [extras, setExtras] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const [openId, setOpenId] = useState(null);
+  const [newBooking, setNewBooking] = useState(null);
+
+  /**
+   * The drag in progress.
+   *
+   * Held in a ref as well as state: the pointer handlers are bound to the
+   * window and would otherwise close over the value from the render in which
+   * the drag started.
+   */
+  const [drag, setDrag] = useState(null);
+  const dragRef = useRef(null);
+  const gridRef = useRef(null);
+
+  const today = formatDateISO(todayUTC());
+
+  const dates = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < windowDays; i += 1) out.push(shiftDate(anchor, i));
+    return out;
+  }, [anchor, windowDays]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const start = anchor;
+      const end = shiftDate(anchor, windowDays - 1);
+      const qs = new URLSearchParams({ start, end });
+      if (propertyId) qs.set("propertyId", propertyId);
+
+      const res = await fetch(`/api/pms/tape?${qs}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load the chart");
+
+      setChart(data);
+      setExtras(data.extras || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [anchor, windowDays, propertyId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  /** Every room across every type, flattened, which is what the rows iterate. */
+  const rows = useMemo(() => {
+    if (!chart) return [];
+    return chart.roomTypes.flatMap((rt) =>
+      rt.rooms.map((room) => ({ ...room, typeName: rt.name }))
+    );
+  }, [chart]);
+
+  // ----- dragging -------------------------------------------------------
+
+  function beginDrag(e, reservation, mode) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const start = {
+      id: reservation.id,
+      mode, // "move" | "start" | "end"
+      originX: e.clientX,
+      originY: e.clientY,
+      check_in: reservation.check_in,
+      check_out: reservation.check_out,
+      room_id: reservation.room_id,
+      // What the bar currently shows, updated as the pointer moves so the
+      // bar follows without waiting for the server.
+      preview: {
+        check_in: reservation.check_in,
+        check_out: reservation.check_out,
+        room_id: reservation.room_id,
+      },
+    };
+    dragRef.current = start;
+    setDrag(start);
+  }
+
+  useEffect(() => {
+    if (!drag) return;
+
+    function onMove(e) {
+      const d = dragRef.current;
+      if (!d) return;
+
+      const dayShift = Math.round((e.clientX - d.originX) / DAY_WIDTH);
+
+      let check_in = d.check_in;
+      let check_out = d.check_out;
+      let room_id = d.room_id;
+
+      if (d.mode === "move") {
+        check_in = shiftDate(d.check_in, dayShift);
+        check_out = shiftDate(d.check_out, dayShift);
+
+        // Which room row the pointer is over, so a bar can be dragged
+        // vertically into another room.
+        const rowEl = document
+          .elementsFromPoint(e.clientX, e.clientY)
+          .find((el) => el.dataset?.roomId);
+        if (rowEl) room_id = rowEl.dataset.roomId;
+      } else if (d.mode === "start") {
+        const moved = shiftDate(d.check_in, dayShift);
+        // A stay cannot start on or after it ends.
+        if (moved < d.check_out) check_in = moved;
+      } else if (d.mode === "end") {
+        const moved = shiftDate(d.check_out, dayShift);
+        if (moved > d.check_in) check_out = moved;
+      }
+
+      const next = { ...d, preview: { check_in, check_out, room_id } };
+      dragRef.current = next;
+      setDrag(next);
+    }
+
+    async function onUp() {
+      const d = dragRef.current;
+      dragRef.current = null;
+      setDrag(null);
+      if (!d) return;
+
+      const moved =
+        d.preview.check_in !== d.check_in ||
+        d.preview.check_out !== d.check_out ||
+        d.preview.room_id !== d.room_id;
+
+      // A click that never moved is a click, and opens the booking.
+      if (!moved) {
+        setOpenId(d.id);
+        return;
+      }
+
+      setError(null);
+      try {
+        const res = await fetch("/api/pms/reservations/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: d.id,
+            property_id: propertyId,
+            room_id: d.preview.room_id,
+            check_in: d.preview.check_in,
+            check_out: d.preview.check_out,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not move the booking");
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        // Reload either way: on success to pick up the move, on failure to
+        // snap the bar back to where it actually is.
+        await load();
+      }
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [drag, load, propertyId]);
+
+  /** Where a bar sits and how wide it is, in pixels across the date window. */
+  function barGeometry(reservation) {
+    const d = drag?.id === reservation.id ? drag.preview : reservation;
+
+    const offset = daysBetween(anchor, d.check_in);
+    const nights = daysBetween(d.check_in, d.check_out);
+
+    // A stay running off either edge of the window is clipped to it, so the
+    // bar stays inside the chart while still showing it continues.
+    const from = Math.max(0, offset);
+    const to = Math.min(windowDays, offset + nights);
+    if (to <= 0 || from >= windowDays) return null;
+
+    return {
+      left: from * DAY_WIDTH,
+      width: Math.max(DAY_WIDTH * 0.6, (to - from) * DAY_WIDTH - 4),
+      clippedStart: offset < 0,
+      clippedEnd: offset + nights > windowDays,
+    };
+  }
+
+  /**
+   * The bars to draw in one room's row.
+   *
+   * Normally just the stays the server put there, but a bar being dragged
+   * between rooms belongs to whichever room the pointer is currently over --
+   * so it is added to that row and removed from the one it is leaving, and the
+   * bar follows the cursor instead of snapping back until the drop lands.
+   */
+  function barsForRoom(room) {
+    const dragged = drag
+      ? rows.flatMap((r) => r.reservations).find((r) => r.id === drag.id)
+      : null;
+
+    const here = room.reservations.filter((r) => r.id !== drag?.id);
+
+    if (dragged && drag.preview.room_id === room.id) return [...here, dragged];
+    return here;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="h1">Calendar</h2>
+          <p className="sub">
+            Every room, night by night. Click a booking to open it, or drag it to
+            move or resize the stay.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="btn btn-ghost text-sm"
+            onClick={() => setAnchor(shiftDate(anchor, -windowDays))}
+          >
+            ←
+          </button>
+          <input
+            className="input text-sm"
+            type="date"
+            value={anchor}
+            onChange={(e) => setAnchor(e.target.value)}
+            style={{ maxWidth: 160 }}
+          />
+          <button
+            className="btn btn-ghost text-sm"
+            onClick={() => setAnchor(shiftDate(anchor, windowDays))}
+          >
+            →
+          </button>
+          <button className="btn btn-ghost text-sm" onClick={() => setAnchor(today)}>
+            Today
+          </button>
+          {WINDOWS.map((w) => (
+            <button
+              key={w.days}
+              className={`btn text-sm ${windowDays === w.days ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => setWindowDays(w.days)}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <div
+          className="card card-pad text-sm"
+          style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
+        >
+          {error}
+        </div>
+      )}
+
+      {chart?.unassigned?.length > 0 && (
+        <div className="card card-pad space-y-2">
+          <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+            Not yet assigned a room ({chart.unassigned.length})
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {chart.unassigned.map((r) => (
+              <button
+                key={r.id}
+                className="chip chip-warn"
+                style={{ cursor: "pointer" }}
+                onClick={() => setOpenId(r.id)}
+                title={`${r.check_in} → ${r.check_out}`}
+              >
+                {r.guest_name} · {r.room_types?.room_type_name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ overflow: "hidden" }}>
+        {loading && <p className="sub card-pad">Loading…</p>}
+
+        {!loading && rows.length === 0 && (
+          <p className="sub card-pad">
+            No rooms set up yet. Add them in Room Setup — the chart needs actual
+            rooms to lay bookings out against.
+          </p>
+        )}
+
+        {!loading && rows.length > 0 && (
+          <div style={{ overflowX: "auto" }} ref={gridRef}>
+            <div style={{ minWidth: ROOM_COL + windowDays * DAY_WIDTH }}>
+              {/* Date header */}
+              <div
+                style={{
+                  display: "flex",
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 3,
+                  background: "var(--surface)",
+                  borderBottom: "1px solid var(--border-strong)",
+                }}
+              >
+                <div
+                  style={{
+                    width: ROOM_COL,
+                    flexShrink: 0,
+                    padding: "0.5rem",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    borderRight: "1px solid var(--border-strong)",
+                  }}
+                >
+                  Room
+                </div>
+                {dates.map((d) => {
+                  const parsed = parseDateISO(d);
+                  const isToday = d === today;
+                  const weekend = [0, 6].includes(parsed.getUTCDay());
+                  return (
+                    <div
+                      key={d}
+                      style={{
+                        width: DAY_WIDTH,
+                        flexShrink: 0,
+                        textAlign: "center",
+                        padding: "0.35rem 0",
+                        fontSize: "0.65rem",
+                        lineHeight: 1.25,
+                        background: isToday
+                          ? "var(--accent-soft)"
+                          : weekend
+                            ? "var(--surface-2)"
+                            : undefined,
+                        color: isToday ? "var(--accent-text)" : "var(--text-muted)",
+                        borderRight: "1px solid var(--border)",
+                      }}
+                    >
+                      <div>
+                        {parsed.toLocaleDateString("en-GB", { weekday: "short" })}
+                      </div>
+                      <div style={{ fontWeight: 600, color: "var(--text)", fontSize: "0.8rem" }}>
+                        {parsed.getUTCDate()}
+                      </div>
+                      <div>
+                        {parsed.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* One row per room */}
+              {rows.map((room) => (
+                <div
+                  key={room.id}
+                  style={{
+                    display: "flex",
+                    position: "relative",
+                    height: 40,
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: ROOM_COL,
+                      flexShrink: 0,
+                      padding: "0.35rem 0.5rem",
+                      fontSize: "0.8rem",
+                      borderRight: "1px solid var(--border-strong)",
+                      background: "var(--surface)",
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 2,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{room.room_number}</div>
+                    <div style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>
+                      {room.typeName}
+                      {!room.is_active && " · out of order"}
+                    </div>
+                  </div>
+
+                  {/* The day cells: the drop target, and a click starts a booking */}
+                  <div style={{ display: "flex", position: "relative", flex: 1 }}>
+                    {dates.map((d) => {
+                      const parsed = parseDateISO(d);
+                      const weekend = [0, 6].includes(parsed.getUTCDay());
+                      return (
+                        <div
+                          key={d}
+                          data-room-id={room.id}
+                          data-date={d}
+                          onClick={() =>
+                            room.is_active &&
+                            setNewBooking({
+                              room_id: room.id,
+                              room_type_id: room.room_type_id,
+                              check_in: d,
+                              check_out: shiftDate(d, 1),
+                            })
+                          }
+                          style={{
+                            width: DAY_WIDTH,
+                            flexShrink: 0,
+                            borderRight: "1px solid var(--border)",
+                            background:
+                              d === today
+                                ? "var(--accent-soft)"
+                                : weekend
+                                  ? "var(--surface-2)"
+                                  : undefined,
+                            cursor: room.is_active ? "cell" : "not-allowed",
+                          }}
+                        />
+                      );
+                    })}
+
+                    {/* Bars for this room, over the cells */}
+                    {barsForRoom(room).map((r) => {
+                          const geo = barGeometry(r);
+                          if (!geo) return null;
+                          const isDragging = drag?.id === r.id;
+                          const style = BAR_STYLE[r.status] || BAR_STYLE.confirmed;
+
+                          return (
+                            <div
+                              key={r.id}
+                              onPointerDown={(e) => beginDrag(e, r, "move")}
+                              title={`${r.guest_name} · ${r.reference}\n${r.check_in} → ${r.check_out}`}
+                              style={{
+                                position: "absolute",
+                                left: geo.left,
+                                width: geo.width,
+                                top: 5,
+                                height: 30,
+                                ...style,
+                                borderRadius: 4,
+                                borderTopLeftRadius: geo.clippedStart ? 0 : 4,
+                                borderBottomLeftRadius: geo.clippedStart ? 0 : 4,
+                                borderTopRightRadius: geo.clippedEnd ? 0 : 4,
+                                borderBottomRightRadius: geo.clippedEnd ? 0 : 4,
+                                display: "flex",
+                                alignItems: "center",
+                                padding: "0 0.4rem",
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                cursor: isDragging ? "grabbing" : "grab",
+                                opacity: isDragging ? 0.75 : 1,
+                                zIndex: isDragging ? 5 : 1,
+                                userSelect: "none",
+                                boxShadow: isDragging
+                                  ? "0 2px 8px rgba(0,0,0,0.3)"
+                                  : undefined,
+                              }}
+                            >
+                              {/* Resize handles, left and right */}
+                              <span
+                                onPointerDown={(e) => beginDrag(e, r, "start")}
+                                style={{
+                                  position: "absolute",
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: 6,
+                                  cursor: "ew-resize",
+                                }}
+                              />
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {r.guest_name}
+                              </span>
+                              <span
+                                onPointerDown={(e) => beginDrag(e, r, "end")}
+                                style={{
+                                  position: "absolute",
+                                  right: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: 6,
+                                  cursor: "ew-resize",
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: "var(--accent)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          Confirmed
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: "var(--warn)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          In house
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: "var(--surface-2)",
+              border: "1px solid var(--border-strong)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          Checked out
+        </span>
+      </div>
+
+      {(openId || newBooking) && (
+        <BookingModal
+          session={session}
+          reservationId={openId}
+          prefill={newBooking}
+          extras={extras}
+          onClose={() => {
+            setOpenId(null);
+            setNewBooking(null);
+          }}
+          onChanged={load}
+        />
+      )}
+    </div>
+  );
+}
