@@ -70,12 +70,6 @@ CREATE TABLE IF NOT EXISTS competitor_rates (
   link TEXT,
   sold_out BOOLEAN DEFAULT FALSE,
 
-  -- What was actually being sold, for the day view. Google names the room
-  -- only on its featured rows, so this can be null even where a rate exists,
-  -- and it may describe a slightly dearer row than the headline rate.
-  room_name TEXT,
-  free_cancellation BOOLEAN DEFAULT FALSE,
-
   checked_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
