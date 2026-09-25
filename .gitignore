@@ -44,3 +44,8 @@ next-env.d.ts
 
 # local deploy helper (not part of the app)
 deploy.sh
+
+# Saved Google Travel pages used to develop the parser. Kept out of the repo:
+# 6 MB of markup that goes stale within days, and the captured pages carry
+# Google's own session identifiers. Regenerate by re-fetching if needed.
+src/lib/scraper/__fixtures__/

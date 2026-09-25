@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { fetchSearch, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fetch";
 import { getSessionFromRequest } from "@/lib/session";
 import { getPropertyById, listCompetitors } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
@@ -27,10 +28,10 @@ export async function GET(req) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
 
-  const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) {
+  const scraperReady = isScraperConfigured();
+  if (!scraperReady) {
     return NextResponse.json(
-      { error: "Rate shopping is not configured. Ask your administrator to add the rate data key." },
+      { error: "Rate shopping is not configured. Ask your administrator to add the rate data credentials." },
       { status: 503 }
     );
   }
@@ -61,22 +62,15 @@ export async function GET(req) {
   const checkIn = formatDateISO(addDays(new Date(), SAMPLE_LEAD_DAYS));
   const checkOut = formatDateISO(addDays(new Date(), SAMPLE_LEAD_DAYS + 1));
 
-  const serp = new URL("https://serpapi.com/search.json");
-  serp.searchParams.set("engine", "google_hotels");
-  serp.searchParams.set("q", `hotels near ${where}`);
-  serp.searchParams.set("check_in_date", checkIn);
-  serp.searchParams.set("check_out_date", checkOut);
-  serp.searchParams.set("adults", "2");
-  serp.searchParams.set("currency", "INR");
-  serp.searchParams.set("gl", "in");
-  serp.searchParams.set("hl", "en");
-  serp.searchParams.set("api_key", apiKey);
 
   let json;
   try {
-    const res = await fetch(serp, { cache: "no-store" });
-    json = await res.json();
-    if (!res.ok || json?.error) throw new Error(json?.error || `Google returned ${res.status}`);
+    json = await fetchSearch(`hotels near ${where}`, {
+      checkIn,
+      checkOut,
+      adults: 2,
+      sessionId: sessionIdFor(propertyId),
+    });
   } catch (err) {
     console.error("Competitor suggestion search failed:", err.message);
     return NextResponse.json(

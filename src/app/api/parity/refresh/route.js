@@ -8,6 +8,7 @@ import {
   clearParityRatesForDates,
 } from "@/lib/database";
 import { normaliseChannels } from "@/lib/parity";
+import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -22,26 +23,18 @@ const MAX_DATES_PER_REFRESH = 31;
 const DEFAULT_DAYS = 7;
 
 /** One stay date, priced across every channel Google knows. */
-async function fetchDate(apiKey, query, stayDate, nights, guests) {
+async function fetchDate(_unused, query, stayDate, nights, guests, sessionId) {
   const checkOut = formatDateISO(addDays(parseDateISO(stayDate), nights));
 
-  const serp = new URL("https://serpapi.com/search.json");
-  serp.searchParams.set("engine", "google_hotels");
-  serp.searchParams.set("q", query);
-  serp.searchParams.set("check_in_date", stayDate);
-  serp.searchParams.set("check_out_date", checkOut);
-  serp.searchParams.set("adults", String(guests));
-  serp.searchParams.set("currency", "INR");
-  serp.searchParams.set("gl", "in");
-  serp.searchParams.set("hl", "en");
-  serp.searchParams.set("api_key", apiKey);
-
-  const res = await fetch(serp, { cache: "no-store" });
-  const json = await res.json();
-
-  if (!res.ok || json?.error) {
-    throw new Error(json?.error || `Google returned ${res.status}`);
-  }
+  // Rates are read from Google's own page rather than bought from SerpAPI,
+  // which -- measured against these properties -- omitted MakeMyTrip and
+  // Goibibo from its parsed output even though Google quotes them.
+  const json = await fetchHotel(query, {
+    checkIn: stayDate,
+    checkOut,
+    adults: guests,
+    sessionId,
+  });
 
   return normaliseChannels(json);
 }
@@ -65,10 +58,9 @@ export async function POST(req) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
 
-  const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) {
+  if (!isScraperConfigured()) {
     return NextResponse.json(
-      { error: "Rate shopping is not configured. Ask your administrator to add the rate data key." },
+      { error: "Rate shopping is not configured. Ask your administrator to add the rate data credentials." },
       { status: 503 }
     );
   }
@@ -118,12 +110,19 @@ export async function POST(req) {
   const emptyDates = [];
   const failures = [];
 
-  // Sequential on purpose: SerpAPI rate-limits concurrent calls on the plans
-  // this runs on, and a burst of parallel requests fails the whole refresh
-  // rather than slowing it down.
-  for (const stayDate of dates) {
+  // One session for the whole sweep, so every date leaves from the same
+  // address carrying the same cookies: one person planning one trip. A new
+  // exit address per date is what reads as automated.
+  const sessionId = sessionIdFor(propertyId);
+
+  // Sequential, and deliberately unhurried. Concurrency is the loudest signal
+  // available to Google's bot detection, so dates are fetched one at a time
+  // with a randomised gap rather than in a burst.
+  for (const [index, stayDate] of dates.entries()) {
+    if (index > 0) await sleep(jitterDelay());
+
     try {
-      const channels = await fetchDate(apiKey, property.google_place_query, stayDate, nights, guests);
+      const channels = await fetchDate(null, property.google_place_query, stayDate, nights, guests, sessionId);
       if (channels.length === 0) {
         emptyDates.push(stayDate);
         continue;
@@ -132,9 +131,14 @@ export async function POST(req) {
         rows.push({ ...channel, stay_date: stayDate, nights, guests });
       }
     } catch (err) {
-      // One bad date should not lose the rest of the window, so the failure is
-      // collected and reported alongside whatever did come back.
+      // A refusal or a stale parser applies to every remaining date, so the
+      // sweep stops rather than spending more requests on an address Google
+      // has just turned away -- retrying through a soft block is what turns
+      // it into a hard one.
       failures.push({ date: stayDate, message: err.message });
+      if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
+        break;
+      }
     }
   }
 

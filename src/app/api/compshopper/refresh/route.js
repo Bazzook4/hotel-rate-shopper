@@ -3,6 +3,7 @@ import { getSessionFromRequest } from "@/lib/session";
 import { listCompetitors, saveCompetitorRates } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { cheapestQuote, MAX_COMPETITORS } from "@/lib/competitors";
+import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -14,28 +15,19 @@ import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/
 const REFRESH_DAYS = 7;
 
 /** One competitor on one night, priced at the cheapest channel selling it. */
-async function fetchOne(apiKey, competitor, stayDate, nights, guests) {
+async function fetchOne(competitor, stayDate, nights, guests, sessionId) {
   const checkOut = formatDateISO(addDays(parseDateISO(stayDate), nights));
 
-  const serp = new URL("https://serpapi.com/search.json");
-  serp.searchParams.set("engine", "google_hotels");
-  // Google rejects a property_token sent without a q, so the name rides
-  // along; the token is what actually pins the listing.
-  serp.searchParams.set("q", competitor.name);
-  serp.searchParams.set("property_token", competitor.property_token);
-  serp.searchParams.set("check_in_date", stayDate);
-  serp.searchParams.set("check_out_date", checkOut);
-  serp.searchParams.set("adults", String(guests));
-  serp.searchParams.set("currency", "INR");
-  serp.searchParams.set("gl", "in");
-  serp.searchParams.set("hl", "en");
-  serp.searchParams.set("api_key", apiKey);
-
-  const res = await fetch(serp, { cache: "no-store" });
-  const json = await res.json();
-  if (!res.ok || json?.error) {
-    throw new Error(json?.error || `Google returned ${res.status}`);
-  }
+  // The competitor is looked up by name. SerpAPI pinned a listing with its
+  // own `property_token`, which no longer exists once we read Google's page
+  // directly; the stored token is kept for the identity migration but is not
+  // a search key here.
+  const json = await fetchHotel(competitor.name, {
+    checkIn: stayDate,
+    checkOut,
+    adults: guests,
+    sessionId,
+  });
 
   const quote = cheapestQuote(json);
   return {
@@ -72,10 +64,9 @@ export async function POST(req) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
 
-  const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) {
+  if (!isScraperConfigured()) {
     return NextResponse.json(
-      { error: "Rate shopping is not configured. Ask your administrator to add the rate data key." },
+      { error: "Rate shopping is not configured. Ask your administrator to add the rate data credentials." },
       { status: 503 }
     );
   }
@@ -118,16 +109,35 @@ export async function POST(req) {
   const rows = [];
   const failures = [];
 
-  // Sequential, like the parity refresh: the data service rate-limits
-  // concurrent calls, and a burst fails the whole run rather than speeding
-  // it up.
+  // Sequential and paced, like the parity refresh: concurrency is the
+  // loudest signal available to Google's bot detection, so cells are fetched
+  // one at a time with a randomised gap.
+  let stopped = false;
   for (const competitor of tracked) {
+    if (stopped) break;
+
+    // A session per competitor: one address reading one hotel's calendar
+    // looks like a guest comparing dates, where a single session sweeping
+    // six different hotels does not.
+    const sessionId = sessionIdFor(`${propertyId}${competitor.id}`);
+    let first = true;
+
     for (const stayDate of dates) {
+      if (!first) await sleep(jitterDelay());
+      first = false;
+
       try {
-        rows.push(await fetchOne(apiKey, competitor, stayDate, nights, guests));
+        rows.push(await fetchOne(competitor, stayDate, nights, guests, sessionId));
       } catch (err) {
         // One bad cell should not lose the rest of the sweep.
         failures.push({ competitor: competitor.name, date: stayDate, message: err.message });
+        // A refusal or a stale parser applies to every remaining cell, so the
+        // run stops rather than spending requests against an address Google
+        // has just turned away.
+        if (err.code === "blocked" || err.code === "consent_wall" || err.code === "selectors_stale") {
+          stopped = true;
+          break;
+        }
       }
     }
   }
