@@ -14,19 +14,23 @@ export async function GET(request) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const user = await getUserById(session.userId).catch(() => null);
+  const propertyId = session.property_id || null;
+
+  // Every page waits on this route before it renders, so the three lookups
+  // run together rather than one after another: none of them needs another's
+  // result, they only need the decoded session. The modules query is skipped
+  // when the cookie already carries them, which is the usual case.
+  const [user, property, fetchedModules] = await Promise.all([
+    getUserById(session.userId).catch(() => null),
+    propertyId ? getPropertyById(propertyId).catch(() => null) : null,
+    session.modules?.length ? null : getUserModules(session.userId).catch(() => []),
+  ]);
+
   if (!user) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const propertyId = session.property_id || null;
-  const property = propertyId ? await getPropertyById(propertyId).catch(() => null) : null;
-
-  // Get modules from session or fetch from database
-  let modules = session.modules || [];
-  if (modules.length === 0) {
-    modules = await getUserModules(user.id).catch(() => []);
-  }
+  const modules = session.modules?.length ? session.modules : fetchedModules || [];
 
   return NextResponse.json({
     user: {
