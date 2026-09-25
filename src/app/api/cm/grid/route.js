@@ -94,7 +94,11 @@ export async function GET(req) {
     const codeByPlan = {};
     for (const row of integration?.codeMap || []) {
       if (row.rate_plan_id) {
-        codeByPlan[`${row.rate_plan_id}|${row.occupancy ?? 1}`] = {
+        // Keyed by room too: the same plan carries a different partner code
+        // in each room it is sold on.
+        codeByPlan[
+          `${row.room_type_id ?? ""}|${row.rate_plan_id}|${row.occupancy ?? 1}`
+        ] = {
           code: row.partner_rateplan_code,
           extraAdult: row.extra_adult,
           meals: row.no_of_meals,
@@ -199,8 +203,10 @@ export async function GET(req) {
               // The rate a cell falls back to, which now varies by how many
               // adults the row is for.
               resolvedRate: rateForOccupancy(p.id, room.id, resolved[p.id], occ),
-              partnerCode: codeByPlan[`${p.id}|${occ}`]?.code || null,
-              extraAdult: codeByPlan[`${p.id}|${occ}`]?.extraAdult ?? null,
+              partnerCode:
+                codeByPlan[`${room.id}|${p.id}|${occ}`]?.code || null,
+              extraAdult:
+                codeByPlan[`${room.id}|${p.id}|${occ}`]?.extraAdult ?? null,
             })
           ),
         })),

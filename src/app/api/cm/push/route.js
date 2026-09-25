@@ -83,12 +83,16 @@ export async function POST(req) {
     ? await getPropertyIntegration(resolvedProperty, "aiosell").catch(() => null)
     : null;
 
+  // A rate plan is mapped once per room type and occupancy, because the
+  // partner treats each of those combinations as its own rate plan code.
+  // Keying on the plan alone would let one room's code overwrite another's.
   const roomCodes = {};
   const planCodes = {};
   for (const row of found?.codeMap || []) {
     if (row.rate_plan_id) {
-      planCodes[`${row.rate_plan_id}|${row.occupancy ?? 1}`] =
-        row.partner_rateplan_code;
+      planCodes[
+        `${row.room_type_id ?? ""}|${row.rate_plan_id}|${row.occupancy ?? 1}`
+      ] = row.partner_rateplan_code;
     } else if (row.room_type_id) {
       roomCodes[row.room_type_id] = row.partner_room_code;
     }
@@ -117,7 +121,7 @@ export async function POST(req) {
 
       if (key === "rooms") return { ...entry, roomCode };
 
-      const planKey = `${entry.rateplanCode}|${entry.occupancy ?? 1}`;
+      const planKey = `${entry.roomCode}|${entry.rateplanCode}|${entry.occupancy ?? 1}`;
       const rateplanCode = planCodes[planKey] || entry.rateplanCode;
       if (!planCodes[planKey] && found) missing.push(entry.rateplanCode);
 
