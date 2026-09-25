@@ -47,7 +47,12 @@ function ComingSoon({ title, children }) {
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [active, setActive] = useState("cm");
+  // The open page lives in the URL hash, so a refresh reopens where you were
+  // and a page can be linked to. This page is prerendered, so the hash is
+  // read in an effect rather than here: the server has no hash, and starting
+  // from one would not match what it rendered. Empty until then, which the
+  // loading spinner already covers.
+  const [active, setActive] = useState("");
   // The sidebar collapses to give the grid its full width, which matters most
   // on the Channel Manager's 30-day view.
   const [railOpen, setRailOpen] = useState(true);
@@ -119,12 +124,46 @@ export default function V2Dashboard() {
   // so switching areas and landing on a page keep one source of truth.
   const currentArea = useMemo(() => areaForPage(areas, active), [areas, active]);
 
+  // Settle on a page: the hash if it names one this session may see,
+  // otherwise the first page available.
+  //
+  // Waits for the session, because `areas` without one is not yet the real
+  // answer -- it omits Setup, so judging a #rateplans hash against it would
+  // reject a page the user is in fact allowed, and nothing would revisit that
+  // once a page had been chosen. After that it runs whenever `active` leaves
+  // the visible set, which is what drops a hash naming a page this user may
+  // not open, or one left over from a page that has since been renamed.
   useEffect(() => {
-    const exists = areas.some((a) => a.pages.some((p) => p.id === active));
-    if (areas.length && !exists) {
-      setActive(areas[0].pages[0].id);
+    if (sessionLoading || !areas.length) return;
+    const canSee = (id) => areas.some((a) => a.pages.some((p) => p.id === id));
+    if (canSee(active)) return;
+
+    const hashed = window.location.hash.slice(1);
+    setActive(canSee(hashed) ? hashed : areas[0].pages[0].id);
+  }, [areas, active, sessionLoading]);
+
+  // Write the open page back to the hash. replaceState rather than assigning
+  // to location.hash, so moving around the dashboard does not fill the back
+  // button with every page visited; back leaves the dashboard as before.
+  useEffect(() => {
+    // Not while the session is still loading: `areas` is at its widest then,
+    // and writing the page chosen against it would overwrite the incoming
+    // hash before the effect above has had the loaded session to judge it by.
+    if (sessionLoading || !active) return;
+    if (window.location.hash.slice(1) === active) return;
+    window.history.replaceState(null, "", `#${active}`);
+  }, [active, sessionLoading]);
+
+  // Back and forward still move between pages when the hash does change --
+  // from a pasted link, or from the browser's own history.
+  useEffect(() => {
+    function onHashChange() {
+      const id = window.location.hash.slice(1);
+      if (id) setActive(id);
     }
-  }, [areas, active]);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   const pageLabel = currentArea?.pages.find((p) => p.id === active)?.label || "";
 
