@@ -7,7 +7,8 @@ import ChannelManager from "./dashboard/components/ChannelManager";
 import PropertySetup from "./dashboard/components/PropertySetup";
 import Integrations from "./dashboard/components/Integrations";
 import ActivityLog from "./dashboard/components/ActivityLog";
-import DisparityChecker from "./components/DisparityChecker";
+import RateParity from "./dashboard/components/RateParity";
+import GoogleListingSetup from "./dashboard/components/GoogleListingSetup";
 import DynamicPricing from "./components/DynamicPricing";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
@@ -321,18 +322,7 @@ export default function V2Dashboard() {
 
                 {active === "logs" && <ActivityLog session={scopedSession} />}
 
-                {active === "parity" && (
-                  <div className="space-y-4">
-                    <div>
-                      <h2 className="h1">Rate Parity</h2>
-                      <p className="sub">
-                        Audit OTA spreads for a specific hotel and highlight actionable
-                        gaps.
-                      </p>
-                    </div>
-                    <DisparityChecker defaultHotelName={session?.propertyName} />
-                  </div>
-                )}
+                {active === "parity" && <RateParity session={scopedSession} />}
 
                 {active === "pricing" && <DynamicPricing />}
 
@@ -347,10 +337,17 @@ export default function V2Dashboard() {
                 )}
 
                 {active === "setup" && (
-                  <ComingSoon title="Property Setup">
-                    Property details — address, contact, policies and amenities. This
-                    will be fed from the PMS rather than entered here.
-                  </ComingSoon>
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="h1">Property Setup</h2>
+                      <p className="sub">
+                        Property details — address, contact, policies and amenities — will
+                        be fed from the PMS rather than entered here. The Google listing is
+                        set here because only the hotelier knows which listing is theirs.
+                      </p>
+                    </div>
+                    <GoogleListingSetup propertyId={scopedSession?.propertyId} />
+                  </div>
                 )}
 
                 {active === "users" && session?.canManageUsers && (

@@ -1683,3 +1683,91 @@ export async function listSyncLogs(
 
   return { rows: data || [], total: count ?? (data || []).length };
 }
+
+// ============================================
+// RATE PARITY
+// ============================================
+
+/**
+ * Every stored observation for a property across a date window.
+ *
+ * Returned flat and grouped by the caller: the grid needs them keyed by
+ * channel then date, but the CSV export wants them as rows, so neither shape
+ * is imposed here.
+ */
+export async function listParityRates(propertyId, startDate, endDate, { nights = 1, guests = 2 } = {}) {
+  const { data, error } = await supabase
+    .from('parity_rates')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('nights', nights)
+    .eq('guests', guests)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate)
+    .order('stay_date', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to load parity rates: ${error.message}`);
+  }
+
+  return data || [];
+}
+
+/**
+ * Replace the observations for the cells a refresh just covered.
+ *
+ * Upserted on the unique cell index rather than deleted and re-inserted, so a
+ * refresh that fails part way leaves the earlier rates on screen instead of
+ * blanking the grid.
+ */
+export async function saveParityRates(propertyId, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  const payload = rows.map((r) => ({
+    property_id: propertyId,
+    stay_date: r.stay_date,
+    nights: r.nights ?? 1,
+    guests: r.guests ?? 2,
+    channel: r.channel,
+    channel_key: r.channel_key,
+    channel_logo: r.channel_logo || null,
+    link: r.link || null,
+    rate: r.rate ?? null,
+    currency: r.currency || 'INR',
+    includes_tax: r.includes_tax === true,
+    sold_out: r.sold_out === true,
+    checked_at: now,
+  }));
+
+  const { error } = await supabase
+    .from('parity_rates')
+    .upsert(payload, { onConflict: 'property_id,stay_date,nights,guests,channel_key' });
+
+  if (error) {
+    throw new Error(`Failed to save parity rates: ${error.message}`);
+  }
+
+  return payload.length;
+}
+
+/**
+ * Drop observations for dates a refresh covered but that returned no channel
+ * at all. Without this a channel that stops selling a night keeps showing its
+ * last known rate forever, which reads as current data.
+ */
+export async function clearParityRatesForDates(propertyId, dates, { nights = 1, guests = 2 } = {}) {
+  if (!Array.isArray(dates) || dates.length === 0) return;
+
+  const { error } = await supabase
+    .from('parity_rates')
+    .delete()
+    .eq('property_id', propertyId)
+    .eq('nights', nights)
+    .eq('guests', guests)
+    .in('stay_date', dates);
+
+  if (error) {
+    throw new Error(`Failed to clear parity rates: ${error.message}`);
+  }
+}
