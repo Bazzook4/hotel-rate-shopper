@@ -52,6 +52,81 @@ function minOf(a, b) {
   return Math.min(a, b);
 }
 
+/**
+ * Group rate rows into one update per date, in the shape the push route
+ * translates.
+ *
+ * The room comes from the row itself rather than from the plan, so a rate
+ * priced in one room is never sent against another.
+ */
+function ratesToUpdates(rows) {
+  const byDate = {};
+  for (const row of rows) {
+    if (!row.room_type_id) continue;
+    (byDate[row.stay_date] ||= []).push({
+      roomCode: row.room_type_id,
+      rateplanCode: row.rate_plan_id,
+      occupancy: row.occupancy,
+      rate: Number(row.rate),
+    });
+  }
+  return Object.entries(byDate).map(([date, entries]) => ({
+    startDate: date,
+    endDate: date,
+    rates: entries,
+  }));
+}
+
+/**
+ * Group restriction rows into one update per date.
+ *
+ * Aiosell takes restrictions per room type, not per rate plan, so plans
+ * sharing a room on the same date collapse into one entry. Where two plans
+ * on that room disagree, the stricter value is sent: a stop sell anywhere
+ * closes the room, the longest minimum and the shortest maximum win.
+ * Pushing them separately would mean the last one written silently
+ * overwrote the others.
+ */
+function restrictionsToUpdates(rows) {
+  const byDate = {};
+  for (const row of rows) {
+    if (!row.room_type_id) continue;
+    const byRoom = (byDate[row.stay_date] ||= {});
+    const prev = byRoom[row.room_type_id];
+    byRoom[row.room_type_id] = prev
+      ? {
+          stopSell: Boolean(prev.stopSell || row.stop_sell),
+          minStay: maxOf(prev.minStay, row.min_stay),
+          maxStay: minOf(prev.maxStay, row.max_stay),
+        }
+      : {
+          stopSell: Boolean(row.stop_sell),
+          minStay: row.min_stay ?? null,
+          maxStay: row.max_stay ?? null,
+        };
+  }
+
+  return Object.entries(byDate).map(([date, byRoom]) => ({
+    startDate: date,
+    endDate: date,
+    rooms: Object.entries(byRoom).map(([roomCode, r]) => ({
+      roomCode,
+      restrictions: {
+        stopSell: r.stopSell,
+        minimumStay: r.minStay,
+        maximumStay: r.maxStay,
+        closeOnArrival: false,
+        closeOnDeparture: false,
+        minimumStayArrival: null,
+        maximumStayArrival: null,
+        exactStayArrival: null,
+        minimumAdvanceReservation: null,
+        maximumAdvanceReservation: null,
+      },
+    })),
+  }));
+}
+
 function formatDay(iso) {
   const d = new Date(`${iso}T00:00:00Z`);
   return {
@@ -90,6 +165,20 @@ export default function ChannelManager() {
   // default to rates; picking another metric swaps the cells in place rather
   // than adding rows, so the grid keeps one line per rate plan.
   const [planView, setPlanView] = useState({});
+  // Resync: resend what is already stored, without editing anything. Open
+  // state, the range it covers, what to send, and which rooms/plans to
+  // include. An empty room or plan set means every one of them.
+  const [resyncOpen, setResyncOpen] = useState(false);
+  const [resyncFrom, setResyncFrom] = useState(() => isoDate(new Date()));
+  const [resyncTo, setResyncTo] = useState(() => isoDate(new Date()));
+  const [resyncWhat, setResyncWhat] = useState({
+    rates: true,
+    restrictions: true,
+  });
+  const [resyncRooms, setResyncRooms] = useState([]);
+  const [resyncPlans, setResyncPlans] = useState([]);
+  const [resyncBusy, setResyncBusy] = useState(false);
+
   const dirtyRates = Object.keys(rates).length;
   const dirtyRestrictions = Object.keys(restrictions).length;
   const dirty = dirtyRates + dirtyRestrictions;
@@ -156,6 +245,18 @@ export default function ChannelManager() {
       .filter(Boolean);
   }, [grid, filter]);
 
+
+  // Every distinct rate plan across the rooms, for the resync picker. A plan
+  // sold on several rooms is listed once.
+  const allPlans = useMemo(() => {
+    const seen = new Map();
+    for (const room of grid?.rooms || []) {
+      for (const p of room.plans || []) {
+        if (!seen.has(p.id)) seen.set(p.id, { id: p.id, label: p.label || p.name });
+      }
+    }
+    return [...seen.values()];
+  }, [grid]);
 
   /**
    * Set a channel's markup.
@@ -277,25 +378,7 @@ export default function ChannelManager() {
       setRates({});
       setRestrictions({});
 
-      // The room comes from the edited cell itself. Looking it up from the
-      // plan would pick the first room offering it, so a rate edited in one
-      // room was sent to another.
-      const byDate = {};
-      for (const row of rows) {
-        if (!row.room_type_id) continue;
-        (byDate[row.stay_date] ||= []).push({
-          roomCode: row.room_type_id,
-          rateplanCode: row.rate_plan_id,
-          occupancy: row.occupancy,
-          rate: Number(row.rate),
-        });
-      }
-
-      const updates = Object.entries(byDate).map(([date, entries]) => ({
-        startDate: date,
-        endDate: date,
-        rates: entries,
-      }));
+      const updates = ratesToUpdates(rows);
 
       let pushJson = null;
       if (updates.length > 0) {
@@ -315,51 +398,7 @@ export default function ChannelManager() {
         }
       }
 
-      // Aiosell takes restrictions per room type, not per rate plan, so plans
-      // sharing a room on the same date collapse into one entry. Where two
-      // plans on that room disagree, the stricter value is sent: a stop sell
-      // anywhere closes the room, the longest minimum and the shortest
-      // maximum win. Pushing them separately would mean the last one written
-      // silently overwrote the others.
-      const restrictionsByDate = {};
-      for (const row of restrictionRows) {
-        if (!row.room_type_id) continue;
-        const byRoom = (restrictionsByDate[row.stay_date] ||= {});
-        const prev = byRoom[row.room_type_id];
-        byRoom[row.room_type_id] = prev
-          ? {
-              stopSell: Boolean(prev.stopSell || row.stop_sell),
-              minStay: maxOf(prev.minStay, row.min_stay),
-              maxStay: minOf(prev.maxStay, row.max_stay),
-            }
-          : {
-              stopSell: Boolean(row.stop_sell),
-              minStay: row.min_stay ?? null,
-              maxStay: row.max_stay ?? null,
-            };
-      }
-
-      const restrictionUpdates = Object.entries(restrictionsByDate).map(
-        ([date, byRoom]) => ({
-          startDate: date,
-          endDate: date,
-          rooms: Object.entries(byRoom).map(([roomCode, r]) => ({
-            roomCode,
-            restrictions: {
-              stopSell: r.stopSell,
-              minimumStay: r.minStay,
-              maximumStay: r.maxStay,
-              closeOnArrival: false,
-              closeOnDeparture: false,
-              minimumStayArrival: null,
-              maximumStayArrival: null,
-              exactStayArrival: null,
-              minimumAdvanceReservation: null,
-              maximumAdvanceReservation: null,
-            },
-          })),
-        })
-      );
+      const restrictionUpdates = restrictionsToUpdates(restrictionRows);
 
       let restrictionJson = null;
       if (restrictionUpdates.length > 0) {
@@ -402,6 +441,133 @@ export default function ChannelManager() {
       setNotice(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Resend what is already stored for a date range, changing nothing.
+   *
+   * This is for when the channel manager and this system have drifted apart
+   * -- a rejected push, or a mapping fixed after the fact -- so it reads the
+   * stored rows back and sends them again exactly as Publish would.
+   *
+   * Only stored rows are sent. A date never explicitly priced has nothing to
+   * resend, and the channel manager keeps whatever it already holds for it
+   * rather than being handed a fallback rate nobody chose.
+   */
+  async function resync() {
+    if (resyncFrom > resyncTo) {
+      setNotice("The start date is after the end date.");
+      return;
+    }
+    if (!resyncWhat.rates && !resyncWhat.restrictions) {
+      setNotice("Pick rates, restrictions, or both.");
+      return;
+    }
+
+    setResyncBusy(true);
+    setNotice("");
+
+    try {
+      // The range can reach outside the window on screen, so the rows are
+      // fetched for it rather than read from the loaded grid.
+      const res = await fetch(
+        `/api/cm/grid?start=${resyncFrom}&end=${resyncTo}`
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Could not read stored rates");
+
+      // An empty selection means everything, so a resync with no boxes
+      // ticked still does the obvious thing.
+      const roomWanted = (id) =>
+        resyncRooms.length === 0 || resyncRooms.includes(id);
+      const planWanted = (id) =>
+        resyncPlans.length === 0 || resyncPlans.includes(id);
+
+      const rateRows = [];
+      if (resyncWhat.rates) {
+        for (const [key, value] of Object.entries(json.dailyRates || {})) {
+          const [rate_plan_id, room_type_id, occupancy, stay_date] =
+            key.split("|");
+          if (!room_type_id) continue;
+          if (!roomWanted(room_type_id) || !planWanted(rate_plan_id)) continue;
+          rateRows.push({
+            rate_plan_id,
+            room_type_id,
+            occupancy: Number(occupancy),
+            stay_date,
+            rate: value.rate,
+          });
+        }
+      }
+
+      const restrictionRows = [];
+      if (resyncWhat.restrictions) {
+        for (const [key, value] of Object.entries(
+          json.dailyRestrictions || {}
+        )) {
+          const [rate_plan_id, room_type_id, stay_date] = key.split("|");
+          if (!room_type_id) continue;
+          if (!roomWanted(room_type_id) || !planWanted(rate_plan_id)) continue;
+          restrictionRows.push({
+            rate_plan_id,
+            room_type_id,
+            stay_date,
+            stop_sell: value.stopSell ?? null,
+            min_stay: value.minStay ?? null,
+            max_stay: value.maxStay ?? null,
+          });
+        }
+      }
+
+      if (rateRows.length === 0 && restrictionRows.length === 0) {
+        setNotice(
+          "Nothing stored to resend for those dates and selection."
+        );
+        return;
+      }
+
+      const sent = [];
+
+      if (rateRows.length > 0) {
+        const updates = ratesToUpdates(rateRows);
+        const pushRes = await fetch("/api/cm/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "rates", updates }),
+        });
+        const pushJson = await pushRes.json();
+        if (!pushRes.ok) throw new Error(pushJson?.error || "Rate resync failed");
+        sent.push(`${rateRows.length} rate${rateRows.length === 1 ? "" : "s"}`);
+      }
+
+      if (restrictionRows.length > 0) {
+        const updates = restrictionsToUpdates(restrictionRows);
+        const pushRes = await fetch("/api/cm/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "restrictions", updates }),
+        });
+        const pushJson = await pushRes.json();
+        if (!pushRes.ok) {
+          throw new Error(pushJson?.error || "Restriction resync failed");
+        }
+        sent.push(
+          `${restrictionRows.length} restriction${
+            restrictionRows.length === 1 ? "" : "s"
+          }`
+        );
+      }
+
+      setResyncOpen(false);
+      await load();
+      setNotice(
+        `Resent ${sent.join(" and ")} for ${resyncFrom} → ${resyncTo}. Nothing was changed.`
+      );
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setResyncBusy(false);
     }
   }
 
@@ -460,6 +626,20 @@ export default function ChannelManager() {
           )}
           <button
             type="button"
+            onClick={() => {
+              // Default the range to the window on screen, which is almost
+              // always what needs resending.
+              setResyncFrom(dates[0]);
+              setResyncTo(dates[dates.length - 1]);
+              setResyncOpen((o) => !o);
+            }}
+            disabled={busy || resyncBusy}
+            className="btn btn-secondary"
+          >
+            Resync
+          </button>
+          <button
+            type="button"
             onClick={publish}
             disabled={busy || !dirty}
             className="btn btn-primary"
@@ -476,6 +656,148 @@ export default function ChannelManager() {
       {notice && (
         <div className="card px-4 py-2 sub">
           {notice}
+        </div>
+      )}
+
+      {/* Resync: resend stored rates and restrictions, changing nothing. */}
+      {resyncOpen && (
+        <div className="card card-pad space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Resync to Aiosell</h3>
+            <p className="mt-1 text-xs muted">
+              Resends what is already stored for these dates. Nothing is
+              changed here — use it when the channel manager has drifted out
+              of step with this grid.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">From</span>
+              <input
+                type="date"
+                value={resyncFrom}
+                onChange={(e) => setResyncFrom(e.target.value)}
+                className="input"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">To</span>
+              <input
+                type="date"
+                value={resyncTo}
+                onChange={(e) => setResyncTo(e.target.value)}
+                className="input"
+              />
+            </label>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-xs muted">Send</span>
+              <div className="flex items-center gap-4 py-1.5">
+                {[
+                  ["rates", "Rates"],
+                  ["restrictions", "Restrictions"],
+                ].map(([k, label]) => (
+                  <label key={k} className="flex items-center gap-1.5 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={resyncWhat[k]}
+                      onChange={(e) =>
+                        setResyncWhat((p) => ({ ...p, [k]: e.target.checked }))
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Nothing ticked means every room and every plan, so the common
+              case needs no clicking. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs muted">
+                Room types{" "}
+                {resyncRooms.length === 0 && <span className="faint">(all)</span>}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+                {(grid?.rooms || []).map((r) => (
+                  <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={resyncRooms.includes(r.id)}
+                      onChange={(e) =>
+                        setResyncRooms((prev) =>
+                          e.target.checked
+                            ? [...prev, r.id]
+                            : prev.filter((x) => x !== r.id)
+                        )
+                      }
+                    />
+                    {r.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs muted">
+                Rate plans{" "}
+                {resyncPlans.length === 0 && <span className="faint">(all)</span>}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+                {allPlans.map((p) => (
+                  <label key={p.id} className="flex items-center gap-1.5 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={resyncPlans.includes(p.id)}
+                      onChange={(e) =>
+                        setResyncPlans((prev) =>
+                          e.target.checked
+                            ? [...prev, p.id]
+                            : prev.filter((x) => x !== p.id)
+                        )
+                      }
+                    />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={resync}
+              disabled={resyncBusy || busy}
+              className="btn btn-primary"
+            >
+              {resyncBusy ? "Resending…" : "Resend"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setResyncOpen(false)}
+              disabled={resyncBusy}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+            {(resyncRooms.length > 0 || resyncPlans.length > 0) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setResyncRooms([]);
+                  setResyncPlans([]);
+                }}
+                disabled={resyncBusy}
+                className="text-xs muted hover:text-ink"
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
         </div>
       )}
 
