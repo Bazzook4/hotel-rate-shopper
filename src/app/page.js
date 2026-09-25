@@ -11,6 +11,9 @@ import RateParity from "./dashboard/components/RateParity";
 import GoogleListingSetup from "./dashboard/components/GoogleListingSetup";
 import CompetitorShopper from "./dashboard/components/CompetitorShopper";
 import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
+import Reservations from "./dashboard/components/Reservations";
+import PmsCalendar from "./dashboard/components/PmsCalendar";
+import RoomInventory from "./dashboard/components/RoomInventory";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -377,7 +380,10 @@ export default function V2Dashboard() {
                 {/* Rooms and rate plans are separate pages; the component
                     renders one panel or the other. */}
                 {active === "rooms" && (
-                  <PropertySetup session={scopedSession} only="rooms" />
+                  <div className="space-y-4">
+                    <PropertySetup session={scopedSession} only="rooms" />
+                    <RoomInventory session={scopedSession} />
+                  </div>
                 )}
 
                 {active === "rateplans" && (
@@ -408,18 +414,9 @@ export default function V2Dashboard() {
                   </div>
                 )}
 
-                {active === "calendar" && (
-                  <ComingSoon title="Calendar">
-                    A month view of arrivals, departures and occupancy. Part of the
-                    Front Office build.
-                  </ComingSoon>
-                )}
+                {active === "calendar" && <PmsCalendar session={scopedSession} />}
 
-                {active === "reservations" && (
-                  <ComingSoon title="Reservations">
-                    Create and manage direct bookings. Part of the Front Office build.
-                  </ComingSoon>
-                )}
+                {active === "reservations" && <Reservations session={scopedSession} />}
 
                 {active === "workflow" && (
                   <ComingSoon title="Workflow">

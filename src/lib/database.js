@@ -2119,3 +2119,578 @@ export async function saveParityChannelOrder(propertyId, channelKeys) {
   }
   return rows.length;
 }
+
+// ============================================
+// PMS — ROOMS, RESERVATIONS, NIGHTS
+// ============================================
+
+/**
+ * Every night of a stay: check-in through the night before check-out.
+ *
+ * Departure day is not a night slept, so a one-night stay yields one date.
+ * Dates are handled as plain YYYY-MM-DD strings throughout the PMS rather
+ * than Date objects, because a stay date is a calendar fact about the hotel
+ * and must not shift when the server's timezone differs from the property's.
+ */
+export function nightsBetween(checkIn, checkOut) {
+  const nights = [];
+  const end = new Date(`${checkOut}T00:00:00Z`);
+  for (
+    let d = new Date(`${checkIn}T00:00:00Z`);
+    d < end;
+    d.setUTCDate(d.getUTCDate() + 1)
+  ) {
+    nights.push(d.toISOString().slice(0, 10));
+  }
+  return nights;
+}
+
+/** The physical rooms a property owns, with the type each belongs to. */
+export async function listRooms(propertyId, { includeInactive = true } = {}) {
+  let query = supabase
+    .from('rooms')
+    .select('*, room_types(id, room_type_name)')
+    .eq('property_id', propertyId);
+
+  if (!includeInactive) query = query.eq('is_active', true);
+
+  const { data, error } = await query.order('room_number', { ascending: true });
+  if (error) throw new Error(`Failed to load rooms: ${error.message}`);
+  return data || [];
+}
+
+export async function createRoom(row) {
+  const { data, error } = await supabase
+    .from('rooms')
+    .insert(row)
+    .select('*, room_types(id, room_type_name)')
+    .single();
+
+  // The unique index on (property_id, room_number) is the real guard against
+  // two rooms sharing a door; translate it into something a hotelier reads.
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`Room ${row.room_number} already exists at this property.`);
+    }
+    throw new Error(`Failed to create room: ${error.message}`);
+  }
+  return data;
+}
+
+export async function updateRoom(id, updates) {
+  const { data, error } = await supabase
+    .from('rooms')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*, room_types(id, room_type_name)')
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`Room ${updates.room_number} already exists at this property.`);
+    }
+    throw new Error(`Failed to update room: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteRoom(id) {
+  const { error } = await supabase.from('rooms').delete().eq('id', id);
+  if (error) throw new Error(`Failed to delete room: ${error.message}`);
+  return true;
+}
+
+/**
+ * Create rooms in bulk from a numeric range.
+ *
+ * Numbering 231 rooms one at a time is not work a hotelier should have to do.
+ * Rooms whose number already exists are skipped rather than failing the whole
+ * range, so re-running a range that partly exists fills in only the gaps.
+ */
+export async function createRoomRange({
+  property_id,
+  room_type_id,
+  from,
+  to,
+  prefix = '',
+  floor = null,
+}) {
+  const existing = new Set(
+    (await listRooms(property_id)).map((r) => r.room_number)
+  );
+
+  const rows = [];
+  for (let n = Number(from); n <= Number(to); n += 1) {
+    const room_number = `${prefix}${n}`;
+    if (existing.has(room_number)) continue;
+    rows.push({ property_id, room_type_id, room_number, floor });
+  }
+
+  if (rows.length === 0) return [];
+
+  const { data, error } = await supabase.from('rooms').insert(rows).select('*');
+  if (error) throw new Error(`Failed to create rooms: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * A short booking reference the front desk can read out.
+ *
+ * Shaped as RS-XXXXX from an alphabet with no O/0 or I/1, because these get
+ * spoken over the phone and misheard characters cost a phone call. Collisions
+ * are handled by the unique constraint and a retry in createReservation
+ * rather than by a lookup here, which would race anyway.
+ */
+export function generateReservationReference() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < 5; i += 1) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `RS-${out}`;
+}
+
+/** The statuses that still hold a room. A cancelled stay frees its nights. */
+const OCCUPYING_STATUSES = ['confirmed', 'in_house', 'checked_out'];
+
+/**
+ * Rooms sold per room type per date, across a window.
+ *
+ * Counts nights rather than reservations, which is why the nights table
+ * exists: a stay spanning the window's edge must still count on the dates it
+ * covers. Cancellations and no-shows are excluded -- they released the room.
+ *
+ * Returns a map of `<roomTypeId>|<date>` -> count.
+ */
+export async function getSoldCounts(propertyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('reservation_nights')
+    .select('stay_date, room_type_id, reservations!inner(property_id, status)')
+    .eq('reservations.property_id', propertyId)
+    .in('reservations.status', OCCUPYING_STATUSES)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate);
+
+  if (error) throw new Error(`Failed to load occupancy: ${error.message}`);
+
+  const sold = {};
+  for (const row of data || []) {
+    const key = `${row.room_type_id}|${row.stay_date}`;
+    sold[key] = (sold[key] || 0) + 1;
+  }
+  return sold;
+}
+
+/**
+ * Whether a room type has a room free on every night of a stay.
+ *
+ * Checks against the number of physical rooms of that type, falling back to
+ * the type's own `number_of_rooms` when no physical rooms have been set up --
+ * a property can take bookings before it has numbered its doors.
+ *
+ * `ignoreReservationId` lets an edit re-check its own dates without counting
+ * itself as a competitor for the room.
+ */
+export async function checkAvailability(
+  propertyId,
+  roomTypeId,
+  checkIn,
+  checkOut,
+  { ignoreReservationId = null } = {}
+) {
+  const nights = nightsBetween(checkIn, checkOut);
+  if (nights.length === 0) return { available: false, reason: 'Stay must be at least one night.' };
+
+  const { data: roomType, error: typeError } = await supabase
+    .from('room_types')
+    .select('id, room_type_name, number_of_rooms')
+    .eq('id', roomTypeId)
+    .single();
+
+  if (typeError) throw new Error(`Failed to load room type: ${typeError.message}`);
+
+  const physical = (await listRooms(propertyId, { includeInactive: false }))
+    .filter((r) => r.room_type_id === roomTypeId).length;
+  const capacity = physical || Number(roomType?.number_of_rooms) || 0;
+
+  let query = supabase
+    .from('reservation_nights')
+    .select('stay_date, reservation_id, reservations!inner(property_id, status)')
+    .eq('reservations.property_id', propertyId)
+    .eq('room_type_id', roomTypeId)
+    .in('reservations.status', OCCUPYING_STATUSES)
+    .gte('stay_date', nights[0])
+    .lte('stay_date', nights[nights.length - 1]);
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to check availability: ${error.message}`);
+
+  const sold = {};
+  for (const row of data || []) {
+    if (ignoreReservationId && row.reservation_id === ignoreReservationId) continue;
+    sold[row.stay_date] = (sold[row.stay_date] || 0) + 1;
+  }
+
+  // Report the first night that fails, since that is what the front desk
+  // needs to tell the guest -- not merely that something was unavailable.
+  for (const night of nights) {
+    if ((sold[night] || 0) >= capacity) {
+      return {
+        available: false,
+        reason: `${roomType?.room_type_name || 'That room type'} is fully booked on ${night}.`,
+        date: night,
+        capacity,
+      };
+    }
+  }
+
+  return { available: true, capacity };
+}
+
+/** Reservations for a property, newest arrival first, with the joins the list needs. */
+export async function listReservations(
+  propertyId,
+  { status = null, from = null, to = null, search = null, limit = 200 } = {}
+) {
+  let query = supabase
+    .from('reservations')
+    .select(
+      '*, room_types(id, room_type_name), rooms(id, room_number), rate_plans(id, plan_name)'
+    )
+    .eq('property_id', propertyId);
+
+  if (status) query = query.eq('status', status);
+  // A stay overlaps the window when it starts before the window ends and
+  // ends after the window starts -- not when check_in alone falls inside it,
+  // which would hide guests already in house on the first day.
+  if (to) query = query.lt('check_in', to);
+  if (from) query = query.gt('check_out', from);
+  if (search) {
+    const term = `%${search}%`;
+    query = query.or(
+      `guest_name.ilike.${term},reference.ilike.${term},guest_email.ilike.${term},guest_phone.ilike.${term}`
+    );
+  }
+
+  const { data, error } = await query
+    .order('check_in', { ascending: true })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to load reservations: ${error.message}`);
+  return data || [];
+}
+
+export async function getReservation(id) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select(
+      '*, room_types(id, room_type_name), rooms(id, room_number), rate_plans(id, plan_name), reservation_nights(stay_date, rate, room_id)'
+    )
+    .eq('id', id)
+    .single();
+
+  if (error) throw new Error(`Failed to load reservation: ${error.message}`);
+  return data;
+}
+
+/**
+ * Write the nights for a stay, replacing whatever was there.
+ *
+ * Called on create and on any edit that moves the dates. Replacing wholesale
+ * rather than diffing keeps the nights table a pure function of the
+ * reservation's dates, which is the property the availability count relies on.
+ */
+async function writeNights(reservation, { rate = null } = {}) {
+  const { error: clearError } = await supabase
+    .from('reservation_nights')
+    .delete()
+    .eq('reservation_id', reservation.id);
+
+  if (clearError) {
+    throw new Error(`Failed to clear nights: ${clearError.message}`);
+  }
+
+  const nights = nightsBetween(reservation.check_in, reservation.check_out);
+
+  // With no per-night breakdown, spread the total evenly so a night-by-night
+  // view still shows something honest. The reservation's own total stays the
+  // authority on what is owed.
+  const perNight =
+    rate ??
+    (reservation.total_amount != null && nights.length > 0
+      ? Number(reservation.total_amount) / nights.length
+      : null);
+
+  const rows = nights.map((stay_date) => ({
+    reservation_id: reservation.id,
+    stay_date,
+    room_type_id: reservation.room_type_id,
+    room_id: reservation.room_id || null,
+    rate: perNight != null ? Number(perNight.toFixed(2)) : null,
+  }));
+
+  if (rows.length === 0) return 0;
+
+  const { error } = await supabase.from('reservation_nights').insert(rows);
+  if (error) throw new Error(`Failed to save nights: ${error.message}`);
+  return rows.length;
+}
+
+/**
+ * Create a reservation and the nights it occupies.
+ *
+ * The reference can collide, so a duplicate is retried with a fresh one
+ * rather than surfacing a constraint error the hotelier cannot act on.
+ */
+export async function createReservation(row, { rate = null } = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const candidate = { ...row, reference: row.reference || generateReservationReference() };
+
+    const { data, error } = await supabase
+      .from('reservations')
+      .insert(candidate)
+      .select('*')
+      .single();
+
+    if (!error) {
+      await writeNights(data, { rate });
+      return getReservation(data.id);
+    }
+
+    // 23505 is a unique violation; only the reference is worth retrying,
+    // and only when the caller did not pin one.
+    if (error.code === '23505' && !row.reference) {
+      lastError = error;
+      continue;
+    }
+    throw new Error(`Failed to create reservation: ${error.message}`);
+  }
+
+  throw new Error(
+    `Failed to create reservation: could not allocate a booking reference (${lastError?.message}).`
+  );
+}
+
+/**
+ * Update a reservation, rewriting its nights when the stay moved.
+ *
+ * Dates, room type and assigned room all feed the nights rows, so a change to
+ * any of them makes the stored nights stale.
+ */
+export async function updateReservation(id, updates) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to update reservation: ${error.message}`);
+
+  const touchesNights = ['check_in', 'check_out', 'room_type_id', 'room_id', 'total_amount'].some(
+    (k) => k in updates
+  );
+  if (touchesNights) await writeNights(data);
+
+  return getReservation(id);
+}
+
+/**
+ * Move a reservation through its lifecycle.
+ *
+ * Check-in and check-out stamp the time they actually happened, which is what
+ * separates a guest who has arrived from one who is merely expected today.
+ */
+export async function setReservationStatus(id, status, { roomId = undefined } = {}) {
+  const updates = { status, updated_at: new Date().toISOString() };
+
+  if (status === 'in_house') updates.checked_in_at = new Date().toISOString();
+  if (status === 'checked_out') updates.checked_out_at = new Date().toISOString();
+  if (roomId !== undefined) updates.room_id = roomId;
+
+  const { data, error } = await supabase
+    .from('reservations')
+    .update(updates)
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) throw new Error(`Failed to update reservation: ${error.message}`);
+
+  // A room assigned at check-in has to reach the nights too, or the room grid
+  // will show the guest as unassigned for their whole stay.
+  if (roomId !== undefined) {
+    const { error: nightsError } = await supabase
+      .from('reservation_nights')
+      .update({ room_id: roomId })
+      .eq('reservation_id', id);
+    if (nightsError) {
+      throw new Error(`Failed to assign room to nights: ${nightsError.message}`);
+    }
+  }
+
+  return getReservation(data.id);
+}
+
+export async function deleteReservation(id) {
+  // Nights cascade with the reservation, so this is the whole delete.
+  const { error } = await supabase.from('reservations').delete().eq('id', id);
+  if (error) throw new Error(`Failed to delete reservation: ${error.message}`);
+  return true;
+}
+
+/**
+ * Turn inbound partner bookings into PMS reservations.
+ *
+ * `partner_reservations` is a raw log of what the channel manager sent: one
+ * row per webhook call, including modifications and cancellations of a stay
+ * already recorded. A reservation is the current state of that stay, so
+ * adoption folds the log down rather than copying it row for row -- the
+ * newest row per booking id wins, and its action decides what happens.
+ *
+ * Bookings missing dates are skipped and reported rather than guessed at: a
+ * stay with no arrival is not something the front desk can work with, and
+ * inventing one would quietly corrupt availability.
+ */
+export async function adoptPartnerReservations(propertyId, { limit = 200 } = {}) {
+  const { data: inbound, error } = await supabase
+    .from('partner_reservations')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('received_at', { ascending: true })
+    .limit(limit);
+
+  if (error) throw new Error(`Failed to load partner reservations: ${error.message}`);
+
+  // Ascending order means a later row overwrites an earlier one, leaving the
+  // most recent state of each booking.
+  const latest = new Map();
+  for (const row of inbound || []) {
+    if (!row.partner_booking_id) continue;
+    latest.set(row.partner_booking_id, row);
+  }
+
+  if (latest.size === 0) {
+    return { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [] };
+  }
+
+  const { data: existingRows, error: existingError } = await supabase
+    .from('reservations')
+    .select('id, partner_booking_id, status')
+    .eq('property_id', propertyId)
+    .in('partner_booking_id', [...latest.keys()]);
+
+  if (existingError) {
+    throw new Error(`Failed to match existing reservations: ${existingError.message}`);
+  }
+
+  const existing = new Map(
+    (existingRows || []).map((r) => [r.partner_booking_id, r])
+  );
+
+  // An OTA booking names a room type only in free text, if at all, so the
+  // adopted stay lands on the property's first room type and is flagged for
+  // the front desk to correct. Guessing by name matching would be worse:
+  // a wrong match is harder to notice than an obvious default.
+  const roomTypes = await listRoomTypes(propertyId);
+  const fallbackRoomType = roomTypes[0];
+
+  const result = { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [] };
+
+  for (const [bookingId, row] of latest) {
+    const match = existing.get(bookingId);
+
+    if (row.action === 'cancel') {
+      if (match && match.status !== 'cancelled') {
+        await setReservationStatus(match.id, 'cancelled');
+        result.cancelled += 1;
+      } else if (!match) {
+        // A cancellation for a stay never adopted is not an error -- there is
+        // simply nothing to cancel.
+        result.skipped += 1;
+      }
+      continue;
+    }
+
+    if (!row.check_in || !row.check_out) {
+      result.skipped += 1;
+      result.reasons.push(`${bookingId}: no stay dates in the booking`);
+      continue;
+    }
+
+    if (!fallbackRoomType) {
+      result.skipped += 1;
+      result.reasons.push(`${bookingId}: the property has no room types set up`);
+      continue;
+    }
+
+    const fields = {
+      guest_name: row.guest_name || 'OTA guest',
+      check_in: row.check_in,
+      check_out: row.check_out,
+      total_amount: row.amount,
+      currency: row.currency || 'INR',
+      source: row.channel || 'OTA',
+    };
+
+    if (match) {
+      await updateReservation(match.id, fields);
+      result.updated += 1;
+    } else {
+      await createReservation({
+        ...fields,
+        property_id: propertyId,
+        room_type_id: fallbackRoomType.id,
+        partner_booking_id: bookingId,
+        status: 'confirmed',
+        notes: `Adopted from ${row.channel || 'the channel manager'} — confirm the room type.`,
+      });
+      result.created += 1;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * The calendar's per-date picture: capacity, sold and free per room type.
+ *
+ * Built from the same nights rows the availability check uses, so the
+ * calendar and a booking attempt can never disagree about whether a date is
+ * full.
+ */
+export async function getAvailabilityGrid(propertyId, startDate, endDate) {
+  const [roomTypes, rooms, sold] = await Promise.all([
+    listRoomTypes(propertyId),
+    listRooms(propertyId, { includeInactive: false }),
+    getSoldCounts(propertyId, startDate, endDate),
+  ]);
+
+  const physicalByType = {};
+  for (const room of rooms) {
+    physicalByType[room.room_type_id] = (physicalByType[room.room_type_id] || 0) + 1;
+  }
+
+  const dates = nightsBetween(startDate, endDate);
+  // nightsBetween excludes its end date, but a calendar window is inclusive
+  // of the last day the hotelier asked to see.
+  if (!dates.includes(endDate)) dates.push(endDate);
+
+  return {
+    dates,
+    roomTypes: roomTypes.map((rt) => {
+      const capacity = physicalByType[rt.id] || Number(rt.number_of_rooms) || 0;
+      return {
+        id: rt.id,
+        name: rt.room_type_name,
+        capacity,
+        days: dates.map((date) => {
+          const count = sold[`${rt.id}|${date}`] || 0;
+          return { date, sold: count, free: Math.max(0, capacity - count) };
+        }),
+      };
+    }),
+  };
+}

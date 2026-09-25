@@ -83,11 +83,7 @@ const ADMIN_PAGES = new Set(["users"]);
  * they are the agreed shape of the product -- but are marked so the UI can
  * label them rather than letting a user think the page is broken.
  */
-export const PLACEHOLDER_PAGES = new Set([
-  "calendar",
-  "reservations",
-  "workflow",
-]);
+export const PLACEHOLDER_PAGES = new Set(["workflow"]);
 
 /**
  * The pages this session may see, grouped by area.

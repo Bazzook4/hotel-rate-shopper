@@ -1,0 +1,75 @@
+import { NextResponse } from "next/server";
+import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { getAvailabilityGrid, listReservations } from "@/lib/database";
+
+/**
+ * The calendar's data: availability per room type per date, plus the stays
+ * that overlap the window.
+ *
+ * Both come back from one call because the calendar is useless with only one
+ * of them -- a free count with no way to see who is in the rooms is not a
+ * front office view.
+ */
+
+/** Guard against a window so wide it would pull the whole booking history. */
+const MAX_DAYS = 120;
+
+function dayAfter(date) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(start, end) {
+  return Math.round(
+    (new Date(`${end}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000
+  );
+}
+
+export async function GET(req) {
+  const { error, session } = await pmsGuard(req);
+  if (error) return error;
+
+  const params = req.nextUrl.searchParams;
+  const propertyId = await resolvePropertyId(session, params.get("propertyId"));
+  if (!propertyId) {
+    return NextResponse.json({ error: "No property selected" }, { status: 400 });
+  }
+
+  const start = params.get("start");
+  const end = params.get("end");
+  if (!start || !end) {
+    return NextResponse.json(
+      { error: "Give a start and end date for the calendar." },
+      { status: 400 }
+    );
+  }
+
+  const span = daysBetween(start, end);
+  if (span < 0) {
+    return NextResponse.json(
+      { error: "The end date is before the start date." },
+      { status: 400 }
+    );
+  }
+  if (span > MAX_DAYS) {
+    return NextResponse.json(
+      { error: `The calendar shows at most ${MAX_DAYS} days at a time.` },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const [grid, reservations] = await Promise.all([
+      getAvailabilityGrid(propertyId, start, end),
+      // The calendar window includes its last day, but the overlap filter
+      // treats `to` as exclusive, so it is pushed out a day -- otherwise a
+      // guest arriving on the final column would be missing from it.
+      listReservations(propertyId, { from: start, to: dayAfter(end) }),
+    ]);
+
+    return NextResponse.json({ ...grid, reservations });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
