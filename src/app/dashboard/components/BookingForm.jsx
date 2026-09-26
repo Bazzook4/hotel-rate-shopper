@@ -35,6 +35,7 @@ function emptyBooking() {
     adults: 2,
     children: 0,
     source: "direct",
+    booking_type: "standard",
     total_amount: "",
     notes: "",
   };
@@ -55,6 +56,7 @@ function toForm(reservation) {
     adults: reservation.adults ?? 2,
     children: reservation.children ?? 0,
     source: reservation.source || "direct",
+    booking_type: reservation.booking_type || "standard",
     total_amount: reservation.total_amount ?? "",
     notes: reservation.notes || "",
   };
@@ -185,6 +187,10 @@ export default function BookingForm({
 
   const nights = nightsBetween(form.check_in, form.check_out);
 
+  // A complimentary stay is owed nothing, so there is no price to quote or
+  // type: the total is pinned at zero for as long as it stays complimentary.
+  const complimentary = form.booking_type === "complimentary";
+
   /** Only rooms of the chosen type can hold this booking. */
   const roomsForType = useMemo(
     () => rooms.filter((r) => r.room_type_id === form.room_type_id && r.is_active),
@@ -257,14 +263,14 @@ export default function BookingForm({
    * total survives every later edit until it is explicitly given up.
    */
   useEffect(() => {
-    if (manualTotal) return;
+    if (manualTotal || complimentary) return;
     if (quote?.total == null) return;
     setForm((prev) =>
       String(prev.total_amount) === String(quote.total)
         ? prev
         : { ...prev, total_amount: quote.total }
     );
-  }, [quote, manualTotal]);
+  }, [quote, manualTotal, complimentary]);
 
   function useQuotedPrice() {
     setManualTotal(false);
@@ -287,10 +293,16 @@ export default function BookingForm({
       // A room of the old type cannot stay selected against a new one.
       if (field === "room_type_id") next.room_id = "";
 
+      if (field === "booking_type" && value === "complimentary") next.total_amount = 0;
+
       return next;
     });
+    // Leaving complimentary goes back to the quoted price, not to zero typed
+    // by hand -- the zero was never the desk's figure.
+    if (field === "booking_type" && value !== "complimentary") setManualTotal(false);
     setConflict(null);
   }
+
 
   async function submit(allowOverbook = false) {
     setSaving(true);
@@ -304,7 +316,8 @@ export default function BookingForm({
         allow_overbook: allowOverbook,
         // The quote's night-by-night prices, sent only while the total is
         // the quoted one -- a typed total has no breakdown to go with it.
-        night_rates: !manualTotal && quote?.nights ? quote.nights : undefined,
+        night_rates:
+          !manualTotal && !complimentary && quote?.nights ? quote.nights : undefined,
         ...(reservation ? { id: reservation.id } : {}),
       };
 
@@ -504,25 +517,45 @@ export default function BookingForm({
           />
         </div>
         <div>
+          {/* Complimentary stays occupy a room like any other but are owed
+              nothing; revenue reports leave them out of ADR. */}
+          <label className="label">Booking type</label>
+          <select
+            className="input"
+            value={form.booking_type}
+            onChange={(e) => set("booking_type", e.target.value)}
+          >
+            <option value="standard">Standard</option>
+            <option value="complimentary">Complimentary</option>
+          </select>
+        </div>
+        <div>
           <label className="label">Total amount</label>
           <input
             className="input"
             type="number"
             min="0"
-            value={form.total_amount}
+            value={complimentary ? 0 : form.total_amount}
+            disabled={complimentary}
             onChange={(e) => {
               setManualTotal(true);
               set("total_amount", e.target.value);
             }}
             placeholder={quoting ? "Pricing…" : "Whole stay"}
           />
-          <PriceNote
-            quote={quote}
-            quoting={quoting}
-            manual={manualTotal}
-            nights={nights}
-            onUseQuoted={useQuotedPrice}
-          />
+          {complimentary ? (
+            <p className="sub" style={{ fontSize: "0.7rem" }}>
+              Complimentary — no room charge. Extras added later are still billed.
+            </p>
+          ) : (
+            <PriceNote
+              quote={quote}
+              quoting={quoting}
+              manual={manualTotal}
+              nights={nights}
+              onUseQuoted={useQuotedPrice}
+            />
+          )}
         </div>
 
         <div>

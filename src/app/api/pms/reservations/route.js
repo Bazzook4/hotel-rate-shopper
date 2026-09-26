@@ -8,6 +8,7 @@ import {
   checkAvailability,
   acceptNightRates,
   getReservation,
+  findRoomClash,
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 
@@ -63,6 +64,37 @@ function bookingFields(body) {
   };
 }
 
+/**
+ * Whether this booking is complimentary, and what that does to its fields.
+ *
+ * A complimentary stay costs nothing, whatever the form's total box says, so
+ * its total is zeroed here rather than trusted from the client.
+ *
+ * `booking_type` is only written where the column is known to exist: on a
+ * new booking only when it is complimentary (a standard one is the column's
+ * default), and on an edit only when the stored row already carries it. That
+ * keeps ordinary bookings working on a database migration 027 has not reached.
+ */
+function applyBookingType(fields, body, before = null) {
+  const complimentary = body.booking_type === "complimentary";
+  if (complimentary) {
+    fields.booking_type = "complimentary";
+    fields.total_amount = 0;
+  } else if (before && "booking_type" in before) {
+    fields.booking_type = "standard";
+  }
+  return complimentary;
+}
+
+/** A room already held for those nights, as a 409 the form can show. */
+async function roomClashResponse(fields, ignoreReservationId = null) {
+  if (!fields.room_id) return null;
+  const clash = await findRoomClash(fields.room_id, fields.check_in, fields.check_out, {
+    ignoreReservationId,
+  });
+  return clash ? NextResponse.json({ error: clash.message }, { status: 409 }) : null;
+}
+
 export async function GET(req) {
   const { error, session } = await pmsGuard(req);
   if (error) return error;
@@ -106,6 +138,16 @@ export async function POST(req) {
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   try {
+    const fields = bookingFields(body);
+    const complimentary = applyBookingType(fields, body);
+
+    // A booking placed in a particular room -- from a cell on the tape chart,
+    // say -- must find that room free, which the type-level count below
+    // cannot tell. Overbooking a type is a choice; two guests in one room is
+    // not, so this is refused outright.
+    const roomTaken = await roomClashResponse(fields);
+    if (roomTaken) return roomTaken;
+
     // Overbooking is a decision, not an accident: the check runs first and a
     // full date is refused unless the caller deliberately overrides it.
     if (!body.allow_overbook) {
@@ -124,14 +166,11 @@ export async function POST(req) {
     }
 
     // A quoted booking arrives with the price of each night, so the folio can
-    // show a Saturday at the Saturday rate rather than an even average.
-    const fields = bookingFields(body);
-    const rates = acceptNightRates(
-      body.night_rates,
-      fields.check_in,
-      fields.check_out,
-      fields.total_amount
-    );
+    // show a Saturday at the Saturday rate rather than an even average. A
+    // complimentary one has no prices to keep: every night is nothing.
+    const rates = complimentary
+      ? null
+      : acceptNightRates(body.night_rates, fields.check_in, fields.check_out, fields.total_amount);
 
     const reservation = await createReservation(
       {
@@ -182,6 +221,20 @@ export async function PATCH(req) {
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
     }
 
+    const fields = bookingFields(body);
+    const complimentary = applyBookingType(fields, body, before);
+
+    // Only when the stay moved room or dates: an unrelated edit to a booking
+    // should not be refused over a clash it did not create.
+    const moved =
+      fields.room_id !== before.room_id ||
+      fields.check_in !== before.check_in ||
+      fields.check_out !== before.check_out;
+    if (moved) {
+      const roomTaken = await roomClashResponse(fields, id);
+      if (roomTaken) return roomTaken;
+    }
+
     if (!body.allow_overbook) {
       // The stay checks its own dates without counting itself as competition
       // for the room it already holds.
@@ -200,13 +253,9 @@ export async function PATCH(req) {
       }
     }
 
-    const fields = bookingFields(body);
-    const rates = acceptNightRates(
-      body.night_rates,
-      fields.check_in,
-      fields.check_out,
-      fields.total_amount
-    );
+    const rates = complimentary
+      ? null
+      : acceptNightRates(body.night_rates, fields.check_in, fields.check_out, fields.total_amount);
 
     const reservation = await updateReservation(id, fields, { rates });
 

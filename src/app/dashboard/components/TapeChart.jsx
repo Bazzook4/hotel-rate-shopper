@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingModal from "./BookingModal";
+import RoomBlockModal from "./RoomBlockModal";
+import GroupBookingModal from "./GroupBookingModal";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
@@ -41,6 +43,25 @@ const BAR_STYLE = {
   checked_out: { background: "var(--surface-2)", color: "var(--text-muted)" },
 };
 
+/**
+ * An out-of-order block: grey and striped, so it reads as "not a stay" at a
+ * glance and cannot be mistaken for a checked-out guest.
+ */
+const BLOCK_STYLE = {
+  background:
+    "repeating-linear-gradient(135deg, var(--surface-2) 0 6px, var(--border-strong) 6px 8px)",
+  color: "var(--text-muted)",
+  border: "1px solid var(--border-strong)",
+};
+
+/** What a selection of empty nights can become. */
+const SELECTION_ACTIONS = [
+  { id: "reservation", label: "New reservation" },
+  { id: "complimentary", label: "Complimentary stay" },
+  { id: "group", label: "Group booking" },
+  { id: "block", label: "Out of order" },
+];
+
 function daysBetween(a, b) {
   return Math.round(
     (new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000
@@ -69,6 +90,24 @@ export default function TapeChart({ session }) {
 
   const [openId, setOpenId] = useState(null);
   const [newBooking, setNewBooking] = useState(null);
+  // An out-of-order block being created ({ room, start_date, end_date }) or
+  // opened ({ block }), and a group booking started from a selection.
+  const [blockEdit, setBlockEdit] = useState(null);
+  const [newGroup, setNewGroup] = useState(null);
+
+  /**
+   * Empty nights being selected by dragging along a room's row, and the menu
+   * that opens once the pointer is let go.
+   *
+   * The selection is drawn as a ghost bar so the desk sees exactly which
+   * nights they are about to book or block -- arrival on the first, departure
+   * the morning after the last -- before choosing what to do with them. It
+   * stays on screen while the menu is open. Mirrored in a ref for the same
+   * reason as the drag: the window handlers would otherwise see a stale one.
+   */
+  const [selection, setSelection] = useState(null);
+  const selectionRef = useRef(null);
+  const [menu, setMenu] = useState(null);
 
   /**
    * Which room type the chart is narrowed to, and which type headers are folded
@@ -325,6 +364,133 @@ export default function TapeChart({ session }) {
     };
   }, [drag, sendMove]);
 
+  // ----- selecting empty nights ----------------------------------------
+
+  /** The stay a selection describes: first night to the morning after the last. */
+  function selectionRange(sel) {
+    const [first, last] = sel.from <= sel.to ? [sel.from, sel.to] : [sel.to, sel.from];
+    return { check_in: first, check_out: shiftDate(last, 1) };
+  }
+
+  function beginSelect(e, room, date) {
+    if (!room.is_active || e.button !== 0) return;
+    e.preventDefault();
+    setMenu(null);
+    const start = {
+      room,
+      originX: e.clientX,
+      anchor: date,
+      from: date,
+      to: date,
+    };
+    selectionRef.current = start;
+    setSelection(start);
+  }
+
+  useEffect(() => {
+    if (!selection || menu) return;
+
+    function onMove(e) {
+      const sel = selectionRef.current;
+      if (!sel) return;
+      const shift = Math.round((e.clientX - sel.originX) / dayWidthRef.current);
+      // Held inside the window: a night off-screen cannot be seen being chosen.
+      const lastDate = shiftDate(anchor, windowDays - 1);
+      let to = shiftDate(sel.anchor, shift);
+      if (to < anchor) to = anchor;
+      if (to > lastDate) to = lastDate;
+      if (to === sel.to) return;
+      const next = { ...sel, to };
+      selectionRef.current = next;
+      setSelection(next);
+    }
+
+    function onUp(e) {
+      const sel = selectionRef.current;
+      if (!sel) return;
+      // Kept on screen under the menu; cleared when the menu closes.
+      setMenu({ x: e.clientX, y: e.clientY });
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [selection, menu, anchor, windowDays]);
+
+  const closeSelection = useCallback(() => {
+    selectionRef.current = null;
+    setSelection(null);
+    setMenu(null);
+  }, []);
+
+  useEffect(() => {
+    if (!menu) return;
+    function onKey(e) {
+      if (e.key === "Escape") closeSelection();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu, closeSelection]);
+
+  /**
+   * What already sits on a selection's nights in its room, if anything.
+   *
+   * Shown on the ghost and in the menu so an overlap is seen before it is
+   * refused; the server refuses it regardless.
+   */
+  function selectionConflict(sel) {
+    const { check_in, check_out } = selectionRange(sel);
+    const stay = sel.room.reservations.find(
+      (r) => r.check_in < check_out && r.check_out > check_in
+    );
+    if (stay) return `Overlaps ${stay.guest_name}`;
+    const block = (sel.room.blocks || []).find(
+      (b) => b.start_date < check_out && b.end_date > check_in
+    );
+    if (block) return "Overlaps an out-of-order block";
+    return null;
+  }
+
+  function chooseAction(action) {
+    const sel = selectionRef.current;
+    closeSelection();
+    if (!sel) return;
+    const { check_in, check_out } = selectionRange(sel);
+    const room = sel.room;
+
+    if (action === "reservation" || action === "complimentary") {
+      setNewBooking({
+        room_id: room.id,
+        room_type_id: room.room_type_id,
+        check_in,
+        check_out,
+        ...(action === "complimentary" ? { booking_type: "complimentary" } : {}),
+      });
+    } else if (action === "group") {
+      setNewGroup({ room_ids: [room.id], check_in, check_out });
+    } else if (action === "block") {
+      setBlockEdit({ room, start_date: check_in, end_date: check_out });
+    }
+  }
+
+  /** Where a span of dates sits in the window, in pixels; null if off-screen. */
+  function spanGeometry(from, until) {
+    const offset = daysBetween(anchor, from);
+    const nights = daysBetween(from, until);
+    const start = Math.max(0, offset);
+    const end = Math.min(windowDays, offset + nights);
+    if (end <= 0 || start >= windowDays) return null;
+    return {
+      left: start * dayWidth,
+      width: Math.max(dayWidth * 0.6, (end - start) * dayWidth - 4),
+      clippedStart: offset < 0,
+      clippedEnd: offset + nights > windowDays,
+    };
+  }
+
   /** Where a bar sits and how wide it is, in pixels across the date window. */
   function barGeometry(reservation) {
     const d =
@@ -334,21 +500,7 @@ export default function TapeChart({ session }) {
           ? pending.move
           : reservation;
 
-    const offset = daysBetween(anchor, d.check_in);
-    const nights = daysBetween(d.check_in, d.check_out);
-
-    // A stay running off either edge of the window is clipped to it, so the
-    // bar stays inside the chart while still showing it continues.
-    const from = Math.max(0, offset);
-    const to = Math.min(windowDays, offset + nights);
-    if (to <= 0 || from >= windowDays) return null;
-
-    return {
-      left: from * dayWidth,
-      width: Math.max(dayWidth * 0.6, (to - from) * dayWidth - 4),
-      clippedStart: offset < 0,
-      clippedEnd: offset + nights > windowDays,
-    };
+    return spanGeometry(d.check_in, d.check_out);
   }
 
   /**
@@ -399,6 +551,27 @@ export default function TapeChart({ session }) {
     return out;
   }, [chart, dates]);
 
+  /**
+   * How many of each type's rooms are out of order on each date. They are
+   * neither sold nor for sale, so they come off the count the header divides
+   * by -- "2/7" with one room blocked, not "2/8" as if it could still be sold.
+   */
+  const blockedByType = useMemo(() => {
+    if (!chart) return {};
+    const out = {};
+    for (const rt of chart.roomTypes) {
+      out[rt.id] = {};
+      for (const d of dates) {
+        out[rt.id][d] = rt.rooms.filter(
+          (room) =>
+            room.is_active &&
+            (room.blocks || []).some((b) => b.start_date <= d && b.end_date > d)
+        ).length;
+      }
+    }
+    return out;
+  }, [chart, dates]);
+
   function toggleGroup(id) {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
   }
@@ -409,8 +582,8 @@ export default function TapeChart({ session }) {
         <div>
           <h2 className="h1">Calendar</h2>
           <p className="sub">
-            Every room, night by night. Click a booking to open it, or drag it to
-            move or resize the stay.
+            Every room, night by night. Drag across empty nights to book or block
+            them; click a booking to open it, or drag it to move or resize the stay.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -546,6 +719,26 @@ export default function TapeChart({ session }) {
           />
           Checked out
         </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              ...BLOCK_STYLE,
+              borderRadius: 2,
+              marginRight: 4,
+              verticalAlign: "middle",
+            }}
+          />
+          Out of order
+        </span>
+        <span>
+          <BarTag legend>COMP</BarTag> Complimentary
+        </span>
+        <span>
+          <BarTag legend>GRP</BarTag> Group booking
+        </span>
       </div>
 
       <div className="card" style={{ overflow: "hidden" }}>
@@ -675,8 +868,10 @@ export default function TapeChart({ session }) {
                     </div>
                     {dates.map((d) => {
                       const sold = soldByType[group.id]?.[d] || 0;
-                      const total = group.rooms.length;
-                      const full = total > 0 && sold >= total;
+                      const blocked = blockedByType[group.id]?.[d] || 0;
+                      const total = group.rooms.length - blocked;
+                      const full = total <= 0 || sold >= total;
+                      const blockedNote = blocked > 0 ? ` · ${blocked} out of order` : "";
                       const typeRates = chart.rates?.[group.id];
                       const rate = typeRates?.nights?.[d];
                       return (
@@ -684,14 +879,14 @@ export default function TapeChart({ session }) {
                           key={d}
                           title={
                             rate != null
-                              ? `${sold} of ${total} sold · ${formatMoney(rate)} for 2 adults${
+                              ? `${sold} of ${total} sold${blockedNote} · ${formatMoney(rate)} for 2 adults${
                                   typeRates.base_price_only
                                     ? " (base price — no channel rate set)"
                                     : typeRates.plan_name
                                       ? ` on ${typeRates.plan_name}`
                                       : ""
                                 }`
-                              : `${sold} of ${total} sold`
+                              : `${sold} of ${total} sold${blockedNote}`
                           }
                           style={{
                             width: dayWidth,
@@ -775,15 +970,7 @@ export default function TapeChart({ session }) {
                               key={d}
                               data-room-id={room.id}
                               data-date={d}
-                              onClick={() =>
-                                room.is_active &&
-                                setNewBooking({
-                                  room_id: room.id,
-                                  room_type_id: room.room_type_id,
-                                  check_in: d,
-                                  check_out: shiftDate(d, 1),
-                                })
-                              }
+                              onPointerDown={(e) => beginSelect(e, room, d)}
                               style={{
                                 width: dayWidth,
                                 flexShrink: 0,
@@ -799,6 +986,81 @@ export default function TapeChart({ session }) {
                             />
                           );
                         })}
+
+                        {/* Out-of-order blocks, under the stays */}
+                        {(room.blocks || []).map((b) => {
+                          const geo = spanGeometry(b.start_date, b.end_date);
+                          if (!geo) return null;
+                          return (
+                            <div
+                              key={b.id}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={() => setBlockEdit({ room, block: b })}
+                              title={`Out of order${b.reason ? ` — ${b.reason}` : ""}\n${b.start_date} → back ${b.end_date}`}
+                              style={{
+                                position: "absolute",
+                                left: geo.left,
+                                width: geo.width,
+                                top: 5,
+                                height: 30,
+                                ...BLOCK_STYLE,
+                                borderRadius: 4,
+                                display: "flex",
+                                alignItems: "center",
+                                padding: "0 0.4rem",
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                cursor: "pointer",
+                                userSelect: "none",
+                                zIndex: 1,
+                              }}
+                            >
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                                Out of order{b.reason ? ` · ${b.reason}` : ""}
+                              </span>
+                            </div>
+                          );
+                        })}
+
+                        {/* The nights being selected, as a ghost of the stay */}
+                        {selection?.room.id === room.id &&
+                          (() => {
+                            const range = selectionRange(selection);
+                            const geo = spanGeometry(range.check_in, range.check_out);
+                            if (!geo) return null;
+                            const nights = daysBetween(range.check_in, range.check_out);
+                            const conflict = selectionConflict(selection);
+                            const tone = conflict ? "var(--danger)" : "var(--accent)";
+                            return (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  left: geo.left,
+                                  width: geo.width,
+                                  top: 5,
+                                  height: 30,
+                                  border: `2px dashed ${tone}`,
+                                  background: conflict ? "var(--danger-soft)" : "var(--accent-soft)",
+                                  color: conflict ? "var(--danger)" : "var(--accent-text)",
+                                  borderRadius: 4,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  padding: "0 0.4rem",
+                                  fontSize: "0.7rem",
+                                  fontWeight: 600,
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  pointerEvents: "none",
+                                  zIndex: 4,
+                                }}
+                              >
+                                {conflict ||
+                                  `${nights} night${nights === 1 ? "" : "s"} · ${nightLabel(range.check_in)} → ${nightLabel(range.check_out)}`}
+                              </div>
+                            );
+                          })()}
 
                         {/* Bars for this room, over the cells */}
                         {barsForRoom(room).map((r) => {
@@ -852,6 +1114,10 @@ export default function TapeChart({ session }) {
                                       cursor: "ew-resize",
                                     }}
                                   />
+                                  {r.booking_type === "complimentary" && (
+                                    <BarTag title="Complimentary">COMP</BarTag>
+                                  )}
+                                  {r.group_id && <BarTag title="Group booking">GRP</BarTag>}
                                   <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                                     {r.guest_name}
                                   </span>
@@ -887,6 +1153,45 @@ export default function TapeChart({ session }) {
             .find((r) => r.id === pending.move.id)}
           onChoose={(pricing) => sendMove(pending.move, pricing)}
           onCancel={() => setPending(null)}
+        />
+      )}
+
+      {menu && selection && (
+        <SelectionMenu
+          x={menu.x}
+          y={menu.y}
+          room={selection.room}
+          range={selectionRange(selection)}
+          conflict={selectionConflict(selection)}
+          onChoose={chooseAction}
+          onClose={closeSelection}
+        />
+      )}
+
+      {blockEdit && (
+        <RoomBlockModal
+          session={session}
+          room={blockEdit.room}
+          block={blockEdit.block}
+          initial={blockEdit}
+          onClose={() => setBlockEdit(null)}
+          onChanged={(warning) => {
+            setSyncWarning(warning);
+            load();
+          }}
+        />
+      )}
+
+      {newGroup && (
+        <GroupBookingModal
+          session={session}
+          chart={chart}
+          initial={newGroup}
+          onClose={() => setNewGroup(null)}
+          onChanged={(warning) => {
+            setSyncWarning(warning);
+            load();
+          }}
         />
       )}
 
@@ -1052,5 +1357,83 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** A small marker on a bar for what its colour cannot say: comp, group. */
+function BarTag({ children, title, legend = false }) {
+  return (
+    <span
+      title={title}
+      style={{
+        flexShrink: 0,
+        marginRight: legend ? 2 : 4,
+        padding: "0 3px",
+        borderRadius: 3,
+        fontSize: "0.55rem",
+        fontWeight: 700,
+        letterSpacing: "0.03em",
+        lineHeight: "14px",
+        background: legend ? "var(--surface-2)" : "rgba(255,255,255,0.25)",
+        border: legend ? "1px solid var(--border-strong)" : "1px solid rgba(255,255,255,0.6)",
+        color: legend ? "var(--text-muted)" : "inherit",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * What to do with a selection of empty nights, opened where the pointer let go.
+ *
+ * Says which room and which nights, because the ghost bar may be scrolled
+ * half out of view by the time the desk reads the menu.
+ */
+function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
+  const nights = daysBetween(range.check_in, range.check_out);
+  // Kept on screen when the pointer lets go near the right or bottom edge.
+  const left = Math.min(x + 4, (typeof window !== "undefined" ? window.innerWidth : 1200) - 230);
+  const top = Math.min(y + 4, (typeof window !== "undefined" ? window.innerHeight : 800) - 250);
+
+  return (
+    <>
+      <div
+        onPointerDown={onClose}
+        style={{ position: "fixed", inset: 0, zIndex: 40 }}
+      />
+      <div
+        className="card"
+        style={{
+          position: "fixed",
+          left,
+          top,
+          zIndex: 41,
+          width: 220,
+          padding: "0.35rem",
+          background: "var(--surface)",
+          boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
+        }}
+      >
+        <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
+          <div style={{ fontWeight: 600 }}>Room {room.room_number}</div>
+          <div style={{ color: "var(--text-muted)" }}>
+            {nightLabel(range.check_in)} → {nightLabel(range.check_out)} · {nights} night
+            {nights === 1 ? "" : "s"}
+          </div>
+          {conflict && <div style={{ color: "var(--danger)" }}>{conflict}</div>}
+        </div>
+        {SELECTION_ACTIONS.map((a) => (
+          <button
+            key={a.id}
+            className="btn btn-ghost text-sm"
+            style={{ width: "100%", justifyContent: "flex-start" }}
+            onClick={() => onChoose(a.id)}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }

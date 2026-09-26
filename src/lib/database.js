@@ -2136,6 +2136,12 @@ export async function saveParityChannelOrder(propertyId, channelKeys) {
  * than Date objects, because a stay date is a calendar fact about the hotel
  * and must not shift when the server's timezone differs from the property's.
  */
+function dayAfter(date) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function nightsBetween(checkIn, checkOut) {
   const nights = [];
   const end = new Date(`${checkOut}T00:00:00Z`);
@@ -2530,10 +2536,15 @@ export async function checkAvailability(
     sold[row.stay_date] = (sold[row.stay_date] || 0) + 1;
   }
 
+  // A room out of order is a room fewer to sell that night.
+  const blocked = await getBlockedCounts(propertyId, nights[0], nights[nights.length - 1], {
+    roomTypeIds: [roomTypeId],
+  });
+
   // Report the first night that fails, since that is what the front desk
   // needs to tell the guest -- not merely that something was unavailable.
   for (const night of nights) {
-    if ((sold[night] || 0) >= capacity) {
+    if ((sold[night] || 0) + (blocked[`${roomTypeId}|${night}`] || 0) >= capacity) {
       return {
         available: false,
         reason: `${roomType?.room_type_name || 'That room type'} is fully booked on ${night}.`,
@@ -2544,6 +2555,250 @@ export async function checkAvailability(
   }
 
   return { available: true, capacity };
+}
+
+// ============================================
+// PMS — OUT-OF-ORDER BLOCKS AND ROOM CLASHES
+// ============================================
+
+/**
+ * A block as the rest of the PMS wants it: with its room's type flattened
+ * onto it, since that is what availability and the channel push are keyed by.
+ */
+function flattenBlock(row) {
+  if (!row) return row;
+  const { rooms: room, ...rest } = row;
+  return {
+    ...rest,
+    room_type_id: room?.room_type_id || null,
+    room_number: room?.room_number || null,
+    room_is_active: room?.is_active ?? true,
+  };
+}
+
+/**
+ * Out-of-order blocks touching a window of nights, both dates included.
+ *
+ * Empty rather than an error before migration 027 has been run, so the chart
+ * and the availability count keep working on a database that has not got
+ * the table yet.
+ */
+export async function listRoomBlocks(propertyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('room_blocks')
+    .select('*, rooms(room_type_id, room_number, is_active)')
+    .eq('property_id', propertyId)
+    .lte('start_date', endDate)
+    .gt('end_date', startDate)
+    .order('start_date');
+
+  if (error) {
+    if (notMigrated(error)) return [];
+    throw new Error(`Failed to load out-of-order rooms: ${error.message}`);
+  }
+  return (data || []).map(flattenBlock);
+}
+
+export async function getRoomBlock(id) {
+  const { data, error } = await supabase
+    .from('room_blocks')
+    .select('*, rooms(room_type_id, room_number, is_active)')
+    .eq('id', id)
+    .single();
+
+  if (error) throw new Error(`Failed to load the block: ${error.message}`);
+  return flattenBlock(data);
+}
+
+/**
+ * How many rooms of each type are out of order on each night, keyed
+ * `<roomTypeId>|<date>` like getSoldCounts.
+ *
+ * Only active rooms count: an inactive room is already outside capacity, and
+ * blocking it too would take it off sale twice.
+ */
+export async function getBlockedCounts(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
+  const blocks = await listRoomBlocks(propertyId, startDate, endDate);
+  const counts = {};
+  for (const block of blocks) {
+    if (!block.room_is_active || !block.room_type_id) continue;
+    if (Array.isArray(roomTypeIds) && roomTypeIds.length > 0 && !roomTypeIds.includes(block.room_type_id)) {
+      continue;
+    }
+    for (const night of nightsBetween(block.start_date, block.end_date)) {
+      if (night < startDate || night > endDate) continue;
+      const key = `${block.room_type_id}|${night}`;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/**
+ * What already holds a room for any of a span of nights, or null if nothing.
+ *
+ * A stay and a block clash the same way two stays do: one starts before the
+ * other ends and ends after the other starts. The departure day is shared
+ * freely -- one guest out on the 4th and the next in on the 4th share no night.
+ *
+ * Answers with a sentence the desk can act on, naming who is in the way.
+ */
+export async function findRoomClash(
+  roomId,
+  checkIn,
+  checkOut,
+  { ignoreReservationId = null, ignoreBlockId = null } = {}
+) {
+  const { data: stays, error } = await supabase
+    .from('reservations')
+    .select('id, reference, guest_name, check_in, check_out')
+    .eq('room_id', roomId)
+    .not('status', 'in', '(cancelled,no_show)')
+    .lt('check_in', checkOut)
+    .gt('check_out', checkIn);
+
+  if (error) throw new Error(`Failed to check the room: ${error.message}`);
+
+  const stay = (stays || []).find((r) => r.id !== ignoreReservationId);
+  if (stay) {
+    return {
+      kind: 'reservation',
+      message: `That room is taken by ${stay.guest_name} (${stay.reference}) from ${stay.check_in} to ${stay.check_out}.`,
+    };
+  }
+
+  const { data: blocks, error: blockError } = await supabase
+    .from('room_blocks')
+    .select('id, start_date, end_date, reason')
+    .eq('room_id', roomId)
+    .lt('start_date', checkOut)
+    .gt('end_date', checkIn);
+
+  if (blockError) {
+    if (notMigrated(blockError)) return null;
+    throw new Error(`Failed to check the room: ${blockError.message}`);
+  }
+
+  const block = (blocks || []).find((b) => b.id !== ignoreBlockId);
+  if (block) {
+    return {
+      kind: 'block',
+      message: `That room is out of order from ${block.start_date} until ${block.end_date}${
+        block.reason ? ` (${block.reason})` : ''
+      }.`,
+    };
+  }
+
+  return null;
+}
+
+/** Only what a client may set on a block. */
+function blockFields(row) {
+  const out = {};
+  if ('room_id' in row) out.room_id = row.room_id;
+  if ('start_date' in row) out.start_date = row.start_date;
+  if ('end_date' in row) out.end_date = row.end_date;
+  if ('reason' in row) out.reason = row.reason?.trim() || null;
+  return out;
+}
+
+function blocksNotMigrated(error) {
+  return notMigrated(error)
+    ? 'Out-of-order blocks need migration 027 — run it in the Supabase SQL editor first.'
+    : null;
+}
+
+export async function createRoomBlock(row) {
+  const { data, error } = await supabase
+    .from('room_blocks')
+    .insert({
+      ...blockFields(row),
+      property_id: row.property_id,
+      created_by: row.created_by || null,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    throw new Error(blocksNotMigrated(error) || `Failed to take the room out of order: ${error.message}`);
+  }
+  return getRoomBlock(data.id);
+}
+
+export async function updateRoomBlock(id, updates) {
+  const { error } = await supabase
+    .from('room_blocks')
+    .update({ ...blockFields(updates), updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) throw new Error(`Failed to update the block: ${error.message}`);
+  return getRoomBlock(id);
+}
+
+export async function deleteRoomBlock(id) {
+  const { error } = await supabase.from('room_blocks').delete().eq('id', id);
+  if (error) throw new Error(`Failed to put the room back in service: ${error.message}`);
+}
+
+// ============================================
+// PMS — GROUP BOOKINGS
+// ============================================
+
+export async function createReservationGroup(row) {
+  const { data, error } = await supabase
+    .from('reservation_groups')
+    .insert({
+      property_id: row.property_id,
+      name: row.name.trim(),
+      contact_name: row.contact_name?.trim() || null,
+      contact_phone: row.contact_phone?.trim() || null,
+      contact_email: row.contact_email?.trim() || null,
+      notes: row.notes?.trim() || null,
+      created_by: row.created_by || null,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    if (notMigrated(error)) {
+      throw new Error('Group bookings need migration 027 — run it in the Supabase SQL editor first.');
+    }
+    throw new Error(`Failed to create the group: ${error.message}`);
+  }
+  return data;
+}
+
+/** A group with the rooms booked under it, arrival order. */
+export async function getReservationGroup(id) {
+  const { data: group, error } = await supabase
+    .from('reservation_groups')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) throw new Error(`Failed to load the group: ${error.message}`);
+
+  const { data: members, error: membersError } = await supabase
+    .from('reservations')
+    .select('id, reference, guest_name, check_in, check_out, status, total_amount, room_types(room_type_name), rooms(room_number)')
+    .eq('group_id', id)
+    .order('check_in');
+
+  if (membersError) throw new Error(`Failed to load the group's rooms: ${membersError.message}`);
+  return { ...group, reservations: members || [] };
+}
+
+/**
+ * Remove a group and every booking under it.
+ *
+ * Only for undoing a group whose creation failed part-way, so nothing is left
+ * half-booked; the desk cancels a real group room by room.
+ */
+export async function deleteReservationGroup(id) {
+  const { error: resError } = await supabase.from('reservations').delete().eq('group_id', id);
+  if (resError) throw new Error(`Failed to remove the group's bookings: ${resError.message}`);
+  const { error } = await supabase.from('reservation_groups').delete().eq('id', id);
+  if (error) throw new Error(`Failed to remove the group: ${error.message}`);
 }
 
 /** Reservations for a property, newest arrival first, with the joins the list needs. */
@@ -3393,10 +3648,11 @@ export async function listUnadoptedPartnerReservations(propertyId, { limit = 500
  * full.
  */
 export async function getAvailabilityGrid(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
-  const [allTypes, rooms, sold] = await Promise.all([
+  const [allTypes, rooms, sold, blocked] = await Promise.all([
     listRoomTypes(propertyId),
     listRooms(propertyId, { includeInactive: false }),
     getSoldCounts(propertyId, startDate, endDate, { roomTypeIds }),
+    getBlockedCounts(propertyId, startDate, endDate, { roomTypeIds }),
   ]);
   const roomTypes =
     Array.isArray(roomTypeIds) && roomTypeIds.length > 0
@@ -3423,7 +3679,10 @@ export async function getAvailabilityGrid(propertyId, startDate, endDate, { room
         capacity,
         days: dates.map((date) => {
           const count = sold[`${rt.id}|${date}`] || 0;
-          return { date, sold: count, free: Math.max(0, capacity - count) };
+          // Out-of-order rooms are neither sold nor free: the channels are
+          // offered what is left once they are taken away.
+          const out = blocked[`${rt.id}|${date}`] || 0;
+          return { date, sold: count, blocked: out, free: Math.max(0, capacity - count - out) };
         }),
       };
     }),
@@ -4139,11 +4398,17 @@ export async function voidReservationInvoice(id, reason) {
  * exactly what the desk needs to see and place.
  */
 export async function getTapeChart(propertyId, startDate, endDate) {
-  const [rooms, roomTypes, reservations] = await Promise.all([
+  const [rooms, roomTypes, reservations, blocks] = await Promise.all([
     listRooms(propertyId),
     listRoomTypes(propertyId),
-    listReservations(propertyId, { from: startDate, to: endDate, limit: 1000 }),
+    // `to` is exclusive of arrivals, and the window's last date is shown, so
+    // a stay arriving on it must still come back.
+    listReservations(propertyId, { from: startDate, to: dayAfter(endDate), limit: 1000 }),
+    listRoomBlocks(propertyId, startDate, endDate),
   ]);
+
+  const blocksByRoom = {};
+  for (const b of blocks) (blocksByRoom[b.room_id] = blocksByRoom[b.room_id] || []).push(b);
 
   const live = reservations.filter(
     (r) => r.status !== 'cancelled' && r.status !== 'no_show'
@@ -4170,6 +4435,7 @@ export async function getTapeChart(propertyId, startDate, endDate) {
           ...room,
           room_type_name: typeName[room.room_type_id],
           reservations: byRoom[room.id] || [],
+          blocks: blocksByRoom[room.id] || [],
         })),
     })),
     unassigned,
@@ -4196,9 +4462,7 @@ export async function getTapeRates(propertyId, startDate, endDate) {
   ]);
 
   // The chart's last date is a night to price, so the quote runs to the day after.
-  const after = new Date(`${endDate}T00:00:00Z`);
-  after.setUTCDate(after.getUTCDate() + 1);
-  const checkOut = after.toISOString().slice(0, 10);
+  const checkOut = dayAfter(endDate);
 
   const entries = await Promise.all(
     roomTypes.map(async (rt) => {

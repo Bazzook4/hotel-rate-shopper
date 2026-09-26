@@ -5,6 +5,7 @@ import {
   planStayChange,
   applyStayChange,
   getSupabaseAdmin,
+  findRoomClash,
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 
@@ -15,7 +16,8 @@ import { syncInventory, staySpan } from "@/lib/inventorySync";
  * these dates, in that room. It checks the target room specifically rather
  * than the room type -- dropping a bar on room 204 must fail if 204 is taken,
  * even when three other rooms of the same type are free, which is not what
- * the type-level availability check answers.
+ * the type-level availability check answers. A room out of order for those
+ * nights refuses the drop the same way.
  *
  * A resize changes what the stay costs, and that is the desk's decision, not
  * the chart's. So a drag that changes the number of nights is answered first
@@ -27,30 +29,6 @@ import { syncInventory, staySpan } from "@/lib/inventorySync";
 
 function isDate(value) {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-/**
- * Whether a room is free for a span, ignoring the stay being moved.
- *
- * Two stays clash when one starts before the other ends and ends after the
- * other starts. The checkout day is deliberately not a clash: one guest
- * leaving on the 4th and the next arriving on the 4th share no night.
- */
-async function roomIsFree(roomId, checkIn, checkOut, ignoreReservationId) {
-  const supabase = getSupabaseAdmin();
-
-  const { data, error } = await supabase
-    .from("reservations")
-    .select("id, reference, guest_name, check_in, check_out, status")
-    .eq("room_id", roomId)
-    .not("status", "in", "(cancelled,no_show)")
-    .lt("check_in", checkOut)
-    .gt("check_out", checkIn);
-
-  if (error) throw new Error(`Failed to check the room: ${error.message}`);
-
-  const clash = (data || []).find((r) => r.id !== ignoreReservationId);
-  return clash || null;
 }
 
 export async function POST(req) {
@@ -101,14 +79,12 @@ export async function POST(req) {
     const targetRoom = room_id || current.room_id;
 
     if (targetRoom) {
-      const clash = await roomIsFree(targetRoom, check_in, check_out, id);
+      // Another stay, or the room being out of order, both refuse the drop.
+      const clash = await findRoomClash(targetRoom, check_in, check_out, {
+        ignoreReservationId: id,
+      });
       if (clash) {
-        return NextResponse.json(
-          {
-            error: `That room is taken by ${clash.guest_name} (${clash.reference}) from ${clash.check_in} to ${clash.check_out}.`,
-          },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: clash.message }, { status: 409 });
       }
     }
 

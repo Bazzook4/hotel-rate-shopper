@@ -52,6 +52,22 @@ export function staySpan(reservation) {
 }
 
 /**
+ * The nights an out-of-order block takes off sale, in the same shape.
+ *
+ * A block on an inactive room changes nothing: that room was never counted
+ * as for sale, so there is nothing to push.
+ */
+export function blockSpan(block) {
+  if (!block?.room_type_id || !block.start_date || !block.end_date) return null;
+  if (block.room_is_active === false) return null;
+  return {
+    roomTypeId: block.room_type_id,
+    from: block.start_date,
+    to: addDaysISO(block.end_date, -1),
+  };
+}
+
+/**
  * Consecutive dates with the same count, folded into one range each.
  *
  * The partner expands a range server-side, so a quiet fortnight goes as one

@@ -120,6 +120,29 @@ export default function BookingModal({
 
   const reservation = folio?.reservation;
 
+  /**
+   * The group this stay was booked under, with its other rooms, so the desk
+   * handling one room of a wedding can see the rest of the party.
+   */
+  const [group, setGroup] = useState(null);
+  const groupId = reservation?.group_id || null;
+  useEffect(() => {
+    if (!groupId) {
+      setGroup(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/pms/groups?id=${groupId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled) setGroup(d?.group || null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId]);
+
   async function changeStatus(status) {
     setBusy(true);
     setError(null);
@@ -197,7 +220,9 @@ export default function BookingModal({
         >
           <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
             {isNew
-              ? "New booking"
+              ? prefill?.booking_type === "complimentary"
+                ? "New complimentary stay"
+                : "New booking"
               : `Edit reservation — ${reservation?.reference || ""} for ${
                   reservation?.guest_name || ""
                 }`}
@@ -270,6 +295,24 @@ export default function BookingModal({
                   {reservation.rooms?.room_number && (
                     <span className="chip chip-ok">
                       Room {reservation.rooms.room_number}
+                    </span>
+                  )}
+                  {reservation.booking_type === "complimentary" && (
+                    <span className="chip chip-off">Complimentary</span>
+                  )}
+                  {group && (
+                    <span
+                      className="chip chip-off"
+                      title={group.reservations
+                        .map(
+                          (m) =>
+                            `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name} · ${m.guest_name} · ${m.reference}`
+                        )
+                        .join("\n")}
+                    >
+                      Group: {group.name} · {group.reservations.length} room
+                      {group.reservations.length === 1 ? "" : "s"}
+                      {group.contact_name ? ` · contact ${group.contact_name}` : ""}
                     </span>
                   )}
                   {folio?.totals && (
