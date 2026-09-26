@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
 import { resolveAllRates } from '@/lib/ratePlanPricing';
-import { computeTaxes } from '@/lib/taxes';
+import { computeTaxes, stayLines } from '@/lib/taxes';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2744,10 +2744,17 @@ export async function applyStayChange(id, updates, plan, pricing = 'adjust') {
         });
       const first = readable(plan.removed[0].stay_date);
       const last = readable(plan.removed[plan.removed.length - 1].stay_date);
+      // Billed as the room service, so it carries the room's taxes -- a
+      // retention is accommodation revenue. One unit per night kept, at the
+      // average of those nights, so a tariff slab judges it as it would have
+      // judged the nights themselves.
+      const roomService = await getRoomService(reservation.property_id);
+      const count = plan.removed.length;
       await addReservationExtra(id, {
+        extra_id: roomService?.id || null,
         name: `Retained — shortened stay (${first === last ? first : `${first} to ${last}`})`,
-        unit_price: Number(retained.toFixed(2)),
-        quantity: 1,
+        unit_price: Number((retained / count).toFixed(2)),
+        quantity: count,
         kind: 'extra',
       });
     }
@@ -3070,23 +3077,194 @@ export async function deleteReservationGuest(id) {
   return true;
 }
 
-/** The property's menu of extras and inclusions. */
-export async function listPropertyExtras(propertyId) {
+/**
+ * Whether an error means "migration 025 has not been run yet".
+ *
+ * The services and tax tables arrive with a migration the user applies by
+ * hand, and code can deploy before it does. A missing table, column or
+ * relationship reads as "nothing set up" rather than breaking the calendar.
+ */
+function notMigrated(error) {
+  return ['PGRST205', 'PGRST200', '42P01', '42703'].includes(error?.code);
+}
+
+/**
+ * The property's services: everything that can be billed, the room included.
+ *
+ * Each comes with its category and the ids of the taxes it carries. Only
+ * active services unless asked, since a retired one is no longer sold.
+ */
+export async function listPropertyExtras(propertyId, { includeInactive = false } = {}) {
+  const run = (select) => {
+    let q = supabase.from('property_extras').select(select).eq('property_id', propertyId);
+    if (!includeInactive) q = q.eq('is_active', true);
+    return q.order('kind', { ascending: true }).order('name', { ascending: true });
+  };
+
+  let { data, error } = await run('*, service_categories(id, name, sort_order)');
+  if (error && notMigrated(error)) ({ data, error } = await run('*'));
+  if (error) throw new Error(`Failed to load services: ${error.message}`);
+
+  const taxMap = await listServiceTaxes(propertyId);
+  return (data || []).map((s) => ({ ...s, tax_ids: taxMap[s.id] || [] }));
+}
+
+/** Service categories, in display order. */
+export async function listServiceCategories(propertyId) {
+  const { data, error } = await supabase
+    .from('service_categories')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true });
+
+  if (error) {
+    if (notMigrated(error)) return [];
+    throw new Error(`Failed to load categories: ${error.message}`);
+  }
+  return data || [];
+}
+
+export async function saveServiceCategory(row) {
+  const query = row.id
+    ? supabase.from('service_categories').update(row).eq('id', row.id).eq('property_id', row.property_id)
+    : supabase.from('service_categories').insert(row);
+
+  const { data, error } = await query.select('*').single();
+  if (error) {
+    if (error.code === '23505') throw new Error(`There is already a “${row.name}” category.`);
+    throw new Error(`Failed to save the category: ${error.message}`);
+  }
+  return data;
+}
+
+/** Remove a category. Its services stay, uncategorised -- see the migration. */
+export async function deleteServiceCategory(id, propertyId) {
+  const { error } = await supabase
+    .from('service_categories')
+    .delete()
+    .eq('id', id)
+    .eq('property_id', propertyId);
+  if (error) throw new Error(`Failed to delete the category: ${error.message}`);
+  return true;
+}
+
+/** The room service, which every room night on a folio is billed as. */
+export async function getRoomService(propertyId) {
   const { data, error } = await supabase
     .from('property_extras')
     .select('*')
     .eq('property_id', propertyId)
-    .eq('is_active', true)
-    .order('kind', { ascending: true })
-    .order('name', { ascending: true });
+    .eq('is_room', true)
+    .maybeSingle();
 
-  if (error) throw new Error(`Failed to load extras: ${error.message}`);
-  return data || [];
+  if (error) {
+    if (notMigrated(error)) return null;
+    throw new Error(`Failed to load the room service: ${error.message}`);
+  }
+  return data;
+}
+
+const DEFAULT_CATEGORIES = ['Accommodation', 'Food & Beverage', 'Transport', 'Other'];
+
+/**
+ * Give a property the services every hotel starts from.
+ *
+ * The room service has to exist for room nights to carry taxes at all, so
+ * this runs whenever services or taxes are set up. Categories are seeded only
+ * for a property that has none, so a hotelier who deleted "Transport" does
+ * not find it back the next time they open the page.
+ */
+export async function ensureServiceDefaults(propertyId) {
+  let categories = await listServiceCategories(propertyId);
+
+  if (categories.length === 0) {
+    const { data, error } = await supabase
+      .from('service_categories')
+      .insert(DEFAULT_CATEGORIES.map((name, i) => ({ property_id: propertyId, name, sort_order: (i + 1) * 10 })))
+      .select('*');
+    if (error) {
+      if (notMigrated(error)) return null;
+      throw new Error(`Failed to create categories: ${error.message}`);
+    }
+    categories = data || [];
+  }
+
+  const existing = await getRoomService(propertyId);
+  if (existing) return existing;
+
+  const accommodation =
+    categories.find((c) => c.name.toLowerCase() === 'accommodation') || categories[0] || null;
+
+  const { data, error } = await supabase
+    .from('property_extras')
+    .insert({
+      property_id: propertyId,
+      name: 'Room charge',
+      unit_price: 0,
+      charge_type: 'per_night',
+      kind: 'extra',
+      is_room: true,
+      category_id: accommodation?.id || null,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    // Two setup pages opening at once can both try; the unique index lets
+    // exactly one through, and the other reads what it made.
+    if (error.code === '23505') return getRoomService(propertyId);
+    throw new Error(`Failed to create the room service: ${error.message}`);
+  }
+  return data;
+}
+
+/** { service_id: [tax_id, ...] } for a property. */
+export async function listServiceTaxes(propertyId) {
+  const { data, error } = await supabase
+    .from('service_taxes')
+    .select('service_id, tax_id, property_taxes!inner(property_id)')
+    .eq('property_taxes.property_id', propertyId);
+
+  if (error) {
+    if (notMigrated(error)) return {};
+    throw new Error(`Failed to load service taxes: ${error.message}`);
+  }
+
+  const map = {};
+  for (const row of data || []) (map[row.service_id] = map[row.service_id] || []).push(row.tax_id);
+  return map;
+}
+
+/** Set exactly which taxes a service carries, replacing what it had. */
+export async function setServiceTaxes(serviceId, taxIds) {
+  const { error: clearError } = await supabase.from('service_taxes').delete().eq('service_id', serviceId);
+  if (clearError) throw new Error(`Failed to update taxes: ${clearError.message}`);
+
+  const rows = [...new Set(taxIds || [])].map((tax_id) => ({ service_id: serviceId, tax_id }));
+  if (rows.length === 0) return true;
+
+  const { error } = await supabase.from('service_taxes').insert(rows);
+  if (error) throw new Error(`Failed to update taxes: ${error.message}`);
+  return true;
+}
+
+/** Set exactly which services a tax is charged on -- the same link, from the tax's side. */
+export async function setTaxServices(taxId, serviceIds) {
+  const { error: clearError } = await supabase.from('service_taxes').delete().eq('tax_id', taxId);
+  if (clearError) throw new Error(`Failed to update services: ${clearError.message}`);
+
+  const rows = [...new Set(serviceIds || [])].map((service_id) => ({ service_id, tax_id: taxId }));
+  if (rows.length === 0) return true;
+
+  const { error } = await supabase.from('service_taxes').insert(rows);
+  if (error) throw new Error(`Failed to update services: ${error.message}`);
+  return true;
 }
 
 export async function savePropertyExtra(row) {
   const query = row.id
-    ? supabase.from('property_extras').update(row).eq('id', row.id)
+    ? supabase.from('property_extras').update(row).eq('id', row.id).eq('property_id', row.property_id)
     : supabase.from('property_extras').insert(row);
 
   const { data, error } = await query.select('*').single();
@@ -3117,7 +3295,7 @@ export async function listPropertyTaxes(propertyId, { includeInactive = false } 
 
   const { data, error } = await query;
   if (error) {
-    if (error.code === '42P01' || error.code === 'PGRST205') return [];
+    if (notMigrated(error)) return [];
     throw new Error(`Failed to load taxes: ${error.message}`);
   }
   return data || [];
@@ -3280,14 +3458,61 @@ export async function getReservationFolio(reservationId) {
 
   // Taxes are worked out from the rules on every read, like the balance. A
   // rule in force only from a date applies only to the nights from that date.
-  const taxRules = await listPropertyTaxes(reservation.property_id);
-  const tax = computeTaxes(taxRules, {
-    nights: nights.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, nights.length) })),
-    extras,
-    adults: reservation.adults,
-    children: reservation.children,
-    residency: reservation.guest_residency,
-  });
+  const [taxRules, services] = await Promise.all([
+    listPropertyTaxes(reservation.property_id),
+    listPropertyExtras(reservation.property_id, { includeInactive: true }),
+  ]);
+  const roomService = services.find((sv) => sv.is_room) || null;
+  const serviceTaxes = {};
+  for (const sv of services) serviceTaxes[sv.id] = sv.tax_ids;
+
+  const tax = computeTaxes(
+    taxRules,
+    serviceTaxes,
+    stayLines({
+      nights: nights.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, nights.length) })),
+      extras,
+      roomServiceId: roomService?.id || null,
+    }),
+    {
+      adults: reservation.adults,
+      children: reservation.children,
+      residency: reservation.guest_residency,
+    }
+  );
+
+  /**
+   * The bill by category: what was charged under each, and the taxes that
+   * came with it. This is the folio's "how the total adds up" -- the room is
+   * one service among the others, grouped the way the property set them up.
+   */
+  const serviceById = {};
+  for (const sv of services) serviceById[sv.id] = sv;
+  const categoryOf = (serviceId) => {
+    const sv = serviceId ? serviceById[serviceId] : null;
+    return sv?.service_categories?.name || (sv ? 'Uncategorised' : 'Other');
+  };
+  const groups = {};
+  const addTo = (name, amount, taxes) => {
+    groups[name] = groups[name] || { name, amount: 0, tax: 0 };
+    groups[name].amount += amount;
+    groups[name].tax += taxes;
+  };
+  const roomCategory = roomService ? categoryOf(roomService.id) : 'Accommodation';
+  addTo(roomCategory, room, tax.byService[roomService?.id]?.added || 0);
+  for (const e of extras.filter((x) => x.kind === 'extra')) {
+    addTo(categoryOf(e.extra_id), Number(e.unit_price) * Number(e.quantity), 0);
+  }
+  for (const sv of services.filter((x) => !x.is_room)) {
+    const t = tax.byService[sv.id]?.added || 0;
+    if (t) addTo(categoryOf(sv.id), 0, t);
+  }
+  const categories = Object.values(groups).map((g) => ({
+    name: g.name,
+    amount: Number(g.amount.toFixed(2)),
+    tax: Number(g.tax.toFixed(2)),
+  }));
+
   const grandTotal = total + tax.added;
 
   return {
@@ -3299,6 +3524,8 @@ export async function getReservationFolio(reservationId) {
     nights,
     nightsMatch: nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01,
     taxes: tax.lines,
+    categories,
+    roomServiceId: roomService?.id || null,
     totals: {
       room,
       extras: Number(extrasTotal.toFixed(2)),

@@ -53,7 +53,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
     extra_id: "",
     name: "",
     unit_price: "",
-    quantity: 1,
+    quantity: "",
     stay_date: "",
   });
   const [payment, setPayment] = useState({ amount: "", method: "cash", reference: "" });
@@ -114,6 +114,17 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
   }
 
   const currency = folio.reservation?.currency || "INR";
+
+  // Every charge is a service, so it carries that service's taxes. The room
+  // is billed through the nights above, never added as a line.
+  const sellable = (extras || []).filter((x) => !x.is_room);
+  const serviceGroups = Object.entries(
+    sellable.reduce((acc, x) => {
+      const key = x.service_categories?.name || "Uncategorised";
+      (acc[key] = acc[key] || []).push(x);
+      return acc;
+    }, {})
+  );
 
   return (
     <div className="space-y-3">
@@ -342,18 +353,26 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
             <div style={{ fontWeight: 600, fontSize: "0.8rem", marginBottom: "0.25rem" }}>
               How the total adds up
             </div>
-            {[
-              [
-                `Room — ${folio.nights.length} night${folio.nights.length === 1 ? "" : "s"}`,
-                folio.totals.room,
-              ],
-              ["Services & extras", folio.totals.extras],
-            ].map(([label, value]) => (
-              <div key={label} className="flex justify-between">
-                <span style={{ color: "var(--text-muted)" }}>{label}</span>
-                <span>{money(value, currency)}</span>
+            {/* By category: the room is one service among the others. */}
+            {(folio.categories || []).map((c) => (
+              <div key={c.name} className="flex justify-between">
+                <span style={{ color: "var(--text-muted)" }}>
+                  {c.name}
+                  {c.tax > 0 && (
+                    <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
+                      {" "}
+                      · incl. {money(c.tax, currency)} tax
+                    </span>
+                  )}
+                </span>
+                <span>{money(c.amount + c.tax, currency)}</span>
               </div>
             ))}
+            <div
+              style={{ fontSize: "0.7rem", color: "var(--text-faint)", paddingTop: "0.25rem" }}
+            >
+              Taxes
+            </div>
             {(folio.taxes || [])
               .filter((t) => !t.inclusive)
               .map((t, i) => (
@@ -404,7 +423,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
           </div>
 
           <div style={{ fontWeight: 600, fontSize: "0.8rem", paddingTop: "0.25rem" }}>
-            Services & extras
+            Services added to this stay
           </div>
 
           {folio.extras.length === 0 && (
@@ -468,42 +487,54 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
               style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}
             >
               <div>
-                <label className="label">From the list</label>
+                <label className="label">Service *</label>
                 <select
                   className="input"
                   value={line.extra_id}
-                  onChange={(e) => setLine({ ...line, extra_id: e.target.value })}
+                  onChange={(e) => {
+                    // Picking a service fills its name and price, which the
+                    // desk can still change for this one stay.
+                    const svc = sellable.find((x) => x.id === e.target.value);
+                    setLine({
+                      ...line,
+                      extra_id: e.target.value,
+                      name: svc?.name || "",
+                      unit_price: svc ? String(svc.unit_price) : "",
+                    });
+                  }}
                 >
-                  <option value="">Type one in…</option>
-                  {(extras || []).map((x) => (
-                    <option key={x.id} value={x.id}>
-                      {x.name} — {money(x.unit_price, currency)}
-                      {x.charge_type === "per_night" ? "/night" : ""}
-                    </option>
+                  <option value="">Choose…</option>
+                  {serviceGroups.map(([category, items]) => (
+                    <optgroup key={category} label={category}>
+                      {items.map((x) => (
+                        <option key={x.id} value={x.id}>
+                          {x.name} — {money(x.unit_price, currency)}
+                          {x.charge_type === "per_night" ? "/night" : ""}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>
-              {!line.extra_id && (
-                <>
-                  <div>
-                    <label className="label">Description</label>
-                    <input
-                      className="input"
-                      value={line.name}
-                      onChange={(e) => setLine({ ...line, name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Unit price</label>
-                    <input
-                      className="input"
-                      type="number"
-                      value={line.unit_price}
-                      onChange={(e) => setLine({ ...line, unit_price: e.target.value })}
-                    />
-                  </div>
-                </>
-              )}
+              <div>
+                <label className="label">Description</label>
+                <input
+                  className="input"
+                  value={line.name}
+                  disabled={!line.extra_id}
+                  onChange={(e) => setLine({ ...line, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Unit price</label>
+                <input
+                  className="input"
+                  type="number"
+                  value={line.unit_price}
+                  disabled={!line.extra_id}
+                  onChange={(e) => setLine({ ...line, unit_price: e.target.value })}
+                />
+              </div>
               <div>
                 <label className="label">Quantity</label>
                 <input
@@ -511,6 +542,11 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                   type="number"
                   min="1"
                   value={line.quantity}
+                  placeholder={
+                    sellable.find((x) => x.id === line.extra_id)?.charge_type === "per_night"
+                      ? "Each night"
+                      : "1"
+                  }
                   onChange={(e) => setLine({ ...line, quantity: e.target.value })}
                 />
               </div>
@@ -532,11 +568,18 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
               <div className="flex items-end">
                 <button
                   className="btn btn-primary text-sm w-full"
-                  disabled={busy}
+                  disabled={busy || !line.extra_id}
                   onClick={async () => {
-                    const payload = { ...line, stay_date: line.stay_date || null };
+                    const payload = {
+                      ...line,
+                      stay_date: line.stay_date || null,
+                      unit_price: line.unit_price === "" ? undefined : Number(line.unit_price),
+                      // A per-night service with the quantity left at 1 is
+                      // multiplied out by the server; an explicit number wins.
+                      quantity: Number(line.quantity) || undefined,
+                    };
                     if (await post("extra", { line: payload })) {
-                      setLine({ extra_id: "", name: "", unit_price: "", quantity: 1, stay_date: "" });
+                      setLine({ extra_id: "", name: "", unit_price: "", quantity: "", stay_date: "" });
                     }
                   }}
                 >
@@ -544,10 +587,10 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                 </button>
               </div>
             </div>
-            {(extras || []).length === 0 && (
+            {sellable.length === 0 && (
               <p className="sub" style={{ fontSize: "0.7rem" }}>
-                No saved items yet — type one in above. A reusable list can be set
-                up later.
+                No services set up yet. Add them under Setup → Services &amp;
+                Taxes, where each one gets its taxes.
               </p>
             )}
           </div>

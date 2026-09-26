@@ -5,6 +5,7 @@ import {
   listPropertyTaxes,
   savePropertyTax,
   deletePropertyTax,
+  setTaxServices,
 } from "@/lib/database";
 
 /**
@@ -12,7 +13,11 @@ import {
  *
  * Reading them is front-desk work -- the folio shows what each one added --
  * but changing them changes what every open booking owes, so writes need the
- * setup permission, as the extras list does.
+ * setup permission, as the services list does.
+ *
+ * A rule charges nothing on its own: it applies to the services it is
+ * attached to. A save may carry `service_ids` to set that link from the
+ * rule's side; the Services page sets it from the service's side.
  */
 
 async function requireSetup(req) {
@@ -38,7 +43,6 @@ const BASES = [
   "per_adult_per_stay",
   "per_guest_per_stay",
 ];
-const APPLIES_TO = ["room", "extras", "room_and_extras"];
 const SCOPES = ["all", "domestic", "international"];
 
 function isDate(value) {
@@ -91,7 +95,6 @@ function toRow(body, propertyId) {
       calc_type,
       value,
       basis: BASES.includes(body.basis) ? body.basis : "per_night",
-      applies_to: APPLIES_TO.includes(body.applies_to) ? body.applies_to : "room",
       rate_above,
       rate_up_to,
       guest_scope: SCOPES.includes(body.guest_scope) ? body.guest_scope : "all",
@@ -149,12 +152,16 @@ export async function POST(req) {
   for (const rule of incoming) {
     const { row, error: invalid } = toRow(rule, propertyId);
     if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
-    rows.push(row);
+    rows.push({ row, serviceIds: Array.isArray(rule.service_ids) ? rule.service_ids : null });
   }
 
   try {
     const saved = [];
-    for (const row of rows) saved.push(await savePropertyTax(row));
+    for (const { row, serviceIds } of rows) {
+      const tax = await savePropertyTax(row);
+      if (serviceIds) await setTaxServices(tax.id, serviceIds);
+      saved.push(tax);
+    }
     return NextResponse.json({ taxes: saved });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

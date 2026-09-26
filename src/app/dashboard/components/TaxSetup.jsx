@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import {
-  TAX_APPLIES_TO,
   TAX_BASES,
   TAX_SCOPES,
   computeTaxes,
@@ -13,12 +12,16 @@ import {
 } from "@/lib/taxes";
 
 /**
- * Taxes and fees: what is added to a stay on top of the room and extras.
+ * Taxes and fees: the rules services are taxed by.
  *
- * Every rule is one row, and a hotel's tax is usually several of them --
- * Indian GST alone is four (CGST and SGST, at two tariff slabs). The preview
- * underneath runs the same calculation the folio does, so a rule can be
- * checked against a made-up stay before any guest is charged by it.
+ * A rule charges nothing on its own -- it applies to the services it is
+ * attached to, which can be set here ("charged on") or from each service
+ * above. A hotel's tax is usually several rules: Indian GST alone is four
+ * (CGST and SGST, at two tariff slabs).
+ *
+ * The preview runs the same calculation the folio does, on the real services,
+ * so a rule can be checked against a made-up stay before any guest is charged
+ * by it.
  *
  * A rule that changes is ended and replaced rather than edited in place,
  * because folios are taxed live: editing last year's rate would re-tax last
@@ -29,13 +32,12 @@ function money(value) {
   return `₹${(Number(value) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
-function blank(sortOrder = 10) {
+function blank(sortOrder, serviceIds = []) {
   return {
     name: "",
     calc_type: "percent",
     value: "",
     basis: "per_night",
-    applies_to: "room",
     rate_above: "",
     rate_up_to: "",
     guest_scope: "all",
@@ -45,52 +47,40 @@ function blank(sortOrder = 10) {
     valid_from: "",
     valid_to: "",
     sort_order: sortOrder,
+    service_ids: serviceIds,
   };
-}
-
-/** A saved rule as the editor's inputs hold it: nulls become empty boxes. */
-function toDraft(tax) {
-  const out = { ...tax };
-  for (const k of ["rate_above", "rate_up_to", "max_nights", "valid_from", "valid_to"]) {
-    if (out[k] === null || out[k] === undefined) out[k] = "";
-  }
-  return out;
 }
 
 function shift(date, days) {
   return formatDateISO(addDays(parseDateISO(date), days));
 }
 
-export default function TaxSetup({ session }) {
-  const propertyId = session?.propertyId || null;
+export default function TaxSetup({ propertyId, data, onChanged }) {
+  const { taxes, services, categories } = data;
 
-  const [taxes, setTaxes] = useState([]);
   const [draft, setDraft] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
   const today = todayUTC();
+  const roomService = services.find((s) => s.is_room) || null;
+  // Included services are part of the rate, so they are never taxed alone.
+  const taxable = services.filter((s) => s.is_room || s.kind !== "inclusion");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const qs = propertyId ? `?propertyId=${propertyId}` : "";
-      const res = await fetch(`/api/pms/taxes${qs}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not load taxes");
-      setTaxes(data.taxes || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+  /** Which services carry each tax, from the services' side of the link. */
+  const servicesFor = useMemo(() => {
+    const m = {};
+    for (const s of services) {
+      for (const id of s.tax_ids || []) (m[id] = m[id] || []).push(s);
     }
-  }, [propertyId]);
+    return m;
+  }, [services]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const categoryName = useMemo(() => {
+    const m = {};
+    for (const c of categories) m[c.id] = c.name;
+    return m;
+  }, [categories]);
 
   async function save(rules) {
     setBusy(true);
@@ -101,9 +91,9 @@ export default function TaxSetup({ session }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rules, property_id: propertyId }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not save");
-      await load();
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Could not save");
+      await onChanged();
       return true;
     } catch (err) {
       setError(err.message);
@@ -127,9 +117,9 @@ export default function TaxSetup({ session }) {
       const qs = new URLSearchParams({ id: tax.id });
       if (propertyId) qs.set("propertyId", propertyId);
       const res = await fetch(`/api/pms/taxes?${qs}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not delete");
-      await load();
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Could not delete");
+      await onChanged();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -153,7 +143,7 @@ export default function TaxSetup({ session }) {
   async function addGst() {
     if (
       !window.confirm(
-        "Add Indian GST for hotel rooms, in force from 22 Sep 2025?\n\n" +
+        "Add Indian GST for hotel rooms, in force from 22 Sep 2025, charged on the room?\n\n" +
           "Nights up to ₹1,000: nil\n" +
           "Above ₹1,000 up to ₹7,500: CGST 2.5% + SGST 2.5%\n" +
           "Above ₹7,500: CGST 9% + SGST 9%\n\n" +
@@ -162,13 +152,29 @@ export default function TaxSetup({ session }) {
     ) {
       return;
     }
-    await save(indianGstPreset());
+    const attach = roomService ? [roomService.id] : [];
+    await save(indianGstPreset().map((r) => ({ ...r, service_ids: attach })));
   }
 
-  const nextOrder = useMemo(
-    () => (taxes.reduce((max, t) => Math.max(max, Number(t.sort_order) || 0), 0) || 0) + 10,
-    [taxes]
-  );
+  const nextOrder =
+    taxes.reduce((max, t) => Math.max(max, Number(t.sort_order) || 0), 0) + 10;
+
+  function edit(tax) {
+    const out = { ...tax, service_ids: (servicesFor[tax.id] || []).map((s) => s.id) };
+    for (const k of ["rate_above", "rate_up_to", "max_nights", "valid_from", "valid_to"]) {
+      if (out[k] === null || out[k] === undefined) out[k] = "";
+    }
+    setDraft(out);
+  }
+
+  function toggleService(id) {
+    setDraft((d) => ({
+      ...d,
+      service_ids: d.service_ids.includes(id)
+        ? d.service_ids.filter((s) => s !== id)
+        : [...d.service_ids, id],
+    }));
+  }
 
   // ----- preview -------------------------------------------------------
   const [preview, setPreview] = useState({
@@ -176,29 +182,32 @@ export default function TaxSetup({ session }) {
     nights: 2,
     adults: 2,
     children: 0,
-    extras: 0,
+    serviceId: "",
+    serviceAmount: "",
     residency: "domestic",
   });
 
   const previewResult = useMemo(() => {
-    const nights = Array.from({ length: Math.max(0, Number(preview.nights) || 0) }, (_, i) => ({
-      stay_date: shift(today, i),
-      rate: Number(preview.rate) || 0,
+    const lines = Array.from({ length: Math.max(0, Number(preview.nights) || 0) }, (_, i) => ({
+      service_id: roomService?.id || null,
+      date: shift(today, i),
+      unit_price: Number(preview.rate) || 0,
+      quantity: 1,
     }));
-    const extras =
-      Number(preview.extras) > 0
-        ? [{ unit_price: Number(preview.extras), quantity: 1, kind: "extra", stay_date: today }]
-        : [];
-    const room = nights.reduce((s, n) => s + n.rate, 0);
-    const result = computeTaxes(taxes, {
-      nights,
-      extras,
+    const extra = Number(preview.serviceAmount) || 0;
+    if (preview.serviceId && extra > 0) {
+      lines.push({ service_id: preview.serviceId, date: today, unit_price: extra, quantity: 1 });
+    }
+    const serviceTaxes = {};
+    for (const s of services) serviceTaxes[s.id] = s.tax_ids || [];
+    const result = computeTaxes(taxes, serviceTaxes, lines, {
       adults: preview.adults,
       children: preview.children,
       residency: preview.residency,
     });
-    return { ...result, room, extras: Number(preview.extras) || 0 };
-  }, [taxes, preview, today]);
+    const subtotal = lines.reduce((s, l) => s + l.unit_price * l.quantity, 0);
+    return { ...result, subtotal };
+  }, [taxes, services, roomService, preview, today]);
 
   const setP = (k) => (e) => setPreview((p) => ({ ...p, [k]: e.target.value }));
   const setD = (k) => (e) =>
@@ -213,9 +222,9 @@ export default function TaxSetup({ session }) {
         <div>
           <h3 style={{ fontWeight: 600 }}>Taxes and fees</h3>
           <p className="sub">
-            Added to every booking&apos;s folio and invoice. Combine as many rules
-            as the place needs — a percentage, a fixed fee per night or per
-            guest, a slab by room tariff, a levy for international guests only.
+            Each rule is charged on the services it is attached to. Combine as
+            many as needed — a percentage, a fixed fee per night or per guest,
+            a slab by price, a levy for international guests only.
           </p>
         </div>
         <div className="flex gap-2">
@@ -238,21 +247,20 @@ export default function TaxSetup({ session }) {
         </p>
       )}
 
-      {loading && <p className="sub">Loading…</p>}
-
-      {!loading && taxes.length === 0 && (
+      {taxes.length === 0 && (
         <p className="sub">
           No taxes set up — bookings are billed with no tax. Start from the
           Indian GST preset, or add a rule.
         </p>
       )}
 
-      {!loading && taxes.length > 0 && (
+      {taxes.length > 0 && (
         <table className="grid-table w-full text-sm">
           <thead>
             <tr>
               <th className="text-left">Tax</th>
               <th className="text-left">Rule</th>
+              <th className="text-left">Charged on</th>
               <th className="text-left">In force</th>
               <th />
             </tr>
@@ -261,10 +269,18 @@ export default function TaxSetup({ session }) {
             {taxes.map((t) => {
               const ended = t.valid_to && t.valid_to < today;
               const future = t.valid_from && t.valid_from > today;
+              const on = servicesFor[t.id] || [];
               return (
                 <tr key={t.id} style={{ opacity: ended ? 0.55 : 1 }}>
                   <td style={{ fontWeight: 600 }}>{t.name}</td>
                   <td style={{ color: "var(--text-muted)" }}>{describeTax(t, money)}</td>
+                  <td>
+                    {on.length === 0 ? (
+                      <span style={{ color: "var(--warn)" }}>Nothing — charges nothing</span>
+                    ) : (
+                      on.map((s) => s.name).join(", ")
+                    )}
+                  </td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     {ended ? (
                       <span className="chip chip-off">Ended {t.valid_to}</span>
@@ -277,27 +293,15 @@ export default function TaxSetup({ session }) {
                     ) : null}
                   </td>
                   <td className="text-right" style={{ whiteSpace: "nowrap" }}>
-                    <button
-                      className="btn btn-ghost text-xs"
-                      disabled={busy}
-                      onClick={() => setDraft(toDraft(t))}
-                    >
+                    <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => edit(t)}>
                       Edit
                     </button>
                     {!ended && (
-                      <button
-                        className="btn btn-ghost text-xs"
-                        disabled={busy}
-                        onClick={() => end(t)}
-                      >
+                      <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => end(t)}>
                         End
                       </button>
                     )}
-                    <button
-                      className="btn btn-ghost text-xs"
-                      disabled={busy}
-                      onClick={() => remove(t)}
-                    >
+                    <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => remove(t)}>
                       ✕
                     </button>
                   </td>
@@ -346,24 +350,13 @@ export default function TaxSetup({ session }) {
                 onChange={setD("value")}
               />
             </div>
-            {draft.calc_type === "fixed" ? (
+            {draft.calc_type === "fixed" && (
               <div>
                 <label className="label">Charged</label>
                 <select className="input" value={draft.basis} onChange={setD("basis")}>
                   {TAX_BASES.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div>
-                <label className="label">Percentage of</label>
-                <select className="input" value={draft.applies_to} onChange={setD("applies_to")}>
-                  {TAX_APPLIES_TO.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.label}
                     </option>
                   ))}
                 </select>
@@ -381,12 +374,31 @@ export default function TaxSetup({ session }) {
             </div>
           </div>
 
+          <div>
+            <label className="label">Charged on</label>
+            <div className="flex flex-wrap gap-3 text-sm">
+              {taxable.map((s) => (
+                <label key={s.id} className="flex items-center gap-1">
+                  <input
+                    type="checkbox"
+                    checked={draft.service_ids.includes(s.id)}
+                    onChange={() => toggleService(s.id)}
+                  />
+                  {s.name}
+                  <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
+                    {categoryName[s.category_id] || ""}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
           <div
             className="grid gap-2"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
           >
             <div>
-              <label className="label">Nightly tariff above (₹)</label>
+              <label className="label">Price above (₹)</label>
               <input
                 className="input"
                 type="number"
@@ -429,12 +441,7 @@ export default function TaxSetup({ session }) {
             </div>
             <div>
               <label className="label">Order</label>
-              <input
-                className="input"
-                type="number"
-                value={draft.sort_order}
-                onChange={setD("sort_order")}
-              />
+              <input className="input" type="number" value={draft.sort_order} onChange={setD("sort_order")} />
             </div>
           </div>
 
@@ -452,10 +459,10 @@ export default function TaxSetup({ session }) {
           )}
 
           <p className="sub" style={{ fontSize: "0.7rem" }}>
-            The tariff band is checked night by night against that night&apos;s
-            room rate — that is how GST slabs work. It does not apply to extras.
-            Dates are stay nights: to change a rate, end the old rule and add a
-            new one from the day it changes, so earlier nights keep the old rate.
+            The price band is checked line by line against the unit price — for
+            the room, each night&apos;s rate. That is how GST slabs work. Dates
+            are stay nights: to change a rate, end the old rule and add a new one
+            from the day it changes, so earlier nights keep the old rate.
           </p>
 
           <div className="flex gap-2">
@@ -489,7 +496,7 @@ export default function TaxSetup({ session }) {
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))" }}
           >
             <div>
-              <label className="label">Rate / night</label>
+              <label className="label">Room rate / night</label>
               <input className="input" type="number" min="0" value={preview.rate} onChange={setP("rate")} />
             </div>
             <div>
@@ -505,8 +512,28 @@ export default function TaxSetup({ session }) {
               <input className="input" type="number" min="0" value={preview.children} onChange={setP("children")} />
             </div>
             <div>
-              <label className="label">Extras (₹)</label>
-              <input className="input" type="number" min="0" value={preview.extras} onChange={setP("extras")} />
+              <label className="label">Plus a service</label>
+              <select className="input" value={preview.serviceId} onChange={setP("serviceId")}>
+                <option value="">None</option>
+                {taxable
+                  .filter((s) => !s.is_room)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">…costing (₹)</label>
+              <input
+                className="input"
+                type="number"
+                min="0"
+                value={preview.serviceAmount}
+                onChange={setP("serviceAmount")}
+                disabled={!preview.serviceId}
+              />
             </div>
             <div>
               <label className="label">Guest</label>
@@ -519,15 +546,9 @@ export default function TaxSetup({ session }) {
 
           <div className="text-sm space-y-1">
             <div className="flex justify-between">
-              <span style={{ color: "var(--text-muted)" }}>Room</span>
-              <span>{money(previewResult.room)}</span>
+              <span style={{ color: "var(--text-muted)" }}>Services</span>
+              <span>{money(previewResult.subtotal)}</span>
             </div>
-            {previewResult.extras > 0 && (
-              <div className="flex justify-between">
-                <span style={{ color: "var(--text-muted)" }}>Extras</span>
-                <span>{money(previewResult.extras)}</span>
-              </div>
-            )}
             {previewResult.lines.map((l, i) => (
               <div key={`${l.tax_id}-${i}`} className="flex justify-between">
                 <span style={{ color: "var(--text-muted)" }}>
@@ -551,7 +572,7 @@ export default function TaxSetup({ session }) {
               style={{ borderTop: "1px solid var(--border)", paddingTop: "0.25rem", fontWeight: 600 }}
             >
               <span>Guest pays</span>
-              <span>{money(previewResult.room + previewResult.extras + previewResult.added)}</span>
+              <span>{money(previewResult.subtotal + previewResult.added)}</span>
             </div>
           </div>
         </div>

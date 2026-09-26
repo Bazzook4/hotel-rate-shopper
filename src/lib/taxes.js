@@ -1,33 +1,28 @@
 /**
- * Working out the taxes and fees on a stay from the property's rules.
+ * Working out the taxes on a stay, service by service.
+ *
+ * Everything billed is a service -- the room, breakfast, a pickup -- and each
+ * service carries its own tax rules. So a tax is computed over the lines of
+ * the services it is attached to, not over "the bill": GST at the room's slab
+ * lands on the room nights, GST on food lands on the breakfast, and a rule
+ * attached to nothing charges nothing.
  *
  * Pure: no database, no dates from the clock. The folio, the invoice and the
- * preview on the Tax Setup page all call this one function, so the figure a
+ * preview on the Tax Setup page all call `computeTaxes`, so the figure a
  * hotelier checks while setting a rule up is the figure the guest is charged.
  *
- * Rules are applied in `sort_order`. Each is judged night by night where
- * that means something -- a GST slab depends on the night's tariff, and a
- * rule can start or end part-way through a stay -- and once for the stay
- * where it does not.
- *
- * Tariff bands (`rate_above` / `rate_up_to`) are judged against room nights
- * only. An extra has no nightly tariff to judge, so a percentage on extras
- * ignores the band and applies to every charged extra in its dates.
+ * A line is one unit price times a quantity on a date: each room night is a
+ * line of its own, which is what lets a GST slab be judged night by night and
+ * a rule start or end part-way through a stay.
  */
 
 export const TAX_BASES = [
-  { id: "per_night", label: "Per room, per night" },
+  { id: "per_night", label: "Per night / per unit" },
   { id: "per_stay", label: "Per booking" },
-  { id: "per_adult_per_night", label: "Per adult, per night" },
-  { id: "per_guest_per_night", label: "Per guest, per night" },
+  { id: "per_adult_per_night", label: "Per adult, per night / unit" },
+  { id: "per_guest_per_night", label: "Per guest, per night / unit" },
   { id: "per_adult_per_stay", label: "Per adult, per booking" },
   { id: "per_guest_per_stay", label: "Per guest, per booking" },
-];
-
-export const TAX_APPLIES_TO = [
-  { id: "room", label: "Room charge" },
-  { id: "extras", label: "Extras" },
-  { id: "room_and_extras", label: "Room and extras" },
 ];
 
 export const TAX_SCOPES = [
@@ -52,13 +47,13 @@ export function inForce(tax, date) {
   return true;
 }
 
-/** Whether a night's room rate falls in a rule's tariff band. */
-export function inBand(tax, rate) {
+/** Whether a unit price falls in a rule's price band. */
+export function inBand(tax, price) {
   const above = num(tax.rate_above);
   const upTo = num(tax.rate_up_to);
-  const r = Number(rate) || 0;
-  if (above !== null && !(r > above)) return false;
-  if (upTo !== null && !(r <= upTo)) return false;
+  const p = Number(price) || 0;
+  if (above !== null && !(p > above)) return false;
+  if (upTo !== null && !(p <= upTo)) return false;
   return true;
 }
 
@@ -68,25 +63,24 @@ export function appliesToGuest(tax, residency) {
   return tax.guest_scope === (residency || "domestic");
 }
 
-/** A short description of a rule, as the setup list and folio show it. */
+/** A short description of a rule, as the setup list shows it. */
 export function describeTax(tax, money = (v) => String(v)) {
   const parts = [];
   if (tax.calc_type === "fixed") {
     const basis = TAX_BASES.find((b) => b.id === tax.basis)?.label.toLowerCase();
     parts.push(`${money(tax.value)} ${basis || ""}`.trim());
   } else {
-    const on = TAX_APPLIES_TO.find((a) => a.id === tax.applies_to)?.label.toLowerCase();
-    parts.push(`${Number(tax.value)}% of ${on || "room charge"}`);
+    parts.push(`${Number(tax.value)}%`);
   }
 
   const above = num(tax.rate_above);
   const upTo = num(tax.rate_up_to);
   if (above !== null && upTo !== null) {
-    parts.push(`nights above ${money(above)} up to ${money(upTo)}`);
+    parts.push(`priced above ${money(above)} up to ${money(upTo)}`);
   } else if (above !== null) {
-    parts.push(`nights above ${money(above)}`);
+    parts.push(`priced above ${money(above)}`);
   } else if (upTo !== null) {
-    parts.push(`nights up to ${money(upTo)}`);
+    parts.push(`priced up to ${money(upTo)}`);
   }
 
   if (tax.guest_scope === "international") parts.push("international guests");
@@ -98,93 +92,162 @@ export function describeTax(tax, money = (v) => String(v)) {
 }
 
 /**
- * The taxes on a stay.
+ * The lines of a stay, in the shape `computeTaxes` reads.
  *
- * @param taxes   the property's rules (inactive ones are skipped)
- * @param stay    {
- *                  nights:    [{ stay_date, rate }]
- *                  extras:    [{ unit_price, quantity, kind, stay_date }]
- *                  adults, children
- *                  residency: 'domestic' | 'international'
- *                }
- * @returns {
- *   lines:     [{ tax_id, name, amount, inclusive, detail }]  (zero lines dropped)
- *   added:     sum of exclusive lines -- what goes on top of the bill
- *   included:  sum of inclusive lines -- already inside the price
- * }
+ * Room nights become lines of the room service; charged extras become lines
+ * of the service they were sold as. Inclusions are part of the room price and
+ * are not lines of their own. An extra with no service (typed in by hand
+ * before services existed) is still a line, but carries no taxes.
  */
-export function computeTaxes(taxes, stay) {
-  const nights = [...(stay.nights || [])]
+export function stayLines({ nights = [], extras = [], roomServiceId = null }) {
+  const sorted = [...nights]
     .filter((n) => n && n.stay_date)
     .sort((a, b) => a.stay_date.localeCompare(b.stay_date));
-  const extras = (stay.extras || []).filter((e) => e.kind !== "inclusion");
-  const adults = Math.max(0, Number(stay.adults) || 0);
-  const guests = adults + Math.max(0, Number(stay.children) || 0);
-  const firstNight = nights[0]?.stay_date || null;
+  const firstNight = sorted[0]?.stay_date || null;
+
+  return [
+    ...sorted.map((n) => ({
+      service_id: roomServiceId,
+      date: n.stay_date,
+      unit_price: Number(n.rate) || 0,
+      quantity: 1,
+    })),
+    ...extras
+      .filter((e) => e.kind !== "inclusion")
+      .map((e) => ({
+        service_id: e.extra_id || null,
+        date: e.stay_date || firstNight,
+        unit_price: Number(e.unit_price) || 0,
+        quantity: Number(e.quantity) || 1,
+      })),
+  ];
+}
+
+/**
+ * The taxes on a set of lines.
+ *
+ * @param taxes         the property's rules (inactive ones are skipped)
+ * @param serviceTaxes  { [service_id]: [tax_id, ...] } -- what each service carries
+ * @param lines         from `stayLines`
+ * @param guest         { adults, children, residency }
+ * @returns {
+ *   lines:     [{ tax_id, name, amount, inclusive, detail }]  (zero amounts dropped)
+ *   added:     sum of exclusive taxes -- what goes on top of the bill
+ *   included:  sum of inclusive taxes -- already inside the price
+ *   byService: { [service_id]: { added, included } }
+ * }
+ */
+export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
+  const adults = Math.max(0, Number(guest.adults) || 0);
+  const guests = adults + Math.max(0, Number(guest.children) || 0);
+
+  const carried = {};
+  for (const [serviceId, taxIds] of Object.entries(serviceTaxes || {})) {
+    carried[serviceId] = new Set(taxIds);
+  }
 
   const rules = [...(taxes || [])]
     .filter((t) => t.is_active !== false)
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
 
-  const lines = [];
-  // Running total of exclusive taxes so far, for compound rules.
-  let taxSoFar = 0;
+  // Each line remembers the exclusive tax charged on it so far, which is
+  // what a compound rule is charged on top of.
+  const work = [...(lines || [])]
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))
+    .map((l) => ({ ...l, taxSoFar: 0 }));
+
+  const out = [];
+  const byService = {};
+  const credit = (serviceId, amount, inclusive) => {
+    const key = serviceId || "none";
+    byService[key] = byService[key] || { added: 0, included: 0 };
+    byService[key][inclusive ? "included" : "added"] += amount;
+  };
 
   for (const tax of rules) {
-    if (!appliesToGuest(tax, stay.residency)) continue;
+    if (!appliesToGuest(tax, guest.residency)) continue;
+
+    const eligible = work.filter(
+      (l) =>
+        l.service_id &&
+        carried[l.service_id]?.has(tax.id) &&
+        inForce(tax, l.date) &&
+        inBand(tax, l.unit_price)
+    );
+    if (eligible.length === 0) continue;
 
     const value = Number(tax.value) || 0;
-    const cap = tax.max_nights ? Number(tax.max_nights) : Infinity;
-
-    // The nights this rule reaches: in force that night and inside the band,
-    // up to the cap on chargeable nights.
-    const eligible = nights
-      .filter((n) => inForce(tax, n.stay_date) && inBand(tax, n.rate))
-      .slice(0, cap);
-
-    let amount = 0;
-    let detail = "";
+    const inclusive = tax.calc_type === "percent" && tax.is_inclusive === true;
+    // Per-line amounts, unrounded, so rounding happens once per rule.
+    const shares = [];
 
     if (tax.calc_type === "fixed") {
-      const perStay = tax.basis?.endsWith("_per_stay") || tax.basis === "per_stay";
-      // A per-booking fee is in force if it is in force on arrival.
-      const stayCounts = perStay ? (inForce(tax, firstNight) ? 1 : 0) : eligible.length;
-      const people =
-        tax.basis?.startsWith("per_adult") ? adults : tax.basis?.startsWith("per_guest") ? guests : 1;
-      const units = stayCounts * people;
-      amount = value * units;
-      detail = units > 0 ? `${units} × ${value}` : "";
-    } else {
-      let base = 0;
-      if (tax.applies_to === "room" || tax.applies_to === "room_and_extras") {
-        base += eligible.reduce((sum, n) => sum + (Number(n.rate) || 0), 0);
-      }
-      if (tax.applies_to === "extras" || tax.applies_to === "room_and_extras") {
-        base += extras
-          .filter((e) => inForce(tax, e.stay_date || firstNight))
-          .reduce((sum, e) => sum + Number(e.unit_price) * Number(e.quantity), 0);
-      }
-      if (tax.is_compound) base += taxSoFar;
+      const perStay = tax.basis === "per_stay" || tax.basis?.endsWith("_per_stay");
+      const people = tax.basis?.startsWith("per_adult")
+        ? adults
+        : tax.basis?.startsWith("per_guest")
+          ? guests
+          : 1;
 
-      amount = tax.is_inclusive
-        ? base - base / (1 + value / 100)
-        : (base * value) / 100;
-      detail = `${value}% of ${round2(base)}`;
+      if (perStay) {
+        shares.push([eligible[0], value * people]);
+      } else {
+        // Units in date order, up to the cap on chargeable nights.
+        let left = tax.max_nights ? Number(tax.max_nights) : Infinity;
+        for (const l of eligible) {
+          const units = Math.min(l.quantity, left);
+          if (units <= 0) break;
+          left -= units;
+          shares.push([l, value * units * people]);
+        }
+      }
+    } else {
+      let left = tax.max_nights ? Number(tax.max_nights) : Infinity;
+      for (const l of eligible) {
+        const units = Math.min(l.quantity, left);
+        if (units <= 0) break;
+        left -= units;
+        const base = l.unit_price * units + (tax.is_compound ? l.taxSoFar : 0);
+        shares.push([
+          l,
+          inclusive ? base - base / (1 + value / 100) : (base * value) / 100,
+        ]);
+      }
     }
 
-    amount = round2(amount);
+    const amount = round2(shares.reduce((s, [, a]) => s + a, 0));
     if (amount === 0) continue;
 
-    const inclusive = tax.calc_type === "percent" && tax.is_inclusive === true;
-    if (!inclusive) taxSoFar += amount;
+    for (const [l, a] of shares) {
+      if (!inclusive) l.taxSoFar += a;
+      credit(l.service_id, a, inclusive);
+    }
 
-    lines.push({ tax_id: tax.id || null, name: tax.name, amount, inclusive, detail });
+    const base = round2(shares.reduce((s, [l]) => s + l.unit_price * l.quantity, 0));
+    out.push({
+      tax_id: tax.id || null,
+      name: tax.name,
+      amount,
+      inclusive,
+      detail:
+        tax.calc_type === "fixed"
+          ? `${value} × ${round2(amount / value)}`
+          : `${value}% of ${base}`,
+    });
+  }
+
+  for (const key of Object.keys(byService)) {
+    byService[key] = {
+      added: round2(byService[key].added),
+      included: round2(byService[key].included),
+    };
   }
 
   return {
-    lines,
-    added: round2(lines.filter((l) => !l.inclusive).reduce((s, l) => s + l.amount, 0)),
-    included: round2(lines.filter((l) => l.inclusive).reduce((s, l) => s + l.amount, 0)),
+    lines: out,
+    added: round2(out.filter((l) => !l.inclusive).reduce((s, l) => s + l.amount, 0)),
+    included: round2(out.filter((l) => l.inclusive).reduce((s, l) => s + l.amount, 0)),
+    byService,
   };
 }
 
@@ -195,7 +258,7 @@ export function computeTaxes(taxes, stay) {
  * that up to 7,500, and 18% above 7,500. Accommodation is taxed where the
  * hotel is, so it is always CGST + SGST in equal halves, never IGST. Offered
  * as a starting point, not advice -- the page says to confirm with the
- * property's accountant.
+ * property's accountant. Attached to the room service when it is added.
  */
 export function indianGstPreset() {
   const from = "2025-09-22";
@@ -203,7 +266,6 @@ export function indianGstPreset() {
     name,
     calc_type: "percent",
     value,
-    applies_to: "room",
     rate_above,
     rate_up_to,
     guest_scope: "all",

@@ -14,8 +14,7 @@ import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
 import Reservations from "./dashboard/components/Reservations";
 import TapeChart from "./dashboard/components/TapeChart";
 import RoomInventory from "./dashboard/components/RoomInventory";
-import ExtrasSetup from "./dashboard/components/ExtrasSetup";
-import TaxSetup from "./dashboard/components/TaxSetup";
+import ServicesAndTaxes from "./dashboard/components/ServicesAndTaxes";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -391,27 +390,15 @@ export default function V2Dashboard() {
                       <h2 className="h1">PMS Setup</h2>
                       <p className="sub">
                         What the front office needs before it can work: the actual
-                        rooms guests are checked into, and what can be added to a
-                        stay.
+                        rooms guests are checked into. What a stay can be billed
+                        for is under Services &amp; Taxes.
                       </p>
                     </div>
                     <RoomInventory session={scopedSession} />
-                    <ExtrasSetup session={scopedSession} />
                   </div>
                 )}
 
-                {active === "taxsetup" && (
-                  <div className="space-y-4">
-                    <div>
-                      <h2 className="h1">Tax Setup</h2>
-                      <p className="sub">
-                        The taxes and fees every booking is billed with — GST,
-                        city and tourism levies, service charges.
-                      </p>
-                    </div>
-                    <TaxSetup session={scopedSession} />
-                  </div>
-                )}
+                {active === "taxsetup" && <ServicesAndTaxes session={scopedSession} />}
 
                 {active === "rateplans" && (
                   <PropertySetup session={scopedSession} only="plans" />

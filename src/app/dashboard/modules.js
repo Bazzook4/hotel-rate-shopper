@@ -49,7 +49,7 @@ export const AREAS = [
       { id: "rooms", label: "Room Setup", icon: "bed" },
       { id: "rateplans", label: "Rate Plan Setup", icon: "money" },
       { id: "pmssetup", label: "PMS Setup", icon: "bed" },
-      { id: "taxsetup", label: "Tax Setup", icon: "money" },
+      { id: "taxsetup", label: "Services & Taxes", icon: "list" },
     ],
   },
 ];
