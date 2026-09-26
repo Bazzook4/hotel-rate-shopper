@@ -3180,11 +3180,36 @@ export async function quoteReservation({
     return null;
   };
 
-  // A plan's standing rate in this room, before derivation.
+  /**
+   * A plan's standing rate in this room, before derivation.
+   *
+   * Only a real assignment counts. The CM grid falls back to the room's base
+   * price here so that a property which has not assigned rooms yet still
+   * renders a grid, but a booking must not quietly adopt that number: it
+   * would arrive labelled as a rate plan price while being nothing of the
+   * sort, which is exactly the laundering that hides a missing assignment.
+   *
+   * Returning null instead lets a derived plan resolve to null too, and the
+   * caller falls back to the base price once, in the open, where it is
+   * labelled for what it is.
+   */
   const baseRateFor = (plan) => {
     const a = assignmentFor[`${plan.id}|${room_type_id}`];
     if (a && a.full_rate !== null && a.full_rate !== undefined) return Number(a.full_rate);
-    return room ? Number(room.base_price) : null;
+
+    // An assignment that carries only per-adult rates still prices the room;
+    // full_rate is optional where every occupancy is priced individually.
+    const perAdult = a?.adult_rates || null;
+    if (perAdult) {
+      const atBase = Number(perAdult[baseAdults] ?? perAdult[String(baseAdults)]);
+      if (Number.isFinite(atBase)) return atBase;
+      const any = Object.values(perAdult)
+        .map(Number)
+        .filter((n) => Number.isFinite(n) && n > 0);
+      if (any.length > 0) return Math.max(...any);
+    }
+
+    return null;
   };
 
   // Derived plans follow their master, resolved in THIS room -- the same call
@@ -3267,9 +3292,32 @@ export async function quoteReservation({
     };
   }
 
+  /**
+   * Why a quote fell back to the base price.
+   *
+   * "It came from the base price" is a symptom; the desk needs the cause, and
+   * so does anyone reading a bug report about it. There are only three, and
+   * each has a different fix, so they are named rather than lumped together.
+   */
+  let diagnosis = null;
+  if (sources.has('base_price')) {
+    if (!rate_plan_id) {
+      diagnosis = 'No rate plan chosen — pick one to use its channel rate.';
+    } else if (!plan) {
+      diagnosis = 'That rate plan is no longer configured for this property.';
+    } else if (!assignmentFor[`${rate_plan_id}|${room_type_id}`]) {
+      diagnosis =
+        'This room type is not assigned to that rate plan, so it has no channel rate. Assign it in Rate Plan Setup.';
+    } else {
+      diagnosis =
+        'That rate plan has no rate set for this room type. Set one in the Channel Manager grid.';
+    }
+  }
+
   return {
     total: Number(priced.reduce((sum, n) => sum + n.rate, 0).toFixed(2)),
     nights: breakdown,
+    diagnosis,
     source: sources.has('daily_rates')
       ? 'daily_rates'
       : sources.has('derived')

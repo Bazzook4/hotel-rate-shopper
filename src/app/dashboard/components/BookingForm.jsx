@@ -131,6 +131,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
       style={{ fontSize: "0.7rem", color: weak ? "var(--warn)" : undefined }}
     >
       {SOURCE_LABEL[quote.source] || "from configured rates"}
+      {quote.diagnosis && <> — {quote.diagnosis}</>}
       {perNight != null && nights > 1 && (
         <> · {perNight.toLocaleString("en-IN")}/night × {nights}</>
       )}
