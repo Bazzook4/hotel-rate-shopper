@@ -3102,3 +3102,144 @@ export async function getTapeChart(propertyId, startDate, endDate) {
     unassigned,
   };
 }
+
+/**
+ * What a stay costs, from the rates already configured for the property.
+ *
+ * The desk was typing every total by hand while the system already knew the
+ * answer: rooms are assigned to plans with a price per occupancy, and the
+ * pricing grid writes a rate for specific dates on top of that. Asking the
+ * receptionist to re-enter it invites a booking priced at whatever they
+ * remembered, which then disagrees with what the channels are selling.
+ *
+ * Three sources, in order of how specific they are:
+ *
+ *   daily_rates      a price set for this plan, room type and date
+ *   rate_plan_rooms  the plan's standing price for this occupancy
+ *   room_types       the room's base price, as a last resort
+ *
+ * Each night is priced on its own, so a stay across a weekend picks up the
+ * weekend rate on the nights it applies to rather than an average. Extra
+ * adults and children beyond the plan's included occupancy are added per
+ * night where the plan charges for them.
+ *
+ * Returns null for `total` when nothing is configured, rather than guessing:
+ * a made-up number that looks authoritative is worse than an empty box.
+ */
+export async function quoteReservation({
+  property_id,
+  room_type_id,
+  rate_plan_id,
+  check_in,
+  check_out,
+  adults = 2,
+  children = 0,
+}) {
+  const nights = nightsBetween(check_in, check_out);
+  if (!property_id || !room_type_id || nights.length === 0) {
+    return { total: null, nights: [], source: null, reason: 'Nothing to price yet.' };
+  }
+
+  const occupancy = Math.max(1, Number(adults) || 1);
+
+  // The per-date grid, which is the most specific thing we hold.
+  let daily = [];
+  if (rate_plan_id) {
+    daily = (await listDailyRates(property_id, check_in, nights[nights.length - 1])).filter(
+      (r) =>
+        r.rate_plan_id === rate_plan_id &&
+        (r.room_type_id === room_type_id || r.room_type_id == null)
+    );
+  }
+
+  // Prefer a row written for this exact occupancy; fall back to the plan's
+  // headline row when only one occupancy was ever priced.
+  const dailyFor = (stay_date) => {
+    const rows = daily.filter((r) => r.stay_date === stay_date);
+    const exact = rows.find((r) => Number(r.occupancy) === occupancy);
+    const any = rows.find((r) => Number.isFinite(Number(r.rate)));
+    const hit = exact || any;
+    return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
+  };
+
+  // The plan's standing price for this room and occupancy.
+  let link = null;
+  if (rate_plan_id) {
+    const links = await listRatePlanRooms(property_id);
+    link =
+      links.find(
+        (l) => l.rate_plan_id === rate_plan_id && l.room_type_id === room_type_id
+      ) || null;
+  }
+
+  const planRate = () => {
+    if (!link) return null;
+    const perAdult = link.adult_rates || {};
+    const exact = Number(perAdult[String(occupancy)]);
+    if (Number.isFinite(exact) && exact > 0) return exact;
+    const full = Number(link.full_rate);
+    return Number.isFinite(full) && full > 0 ? full : null;
+  };
+
+  // The room's own base price, which exists even with no plan configured.
+  let basePrice = null;
+  {
+    const { data } = await supabase
+      .from('room_types')
+      .select('base_price')
+      .eq('id', room_type_id)
+      .maybeSingle();
+    const n = Number(data?.base_price);
+    basePrice = Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  // What a plan adds for heads beyond what it includes.
+  const included = Number(link?.included_occupancy) || null;
+  const extraAdult = Number(link?.extra_adult_rate) || 0;
+  const extraChild = Number(link?.extra_child_rate) || 0;
+  const extraAdults = included ? Math.max(0, occupancy - included) : 0;
+  const perNightExtras = extraAdults * extraAdult + (Number(children) || 0) * extraChild;
+
+  const sources = new Set();
+  const breakdown = nights.map((stay_date) => {
+    const fromGrid = dailyFor(stay_date);
+    const fromPlan = fromGrid == null ? planRate() : null;
+    const base = fromGrid ?? fromPlan ?? basePrice;
+
+    if (fromGrid != null) sources.add('daily_rates');
+    else if (fromPlan != null) sources.add('rate_plan');
+    else if (base != null) sources.add('base_price');
+
+    return {
+      stay_date,
+      rate: base == null ? null : Number((base + perNightExtras).toFixed(2)),
+    };
+  });
+
+  const priced = breakdown.filter((n) => n.rate != null);
+  if (priced.length === 0) {
+    return {
+      total: null,
+      nights: breakdown,
+      source: null,
+      reason:
+        'No rate is configured for this room type and plan. Set one in Rate Plan Setup, or enter the total by hand.',
+    };
+  }
+
+  const total = Number(priced.reduce((sum, n) => sum + n.rate, 0).toFixed(2));
+
+  return {
+    total,
+    nights: breakdown,
+    // Which source did most of the work, for the note under the total.
+    source: sources.has('daily_rates')
+      ? 'daily_rates'
+      : sources.has('rate_plan')
+        ? 'rate_plan'
+        : 'base_price',
+    // A stay only partly covered by configured rates is worth flagging.
+    partial: priced.length !== breakdown.length,
+    reason: null,
+  };
+}

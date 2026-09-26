@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -56,6 +56,85 @@ function toForm(reservation) {
   };
 }
 
+/** Where a quoted price came from, in the desk's language rather than ours. */
+const SOURCE_LABEL = {
+  daily_rates: "from the rate calendar",
+  rate_plan: "from the rate plan",
+  base_price: "from the room's base price",
+};
+
+/**
+ * The line under the total: what the price is, and how to get back to it.
+ *
+ * The desk needs to know whether a figure was quoted or typed, because those
+ * carry different authority -- a quoted total can be trusted to match what the
+ * channels sell, a typed one is somebody's decision. Saying so in one line is
+ * cheaper than making them open Rate Plan Setup to check.
+ */
+function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
+  if (quoting) {
+    return <p className="sub" style={{ fontSize: "0.7rem" }}>Pricing…</p>;
+  }
+
+  if (manual) {
+    return (
+      <p className="sub" style={{ fontSize: "0.7rem" }}>
+        Entered by hand.
+        {quote?.total != null && (
+          <>
+            {" "}
+            Configured rate is {Math.round(quote.total).toLocaleString("en-IN")}.{" "}
+            <button
+              type="button"
+              className="btn-link"
+              onClick={onUseQuoted}
+              style={{
+                padding: 0,
+                border: 0,
+                background: "none",
+                color: "var(--accent)",
+                cursor: "pointer",
+                font: "inherit",
+                textDecoration: "underline",
+              }}
+            >
+              Use it
+            </button>
+          </>
+        )}
+      </p>
+    );
+  }
+
+  // Nothing configured: say so plainly and leave the box to the desk.
+  if (quote && quote.total == null) {
+    return (
+      <p className="sub" style={{ fontSize: "0.7rem", color: "var(--warn)" }}>
+        {quote.reason || "No rate configured — enter the total by hand."}
+      </p>
+    );
+  }
+
+  if (!quote || quote.total == null) return null;
+
+  const perNight = nights > 0 ? Math.round(quote.total / nights) : null;
+
+  return (
+    <p className="sub" style={{ fontSize: "0.7rem" }}>
+      {SOURCE_LABEL[quote.source] || "from configured rates"}
+      {perNight != null && nights > 1 && (
+        <> · {perNight.toLocaleString("en-IN")}/night × {nights}</>
+      )}
+      {quote.partial && (
+        <span style={{ color: "var(--warn)" }}>
+          {" "}
+          · some nights have no rate set
+        </span>
+      )}
+    </p>
+  );
+}
+
 export default function BookingForm({
   session,
   reservation,
@@ -75,6 +154,18 @@ export default function BookingForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  /**
+   * The quoted price, and whether the desk has taken it over.
+   *
+   * An existing booking opens as manual: whatever it was sold for is what it
+   * is owed, and re-pricing it behind the receptionist's back would quietly
+   * rewrite a negotiated rate on an unrelated edit. A new booking starts
+   * quoted and stays quoted until someone types in the box.
+   */
+  const [quote, setQuote] = useState(null);
+  const [quoting, setQuoting] = useState(false);
+  const [manualTotal, setManualTotal] = useState(Boolean(reservation));
+
   // A date that is full is refused once; the second attempt carries the
   // override, so overbooking is always a deliberate second action.
   const [conflict, setConflict] = useState(null);
@@ -86,6 +177,88 @@ export default function BookingForm({
     () => rooms.filter((r) => r.room_type_id === form.room_type_id && r.is_active),
     [rooms, form.room_type_id]
   );
+
+  /**
+   * Ask the server what the configured rates make this stay cost.
+   *
+   * Everything the price depends on is in the dependency list, so changing
+   * dates, plan, room type or occupancy re-quotes. Requests are superseded
+   * rather than queued -- the desk types faster than the network answers, and
+   * a late reply must not overwrite a newer one.
+   */
+  const quoteSeq = useRef(0);
+
+  const fetchQuote = useCallback(async () => {
+    const { room_type_id, rate_plan_id, check_in, check_out, adults, children } = form;
+
+    if (!room_type_id || !check_in || !check_out || nights === 0) {
+      setQuote(null);
+      return;
+    }
+
+    const seq = quoteSeq.current + 1;
+    quoteSeq.current = seq;
+    setQuoting(true);
+
+    try {
+      const qs = new URLSearchParams({
+        roomTypeId: room_type_id,
+        checkIn: check_in,
+        checkOut: check_out,
+        adults: String(adults ?? 2),
+        children: String(children ?? 0),
+      });
+      if (session?.propertyId) qs.set("propertyId", session.propertyId);
+      if (rate_plan_id) qs.set("ratePlanId", rate_plan_id);
+
+      const res = await fetch(`/api/pms/quote?${qs}`);
+      const data = await res.json();
+
+      // A reply for a stay the desk has already moved on from is dropped.
+      if (seq !== quoteSeq.current) return;
+      setQuote(res.ok ? data : null);
+    } catch {
+      if (seq === quoteSeq.current) setQuote(null);
+    } finally {
+      if (seq === quoteSeq.current) setQuoting(false);
+    }
+  }, [
+    form.room_type_id,
+    form.rate_plan_id,
+    form.check_in,
+    form.check_out,
+    form.adults,
+    form.children,
+    nights,
+    session?.propertyId,
+  ]);
+
+  useEffect(() => {
+    fetchQuote();
+  }, [fetchQuote]);
+
+  /**
+   * Put the quote in the box, unless the desk has priced this stay itself.
+   *
+   * Separate from fetching so that "re-quote" can reuse it, and so a manual
+   * total survives every later edit until it is explicitly given up.
+   */
+  useEffect(() => {
+    if (manualTotal) return;
+    if (quote?.total == null) return;
+    setForm((prev) =>
+      String(prev.total_amount) === String(quote.total)
+        ? prev
+        : { ...prev, total_amount: quote.total }
+    );
+  }, [quote, manualTotal]);
+
+  function useQuotedPrice() {
+    setManualTotal(false);
+    if (quote?.total != null) {
+      setForm((prev) => ({ ...prev, total_amount: quote.total }));
+    }
+  }
 
   function set(field, value) {
     setForm((prev) => {
@@ -292,8 +465,18 @@ export default function BookingForm({
             type="number"
             min="0"
             value={form.total_amount}
-            onChange={(e) => set("total_amount", e.target.value)}
-            placeholder="Whole stay"
+            onChange={(e) => {
+              setManualTotal(true);
+              set("total_amount", e.target.value);
+            }}
+            placeholder={quoting ? "Pricing…" : "Whole stay"}
+          />
+          <PriceNote
+            quote={quote}
+            quoting={quoting}
+            manual={manualTotal}
+            nights={nights}
+            onUseQuoted={useQuotedPrice}
           />
         </div>
 
