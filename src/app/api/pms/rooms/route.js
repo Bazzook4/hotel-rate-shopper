@@ -7,6 +7,7 @@ import {
   createRoomRange,
   updateRoom,
   deleteRoom,
+  reorderRooms,
 } from "@/lib/database";
 
 /**
@@ -122,8 +123,15 @@ export async function POST(req) {
   }
 }
 
+/**
+ * Edit one room's setup, or save the whole order.
+ *
+ * `{ order: [ids] }` rewrites every room's position; anything else is an edit
+ * to the room named by `id`. Housekeeping status is not settable here -- it is
+ * front-office work and goes through /api/pms/housekeeping.
+ */
 export async function PATCH(req) {
-  const { error } = await requireSetup(req);
+  const { error, session } = await requireSetup(req);
   if (error) return error;
 
   let body;
@@ -133,32 +141,53 @@ export async function PATCH(req) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { id, ...updates } = body || {};
-  if (!id) {
-    return NextResponse.json({ error: "Room id is required" }, { status: 400 });
+  const propertyId = await resolvePropertyId(session, body?.property_id);
+  if (!propertyId) {
+    return NextResponse.json({ error: "No property selected" }, { status: 400 });
   }
 
-  // property_id is never editable here -- a room does not move hotels.
-  delete updates.property_id;
-
   try {
-    return NextResponse.json({ room: await updateRoom(id, updates) });
+    if (Array.isArray(body.order)) {
+      return NextResponse.json({ rooms: await reorderRooms(propertyId, body.order) });
+    }
+
+    const { id, ...updates } = body;
+    if (!id) {
+      return NextResponse.json({ error: "Room id is required" }, { status: 400 });
+    }
+    if (updates.room_number !== undefined) {
+      updates.room_number = String(updates.room_number).trim();
+      if (!updates.room_number) {
+        return NextResponse.json({ error: "Room number is required" }, { status: 400 });
+      }
+    }
+    if (updates.floor !== undefined) {
+      updates.floor = String(updates.floor ?? "").trim() || null;
+    }
+    return NextResponse.json({ room: await updateRoom(propertyId, id, updates) });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function DELETE(req) {
-  const { error } = await requireSetup(req);
+  const { error, session } = await requireSetup(req);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
     return NextResponse.json({ error: "Room id is required" }, { status: 400 });
   }
+  const propertyId = await resolvePropertyId(
+    session,
+    req.nextUrl.searchParams.get("propertyId")
+  );
+  if (!propertyId) {
+    return NextResponse.json({ error: "No property selected" }, { status: 400 });
+  }
 
   try {
-    await deleteRoom(id);
+    await deleteRoom(propertyId, id);
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

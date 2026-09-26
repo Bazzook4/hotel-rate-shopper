@@ -19,6 +19,7 @@ export const AREAS = [
     pages: [
       { id: "calendar", label: "Calendar", icon: "calendar" },
       { id: "reservations", label: "Reservations", icon: "list" },
+      { id: "housekeeping", label: "Housekeeping", icon: "check" },
     ],
   },
   {

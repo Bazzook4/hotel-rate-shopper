@@ -14,6 +14,7 @@ import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
 import Reservations from "./dashboard/components/Reservations";
 import TapeChart from "./dashboard/components/TapeChart";
 import RoomInventory from "./dashboard/components/RoomInventory";
+import Housekeeping from "./dashboard/components/Housekeeping";
 import BillingSetup from "./dashboard/components/BillingSetup";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
@@ -389,8 +390,8 @@ export default function V2Dashboard() {
                     <div>
                       <h2 className="h1">Room Number Setup</h2>
                       <p className="sub">
-                        The actual rooms guests are checked into, numbered and
-                        assigned to their room type.
+                        Every room the property owns — its floor, number and
+                        type — in the order the calendar and room lists show them.
                       </p>
                     </div>
                     <RoomInventory session={scopedSession} />
@@ -434,6 +435,8 @@ export default function V2Dashboard() {
                 {active === "calendar" && <TapeChart session={scopedSession} />}
 
                 {active === "reservations" && <Reservations session={scopedSession} />}
+
+                {active === "housekeeping" && <Housekeeping session={scopedSession} />}
 
                 {active === "workflow" && (
                   <ComingSoon title="Workflow">

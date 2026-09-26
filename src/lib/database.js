@@ -2149,7 +2149,13 @@ export function nightsBetween(checkIn, checkOut) {
   return nights;
 }
 
-/** The physical rooms a property owns, with the type each belongs to. */
+/**
+ * The physical rooms a property owns, with the type each belongs to.
+ *
+ * Returned in the hotel's own order (Room Number Setup), which is the order
+ * the desk walks the building. Room number is only the tie-break -- sorted as
+ * text it puts "1001" before "201".
+ */
 export async function listRooms(propertyId, { includeInactive = true } = {}) {
   let query = supabase
     .from('rooms')
@@ -2158,15 +2164,30 @@ export async function listRooms(propertyId, { includeInactive = true } = {}) {
 
   if (!includeInactive) query = query.eq('is_active', true);
 
-  const { data, error } = await query.order('room_number', { ascending: true });
+  const { data, error } = await query
+    .order('sort_order', { ascending: true })
+    .order('room_number', { ascending: true });
   if (error) throw new Error(`Failed to load rooms: ${error.message}`);
   return data || [];
 }
 
-export async function createRoom(row) {
+/** The position after the last room, so a new room lands at the end. */
+async function nextRoomSortOrder(propertyId) {
   const { data, error } = await supabase
     .from('rooms')
-    .insert(row)
+    .select('sort_order')
+    .eq('property_id', propertyId)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`Failed to load rooms: ${error.message}`);
+  return (data?.[0]?.sort_order || 0) + 10;
+}
+
+export async function createRoom(row) {
+  const sort_order = row.sort_order ?? (await nextRoomSortOrder(row.property_id));
+  const { data, error } = await supabase
+    .from('rooms')
+    .insert({ ...row, sort_order })
     .select('*, room_types(id, room_type_name)')
     .single();
 
@@ -2181,11 +2202,33 @@ export async function createRoom(row) {
   return data;
 }
 
-export async function updateRoom(id, updates) {
+/** The fields Room Number Setup may change. Housekeeping is not one of them. */
+const ROOM_SETUP_FIELDS = [
+  'room_number',
+  'floor',
+  'room_type_id',
+  'sort_order',
+  'is_active',
+  'notes',
+];
+
+/**
+ * Change a room's setup.
+ *
+ * Scoped to the property as well as the id, so a room id from another hotel
+ * matches nothing rather than being edited.
+ */
+export async function updateRoom(propertyId, id, updates) {
+  const row = {};
+  for (const key of ROOM_SETUP_FIELDS) {
+    if (updates[key] !== undefined) row[key] = updates[key];
+  }
+
   const { data, error } = await supabase
     .from('rooms')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ ...row, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .eq('property_id', propertyId)
     .select('*, room_types(id, room_type_name)')
     .single();
 
@@ -2193,15 +2236,50 @@ export async function updateRoom(id, updates) {
     if (error.code === '23505') {
       throw new Error(`Room ${updates.room_number} already exists at this property.`);
     }
+    if (error.code === 'PGRST116') throw new Error('Room not found.');
     throw new Error(`Failed to update room: ${error.message}`);
   }
   return data;
 }
 
-export async function deleteRoom(id) {
-  const { error } = await supabase.from('rooms').delete().eq('id', id);
-  if (error) throw new Error(`Failed to delete room: ${error.message}`);
+export async function deleteRoom(propertyId, id) {
+  const { error } = await supabase
+    .from('rooms')
+    .delete()
+    .eq('id', id)
+    .eq('property_id', propertyId);
+  if (error) {
+    // Reservations hold rooms with `on delete set null`, so this is rare, but
+    // any other reference should read as a reason rather than a code.
+    if (error.code === '23503') {
+      throw new Error('This room is still referenced elsewhere — deactivate it instead.');
+    }
+    throw new Error(`Failed to delete room: ${error.message}`);
+  }
   return true;
+}
+
+/**
+ * Save the hotel's room order.
+ *
+ * `ids` is the whole list, top to bottom, as the setup table shows it. Each
+ * room is written its position times ten, so the order is exactly what was
+ * shown and there is room to slot a new one in between later.
+ */
+export async function reorderRooms(propertyId, ids) {
+  const now = new Date().toISOString();
+  const results = await Promise.all(
+    ids.map((id, i) =>
+      supabase
+        .from('rooms')
+        .update({ sort_order: (i + 1) * 10, updated_at: now })
+        .eq('id', id)
+        .eq('property_id', propertyId)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed) throw new Error(`Failed to save room order: ${failed.error.message}`);
+  return listRooms(propertyId);
 }
 
 /**
@@ -2219,15 +2297,16 @@ export async function createRoomRange({
   prefix = '',
   floor = null,
 }) {
-  const existing = new Set(
-    (await listRooms(property_id)).map((r) => r.room_number)
-  );
+  const current = await listRooms(property_id);
+  const existing = new Set(current.map((r) => r.room_number));
+  let position = current.reduce((max, r) => Math.max(max, r.sort_order || 0), 0);
 
   const rows = [];
   for (let n = Number(from); n <= Number(to); n += 1) {
     const room_number = `${prefix}${n}`;
     if (existing.has(room_number)) continue;
-    rows.push({ property_id, room_type_id, room_number, floor });
+    position += 10;
+    rows.push({ property_id, room_type_id, room_number, floor, sort_order: position });
   }
 
   if (rows.length === 0) return [];
@@ -2235,6 +2314,103 @@ export async function createRoomRange({
   const { data, error } = await supabase.from('rooms').insert(rows).select('*');
   if (error) throw new Error(`Failed to create rooms: ${error.message}`);
   return data || [];
+}
+
+// ============================================
+// HOUSEKEEPING
+// ============================================
+
+export const HOUSEKEEPING_STATUSES = ['clean', 'dirty', 'inspected', 'out_of_order'];
+
+/**
+ * Set rooms' housekeeping status.
+ *
+ * Front-office work, not setup: whoever cleaned or inspected the room is who
+ * marks it, so this records them and the time. Takes several ids because the
+ * morning's first job is marking a whole floor dirty at once.
+ */
+export async function setRoomHousekeeping(propertyId, ids, status, userId = null) {
+  if (!HOUSEKEEPING_STATUSES.includes(status)) {
+    throw new Error(`Unknown housekeeping status: ${status}`);
+  }
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('rooms')
+    .update({
+      housekeeping: status,
+      housekeeping_updated_at: now,
+      housekeeping_updated_by: userId,
+      updated_at: now,
+    })
+    .in('id', ids)
+    .eq('property_id', propertyId)
+    .select('*, room_types(id, room_type_name)');
+  if (error) throw new Error(`Failed to update housekeeping: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * The housekeeping board for one day.
+ *
+ * Housekeeping status alone does not tell a housekeeper what to do -- a dirty
+ * room with a guest arriving at noon comes before a dirty room nobody needs
+ * until Friday. So each room carries who is in it tonight and whether someone
+ * leaves or arrives on `date`, derived from the reservations rather than
+ * stored, since the reservations already say it.
+ */
+export async function getHousekeepingBoard(propertyId, date) {
+  const shift = (days) => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  // Stays with check_out >= date and check_in <= date: everything leaving,
+  // arriving or staying through that day. listReservations' window is
+  // exclusive at both ends, hence the day either side.
+  const [rooms, stays] = await Promise.all([
+    listRooms(propertyId, { includeInactive: false }),
+    listReservations(propertyId, { from: shift(-1), to: shift(1), limit: 1000 }),
+  ]);
+
+  const byRoom = {};
+  for (const r of stays) {
+    if (!r.room_id || r.status === 'cancelled' || r.status === 'no_show') continue;
+    const slot = (byRoom[r.room_id] = byRoom[r.room_id] || {});
+    if (r.check_out === date) slot.departing = r;
+    if (r.check_in === date) slot.arriving = r;
+    // Someone is in the room: checked in and not yet out, or a booked stay
+    // that began before today and runs past it (the desk may simply not have
+    // marked the check-in).
+    if (
+      r.status === 'in_house' ||
+      (r.status === 'confirmed' && r.check_in < date && r.check_out > date)
+    ) {
+      slot.occupied = r;
+    }
+  }
+
+  const brief = (r) =>
+    r && {
+      id: r.id,
+      reference: r.reference,
+      guest_name: r.guest_name,
+      status: r.status,
+      check_in: r.check_in,
+      check_out: r.check_out,
+      adults: r.adults,
+      children: r.children,
+    };
+
+  return rooms.map((room) => {
+    const slot = byRoom[room.id] || {};
+    return {
+      ...room,
+      occupied: brief(slot.occupied),
+      arriving: brief(slot.arriving),
+      departing: brief(slot.departing),
+    };
+  });
 }
 
 /**
@@ -2824,6 +3000,13 @@ export async function setReservationStatus(id, status, { roomId = undefined } = 
     .single();
 
   if (error) throw new Error(`Failed to update reservation: ${error.message}`);
+
+  // A room a guest has just left needs cleaning before it is sold again. The
+  // desk should not have to remember to tell housekeeping; the check-out is
+  // the tell.
+  if (status === 'checked_out' && data.room_id) {
+    await setRoomHousekeeping(data.property_id, [data.room_id], 'dirty').catch(() => {});
+  }
 
   // A room assigned at check-in has to reach the nights too, or the room grid
   // will show the guest as unassigned for their whole stay.
