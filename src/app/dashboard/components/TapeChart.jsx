@@ -490,6 +490,49 @@ export default function TapeChart({ session }) {
         </div>
       )}
 
+      <div className="flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: "var(--accent)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          Confirmed
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: "var(--warn)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          In house
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: "var(--surface-2)",
+              border: "1px solid var(--border-strong)",
+              borderRadius: 2,
+              marginRight: 4,
+            }}
+          />
+          Checked out
+        </span>
+      </div>
+
       <div className="card" style={{ overflow: "hidden" }}>
         {loading && <p className="sub card-pad">Loading…</p>}
 
@@ -755,49 +798,6 @@ export default function TapeChart({ session }) {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 10,
-              height: 10,
-              background: "var(--accent)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          Confirmed
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 10,
-              height: 10,
-              background: "var(--warn)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          In house
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 10,
-              height: 10,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          Checked out
-        </span>
       </div>
 
       {pending && (
