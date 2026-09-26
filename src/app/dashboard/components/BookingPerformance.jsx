@@ -69,6 +69,25 @@ function presetRange(id, todayIso) {
   }
 }
 
+/**
+ * What the headline figures are measured against. Same period last year is
+ * the default: a hotel's months are not alike, so September against August
+ * mostly measures the season, while September against last September
+ * measures the hotel.
+ */
+const COMPARISONS = [
+  { id: "yoy", label: "Same period last year", short: "same period last year" },
+  { id: "previous", label: "Previous period", short: "the previous period" },
+  { id: "custom", label: "Custom dates", short: "" },
+];
+
+/** The same date a year earlier; 29 February becomes the 28th. */
+function yearEarlier(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const last = new Date(y - 1, m, 0).getDate();
+  return `${y - 1}-${String(m).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
+}
+
 const DIMENSIONS = [
   { id: "channel", label: "Channel" },
   { id: "source", label: "Source" },
@@ -187,7 +206,9 @@ function KpiGrid({ report, money }) {
           Booking insights
         </h3>
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-          Compared with {longDate(report.previous.start)} – {longDate(report.previous.end)}
+          Compared with {COMPARISONS.find((c) => c.id === report.compare)?.short || ""}
+          {report.compare === "custom" ? "" : ", "}
+          {longDate(report.previous.start)} – {longDate(report.previous.end)}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 md:grid-cols-3 xl:grid-cols-4">
@@ -686,9 +707,10 @@ function downloadCsv(report) {
   const { current, previous } = report.kpis;
 
   row("Booking performance", report.basis === "booked" ? "Booked-on date" : "Stay date", report.start, report.end);
+  row("Compared with", report.previous.start, report.previous.end);
   row("Currency", report.currency);
   row();
-  row("Metric", "This period", "Previous period");
+  row("Metric", "This period", "Comparison period");
   for (const key of Object.keys(current)) row(key, current[key], previous[key]);
 
   const cols = ["reservations", "roomNights", "roomRevenue", "adr", "alos", "leadTime", "cancellations", "cancellationRate", "lostRevenue"];
@@ -726,9 +748,19 @@ export default function BookingPerformance({ session }) {
   const [basis, setBasis] = useState("stay");
   const [preset, setPreset] = useState("mtd");
   const [range, setRange] = useState(() => presetRange("mtd", todayIso));
+  const [compare, setCompare] = useState("yoy");
+  const [compareRange, setCompareRange] = useState({ start: "", end: "" });
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  function chooseComparison(id) {
+    setCompare(id);
+    // Custom starts from last year's dates, the likeliest thing to adjust.
+    if (id === "custom" && !compareRange.start) {
+      setCompareRange({ start: yearEarlier(range.start), end: yearEarlier(range.end) });
+    }
+  }
 
   function choosePreset(id) {
     setPreset(id);
@@ -737,12 +769,20 @@ export default function BookingPerformance({ session }) {
 
   useEffect(() => {
     if (!range.start || !range.end || range.end < range.start) return;
+    const custom = compare === "custom";
+    if (custom && (!compareRange.start || !compareRange.end || compareRange.end < compareRange.start)) {
+      return;
+    }
     let stale = false;
     (async () => {
       setLoading(true);
       setError("");
       try {
-        const qs = new URLSearchParams({ start: range.start, end: range.end, basis });
+        const qs = new URLSearchParams({ start: range.start, end: range.end, basis, compare });
+        if (custom) {
+          qs.set("compareStart", compareRange.start);
+          qs.set("compareEnd", compareRange.end);
+        }
         if (propertyId) qs.set("propertyId", propertyId);
         const res = await fetch(`/api/reports/performance?${qs}`);
         const body = await res.json().catch(() => ({}));
@@ -758,10 +798,11 @@ export default function BookingPerformance({ session }) {
     return () => {
       stale = true;
     };
-  }, [propertyId, range.start, range.end, basis]);
+  }, [propertyId, range.start, range.end, basis, compare, compareRange.start, compareRange.end]);
 
   const money = useMemo(() => moneyFormatter(report?.currency || "INR"), [report?.currency]);
   const badRange = range.end < range.start;
+  const badCompare = compare === "custom" && compareRange.end < compareRange.start;
 
   return (
     <div className="space-y-5">
@@ -838,7 +879,53 @@ export default function BookingPerformance({ session }) {
               />
             </div>
           </div>
+
+          <div style={{ width: 220 }}>
+            <label className="label" htmlFor="perf-compare">
+              Compare with
+            </label>
+            <select
+              id="perf-compare"
+              className="input"
+              value={compare}
+              onChange={(e) => chooseComparison(e.target.value)}
+            >
+              {COMPARISONS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {compare === "custom" && (
+            <div>
+              <span className="label">Comparison dates</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  className="input"
+                  value={compareRange.start}
+                  onChange={(e) => setCompareRange((r) => ({ ...r, start: e.target.value }))}
+                  aria-label="Compare from"
+                />
+                <span style={{ color: "var(--text-muted)" }}>–</span>
+                <input
+                  type="date"
+                  className="input"
+                  value={compareRange.end}
+                  onChange={(e) => setCompareRange((r) => ({ ...r, end: e.target.value }))}
+                  aria-label="Compare to"
+                />
+              </div>
+            </div>
+          )}
         </div>
+        {badCompare && (
+          <p className="mt-3 text-sm" style={{ color: "var(--danger)" }}>
+            The comparison ends before it starts.
+          </p>
+        )}
         {badRange && (
           <p className="mt-3 text-sm" style={{ color: "var(--danger)" }}>
             The end date is before the start date.

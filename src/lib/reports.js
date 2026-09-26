@@ -17,8 +17,9 @@ import { addDays, formatDateISO, parseDateISO } from '@/lib/date';
  *   booked   the reservations made inside the period, whole stays, whenever
  *            they stay. This is how well the hotel sold on those days -- pace.
  *
- * Every figure is also worked out for the period of equal length just before,
- * so each can be shown against it.
+ * Every headline figure is also worked out for a comparison period -- the
+ * same dates a year earlier by default, the period of equal length just
+ * before, or dates the hotelier picks -- so each can be shown against it.
  */
 
 const PAGE = 1000;
@@ -99,8 +100,9 @@ function sourceOf(r) {
 /**
  * Load everything the report needs for [fromDate, toDate], both inclusive.
  *
- * `toDate` is the end of the period being reported and `fromDate` the start
- * of the comparison period before it, so one read serves both.
+ * Called once for the period and once for what it is compared with. They are
+ * read separately rather than as one span covering both: a year-ago
+ * comparison would otherwise drag in the whole year between them.
  */
 async function loadFacts(propertyId, fromDate, toDate, basis) {
   const supabase = getSupabaseAdmin();
@@ -458,28 +460,57 @@ async function ratePlanNames(propertyId) {
 }
 
 /**
- * The whole booking performance report for [start, end], both inclusive.
+ * The same date a year earlier. 29 February has no twin, so it becomes the
+ * 28th rather than rolling into March and shifting the whole period a day.
  */
-export async function getBookingPerformance(propertyId, { start, end, basis = 'stay' }) {
-  const length = daysBetween(start, end) + 1;
-  const prevEnd = shift(start, -1);
-  const prevStart = shift(start, -length);
+function yearEarlier(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const last = new Date(Date.UTC(y - 1, m, 0)).getUTCDate();
+  return `${y - 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+}
 
-  const [{ types, capacity }, planNames, facts] = await Promise.all([
+export const COMPARISONS = ['yoy', 'previous', 'custom'];
+
+/** The dates a period is compared with. */
+export function comparisonRange(start, end, compare, custom = {}) {
+  if (compare === 'custom' && custom.start && custom.end) {
+    return { start: custom.start, end: custom.end };
+  }
+  if (compare === 'previous') {
+    const length = daysBetween(start, end) + 1;
+    return { start: shift(start, -length), end: shift(start, -1) };
+  }
+  return { start: yearEarlier(start), end: yearEarlier(end) };
+}
+
+/**
+ * The whole booking performance report for [start, end], both inclusive,
+ * with the headline figures for the comparison period alongside.
+ */
+export async function getBookingPerformance(
+  propertyId,
+  { start, end, basis = 'stay', compare = 'yoy', compareStart = null, compareEnd = null }
+) {
+  const against = comparisonRange(start, end, compare, { start: compareStart, end: compareEnd });
+
+  const [{ types, capacity }, planNames, facts, pastFacts] = await Promise.all([
     capacityOf(propertyId),
     ratePlanNames(propertyId),
-    loadFacts(propertyId, prevStart, end, basis),
+    loadFacts(propertyId, start, end, basis),
+    loadFacts(propertyId, against.start, against.end, basis),
   ]);
 
   const names = {
     roomTypes: Object.fromEntries(types.map((t) => [t.id, t.room_type_name])),
     ratePlans: planNames,
   };
-  const stays = buildStays(facts, names);
 
-  const current = slice(stays, start, end, basis);
-  const previous = slice(stays, prevStart, prevEnd, basis);
-  const available = (days) => (basis === 'stay' && capacity > 0 ? days * capacity : null);
+  const current = slice(buildStays(facts, names), start, end, basis);
+  const previous = slice(buildStays(pastFacts, names), against.start, against.end, basis);
+  // Each period against its own length: a custom comparison need not be as
+  // long as the period, and occupancy has to be judged on its own nights.
+  const available = (from, to) =>
+    basis === 'stay' && capacity > 0 ? (daysBetween(from, to) + 1) * capacity : null;
 
   // The currency most of the money is in. A property sells in one; a stray
   // row in another is not worth splitting every figure over.
@@ -496,10 +527,11 @@ export async function getBookingPerformance(propertyId, { start, end, basis = 's
     basis,
     currency,
     capacity,
-    previous: { start: prevStart, end: prevEnd },
+    compare: COMPARISONS.includes(compare) ? compare : 'yoy',
+    previous: against,
     kpis: {
-      current: measure(current, { roomNightsAvailable: available(length) }),
-      previous: measure(previous, { roomNightsAvailable: available(length) }),
+      current: measure(current, { roomNightsAvailable: available(start, end) }),
+      previous: measure(previous, { roomNightsAvailable: available(against.start, against.end) }),
     },
     breakdowns: Object.fromEntries(DIMENSIONS.map((d) => [d, breakdown(current, d)])),
     trend: trend(current, start, end, basis),
