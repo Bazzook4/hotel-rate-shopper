@@ -13,14 +13,19 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
  * room, and who is either side of it. Seeing that 204 is empty Tuesday to
  * Thursday between two bookings is the whole point, and no count can show it.
  *
- * Layout is a CSS grid of fixed-width day columns rather than a table, because
+ * Layout is a CSS grid of equal-width day columns rather than a table, because
  * a bar spans nights and has to be positioned across cell boundaries. Bars sit
  * in an absolutely positioned layer over each room's row, offset by the nights
  * between the window start and the stay's arrival.
  */
 
-/** Width of one night, in pixels. Bars are positioned in multiples of this. */
-const DAY_WIDTH = 44;
+/**
+ * The narrowest a night may be, in pixels. Days widen to fill the chart, so a
+ * short window spreads across the screen rather than stopping halfway; only
+ * when the window cannot fit at this width does the chart scroll sideways.
+ * Bars are positioned in multiples of the width actually used.
+ */
+const MIN_DAY_WIDTH = 44;
 /** Width of the fixed room-name column on the left. */
 const ROOM_COL = 150;
 
@@ -53,7 +58,7 @@ export default function TapeChart({ session }) {
   // and returns "" for anything else, which would leave the chart with no
   // window to ask for.
   const [anchor, setAnchor] = useState(() => todayUTC());
-  const [windowDays, setWindowDays] = useState(14);
+  const [windowDays, setWindowDays] = useState(30);
   const [chart, setChart] = useState(null);
   const [extras, setExtras] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -88,6 +93,32 @@ export default function TapeChart({ session }) {
   const [drag, setDrag] = useState(null);
   const dragRef = useRef(null);
   const gridRef = useRef(null);
+
+  /**
+   * How wide a night is: the chart's width shared between the days, never
+   * below the minimum. Measured because the grid is only rendered once rooms
+   * have loaded, and re-measured as the window resizes. Mirrored in a ref for
+   * the drag handlers, which bind to `window` and would otherwise keep the
+   * width from the render the drag began in.
+   */
+  const [gridWidth, setGridWidth] = useState(0);
+  const observerRef = useRef(null);
+  const measureGrid = useCallback((el) => {
+    gridRef.current = el;
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!el) return;
+    setGridWidth(el.clientWidth);
+    const observer = new ResizeObserver(() => setGridWidth(el.clientWidth));
+    observer.observe(el);
+    observerRef.current = observer;
+  }, []);
+  const dayWidth = Math.max(
+    MIN_DAY_WIDTH,
+    Math.floor((gridWidth - ROOM_COL) / windowDays) || 0
+  );
+  const dayWidthRef = useRef(dayWidth);
+  dayWidthRef.current = dayWidth;
 
   /**
    * A resize waiting on the desk's pricing decision.
@@ -236,7 +267,7 @@ export default function TapeChart({ session }) {
       const d = dragRef.current;
       if (!d) return;
 
-      const dayShift = Math.round((e.clientX - d.originX) / DAY_WIDTH);
+      const dayShift = Math.round((e.clientX - d.originX) / dayWidthRef.current);
 
       let check_in = d.check_in;
       let check_out = d.check_out;
@@ -313,8 +344,8 @@ export default function TapeChart({ session }) {
     if (to <= 0 || from >= windowDays) return null;
 
     return {
-      left: from * DAY_WIDTH,
-      width: Math.max(DAY_WIDTH * 0.6, (to - from) * DAY_WIDTH - 4),
+      left: from * dayWidth,
+      width: Math.max(dayWidth * 0.6, (to - from) * dayWidth - 4),
       clippedStart: offset < 0,
       clippedEnd: offset + nights > windowDays,
     };
@@ -477,8 +508,8 @@ export default function TapeChart({ session }) {
         )}
 
         {!loading && visibleRooms.length > 0 && (
-          <div style={{ overflowX: "auto" }} ref={gridRef}>
-            <div style={{ minWidth: ROOM_COL + windowDays * DAY_WIDTH }}>
+          <div style={{ overflowX: "auto" }} ref={measureGrid}>
+            <div style={{ minWidth: ROOM_COL + windowDays * dayWidth }}>
               {/* Date header */}
               <div
                 style={{
@@ -510,7 +541,7 @@ export default function TapeChart({ session }) {
                     <div
                       key={d}
                       style={{
-                        width: DAY_WIDTH,
+                        width: dayWidth,
                         flexShrink: 0,
                         textAlign: "center",
                         padding: "0.35rem 0",
@@ -552,7 +583,7 @@ export default function TapeChart({ session }) {
                       gap: "0.4rem",
                       position: "sticky",
                       left: 0,
-                      width: ROOM_COL + windowDays * DAY_WIDTH,
+                      width: ROOM_COL + windowDays * dayWidth,
                       padding: "0.35rem 0.5rem",
                       background: "var(--surface-2)",
                       borderTop: "1px solid var(--border-strong)",
@@ -632,7 +663,7 @@ export default function TapeChart({ session }) {
                                 })
                               }
                               style={{
-                                width: DAY_WIDTH,
+                                width: dayWidth,
                                 flexShrink: 0,
                                 borderRight: "1px solid var(--border)",
                                 background:
