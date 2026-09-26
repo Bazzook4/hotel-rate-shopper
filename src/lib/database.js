@@ -4429,6 +4429,8 @@ export async function getTapeChart(propertyId, startDate, endDate) {
     roomTypes: roomTypes.map((rt) => ({
       id: rt.id,
       name: rt.room_type_name,
+      base_adults: rt.base_adults ?? null,
+      max_adults: rt.max_adults ?? null,
       rooms: rooms
         .filter((room) => room.room_type_id === rt.id)
         .map((room) => ({

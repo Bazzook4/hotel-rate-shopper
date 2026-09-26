@@ -37,13 +37,39 @@ function validate(body) {
   if (body.check_out <= body.check_in) {
     return "Check-out must be at least one night after check-in.";
   }
-  if (!Array.isArray(body.room_ids) || body.room_ids.length === 0) {
-    return "Choose at least one room for the group.";
-  }
-  if (body.adults != null && Number(body.adults) < 1) {
+  const rooms = roomLines(body);
+  if (rooms.length === 0) return "Choose at least one room for the group.";
+  if (rooms.some((r) => !(Number(r.adults) >= 1))) {
     return "Each room needs at least one adult.";
   }
+  if (rooms.some((r) => Number(r.children) < 0)) {
+    return "Children cannot be a negative number.";
+  }
+  if (rooms.some((r) => r.total_amount != null && r.total_amount !== "" && !(Number(r.total_amount) >= 0))) {
+    return "A room's total must be zero or more.";
+  }
   return null;
+}
+
+/**
+ * One line per room: which room, on which plan, for how many, and for whom.
+ *
+ * The wizard sends `rooms`, each set on its own. The older shape -- a list of
+ * room ids with one plan and one adult count for the lot -- is still read, so
+ * a form open from before the change can still book.
+ */
+function roomLines(body) {
+  if (Array.isArray(body.rooms)) {
+    const seen = new Set();
+    return body.rooms.filter((r) => r?.room_id && !seen.has(r.room_id) && seen.add(r.room_id));
+  }
+  if (!Array.isArray(body.room_ids)) return [];
+  return [...new Set(body.room_ids)].map((room_id) => ({
+    room_id,
+    rate_plan_id: body.rate_plan_id || null,
+    adults: body.adults ?? 2,
+    children: body.children ?? 0,
+  }));
 }
 
 export async function GET(req) {
@@ -85,13 +111,13 @@ export async function POST(req) {
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   const { check_in, check_out } = body;
-  const roomIds = [...new Set(body.room_ids)];
+  const lines = roomLines(body);
 
   try {
     const rooms = await listRooms(propertyId);
     const byId = Object.fromEntries(rooms.map((r) => [r.id, r]));
 
-    const chosen = roomIds.map((id) => byId[id]);
+    const chosen = lines.map((line) => byId[line.room_id]);
     if (chosen.some((r) => !r)) {
       return NextResponse.json({ error: "One of those rooms could not be found." }, { status: 404 });
     }
@@ -148,37 +174,47 @@ export async function POST(req) {
 
     const reservations = [];
     try {
-      for (const room of chosen) {
+      for (const [i, room] of chosen.entries()) {
+        const line = lines[i];
+        const adults = Number(line.adults) || 2;
+        const children = Number(line.children) || 0;
+        const ratePlanId = line.rate_plan_id || null;
+
         const quote = await quoteReservation({
           property_id: propertyId,
           room_type_id: room.room_type_id,
-          rate_plan_id: body.rate_plan_id || null,
+          rate_plan_id: ratePlanId,
           check_in,
           check_out,
-          adults: Number(body.adults) || 2,
-          children: Number(body.children) || 0,
+          adults,
+          children,
         });
+
+        // A total the desk typed is what the room is owed; it has no nightly
+        // breakdown, so it is spread evenly, as a single booking's would be.
+        const typed = line.total_amount != null && line.total_amount !== "";
+        const total = typed ? Number(line.total_amount) : quote.total;
 
         const reservation = await createReservation(
           {
             property_id: propertyId,
             group_id: group.id,
-            guest_name: body.name.trim(),
+            guest_name: line.guest_name?.trim() || body.name.trim(),
             guest_phone: body.contact_phone?.trim() || null,
             guest_email: body.contact_email?.trim() || null,
             room_type_id: room.room_type_id,
             room_id: room.id,
-            rate_plan_id: body.rate_plan_id || null,
+            rate_plan_id: ratePlanId,
             check_in,
             check_out,
-            adults: Number(body.adults) || 2,
-            children: Number(body.children) || 0,
+            adults,
+            children,
             source: body.source?.trim() || "group",
-            total_amount: quote.total,
+            total_amount: total,
             status: "confirmed",
             created_by: session.userId,
           },
-          { rates: acceptNightRates(quote.nights, check_in, check_out, quote.total) }
+          { rates: typed ? null : acceptNightRates(quote.nights, check_in, check_out, quote.total) }
         );
         reservations.push(reservation);
       }
