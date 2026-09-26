@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, listRoomTypes, listRooms, nightsBetween } from '@/lib/database';
 import { addDays, formatDateISO, parseDateISO } from '@/lib/date';
+import { countryName } from '@/lib/countries';
 
 /**
  * Booking performance: what the PMS's reservations add up to over a period.
@@ -28,7 +29,7 @@ const ID_CHUNK = 150;
 /** Statuses that released the room rather than used it. */
 const RELEASED = new Set(['cancelled', 'no_show']);
 
-const SOURCE_LABELS = {
+const METHOD_LABELS = {
   direct: 'Direct',
   walkin: 'Walk-in',
   phone: 'Phone',
@@ -40,7 +41,13 @@ const SOURCE_LABELS = {
   group: 'Group',
 };
 
-export const DIMENSIONS = ['channel', 'source', 'roomType', 'ratePlan', 'market'];
+/**
+ * The ways the mix can be cut. "Source" is the guest's country -- the source
+ * market, in hotel terms -- and "method" is how the booking reached the desk
+ * (walk-in, phone, website), which is what the source field on a reservation
+ * records.
+ */
+export const DIMENSIONS = ['channel', 'source', 'roomType', 'ratePlan', 'method'];
 
 /** Whole days from one ISO date to another. */
 function daysBetween(from, to) {
@@ -84,8 +91,8 @@ function chunks(ids) {
  * A booking the channel manager delivered carries the channel's own name as
  * its source, and that name is the channel. Everything the desk entered
  * itself came direct, however it arrived -- phone, walk-in, website -- which
- * is the split a channel-mix report is for; the finer "how" is the Source
- * breakdown.
+ * is the split a channel-mix report is for; the finer "how" is the booking
+ * method breakdown.
  */
 function channelOf(r) {
   if (r.partner_booking_id) return r.source || 'OTA';
@@ -93,8 +100,8 @@ function channelOf(r) {
   return 'Direct';
 }
 
-function sourceOf(r) {
-  return SOURCE_LABELS[r.source] || r.source || 'Unknown';
+function methodOf(r) {
+  return METHOD_LABELS[r.source] || r.source || 'Unknown';
 }
 
 /**
@@ -214,10 +221,10 @@ function buildStays(facts, names) {
       })),
       keys: {
         channel: channelOf(r),
-        source: sourceOf(r),
+        source: r.guest_country ? countryName(r.guest_country) : 'Not recorded',
+        method: methodOf(r),
         roomType: names.roomTypes[r.room_type_id] || 'Unknown room type',
         ratePlan: r.rate_plan_id ? names.ratePlans[r.rate_plan_id] || 'Deleted rate plan' : 'No rate plan',
-        market: r.guest_residency === 'international' ? 'International' : 'Domestic',
       },
     };
   });

@@ -9,7 +9,9 @@ import {
   acceptNightRates,
   getReservation,
   findRoomClash,
+  reservationsHaveCountry,
 } from "@/lib/database";
+import { toCountryCode } from "@/lib/countries";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 
 /** A date the database will accept, and that a person actually typed. */
@@ -86,6 +88,19 @@ function applyBookingType(fields, body, before = null) {
   return complimentary;
 }
 
+/**
+ * The guest's country, as a code, when there is one and the column exists.
+ *
+ * Left off entirely before migration 028 rather than failing the booking --
+ * the desk loses a report field for a day, not a reservation. An edit that
+ * clears the box stores null.
+ */
+async function applyGuestCountry(fields, body) {
+  if (!("guest_country" in body)) return;
+  if (!(await reservationsHaveCountry())) return;
+  fields.guest_country = toCountryCode(body.guest_country);
+}
+
 /** A room already held for those nights, as a 409 the form can show. */
 async function roomClashResponse(fields, ignoreReservationId = null) {
   if (!fields.room_id) return null;
@@ -140,6 +155,7 @@ export async function POST(req) {
   try {
     const fields = bookingFields(body);
     const complimentary = applyBookingType(fields, body);
+    await applyGuestCountry(fields, body);
 
     // A booking placed in a particular room -- from a cell on the tape chart,
     // say -- must find that room free, which the type-level count below
@@ -223,6 +239,7 @@ export async function PATCH(req) {
 
     const fields = bookingFields(body);
     const complimentary = applyBookingType(fields, body, before);
+    await applyGuestCountry(fields, body);
 
     // Only when the stay moved room or dates: an unrelated edit to a booking
     // should not be refused over a clash it did not create.

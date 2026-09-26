@@ -119,6 +119,8 @@ export default function V2Dashboard() {
       ...session,
       propertyId: propertyId || session.propertyId,
       propertyName: chosen?.name || session.propertyName,
+      // New bookings default the guest's country to the hotel's own.
+      propertyCountry: chosen?.country || null,
       // Switching happens in the header now, so no page offers its own picker.
       canSwitchProperties: false,
     };

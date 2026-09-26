@@ -5,6 +5,7 @@ import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import { handleExpiredSession } from "@/lib/authRedirect";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
+import { countryOptions, toCountryCode } from "@/lib/countries";
 
 /**
  * Entering or editing a booking.
@@ -21,17 +22,20 @@ function nightsBetween(checkIn, checkOut) {
   return Math.round((b - a) / 86400000);
 }
 
-function emptyBooking() {
+function emptyBooking(country = "") {
   const today = todayUTC();
   return {
     guest_name: "",
     guest_email: "",
     guest_phone: "",
+    guest_country: country,
     guest_residency: "domestic",
     room_type_id: "",
     room_id: "",
     rate_plan_id: "",
-    check_in: formatDateISO(today),
+    // todayUTC is already an ISO string; formatDateISO only takes a Date and
+    // would turn it into "", leaving every new booking without an arrival.
+    check_in: today,
     check_out: formatDateISO(addDays(today, 1)),
     adults: 2,
     children: 0,
@@ -48,6 +52,7 @@ function toForm(reservation) {
     guest_name: reservation.guest_name || "",
     guest_email: reservation.guest_email || "",
     guest_phone: reservation.guest_phone || "",
+    guest_country: reservation.guest_country || "",
     guest_residency: reservation.guest_residency || "domestic",
     room_type_id: reservation.room_type_id || "",
     room_id: reservation.room_id || "",
@@ -212,10 +217,17 @@ export default function BookingForm({
   onSaved,
   onCancel,
 }) {
+  // The hotel's own country: where most guests come from, so the default,
+  // and the line between a domestic and an international guest.
+  const homeCountry = toCountryCode(session?.propertyCountry);
+  const countries = useMemo(() => countryOptions(), []);
+
   // A booking started by clicking an empty cell on the tape chart arrives with
   // the room and date already chosen, which is most of the form filled in.
   const [form, setForm] = useState(() =>
-    reservation ? toForm(reservation) : { ...emptyBooking(), ...(prefill || {}) }
+    reservation
+      ? toForm(reservation)
+      : { ...emptyBooking(homeCountry || ""), ...(prefill || {}) }
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -384,6 +396,14 @@ export default function BookingForm({
     }
   }
 
+  // The property list can arrive after a new booking has already opened, so
+  // the home country is filled in when it becomes known -- but never over a
+  // country the desk has already picked.
+  useEffect(() => {
+    if (reservation || !homeCountry) return;
+    setForm((prev) => (prev.guest_country ? prev : { ...prev, guest_country: homeCountry }));
+  }, [reservation, homeCountry]);
+
   function set(field, value) {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
@@ -393,6 +413,13 @@ export default function BookingForm({
       if (field === "check_in" && next.check_out <= value) {
         const span = Math.max(1, nightsBetween(prev.check_in, prev.check_out));
         next.check_out = formatDateISO(addDays(parseDateISO(value), span));
+      }
+
+      // Picking a country suggests the tax residency to match. Only a
+      // suggestion: the desk can still set it by hand afterwards, since a
+      // citizen living abroad can be either.
+      if (field === "guest_country" && value && homeCountry) {
+        next.guest_residency = value === homeCountry ? "domestic" : "international";
       }
 
       // A room of the old type cannot stay selected against a new one.
@@ -512,6 +539,20 @@ export default function BookingForm({
             onChange={(e) => set("guest_email", e.target.value)}
           />
         </Field>
+        <Field label="Country">
+          <select
+            className="input"
+            value={form.guest_country}
+            onChange={(e) => set("guest_country", e.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {countries.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
         {/* Decides which taxes apply -- some levies are for foreign
             guests only, and some exemptions are too. */}
         <Field label="Guest is">
@@ -617,7 +658,7 @@ export default function BookingForm({
       </Section>
 
       <Section title="Billing">
-        <Field label="Source">
+        <Field label="Booking method">
           <select
             className="input"
             value={form.source}

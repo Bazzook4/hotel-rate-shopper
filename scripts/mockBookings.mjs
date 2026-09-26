@@ -3,6 +3,11 @@
  *
  *   node scripts/mockBookings.mjs seed  <propertyId> [years=2] [--dry]
  *   node scripts/mockBookings.mjs clear <propertyId>
+ *   node scripts/mockBookings.mjs countries <propertyId>
+ *
+ * `countries` gives mock bookings made before migration 028 a guest country:
+ * India for domestic guests, and for international ones a market weighted
+ * the way a Bengaluru hotel sees them, with a guest name to match.
  *
  * This writes to whatever database .env points at, which for this project is
  * production. Every row it creates is tagged -- reference `MOCK-…`, a note
@@ -109,8 +114,26 @@ const FIRST = ["Aarav", "Vivaan", "Aditya", "Arjun", "Sai", "Rohan", "Karthik", 
   "Suresh", "Ramesh", "Manoj", "Deepak", "Arun", "Lakshmi", "Shalini", "Harish", "Gautam", "Farhan"];
 const LAST = ["Sharma", "Iyer", "Reddy", "Nair", "Rao", "Gupta", "Menon", "Patel", "Kumar", "Singh",
   "Hegde", "Shetty", "Joshi", "Pillai", "Das", "Mehta", "Khan", "Bose", "Kulkarni", "Naidu"];
-const FOREIGN = ["James Walker", "Emma Schmidt", "Lucas Martin", "Sofia Rossi", "Kenji Tanaka",
-  "Olivia Brown", "Noah Müller", "Chloe Dubois", "Liam O'Brien", "Mei Chen"];
+/** International markets: [country code, weight, guest names]. */
+const MARKETS = [
+  ["US", 18, ["Michael Johnson", "Olivia Brown", "Ethan Miller", "Sarah Davis"]],
+  ["GB", 15, ["James Walker", "Charlotte Evans", "Oliver Hughes", "Amelia Clarke"]],
+  ["TH", 10, ["Somchai Srisuk", "Nattaya Chaiyaporn", "Anong Wongsawat"]],
+  ["AE", 10, ["Ahmed Al Mansoori", "Fatima Al Hashemi", "Omar Al Nuaimi"]],
+  ["SG", 8, ["Mei Chen", "Wei Jie Tan", "Priscilla Lim"]],
+  ["DE", 8, ["Emma Schmidt", "Noah Müller", "Lena Fischer"]],
+  ["AU", 7, ["Jack Wilson", "Chloe Thompson", "Liam Anderson"]],
+  ["JP", 6, ["Kenji Tanaka", "Yuki Sato", "Haruto Suzuki"]],
+  ["FR", 5, ["Lucas Martin", "Chloe Dubois", "Hugo Bernard"]],
+  ["MY", 5, ["Aiman Rahman", "Siti Nurhaliza", "Jason Wong"]],
+  ["LK", 4, ["Nuwan Perera", "Dilani Fernando"]],
+  ["NP", 4, ["Bikash Shrestha", "Anjali Gurung"]],
+];
+
+function foreignGuest() {
+  const [code, , names] = weighted(MARKETS.map((m) => [m, m[1]]));
+  return { country: code, name: pick(names) };
+}
 
 function lengthOfStay() {
   return weighted([[1, 38], [2, 28], [3, 15], [4, 8], [5, 5], [6, 3], [7, 3]]);
@@ -190,6 +213,8 @@ async function seed(propertyId, years) {
   }
 
   const { types, rooms, plans, prices, taken, blocks } = await loadProperty(propertyId);
+  const withCountry = await hasCountryColumn();
+  if (!withCountry) console.log("guest_country does not exist yet (migration 028); seeding without it.");
   if (rooms.length === 0) throw new Error("The property has no numbered rooms to place stays in.");
 
   // Room-nights already spoken for, by real stays or out-of-order blocks.
@@ -235,7 +260,8 @@ async function seed(propertyId, years) {
     const [source, , ota, meanLead] = weighted(
       CHANNELS.map((c) => [c, released ? c[1] * c[4] : c[1]])
     );
-    const international = rand() < (ota ? 0.1 : 0.04);
+    const international = rand() < (ota ? 0.12 : 0.05);
+    const foreign = international ? foreignGuest() : null;
     const adults = rand() < 0.72 ? 2 : 1;
     const children = adults === 2 && rand() < 0.12 ? 1 : 0;
     const lead = leadDays(meanLead);
@@ -260,7 +286,8 @@ async function seed(propertyId, years) {
       room_type_id: room.room_type_id,
       room_id: room.id,
       rate_plan_id: plan?.id || null,
-      guest_name: international ? pick(FOREIGN) : `${pick(FIRST)} ${pick(LAST)}`,
+      guest_name: foreign ? foreign.name : `${pick(FIRST)} ${pick(LAST)}`,
+      ...(withCountry ? { guest_country: foreign ? foreign.country : "IN" } : {}),
       guest_phone: international ? null : `+91 9${String(Math.floor(rand() * 1e9)).padStart(9, "0")}`,
       check_in: checkIn,
       check_out: checkOut,
@@ -388,6 +415,56 @@ async function insert(table, rows) {
   process.stdout.write("\n");
 }
 
+async function hasCountryColumn() {
+  const { error } = await supabase.from("reservations").select("guest_country").limit(1);
+  return !error;
+}
+
+// ------------------------------------------------------------------
+// Countries, for mock bookings made before the column existed
+// ------------------------------------------------------------------
+
+async function countries(propertyId) {
+  if (!(await hasCountryColumn())) {
+    throw new Error("guest_country does not exist yet. Run migration 028 in the Supabase SQL editor first.");
+  }
+  const rows = await readAll(() =>
+    supabase
+      .from("reservations")
+      .select("id, guest_residency")
+      .eq("property_id", propertyId)
+      .like("reference", `${TAG}%`)
+      .eq("notes", NOTE)
+      .is("guest_country", null)
+      .order("id")
+  );
+
+  const domestic = rows.filter((r) => r.guest_residency !== "international").map((r) => r.id);
+  for (let i = 0; i < domestic.length; i += 300) {
+    const { error } = await supabase
+      .from("reservations")
+      .update({ guest_country: "IN" })
+      .in("id", domestic.slice(i, i + 300));
+    if (error) throw new Error(error.message);
+  }
+
+  // Each international guest gets a market, and a name from it, so the
+  // folio does not show a German name booked from Thailand.
+  const international = rows.filter((r) => r.guest_residency === "international");
+  let done = 0;
+  for (const r of international) {
+    const guest = foreignGuest();
+    const { error } = await supabase
+      .from("reservations")
+      .update({ guest_country: guest.country, guest_name: guest.name })
+      .eq("id", r.id);
+    if (error) throw new Error(error.message);
+    done += 1;
+    process.stdout.write(`\rInternational guests: ${done}/${international.length}`);
+  }
+  console.log(`\nSet India on ${domestic.length} and a foreign market on ${international.length} mock bookings.`);
+}
+
 // ------------------------------------------------------------------
 // Clear
 // ------------------------------------------------------------------
@@ -417,11 +494,16 @@ async function clear(propertyId) {
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry");
 const [command, propertyId, years = "2"] = args.filter((a) => a !== "--dry");
-if (!["seed", "clear"].includes(command) || !propertyId) {
-  console.log("Usage: node scripts/mockBookings.mjs seed|clear <propertyId> [years]");
+const COMMANDS = {
+  seed: () => seed(propertyId, Number(years)),
+  clear: () => clear(propertyId),
+  countries: () => countries(propertyId),
+};
+if (!COMMANDS[command] || !propertyId) {
+  console.log("Usage: node scripts/mockBookings.mjs seed|clear|countries <propertyId> [years] [--dry]");
   process.exit(1);
 }
-(command === "seed" ? seed(propertyId, Number(years)) : clear(propertyId)).catch((err) => {
+COMMANDS[command]().catch((err) => {
   console.error(`\n${err.message}`);
   process.exit(1);
 });

@@ -18,10 +18,10 @@ import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
  * Booking performance: what the reservations in the PMS add up to.
  *
  * Read top to bottom it answers, in order: how did the period do (headline
- * figures against the period before), where did the business come from (the
- * mix by channel, source, room type, rate plan, market), how did it move
- * through the period (trend by channel), and when do guests stay (weekday
- * and month).
+ * figures against a comparison period), where did the business come from
+ * (the mix by channel, source country, room type, rate plan and booking
+ * method), how did it move through the period (trend by channel), and when
+ * do guests stay (weekday and month).
  *
  * Every chart has a table with it. Some series colours are pale against a
  * white page, and a hotelier exporting numbers for an owner wants the figures,
@@ -90,10 +90,11 @@ function yearEarlier(iso) {
 
 const DIMENSIONS = [
   { id: "channel", label: "Channel" },
+  // The guest's country -- where the business comes from.
   { id: "source", label: "Source" },
   { id: "roomType", label: "Room type" },
   { id: "ratePlan", label: "Rate plan" },
-  { id: "market", label: "Market" },
+  { id: "method", label: "Booking method" },
 ];
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -813,7 +814,7 @@ export default function BookingPerformance({ session }) {
           </h2>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Revenue, ADR, length of stay, lead time and cancellations from your reservations, by
-            channel, source, room type and rate plan.
+            channel, source country, room type and rate plan.
           </p>
         </div>
         <button

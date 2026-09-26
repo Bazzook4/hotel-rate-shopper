@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 // booking and the grid cannot drift to different prices for the same night.
 import { resolveAllRates } from '@/lib/ratePlanPricing';
 import { computeTaxes, stayLines } from '@/lib/taxes';
+import { toCountryCode } from '@/lib/countries';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2436,6 +2437,33 @@ export function generateReservationReference() {
   return `RS-${out}`;
 }
 
+let countryColumnSeen = false;
+let countryColumnCheckedAt = 0;
+
+/**
+ * Whether `reservations.guest_country` exists yet (migration 028).
+ *
+ * Code is live the moment it is pushed and the SQL is pasted by hand some
+ * time later, so a booking must not fail in between just because it named a
+ * country. Once the column is seen it is remembered; until then the answer
+ * is re-checked at most once a minute.
+ */
+export async function reservationsHaveCountry() {
+  if (countryColumnSeen) return true;
+  if (Date.now() - countryColumnCheckedAt < 60000) return false;
+  countryColumnCheckedAt = Date.now();
+  const { error } = await supabase.from('reservations').select('guest_country').limit(1);
+  countryColumnSeen = !error;
+  return countryColumnSeen;
+}
+
+/** The guest's country from a partner booking's payload, as a code. */
+function partnerGuestCountry(row) {
+  const b = row.payload?.booking || row.payload?.reservation || row.payload || {};
+  const guest = b.guest || b.customer || {};
+  return toCountryCode(guest.address?.country || guest.country || guest.nationality);
+}
+
 /** The statuses that still hold a room. A cancelled stay frees its nights. */
 const OCCUPYING_STATUSES = ['confirmed', 'in_house', 'checked_out'];
 
@@ -3491,6 +3519,8 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
 
     const nights = nightsBetween(check_in, check_out);
     const booked = partnerAmount(row);
+    const country = partnerGuestCountry(row);
+    const withCountry = country && (await reservationsHaveCountry());
     let createdAny = false;
     let updatedAny = false;
 
@@ -3524,6 +3554,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
         total_amount: amount,
         currency: booked.currency || 'INR',
         source: row.channel || 'OTA',
+        ...(withCountry ? { guest_country: country } : {}),
         ...(room.adults ? { adults: room.adults } : {}),
         ...(room.children != null ? { children: room.children } : {}),
       };
