@@ -14,6 +14,7 @@ const CHANNEL_LABELS = {
 
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import DateToolbar, { ToolbarField } from "./DateToolbar";
 
 
 
@@ -659,12 +660,6 @@ export default function ChannelManager() {
     }
   }
 
-  function shiftWindow(dir) {
-    const d = new Date(`${anchor}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + dir * days);
-    setAnchor(isoDate(d));
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -898,45 +893,26 @@ export default function ChannelManager() {
       )}
 
       {/* Date window controls */}
-      <div className="flex flex-wrap items-center gap-2 card p-3">
-        <button
-          type="button"
-          onClick={() => shiftWindow(-1)}
-          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-[var(--accent-soft)]"
-        >
-          ‹
-        </button>
-        <span className="sub">
-          {dates[0]} → {dates[dates.length - 1]}
-        </span>
-        <button
-          type="button"
-          onClick={() => shiftWindow(1)}
-          className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1.5 text-sm text-ink hover:bg-[var(--accent-soft)]"
-        >
-          ›
-        </button>
-        <div className="ml-2 flex overflow-hidden rounded-lg border border-[var(--border)]">
-          {[15, 30].map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => setDays(n)}
-              className={`px-3 py-1.5 text-xs ${
-                days === n ? "bg-[var(--accent-soft)] text-ink" : "muted hover:bg-[var(--surface-2)]"
-              }`}
-            >
-              {n} days
-            </button>
-          ))}
-        </div>
-        <input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter room type or plan…"
-          className="ml-auto input w-56"
-        />
-      </div>
+      <DateToolbar
+        value={anchor}
+        onChange={setAnchor}
+        step={days}
+        windows={[15, 30]}
+        windowDays={days}
+        onWindowChange={setDays}
+        onClearAll={filter ? () => setFilter("") : undefined}
+        filters={
+          <ToolbarField label="Room types & rate plans" htmlFor="cm-filter" width={280}>
+            <input
+              id="cm-filter"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Search room type or plan…"
+              className="input"
+            />
+          </ToolbarField>
+        }
+      />
 
       {grid && grid.rooms.length === 0 && (
         <div className="card card-pad text-center">
@@ -982,6 +958,7 @@ export default function ChannelManager() {
               </th>
               {dates.map((d) => {
                 const f = formatDay(d);
+                const todayIso = isoDate(new Date());
                 return (
                   <th
                     key={d}
@@ -996,7 +973,11 @@ export default function ChannelManager() {
                       minWidth: 74,
                     }}
                   >
-                    <div>{f.dow}</div>
+                    <div
+                      style={d === todayIso ? { color: "var(--accent-text)", fontWeight: 600 } : undefined}
+                    >
+                      {d === todayIso ? "TODAY" : f.dow}
+                    </div>
                     <div
                       className="text-base font-semibold"
                       style={{ color: f.weekend ? "var(--warn)" : "var(--text)" }}

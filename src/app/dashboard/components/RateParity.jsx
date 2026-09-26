@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import DateToolbar, { ToolbarField } from "./DateToolbar";
 import GoogleListingSetup from "./GoogleListingSetup";
 import ParityTrend from "./ParityTrend";
 
@@ -344,11 +345,6 @@ export default function RateParity({ session }) {
   }
 
   const today = formatDateISO(new Date());
-  const rangeLabel = data
-    ? `${parseDateISO(data.start)?.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${parseDateISO(
-        data.end
-      )?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`
-    : "";
 
   if (loading && !data) {
     return <p className="sub">Loading rate parity…</p>;
@@ -381,71 +377,52 @@ export default function RateParity({ session }) {
       ) : (
         <>
           {/* Controls: which stay the grid is pricing. */}
-          <div className="card card-pad flex flex-wrap items-end gap-4">
-            <div>
-              <label className="label">Stay date</label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() =>
-                    setAnchor(clampToToday(formatDateISO(addDays(parseDateISO(anchor), -WINDOW_DAYS))))
+          <DateToolbar
+            value={anchor}
+            onChange={setAnchor}
+            step={WINDOW_DAYS}
+            min={todayUTC()}
+            onClearAll={
+              nights !== 1 || guests !== 2
+                ? () => {
+                    setNights(1);
+                    setGuests(2);
                   }
-                  aria-label="Previous dates"
-                >
-                  ‹
-                </button>
-                <span className="text-sm" style={{ minWidth: 170, textAlign: "center" }}>
-                  {rangeLabel}
-                </span>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setAnchor(formatDateISO(addDays(parseDateISO(anchor), WINDOW_DAYS)))}
-                  aria-label="Next dates"
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="label" htmlFor="parity-nights">
-                Nights
-              </label>
-              <select
-                id="parity-nights"
-                className="input"
-                value={nights}
-                onChange={(e) => setNights(Number(e.target.value))}
-              >
-                {[1, 2, 3, 7].map((n) => (
-                  <option key={n} value={n}>
-                    {n} night{n === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="label" htmlFor="parity-guests">
-                Guests
-              </label>
-              <select
-                id="parity-guests"
-                className="input"
-                value={guests}
-                onChange={(e) => setGuests(Number(e.target.value))}
-              >
-                {[1, 2, 3, 4].map((n) => (
-                  <option key={n} value={n}>
-                    {n} guest{n === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="ml-auto">
+                : undefined
+            }
+            filters={
+              <>
+                <ToolbarField label="Nights" htmlFor="parity-nights" width={140}>
+                  <select
+                    id="parity-nights"
+                    className="input"
+                    value={nights}
+                    onChange={(e) => setNights(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 7].map((n) => (
+                      <option key={n} value={n}>
+                        {n} night{n === 1 ? "" : "s"}
+                      </option>
+                    ))}
+                  </select>
+                </ToolbarField>
+                <ToolbarField label="Guests" htmlFor="parity-guests" width={140}>
+                  <select
+                    id="parity-guests"
+                    className="input"
+                    value={guests}
+                    onChange={(e) => setGuests(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 4].map((n) => (
+                      <option key={n} value={n}>
+                        {n} guest{n === 1 ? "" : "s"}
+                      </option>
+                    ))}
+                  </select>
+                </ToolbarField>
+              </>
+            }
+            actions={
               <button type="button" className="btn btn-primary" onClick={refresh} disabled={refreshing}>
                 {refreshing
                   ? progress
@@ -453,8 +430,8 @@ export default function RateParity({ session }) {
                     : "Checking channels…"
                   : "Refresh"}
               </button>
-            </div>
-          </div>
+            }
+          />
 
           {error && (
             <div className="card card-pad" style={{ borderColor: "var(--danger)" }}>

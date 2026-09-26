@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import DateToolbar from "./DateToolbar";
 import PricingSettings from "./PricingSettings";
 
 const WINDOW_DAYS = 14;
@@ -320,59 +321,34 @@ export default function DynamicPricingGrid({ session }) {
       </div>
 
       {/* Controls */}
-      <div className="card card-pad flex flex-wrap items-end gap-4">
-        <div>
-          <label className="label">Dates</label>
-          <div className="flex items-center gap-2">
+      <DateToolbar
+        value={anchor}
+        onChange={setAnchor}
+        step={WINDOW_DAYS}
+        actions={
+          <>
+            <button type="button" className="btn btn-secondary" onClick={calculate} disabled={calculating}>
+              {calculating ? "Calculating…" : "Recalculate"}
+            </button>
             <button
               type="button"
-              className="btn"
-              onClick={() => setAnchor(formatDateISO(addDays(parseDateISO(anchor), -WINDOW_DAYS)))}
-              aria-label="Previous dates"
+              className="btn btn-secondary"
+              onClick={() => decide("dismissed")}
+              disabled={applying || selected.size === 0}
             >
-              ‹
+              Dismiss
             </button>
-            <span className="text-sm" style={{ minWidth: 160, textAlign: "center" }}>
-              {parseDateISO(data?.start)?.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-              {" – "}
-              {parseDateISO(data?.end)?.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-            </span>
             <button
               type="button"
-              className="btn"
-              onClick={() => setAnchor(formatDateISO(addDays(parseDateISO(anchor), WINDOW_DAYS)))}
-              aria-label="Next dates"
+              className="btn btn-primary"
+              onClick={() => decide("accepted")}
+              disabled={applying || selected.size === 0}
             >
-              ›
+              {applying ? "Applying…" : `Apply selected${selected.size ? ` (${selected.size})` : ""}`}
             </button>
-            <button type="button" className="btn" onClick={() => setAnchor(todayUTC())}>
-              Today
-            </button>
-          </div>
-        </div>
-
-        <div className="ml-auto flex gap-2">
-          <button type="button" className="btn" onClick={calculate} disabled={calculating}>
-            {calculating ? "Calculating…" : "Recalculate"}
-          </button>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => decide("dismissed")}
-            disabled={applying || selected.size === 0}
-          >
-            Dismiss
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => decide("accepted")}
-            disabled={applying || selected.size === 0}
-          >
-            {applying ? "Applying…" : `Apply selected${selected.size ? ` (${selected.size})` : ""}`}
-          </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {error && (
         <div className="card card-pad" style={{ borderColor: "var(--danger)" }}>

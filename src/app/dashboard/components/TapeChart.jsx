@@ -5,6 +5,7 @@ import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingModal from "./BookingModal";
 import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
+import DateToolbar, { ToolbarField } from "./DateToolbar";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
@@ -586,55 +587,36 @@ export default function TapeChart({ session }) {
             them; click a booking to open it, or drag it to move or resize the stay.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="btn btn-ghost text-sm"
-            onClick={() => setAnchor(shiftDate(anchor, -windowDays))}
-          >
-            ←
-          </button>
-          <input
-            className="input text-sm"
-            type="date"
-            value={anchor}
-            onChange={(e) => setAnchor(e.target.value)}
-            style={{ maxWidth: 160 }}
-          />
-          <button
-            className="btn btn-ghost text-sm"
-            onClick={() => setAnchor(shiftDate(anchor, windowDays))}
-          >
-            →
-          </button>
-          <button className="btn btn-ghost text-sm" onClick={() => setAnchor(today)}>
-            Today
-          </button>
-          {WINDOWS.map((w) => (
-            <button
-              key={w.days}
-              className={`btn text-sm ${windowDays === w.days ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setWindowDays(w.days)}
-            >
-              {w.label}
-            </button>
-          ))}
-          {chart?.roomTypes?.length > 1 && (
-            <select
-              className="input text-sm"
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              style={{ maxWidth: 170 }}
-            >
-              <option value="all">All room types</option>
-              {chart.roomTypes.map((rt) => (
-                <option key={rt.id} value={rt.id}>
-                  {rt.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
       </div>
+
+      <DateToolbar
+        value={anchor}
+        onChange={setAnchor}
+        step={windowDays}
+        windows={WINDOWS.map((w) => w.days)}
+        windowDays={windowDays}
+        onWindowChange={setWindowDays}
+        onClearAll={typeFilter !== "all" ? () => setTypeFilter("all") : undefined}
+        filters={
+          chart?.roomTypes?.length > 1 && (
+            <ToolbarField label="Room types" htmlFor="tape-type">
+              <select
+                id="tape-type"
+                className="input"
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+              >
+                <option value="all">All room types</option>
+                {chart.roomTypes.map((rt) => (
+                  <option key={rt.id} value={rt.id}>
+                    {rt.name}
+                  </option>
+                ))}
+              </select>
+            </ToolbarField>
+          )
+        }
+      />
 
       {syncWarning && (
         <div

@@ -296,6 +296,48 @@ body {
   .chip-warn { background: var(--warn-soft); color: var(--warn); }
   .chip-off { background: var(--surface-2); color: var(--text-muted); }
 
+  /* Joined button group: the date stepper and the window toggle over every
+   * date grid. One outline, hairline dividers, the chosen option tinted. */
+  .seg {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .seg > button {
+    padding: 0.45rem 0.7rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    background: transparent;
+    border-left: 1px solid var(--border);
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .seg > button:first-child { border-left: 0; }
+  .seg > button:hover:not(:disabled) { background: var(--surface-2); }
+  .seg > button:disabled { color: var(--text-faint); cursor: not-allowed; }
+  .seg > .seg-on,
+  .seg > .seg-on:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-text); font-weight: 500; }
+  .seg > .seg-date {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 9.5rem;
+    justify-content: center;
+    font-weight: 500;
+  }
+  /* The native picker is kept in the page so showPicker() can anchor to it,
+   * but it is drawn by the button above it. */
+  .seg-picker {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
   .table th {
     text-align: left;

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import DateToolbar, { ToolbarField } from "./DateToolbar";
 import ManageCompetitors from "./ManageCompetitors";
 import CompetitorDay from "./CompetitorDay";
 import { MAX_COMPETITORS } from "@/lib/competitors";
@@ -289,16 +290,6 @@ export default function CompetitorShopper({ session }) {
     return out;
   }, [data?.dates]);
 
-  const monthLabel = parseDateISO(month)?.toLocaleDateString("en-GB", {
-    month: "long",
-    year: "numeric",
-  });
-
-  function shiftMonth(by) {
-    const d = parseDateISO(month);
-    setMonth(formatDateISO(new Date(d.getFullYear(), d.getMonth() + by, 1)));
-  }
-
   const today = formatDateISO(new Date());
 
   if (managing) {
@@ -384,76 +375,64 @@ export default function CompetitorShopper({ session }) {
       )}
 
       {/* Controls */}
-      <div className="card card-pad flex flex-wrap items-end gap-4">
-        <div>
-          <label className="label">Month</label>
-          <div className="flex items-center gap-2">
-            <button type="button" className="btn" onClick={() => shiftMonth(-1)} aria-label="Previous month">
-              ‹
-            </button>
-            <span className="text-sm" style={{ minWidth: 140, textAlign: "center" }}>
-              {monthLabel}
-            </span>
-            <button type="button" className="btn" onClick={() => shiftMonth(1)} aria-label="Next month">
-              ›
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label className="label" htmlFor="comp-guests">
-            Guests
-          </label>
-          <select
-            id="comp-guests"
-            className="input"
-            value={guests}
-            onChange={(e) => setGuests(Number(e.target.value))}
-          >
-            {[1, 2, 3, 4].map((n) => (
-              <option key={n} value={n}>
-                {n} guest{n === 1 ? "" : "s"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="label" htmlFor="comp-nights">
-            Nights
-          </label>
-          <select
-            id="comp-nights"
-            className="input"
-            value={nights}
-            onChange={(e) => setNights(Number(e.target.value))}
-          >
-            {[1, 2, 3, 7].map((n) => (
-              <option key={n} value={n}>
-                {n} night{n === 1 ? "" : "s"}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* A month is far too many lookups for one press, so the refresh
-            names the week it will cover rather than pretending otherwise. */}
-        <div>
-          <label className="label" htmlFor="comp-week">
-            Refresh week starting
-          </label>
-          <input
-            id="comp-week"
-            type="date"
-            className="input"
-            value={weekStart}
-            min={data?.start}
-            max={data?.end}
-            onChange={(e) => setWeekStart(e.target.value)}
-          />
-        </div>
-
-        <div className="ml-auto">
+      <DateToolbar
+        unit="month"
+        value={month}
+        onChange={setMonth}
+        onClearAll={
+          guests !== 2 || nights !== 1
+            ? () => {
+                setGuests(2);
+                setNights(1);
+              }
+            : undefined
+        }
+        filters={
+          <>
+            <ToolbarField label="Guests" htmlFor="comp-guests" width={140}>
+              <select
+                id="comp-guests"
+                className="input"
+                value={guests}
+                onChange={(e) => setGuests(Number(e.target.value))}
+              >
+                {[1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n} guest{n === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            </ToolbarField>
+            <ToolbarField label="Nights" htmlFor="comp-nights" width={140}>
+              <select
+                id="comp-nights"
+                className="input"
+                value={nights}
+                onChange={(e) => setNights(Number(e.target.value))}
+              >
+                {[1, 2, 3, 7].map((n) => (
+                  <option key={n} value={n}>
+                    {n} night{n === 1 ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            </ToolbarField>
+            {/* A month is far too many lookups for one press, so the refresh
+                names the week it will cover rather than pretending otherwise. */}
+            <ToolbarField label="Refresh week starting" htmlFor="comp-week" width={180}>
+              <input
+                id="comp-week"
+                type="date"
+                className="input"
+                value={weekStart}
+                min={data?.start}
+                max={data?.end}
+                onChange={(e) => setWeekStart(e.target.value)}
+              />
+            </ToolbarField>
+          </>
+        }
+        actions={
           <button
             type="button"
             className="btn btn-primary"
@@ -466,8 +445,8 @@ export default function CompetitorShopper({ session }) {
                 : "Checking competitors…"
               : "Refresh week"}
           </button>
-        </div>
-      </div>
+        }
+      />
 
       {error && (
         <div className="card card-pad" style={{ borderColor: "var(--danger)" }}>
