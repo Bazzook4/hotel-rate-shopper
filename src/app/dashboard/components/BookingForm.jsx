@@ -80,12 +80,12 @@ const SOURCE_LABEL = {
  */
 function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   if (quoting) {
-    return <p className="sub" style={{ fontSize: "0.7rem" }}>Pricing…</p>;
+    return <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>Pricing…</p>;
   }
 
   if (manual) {
     return (
-      <p className="sub" style={{ fontSize: "0.7rem" }}>
+      <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
         Entered by hand.
         {quote?.total != null && (
           <>
@@ -116,7 +116,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   // Nothing configured: say so plainly and leave the box to the desk.
   if (quote && quote.total == null) {
     return (
-      <p className="sub" style={{ fontSize: "0.7rem", color: "var(--warn)" }}>
+      <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: "var(--warn)" }}>
         {quote.reason || "No rate configured — enter the total by hand."}
       </p>
     );
@@ -133,7 +133,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   return (
     <p
       className="sub"
-      style={{ fontSize: "0.7rem", color: weak ? "var(--warn)" : undefined }}
+      style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: weak ? "var(--warn)" : undefined }}
     >
       {SOURCE_LABEL[quote.source] || "from configured rates"}
       {quote.diagnosis && <> — {quote.diagnosis}</>}
@@ -147,6 +147,56 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
         </span>
       )}
     </p>
+  );
+}
+
+/**
+ * Where a booking came from. Bookings the channel manager delivers carry the
+ * channel's own name (Booking.com, MakeMyTrip…), which is not in this list;
+ * the form adds it as an option so editing such a booking does not rewrite it.
+ */
+const BOOKING_SOURCES = [
+  { value: "direct", label: "Direct" },
+  { value: "walkin", label: "Walk-in" },
+  { value: "phone", label: "Phone" },
+  { value: "email", label: "Email" },
+  { value: "website", label: "Website" },
+  { value: "corporate", label: "Corporate" },
+  { value: "travel_agent", label: "Travel agent" },
+  { value: "ota", label: "OTA (entered by hand)" },
+];
+
+/** A titled block of the form, four fields to a row on a wide screen. */
+function Section({ title, children }) {
+  return (
+    <section className="space-y-2">
+      <h4
+        style={{
+          fontSize: "0.7rem",
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          color: "var(--text-muted)",
+        }}
+      >
+        {title}
+      </h4>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, hint, wide = false, children }) {
+  return (
+    <div className={wide ? "col-span-2" : undefined}>
+      <label className="label">{label}</label>
+      {children}
+      {hint && (
+        <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
+          {hint}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -186,6 +236,10 @@ export default function BookingForm({
   const [conflict, setConflict] = useState(null);
 
   const nights = nightsBetween(form.check_in, form.check_out);
+
+  const sourceOptions = BOOKING_SOURCES.some((o) => o.value === form.source)
+    ? BOOKING_SOURCES
+    : [...BOOKING_SOURCES, { value: form.source, label: form.source }];
 
   // A complimentary stay is owed nothing, so there is no price to quote or
   // type: the total is pinned at zero for as long as it stays complimentary.
@@ -363,7 +417,7 @@ export default function BookingForm({
   }
 
   return (
-    <div className={embedded ? "space-y-4" : "card card-pad space-y-4"}>
+    <div className={`booking-form ${embedded ? "space-y-5" : "card card-pad space-y-5"}`}>
       {!embedded && (
         <div className="flex items-center justify-between">
           <h3 style={{ fontWeight: 600 }}>
@@ -382,37 +436,34 @@ export default function BookingForm({
         </p>
       )}
 
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
-        <div>
-          <label className="label">Guest name</label>
+      <Section title="Guest">
+        <Field label="Guest name">
           <input
             className="input"
             value={form.guest_name}
             onChange={(e) => set("guest_name", e.target.value)}
             placeholder="Full name"
           />
-        </div>
-        <div>
-          <label className="label">Phone</label>
+        </Field>
+        <Field label="Phone">
           <input
             className="input"
+            type="tel"
             value={form.guest_phone}
             onChange={(e) => set("guest_phone", e.target.value)}
           />
-        </div>
-        <div>
-          <label className="label">Email</label>
+        </Field>
+        <Field label="Email">
           <input
             className="input"
             type="email"
             value={form.guest_email}
             onChange={(e) => set("guest_email", e.target.value)}
           />
-        </div>
-        <div>
-          {/* Decides which taxes apply -- some levies are for foreign
-              guests only, and some exemptions are too. */}
-          <label className="label">Guest is</label>
+        </Field>
+        {/* Decides which taxes apply -- some levies are for foreign
+            guests only, and some exemptions are too. */}
+        <Field label="Guest is">
           <select
             className="input"
             value={form.guest_residency}
@@ -421,10 +472,52 @@ export default function BookingForm({
             <option value="domestic">Domestic</option>
             <option value="international">International</option>
           </select>
-        </div>
+        </Field>
+      </Section>
 
-        <div>
-          <label className="label">Room type</label>
+      <Section title="Stay">
+        <Field label="Check in">
+          <input
+            className="input"
+            type="date"
+            value={form.check_in}
+            onChange={(e) => set("check_in", e.target.value)}
+          />
+        </Field>
+        <Field
+          label="Check out"
+          hint={nights ? `${nights} night${nights === 1 ? "" : "s"}` : "Pick a later date"}
+        >
+          <input
+            className="input"
+            type="date"
+            value={form.check_out}
+            min={form.check_in}
+            onChange={(e) => set("check_out", e.target.value)}
+          />
+        </Field>
+        <Field label="Adults">
+          <input
+            className="input"
+            type="number"
+            min="1"
+            value={form.adults}
+            onChange={(e) => set("adults", e.target.value)}
+          />
+        </Field>
+        <Field label="Children">
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={form.children}
+            onChange={(e) => set("children", e.target.value)}
+          />
+        </Field>
+      </Section>
+
+      <Section title="Room">
+        <Field label="Room type">
           <select
             className="input"
             value={form.room_type_id}
@@ -437,9 +530,8 @@ export default function BookingForm({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="label">Room</label>
+        </Field>
+        <Field label="Room">
           <select
             className="input"
             value={form.room_id}
@@ -453,9 +545,8 @@ export default function BookingForm({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className="label">Rate plan</label>
+        </Field>
+        <Field label="Rate plan" wide>
           <select
             className="input"
             value={form.rate_plan_id}
@@ -468,58 +559,26 @@ export default function BookingForm({
               </option>
             ))}
           </select>
-        </div>
+        </Field>
+      </Section>
 
-        <div>
-          <label className="label">Check in</label>
-          <input
+      <Section title="Billing">
+        <Field label="Source">
+          <select
             className="input"
-            type="date"
-            value={form.check_in}
-            onChange={(e) => set("check_in", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Check out</label>
-          <input
-            className="input"
-            type="date"
-            value={form.check_out}
-            min={form.check_in}
-            onChange={(e) => set("check_out", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Nights</label>
-          <div className="input" style={{ color: "var(--text-muted)" }}>
-            {nights || "—"}
-          </div>
-        </div>
-
-        <div>
-          <label className="label">Adults</label>
-          <input
-            className="input"
-            type="number"
-            min="1"
-            value={form.adults}
-            onChange={(e) => set("adults", e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Children</label>
-          <input
-            className="input"
-            type="number"
-            min="0"
-            value={form.children}
-            onChange={(e) => set("children", e.target.value)}
-          />
-        </div>
-        <div>
-          {/* Complimentary stays occupy a room like any other but are owed
-              nothing; revenue reports leave them out of ADR. */}
-          <label className="label">Booking type</label>
+            value={form.source}
+            onChange={(e) => set("source", e.target.value)}
+          >
+            {sourceOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {/* Complimentary stays occupy a room like any other but are owed
+            nothing; revenue reports leave them out of ADR. */}
+        <Field label="Booking type">
           <select
             className="input"
             value={form.booking_type}
@@ -528,9 +587,8 @@ export default function BookingForm({
             <option value="standard">Standard</option>
             <option value="complimentary">Complimentary</option>
           </select>
-        </div>
-        <div>
-          <label className="label">Total amount</label>
+        </Field>
+        <Field label="Total amount (whole stay)" wide>
           <input
             className="input"
             type="number"
@@ -544,7 +602,7 @@ export default function BookingForm({
             placeholder={quoting ? "Pricing…" : "Whole stay"}
           />
           {complimentary ? (
-            <p className="sub" style={{ fontSize: "0.7rem" }}>
+            <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
               Complimentary — no room charge. Extras added later are still billed.
             </p>
           ) : (
@@ -556,29 +614,19 @@ export default function BookingForm({
               onUseQuoted={useQuotedPrice}
             />
           )}
-        </div>
+        </Field>
+      </Section>
 
-        <div>
-          <label className="label">Source</label>
-          <input
-            className="input"
-            value={form.source}
-            onChange={(e) => set("source", e.target.value)}
-            placeholder="direct, walkin, phone"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="label">Notes</label>
+      <Field label="Notes">
         <textarea
           className="input"
           rows={2}
+          style={{ resize: "vertical" }}
           value={form.notes}
           onChange={(e) => set("notes", e.target.value)}
           placeholder="Late arrival, dietary needs, anything the desk should know"
         />
-      </div>
+      </Field>
 
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>
