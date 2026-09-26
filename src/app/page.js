@@ -385,18 +385,7 @@ export default function V2Dashboard() {
                   <PropertySetup session={scopedSession} only="rooms" />
                 )}
 
-                {active === "pmssetup" && (
-                  <div className="space-y-4">
-                    <div>
-                      <h2 className="h1">Room Number Setup</h2>
-                      <p className="sub">
-                        Every room the property owns — its floor, number and
-                        type — in the order the calendar and room lists show them.
-                      </p>
-                    </div>
-                    <RoomInventory session={scopedSession} />
-                  </div>
-                )}
+                {active === "pmssetup" && <RoomInventory session={scopedSession} />}
 
                 {active === "servicesetup" && (
                   <BillingSetup session={scopedSession} only="services" />

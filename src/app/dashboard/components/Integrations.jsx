@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { plansForRoom, planAppliesToRoom } from "@/lib/ratePlanPricing";
+import { SetupHeader } from "./SetupGrid";
 
 const inputClass =
   "input";
@@ -142,12 +143,11 @@ export default function Integrations({ session }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="h1">Integrations</h2>
-        <p className="sub">
-          Connect the tools your property already uses.
-        </p>
-      </div>
+      <SetupHeader
+        area="Distribution"
+        title="Integrations"
+        sub="Connect the tools your property already uses."
+      />
 
       {error && (
         <p className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">
@@ -328,111 +328,112 @@ export default function Integrations({ session }) {
                 sell. Aiosell treats each occupancy as a separate rate plan.
               </p>
 
-              {(data.roomTypes || []).map((room) => {
-                const maxAdults = room.max_adults || 2;
-                const plans = plansForRoom(
-                  data.ratePlans,
-                  room.id,
-                  data.assignments
-                );
-                return (
-                  <div
-                    key={room.id}
-                    className="mt-3 card p-3"
-                  >
-                    <div className="grid items-center gap-2 sm:grid-cols-2">
-                      <span className="text-sm font-medium text-ink">
-                        {room.room_type_name}
-                        <span className="ml-2 text-xs faint">
-                          up to {maxAdults} adult{maxAdults === 1 ? "" : "s"}
-                        </span>
-                      </span>
-                      <input
-                        value={codes[`room:${room.id}`]?.code ?? ""}
-                        onChange={(e) =>
-                          setCodes({
-                            ...codes,
-                            [`room:${room.id}`]: { code: e.target.value },
-                          })
-                        }
-                        className={inputClass}
-                        placeholder="Aiosell room code, e.g. executive"
-                      />
-                    </div>
-
-                    {plans.length > 0 && (
-                      <div className="mt-3 overflow-x-auto">
-                        <table className="grid-table min-w-full text-xs">
-                          <thead>
-                            <tr className="text-left text-[10px] uppercase tracking-wide faint">
-                              <th className="py-1 pr-2">Rate plan</th>
-                              <th className="py-1 pr-2">Adults</th>
-                              <th className="py-1 pr-2">Aiosell rate plan code</th>
-                              <th className="py-1 pr-2">Extra adult</th>
-                              <th className="py-1">Meals</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {plans.map((plan) =>
-                              Array.from({ length: maxAdults }, (_, i) => i + 1).map(
-                                (occ) => {
-                                  const key = `plan:${room.id}:${plan.id}:${occ}`;
-                                  const entry = codes[key] || {};
-                                  const set = (field, value) =>
-                                    setCodes({
-                                      ...codes,
-                                      [key]: { ...entry, [field]: value },
-                                    });
-                                  return (
-                                    <tr key={key} className="">
-                                      <td className="py-1 pr-2 muted">
-                                        {occ === 1 ? plan.plan_name : ""}
-                                      </td>
-                                      <td className="py-1 pr-2 muted">{occ}</td>
-                                      <td className="py-1 pr-2">
-                                        <input
-                                          value={entry.code ?? ""}
-                                          onChange={(e) => set("code", e.target.value)}
-                                          className={inputClass}
-                                          placeholder={
-                                            occ === 1
-                                              ? "executive-s-ep"
-                                              : occ === 2
-                                              ? "executive-d-ep"
-                                              : "code"
-                                          }
-                                        />
-                                      </td>
-                                      <td className="py-1 pr-2">
-                                        <input
-                                          type="number"
-                                          value={entry.extra_adult ?? ""}
-                                          onChange={(e) => set("extra_adult", e.target.value)}
-                                          className={inputClass}
-                                          placeholder="500"
-                                        />
-                                      </td>
-                                      <td className="py-1">
-                                        <input
-                                          type="number"
-                                          value={entry.no_of_meals ?? ""}
-                                          onChange={(e) => set("no_of_meals", e.target.value)}
-                                          className={inputClass}
-                                          placeholder="0"
-                                        />
-                                      </td>
-                                    </tr>
-                                  );
+              {/* One grid, as on the Channel Manager: each room type is a
+                  grey row carrying its room code, with a row per rate plan
+                  and occupancy beneath it. */}
+              <div className="mt-3 overflow-x-auto card" style={{ padding: 0 }}>
+                <table className="cm-grid">
+                  <thead>
+                    <tr>
+                      <th className="cm-sticky" style={{ minWidth: 240 }}>
+                        Room type &amp; rate plan
+                      </th>
+                      <th style={{ width: 80 }}>Adults</th>
+                      <th style={{ minWidth: 220 }}>Aiosell code</th>
+                      <th style={{ width: 120 }}>Extra adult</th>
+                      <th style={{ width: 100 }}>Meals</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.roomTypes || []).map((room) => {
+                      const maxAdults = room.max_adults || 2;
+                      const plans = plansForRoom(data.ratePlans, room.id, data.assignments);
+                      return (
+                        <Fragment key={room.id}>
+                          <tr className="cm-group">
+                            <td className="cm-sticky" style={{ background: "var(--surface-2)" }}>
+                              <span className="block font-medium text-ink">
+                                {room.room_type_name}
+                              </span>
+                              <span className="block text-xs muted">
+                                up to {maxAdults} adult{maxAdults === 1 ? "" : "s"} ·{" "}
+                                {plans.length} rate plan{plans.length === 1 ? "" : "s"}
+                              </span>
+                            </td>
+                            <td className="text-xs muted">Room</td>
+                            <td>
+                              <input
+                                value={codes[`room:${room.id}`]?.code ?? ""}
+                                onChange={(e) =>
+                                  setCodes({
+                                    ...codes,
+                                    [`room:${room.id}`]: { code: e.target.value },
+                                  })
                                 }
-                              )
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                                className={`cm-input${
+                                  codes[`room:${room.id}`]?.code ? "" : " is-invalid"
+                                }`}
+                                placeholder="Aiosell room code, e.g. executive"
+                              />
+                            </td>
+                            <td colSpan={2} />
+                          </tr>
+                          {plans.map((plan) =>
+                            Array.from({ length: maxAdults }, (_, i) => i + 1).map((occ) => {
+                              const key = `plan:${room.id}:${plan.id}:${occ}`;
+                              const entry = codes[key] || {};
+                              const set = (field, value) =>
+                                setCodes({ ...codes, [key]: { ...entry, [field]: value } });
+                              return (
+                                <tr key={key}>
+                                  <td className="cm-sticky" style={{ paddingLeft: 32 }}>
+                                    {occ === 1 ? (
+                                      <span className="text-ink">{plan.plan_name}</span>
+                                    ) : null}
+                                  </td>
+                                  <td className="text-xs muted">Adult {occ}</td>
+                                  <td>
+                                    <input
+                                      value={entry.code ?? ""}
+                                      onChange={(e) => set("code", e.target.value)}
+                                      className="cm-input"
+                                      placeholder={
+                                        occ === 1
+                                          ? "executive-s-ep"
+                                          : occ === 2
+                                          ? "executive-d-ep"
+                                          : "code"
+                                      }
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      value={entry.extra_adult ?? ""}
+                                      onChange={(e) => set("extra_adult", e.target.value)}
+                                      className="cm-input"
+                                      placeholder="500"
+                                    />
+                                  </td>
+                                  <td>
+                                    <input
+                                      type="number"
+                                      value={entry.no_of_meals ?? ""}
+                                      onChange={(e) => set("no_of_meals", e.target.value)}
+                                      className="cm-input"
+                                      placeholder="0"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

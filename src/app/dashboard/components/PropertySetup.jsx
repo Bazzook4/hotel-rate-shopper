@@ -1,22 +1,20 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { planLabel } from "@/lib/mealPlans";
+import { MEAL_PLANS, planLabel } from "@/lib/mealPlans";
 import RatePlanWizard from "./RatePlanWizard";
-import { describeDerivation, resolveAllRates } from "@/lib/ratePlanPricing";
-
-
-function Field({ label, children }) {
-  return (
-    <label className="block label">
-      {label}
-      {children}
-    </label>
-  );
-}
-
-const inputClass =
-  "input mt-1";
+import { eligibleMasters, resolveAllRates } from "@/lib/ratePlanPricing";
+import {
+  Grid,
+  Loading,
+  Messages,
+  SaveActions,
+  SetupHeader,
+  Toolbar,
+  isDraft,
+  sendJSON,
+  useGrid,
+} from "./SetupGrid";
 
 /**
  * Room types and rate plans for one property.
@@ -35,7 +33,6 @@ export default function PropertySetup({ session, only = "rooms" }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [editingRoom, setEditingRoom] = useState(null);
   const [editingPlan, setEditingPlan] = useState(null);
   const [assignments, setAssignments] = useState([]);
 
@@ -140,24 +137,6 @@ export default function PropertySetup({ session, only = "rooms" }) {
     }
   }
 
-  async function saveRoom(room) {
-    const payload = {
-      room_type_name: room.room_type_name,
-      base_price: Number(room.base_price),
-      number_of_rooms: Number(room.number_of_rooms),
-      base_adults: room.base_adults ? Number(room.base_adults) : null,
-      max_adults: room.max_adults ? Number(room.max_adults) : null,
-      description: room.description || "",
-    };
-    const ok = room.id
-      ? await send("/api/setup/roomTypes", "PATCH", { id: room.id, ...payload })
-      : await send("/api/setup/roomTypes", "POST", { ...payload, property_id: propertyId || undefined });
-    if (ok) {
-      setEditingRoom(null);
-      setNotice(room.id ? "Room type updated." : "Room type added.");
-    }
-  }
-
   /**
    * Save a rate plan and, in the same action, which rooms it applies to.
    *
@@ -247,274 +226,254 @@ export default function PropertySetup({ session, only = "rooms" }) {
     await send(`/api/setup/ratePlans?id=${encodeURIComponent(id)}`, "DELETE");
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="space-y-3 text-center">
-          <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-          <p className="sub">Loading property setup…</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <Loading label="Loading property setup…" />;
 
   if (error) {
     return (
       <div className="rounded-xl border border-[var(--warn)] bg-[var(--warn-soft)] p-4">
         <p className="text-sm text-[var(--warn)]">{error}</p>
-        <button
-          type="button"
-          onClick={load}
-          className="mt-3 btn btn-secondary text-xs"
-        >
+        <button type="button" onClick={load} className="mt-3 btn btn-secondary text-xs">
           Retry
         </button>
       </div>
     );
   }
 
-  const showRooms = only === "rooms";
+  return only === "rooms" ? (
+    <RoomTypesPanel
+      propertyId={propertyId}
+      roomTypes={roomTypes}
+      onReload={load}
+      onDelete={removeRoom}
+      notice={notice}
+    />
+  ) : (
+    <RatePlansPanel
+      propertyId={propertyId}
+      ratePlans={ratePlans}
+      roomTypes={roomTypes}
+      assignments={assignments}
+      baseRates={baseRates}
+      editing={editingPlan}
+      setEditing={setEditingPlan}
+      onSave={savePlan}
+      onDelete={removePlan}
+      onReload={load}
+      busy={busy}
+      notice={notice}
+    />
+  );
+}
+
+const BLANK_ROOM_TYPE = {
+  room_type_name: "",
+  description: "",
+  number_of_rooms: "",
+  base_price: "",
+  base_adults: "2",
+  max_adults: "",
+};
+
+/**
+ * Room types as a grid: one row per type, every field edited in place, all
+ * saved together.
+ */
+function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: outerNotice }) {
+  const grid = useGrid(roomTypes);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [filter, setFilter] = useState("");
+
+  const rows = [...roomTypes, ...grid.drafts].filter(
+    (r) =>
+      isDraft(r.id) ||
+      !filter ||
+      r.room_type_name?.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const numberFields = ["number_of_rooms", "base_price", "base_adults", "max_adults"];
+  function clean(row) {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (k === "id") continue;
+      out[k] = numberFields.includes(k) ? (v === "" || v === null ? null : Number(v)) : v;
+    }
+    return out;
+  }
+
+  async function saveAll() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    const saved = grid.count;
+    const errors = await grid.save({
+      label: (r) => r.room_type_name || "New room type",
+      update: (row, changes, next) => {
+        if (!next.room_type_name?.trim()) throw new Error("Name is required");
+        return sendJSON("/api/setup/roomTypes", "PATCH", { id: row.id, ...clean(changes) });
+      },
+      create: (d) => {
+        if (!d.room_type_name?.trim()) throw new Error("Name is required");
+        return sendJSON("/api/setup/roomTypes", "POST", {
+          ...clean(d),
+          base_price: Number(d.base_price) || 0,
+          number_of_rooms: Number(d.number_of_rooms) || 0,
+          property_id: propertyId || undefined,
+        });
+      },
+    });
+    await onReload();
+    setBusy(false);
+    if (errors.length) setError(errors.join(" · "));
+    else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
+  }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="h1">
-          {showRooms ? "Room Setup" : "Rate Plan Setup"}
-          <span className="ml-2 text-base font-normal muted">
-            ({showRooms ? roomTypes.length : ratePlans.length})
-          </span>
-        </h2>
-        <p className="sub">
-          {showRooms
-            ? "The rooms you sell, how many of each, and what they cost as a base."
-            : "What a guest is buying, and what it costs. A plan can take its rate from another, so changing one moves them together."}
-        </p>
-      </div>
-
-      {notice && (
-        <div className="card px-4 py-2 sub">
-          {notice}
-        </div>
-      )}
-
-      {showRooms ? (
-        <RoomTypesPanel
-          roomTypes={roomTypes}
-          editing={editingRoom}
-          setEditing={setEditingRoom}
-          onSave={saveRoom}
-          onDelete={removeRoom}
-          busy={busy}
-        />
-      ) : (
-        <RatePlansPanel
-          ratePlans={ratePlans}
-          roomTypes={roomTypes}
-          assignments={assignments}
-          resolved={resolved}
-          editing={editingPlan}
-          setEditing={setEditingPlan}
-          onSave={savePlan}
-          onDelete={removePlan}
-          busy={busy}
-        />
-      )}
-    </div>
-  );
-}
-
-function RoomTypesPanel({ roomTypes, editing, setEditing, onSave, onDelete, busy }) {
-  return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() =>
-          setEditing({
-            room_type_name: "",
-            base_price: "",
-            number_of_rooms: "",
-            base_adults: "",
-            max_adults: "",
-            description: "",
-          })
-        }
-        className="btn btn-primary"
+      <SetupHeader
+        title="Room Setup"
+        count={roomTypes.length}
+        sub="The rooms you sell, how many of each, and what they cost as a base."
       >
-        + Add room type
-      </button>
+        <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
+      </SetupHeader>
 
-      {editing && (
-        <div className="card card-pad">
-          <h3 className="mb-3 h2 text-sm">
-            {editing.id ? "Edit room type" : "New room type"}
-          </h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Name">
-              <input
-                value={editing.room_type_name}
-                onChange={(e) => setEditing({ ...editing, room_type_name: e.target.value })}
-                className={inputClass}
-                placeholder="Deluxe Room"
-              />
-            </Field>
-            <Field label="Base price">
-              <input
-                type="number"
-                value={editing.base_price}
-                onChange={(e) => setEditing({ ...editing, base_price: e.target.value })}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Number of rooms">
-              <input
-                type="number"
-                value={editing.number_of_rooms}
-                onChange={(e) =>
-                  setEditing({ ...editing, number_of_rooms: e.target.value })
-                }
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Base adults">
-              <input
-                type="number"
-                min="1"
-                value={editing.base_adults ?? ""}
-                onChange={(e) =>
-                  setEditing({ ...editing, base_adults: e.target.value })
-                }
-                className={inputClass}
-                placeholder="2"
-              />
-              <span className="mt-1 block text-xs faint">
-                How many adults the room is priced for, adult by adult.
-              </span>
-            </Field>
-            <Field label="Max adults">
-              <input
-                type="number"
-                min="1"
-                value={editing.max_adults ?? ""}
-                onChange={(e) => setEditing({ ...editing, max_adults: e.target.value })}
-                className={inputClass}
-              />
-              <span className="mt-1 block text-xs faint">
-                The ceiling. Adults beyond base pay the extra person rate.
-              </span>
-            </Field>
-          </div>
-          <Field label="Description">
-            <input
-              value={editing.description ?? ""}
-              onChange={(e) => setEditing({ ...editing, description: e.target.value })}
-              className={inputClass}
-            />
-          </Field>
-          <div className="mt-3 flex gap-2">
-            <button
-              type="button"
-              disabled={busy || !editing.room_type_name?.trim()}
-              onClick={() => onSave(editing)}
-              className="btn btn-primary"
-            >
-              {busy ? "Saving…" : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditing(null)}
-              className="btn btn-secondary"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+      <Messages error={error} notice={notice || outerNotice} />
 
-      <div className="overflow-x-auto card">
-        <table className="grid-table min-w-full">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide muted">
-              <th >Room type</th>
-              <th >Base price</th>
-              <th >Rooms</th>
-              <th >Adults (base / max)</th>
-              <th  />
+      <Toolbar>
+        <button
+          type="button"
+          className="btn btn-secondary text-sm"
+          onClick={() => grid.add(BLANK_ROOM_TYPE)}
+        >
+          + Add room type
+        </button>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter room types…"
+          className="ml-auto input w-56"
+        />
+      </Toolbar>
+
+      <Grid>
+        <thead>
+          <tr>
+            <th className="cm-sticky" style={{ minWidth: 220 }}>
+              Room type
+            </th>
+            <th style={{ minWidth: 220 }}>Description</th>
+            <th style={{ width: 100 }}>Rooms</th>
+            <th style={{ width: 120 }}>Base price</th>
+            <th style={{ width: 100 }} title="Adults the room is priced for">
+              Base adults
+            </th>
+            <th style={{ width: 100 }} title="Adults beyond base pay the extra person rate">
+              Max adults
+            </th>
+            <th style={{ width: 50 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const draft = isDraft(r.id);
+            const name = grid.value(r, "room_type_name");
+            return (
+              <tr key={r.id} className={draft ? "cm-new" : undefined}>
+                <td className="cm-sticky">
+                  {grid.input(r, "room_type_name", {
+                    placeholder: "Deluxe Room",
+                    invalid: !name?.trim(),
+                    autoFocus: draft,
+                  })}
+                </td>
+                <td>{grid.input(r, "description", { placeholder: "—" })}</td>
+                <td>{grid.input(r, "number_of_rooms", { type: "number", min: 0 })}</td>
+                <td>{grid.input(r, "base_price", { type: "number", min: 0 })}</td>
+                <td>{grid.input(r, "base_adults", { type: "number", min: 1 })}</td>
+                <td>{grid.input(r, "max_adults", { type: "number", min: 1 })}</td>
+                <td className="text-center">
+                  <button
+                    type="button"
+                    className="btn btn-ghost text-xs"
+                    title={draft ? "Remove this new row" : "Delete room type"}
+                    onClick={() =>
+                      draft ? grid.removeDraft(r.id) : onDelete(r.id, r.room_type_name)
+                    }
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={7} className="cm-empty">
+                {roomTypes.length ? `No room types match “${filter}”.` : "No room types yet."}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {roomTypes.map((r) => (
-              <tr key={r.id}>
-                <td >
-                  <span className="block text-ink">{r.room_type_name}</span>
-                  {r.description && (
-                    <span className="block text-xs muted">{r.description}</span>
-                  )}
-                </td>
-                <td className="text-ink">{r.base_price}</td>
-                <td className="text-ink">{r.number_of_rooms}</td>
-                <td className="text-ink">
-                  {r.base_adults ?? "—"} / {r.max_adults ?? "—"}
-                </td>
-                <td className="text-right">
-                  <button
-                    type="button"
-                    onClick={() => setEditing(r)}
-                    className="mr-2 btn btn-secondary text-xs"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(r.id, r.room_type_name)}
-                    className="btn btn-danger text-xs"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {roomTypes.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center sub">
-                  No room types yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          )}
+        </tbody>
+      </Grid>
     </div>
   );
 }
 
+const DERIVE_OPTIONS = [
+  { id: "offset", label: "± amount" },
+  { id: "percent", label: "± %" },
+  { id: "multiplier", label: "× factor" },
+];
+
+const MEAL_OPTIONS = [
+  { id: "", label: "—" },
+  ...MEAL_PLANS.map((m) => ({ id: m.code, label: `${m.code} · ${m.hint}` })),
+];
+
+/**
+ * Rate plans as a grid, derived plans indented under the plan they follow.
+ *
+ * The terms of a plan -- meal basis, refundability, stay limits, the rule it
+ * derives by -- are edited in place and saved together. Creating a plan and
+ * choosing its rooms still goes through the wizard, because that is where
+ * each room's own rate is set.
+ */
 function RatePlansPanel({
+  propertyId,
   ratePlans,
   roomTypes,
   assignments,
-  resolved,
+  baseRates,
   editing,
   setEditing,
   onSave,
   onDelete,
-  busy,
+  onReload,
+  busy: wizardBusy,
+  notice: outerNotice,
 }) {
-  const planName = (id) => ratePlans.find((p) => p.id === id)?.plan_name || "—";
-  const roomName = (id) =>
-    roomTypes.find((r) => r.id === id)?.room_type_name || "—";
-
-
-  // Rows are collapsed by id; absent means open, so a newly added plan shows
-  // its children without needing to be registered first.
+  const grid = useGrid(ratePlans);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [filter, setFilter] = useState("");
+  // Absent means open, so a newly added plan shows its children at once.
   const [expanded, setExpanded] = useState({});
 
-  /**
-   * Plans nested under the plan they derive from.
-   *
-   * Derivation chains are followed to any depth, because the pricing engine
-   * supports them: a plan derived from a derived plan must still appear, and
-   * flattening to one level dropped it from the list entirely.
-   */
+  const roomName = (id) => roomTypes.find((r) => r.id === id)?.room_type_name || "—";
+
+  // Rates follow the pending edits, so changing a rule shows its effect
+  // before it is saved -- the way a CM cell does.
+  const livePlans = ratePlans.map((p) => {
+    const m = grid.merged(p);
+    // Inputs hand back text; the pricing maths needs numbers.
+    return { ...m, derive_value: m.derive_value === "" ? null : Number(m.derive_value) };
+  });
+  const resolved = resolveAllRates(livePlans, baseRates);
+
+  /** Plans nested under the plan they derive from, to any depth. */
   const tree = useMemo(() => {
     const childrenOf = new Map();
     for (const p of ratePlans) {
@@ -522,9 +481,7 @@ function RatePlansPanel({
       if (!childrenOf.has(p.derive_from_id)) childrenOf.set(p.derive_from_id, []);
       childrenOf.get(p.derive_from_id).push(p);
     }
-
-    // A cycle would otherwise recurse forever; the schema should prevent one,
-    // but the list must not hang if a bad row exists.
+    // A cycle would otherwise recurse forever; the schema should prevent one.
     const build = (plan, seen) => {
       if (seen.has(plan.id)) return { plan, children: [] };
       const next = new Set(seen).add(plan.id);
@@ -533,25 +490,198 @@ function RatePlansPanel({
         children: (childrenOf.get(plan.id) || []).map((c) => build(c, next)),
       };
     };
-
-    // A plan whose parent is missing would otherwise vanish, so it is treated
-    // as a root instead.
+    // A plan whose parent is missing is treated as a root rather than lost.
     const ids = new Set(ratePlans.map((p) => p.id));
     return ratePlans
       .filter((p) => !p.derive_from_id || !ids.has(p.derive_from_id))
       .map((p) => build(p, new Set()));
   }, [ratePlans]);
 
+  const term = filter.trim().toLowerCase();
+  const matches = (node) =>
+    !term ||
+    node.plan.plan_name?.toLowerCase().includes(term) ||
+    planLabel(node.plan).toLowerCase().includes(term) ||
+    node.children.some(matches);
+
+  async function saveAll() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    const saved = grid.count;
+    const errors = await grid.save({
+      label: (p) => p.plan_name || "Rate plan",
+      update: (plan, changes, next) => {
+        if (!next.plan_name?.trim()) throw new Error("Name is required");
+        const body = { id: plan.id, property_id: propertyId || undefined, ...changes };
+        for (const k of ["min_stay", "max_stay", "release_period"]) {
+          if (k in body) body[k] = body[k] === "" ? null : Number(body[k]);
+        }
+        if ("meal_plan" in body) body.meal_plan = body.meal_plan || null;
+        // A derivation is validated as a whole, so any part of it sends all.
+        if (["derive_from_id", "derive_method", "derive_value"].some((k) => k in changes)) {
+          body.derive_from_id = next.derive_from_id;
+          body.derive_method = next.derive_method;
+          body.derive_value = next.derive_value;
+        }
+        return sendJSON("/api/setup/ratePlans", "PATCH", body);
+      },
+      create: async () => {},
+    });
+    await onReload();
+    setBusy(false);
+    if (errors.length) setError(errors.join(" · "));
+    else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
+  }
+
+  function assignedRooms(plan) {
+    const mine = (assignments || []).filter((a) => a.rate_plan_id === plan.id);
+    if (mine.length === 0) {
+      return plan.room_type_id ? roomName(plan.room_type_id) : "No rooms assigned";
+    }
+    if (mine.length <= 2) return mine.map((a) => roomName(a.room_type_id)).join(", ");
+    return `${roomName(mine[0].room_type_id)} +${mine.length - 1} more`;
+  }
+
+  function renderBranch(node, depth) {
+    if (!matches(node)) return null;
+    const { plan, children } = node;
+    const open = expanded[plan.id] !== false;
+    const derived = Boolean(plan.derive_from_id);
+    const rate = resolved?.[plan.id];
+    const master = derived ? ratePlans.find((p) => p.id === plan.derive_from_id) : null;
+    // The master a derived plan follows can be changed to any plan that
+    // would not create a loop.
+    const masters = derived
+      ? eligibleMasters(plan, ratePlans).map((p) => ({ id: p.id, label: p.plan_name }))
+      : [];
+
+    return (
+      <Fragment key={plan.id}>
+        <tr className={depth === 0 ? "cm-group" : undefined}>
+          <td
+            className="cm-sticky"
+            style={{
+              paddingLeft: 12 + Math.min(depth, 4) * 22,
+              background: depth === 0 ? "var(--surface-2)" : "var(--surface)",
+              minWidth: 300,
+            }}
+          >
+            <div className="flex items-center gap-2">
+              {children.length > 0 ? (
+                <button
+                  type="button"
+                  className="muted"
+                  style={{ width: 14 }}
+                  onClick={() => setExpanded((p) => ({ ...p, [plan.id]: !open }))}
+                  aria-expanded={open}
+                >
+                  {open ? "▾" : "▸"}
+                </button>
+              ) : (
+                <span style={{ width: 14 }} />
+              )}
+              <span className="chip chip-off font-mono">{planLabel(grid.merged(plan))}</span>
+              <div className="flex-1">
+                {grid.input(plan, "plan_name", { invalid: !grid.value(plan, "plan_name")?.trim() })}
+              </div>
+              {plan.is_master && <span className="chip chip-ok">MASTER</span>}
+            </div>
+            <span className="mt-0.5 block text-xs muted" style={{ paddingLeft: 22 }}>
+              {assignedRooms(plan)}
+            </span>
+          </td>
+          <td>{grid.select(plan, "meal_plan", MEAL_OPTIONS)}</td>
+          <td className="text-center">
+            {/* Stored null has always meant refundable, as planLabel reads it. */}
+            <input
+              type="checkbox"
+              checked={grid.value(plan, "refundable") !== false}
+              onChange={(e) => grid.change(plan, "refundable", e.target.checked)}
+              style={
+                grid.edited(plan, "refundable")
+                  ? { outline: "2px solid var(--accent)", outlineOffset: 1 }
+                  : undefined
+              }
+            />
+          </td>
+          <td>
+            {derived ? (
+              <div className="flex items-center gap-1" style={{ minWidth: 260 }}>
+                <span className="text-xs muted">From</span>
+                {grid.select(plan, "derive_from_id", masters.length ? masters : [
+                  { id: plan.derive_from_id, label: master?.plan_name || "—" },
+                ])}
+                {grid.select(plan, "derive_method", DERIVE_OPTIONS)}
+                <div style={{ width: 80 }}>
+                  {grid.input(plan, "derive_value", { type: "number", step: "any" })}
+                </div>
+              </div>
+            ) : (
+              <span className="text-xs muted">Rates entered directly</span>
+            )}
+          </td>
+          <td className="cm-num" style={{ fontWeight: 600 }}>
+            {rate === null || rate === undefined ? "—" : Math.round(rate).toLocaleString("en-IN")}
+          </td>
+          <td style={{ width: 80 }}>{grid.input(plan, "min_stay", { type: "number", min: 1, placeholder: "—" })}</td>
+          <td style={{ width: 80 }}>{grid.input(plan, "max_stay", { type: "number", min: 1, placeholder: "—" })}</td>
+          <td style={{ width: 80 }}>
+            {grid.input(plan, "release_period", { type: "number", min: 0, placeholder: "—" })}
+          </td>
+          <td className="text-center">{grid.check(plan, "stop_sell")}</td>
+          <td className="whitespace-nowrap text-right">
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              onClick={() => setEditing(plan)}
+              title="Rooms and per-room rates"
+            >
+              Rooms…
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              onClick={() => onDelete(plan.id, plan.plan_name)}
+              title="Delete rate plan"
+            >
+              ✕
+            </button>
+          </td>
+        </tr>
+        {open && children.map((child) => renderBranch(child, depth + 1))}
+      </Fragment>
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => setEditing({})}
-        className="btn btn-primary"
+    <div className="space-y-4">
+      <SetupHeader
+        title="Rate Plan Setup"
+        count={ratePlans.length}
+        sub="What a guest is buying, and what it costs. A plan can take its rate from another, so changing one moves them together."
       >
-        + Add rate plan
-      </button>
+        <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
+      </SetupHeader>
+
+      <Messages error={error} notice={notice || outerNotice} />
+
+      <Toolbar>
+        <button
+          type="button"
+          className="btn btn-secondary text-sm"
+          disabled={wizardBusy}
+          onClick={() => setEditing({})}
+        >
+          + Add rate plan
+        </button>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter rate plans…"
+          className="ml-auto input w-56"
+        />
+      </Toolbar>
 
       {editing && (
         <RatePlanWizard
@@ -561,233 +691,36 @@ function RatePlansPanel({
           assignments={assignments}
           onSave={onSave}
           onCancel={() => setEditing(null)}
-          busy={busy}
+          busy={wizardBusy}
         />
       )}
 
-      {/* Plans are listed under the plan they derive from, so a chain is read
-          down the page rather than reconstructed from a "linked to" column. */}
-      <div className="overflow-x-auto card">
-        <table className="grid-table min-w-full">
-          <thead>
-            <tr className="text-left text-xs uppercase tracking-wide muted">
-              <th >Rate plan &amp; room type</th>
-              <th >Rate setup</th>
-              <th className="text-right">Rate</th>
-              <th  />
+      <Grid>
+        <thead>
+          <tr>
+            <th className="cm-sticky">Rate plan &amp; rooms</th>
+            <th style={{ minWidth: 170 }}>Meal plan</th>
+            <th title="Unticked is sold non-refundable (NR)">Refundable</th>
+            <th>Rate rule</th>
+            <th className="text-right">Rate</th>
+            <th title="Minimum nights">Min</th>
+            <th title="Maximum nights">Max</th>
+            <th title="Days before arrival the plan closes">Release</th>
+            <th>Stop sell</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {tree.map((node) => renderBranch(node, 0))}
+          {ratePlans.length === 0 && (
+            <tr>
+              <td colSpan={10} className="cm-empty">
+                No rate plans yet. Add one to start selling.
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {tree.map((node) => (
-              <PlanBranch
-                key={node.plan.id}
-                node={node}
-                depth={0}
-                expanded={expanded}
-                setExpanded={setExpanded}
-                roomName={roomName}
-                planName={planName}
-                resolved={resolved}
-                assignments={assignments}
-                onEdit={setEditing}
-                onDelete={onDelete}
-              />
-            ))}
-            {ratePlans.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-8 text-center sub">
-                  No rate plans yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Which rooms a plan can be booked on, as a short phrase.
- *
- * Falls back to the plan's old room_type_id where there are no assignments,
- * so a plan created before rooms were assignable still names its room rather
- * than reading as unassigned.
- */
-function assignedRooms(plan, assignments, roomName) {
-  const mine = (assignments || []).filter((a) => a.rate_plan_id === plan.id);
-
-  if (mine.length === 0) {
-    return plan.room_type_id ? roomName(plan.room_type_id) : "No rooms assigned";
-  }
-  if (mine.length <= 2) {
-    return mine.map((a) => roomName(a.room_type_id)).join(", ");
-  }
-  return `${roomName(mine[0].room_type_id)} +${mine.length - 1} more`;
-}
-
-/**
- * One rate plan in the list.
- *
- * `depth` of 1 is a derived plan, indented under the plan it comes from. The
- * Rate setup column names that plan outright rather than saying "derived",
- * since the whole point of the row is which plan the rate follows.
- */
-function PlanRow({
-  plan,
-  depth,
-  hasChildren,
-  open,
-  onToggle,
-  roomName,
-  planName,
-  resolved,
-  assignments,
-  onEdit,
-  onDelete,
-}) {
-  const rate = resolved?.[plan.id];
-  const derived = Boolean(plan.derive_from_id);
-
-  return (
-    <tr
-      style={
-        derived
-          ? { borderLeft: "2px solid var(--accent)" }
-          : { background: "var(--surface-2)" }
-      }
-    >
-      <td
-        className="px-4 py-2.5"
-        style={{ paddingLeft: depth ? 16 + Math.min(depth, 4) * 18 : undefined }}
-      >
-        <span className="flex items-center gap-2">
-          {hasChildren ? (
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-expanded={open}
-              aria-label={open ? "Collapse" : "Expand"}
-              className="muted"
-              style={{ width: 14 }}
-            >
-              {open ? "▾" : "▸"}
-            </button>
-          ) : (
-            <span style={{ width: 14 }} />
           )}
-          <span className="chip chip-off font-mono">{planLabel(plan)}</span>
-          <span className="text-ink">{plan.plan_name}</span>
-          {plan.is_master && <span className="chip chip-ok">MASTER</span>}
-        </span>
-        <span className="mt-0.5 block text-xs muted" style={{ paddingLeft: 30 }}>
-          {assignedRooms(plan, assignments, roomName)}
-          {[
-            plan.stop_sell ? "Stop sell" : null,
-            plan.min_stay ? `Min ${plan.min_stay}` : null,
-            plan.max_stay ? `Max ${plan.max_stay}` : null,
-          ]
-            .filter(Boolean)
-            .map((t) => ` · ${t}`)
-            .join("")}
-        </span>
-      </td>
-
-      <td className="px-4 py-2.5 text-xs">
-        {derived ? (
-          <>
-            <span className="muted">Derived from </span>
-            <span className="font-medium text-ink">
-              {planName(plan.derive_from_id)}
-            </span>
-            <span className="muted">, {describeDerivation(plan) ?? "no rule set"}</span>
-          </>
-        ) : (
-          <span className="muted">Rates entered directly</span>
-        )}
-      </td>
-
-      <td className="px-4 py-2.5 text-right text-[var(--text)]">
-        {rate === null || rate === undefined
-          ? "—"
-          : Math.round(rate).toLocaleString("en-IN")}
-      </td>
-
-      <td className="px-4 py-2.5 text-right whitespace-nowrap">
-        <button
-          type="button"
-          onClick={() => onEdit(plan)}
-          className="mr-2 btn btn-secondary text-xs"
-        >
-          Edit
-        </button>
-        <button
-          type="button"
-          onClick={() => onDelete(plan.id, plan.plan_name)}
-          className="btn btn-danger text-xs"
-        >
-          Delete
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-/**
- * A rate plan and, when open, everything derived from it.
- *
- * Recursive so a derivation chain of any depth is drawn; the indent grows
- * with each level, up to a cap so a deep chain does not run off the column.
- */
-function PlanBranch({
-  node,
-  depth,
-  expanded,
-  setExpanded,
-  roomName,
-  planName,
-  resolved,
-  assignments,
-  onEdit,
-  onDelete,
-}) {
-  const { plan, children } = node;
-  // Absent means open, so a newly added plan shows its children immediately.
-  const open = expanded[plan.id] !== false;
-
-  return (
-    <Fragment>
-      <PlanRow
-        plan={plan}
-        depth={depth}
-        hasChildren={children.length > 0}
-        open={open}
-        onToggle={() =>
-          setExpanded((prev) => ({ ...prev, [plan.id]: prev[plan.id] === false }))
-        }
-        roomName={roomName}
-        planName={planName}
-        resolved={resolved}
-        assignments={assignments}
-        onEdit={onEdit}
-        onDelete={onDelete}
-      />
-      {open &&
-        children.map((child) => (
-          <PlanBranch
-            key={child.plan.id}
-            node={child}
-            depth={depth + 1}
-            expanded={expanded}
-            setExpanded={setExpanded}
-            roomName={roomName}
-            planName={planName}
-            resolved={resolved}
-            assignments={assignments}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
-    </Fragment>
+        </tbody>
+      </Grid>
+    </div>
   );
 }

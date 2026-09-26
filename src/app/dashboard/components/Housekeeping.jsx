@@ -302,8 +302,8 @@ export default function Housekeeping({ session }) {
         </div>
       )}
 
-      <div className="overflow-x-auto card">
-        <table className="grid-table min-w-full">
+      <div className="overflow-x-auto card" style={{ padding: 0 }}>
+        <table className="cm-grid">
           <thead>
             <tr>
               <th style={{ width: 40 }}>

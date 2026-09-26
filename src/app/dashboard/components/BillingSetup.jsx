@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import ServicesSetup from "./ServicesSetup";
 import TaxSetup from "./TaxSetup";
+import { Loading, Messages } from "./SetupGrid";
 
 /**
  * The Services Setup and Tax Setup pages.
@@ -55,32 +56,19 @@ export default function BillingSetup({ session, only = "services" }) {
     load();
   }, [load]);
 
+  if (loading && data.services.length === 0) return <Loading />;
+
+  const Panel = only === "taxes" ? TaxSetup : ServicesSetup;
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="h1">{PAGES[only].title}</h2>
-        <p className="sub">{PAGES[only].sub}</p>
-      </div>
-
-      {error && (
-        <div
-          className="card card-pad text-sm"
-          style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
-        >
-          {error}
-        </div>
-      )}
-
-      {loading && data.services.length === 0 ? (
-        <p className="sub">Loading…</p>
-      ) : (
-        <>
-          {only === "services" && (
-            <ServicesSetup propertyId={propertyId} data={data} onChanged={load} />
-          )}
-          {only === "taxes" && <TaxSetup propertyId={propertyId} data={data} onChanged={load} />}
-        </>
-      )}
+      {error && <Messages error={error} />}
+      <Panel
+        propertyId={propertyId}
+        data={data}
+        onChanged={load}
+        title={PAGES[only].title}
+        sub={PAGES[only].sub}
+      />
     </div>
   );
 }

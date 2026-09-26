@@ -1,7 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { todayUTC } from "@/lib/date";
+import {
+  Grid,
+  Messages,
+  SaveActions,
+  SetupHeader,
+  Toolbar,
+  isDraft,
+  sendJSON,
+  useGrid,
+} from "./SetupGrid";
 
 /**
  * Services, grouped by category, each with the taxes it carries.
@@ -11,6 +21,10 @@ import { todayUTC } from "@/lib/date";
  * later never rewrites what an earlier guest was charged. Taxes are not
  * copied -- they are worked out on the folio from what the service carries,
  * which is why a rate change is made by ending a tax, not editing it.
+ *
+ * Laid out like the Channel Manager: categories are the grey group rows,
+ * services sit under them, and every tax in force is a column of ticks, so
+ * which service carries which tax is read straight off the grid.
  *
  * The room is a service too, with its price on each night of the stay rather
  * than here. It cannot be retired or re-priced, only named, categorised and
@@ -27,28 +41,23 @@ const KINDS = [
   { id: "inclusion", label: "Included" },
 ];
 
-function money(value) {
-  return `₹${(Number(value) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-}
+const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
 
-function blank(categoryId = "") {
-  return {
-    name: "",
-    unit_price: "",
-    charge_type: "once",
-    kind_of: "extra",
-    category_id: categoryId,
-    tax_ids: [],
-  };
-}
+export default function ServicesSetup({ propertyId, data, onChanged, title, sub }) {
+  const { categories, taxes } = data;
 
-export default function ServicesSetup({ propertyId, data, onChanged }) {
-  const { categories, services, taxes } = data;
+  // tax_ids is compared as text by the grid, so it is kept sorted.
+  const services = useMemo(
+    () => data.services.map((s) => ({ ...s, tax_ids: [...(s.tax_ids || [])].sort() })),
+    [data.services]
+  );
 
-  const [draft, setDraft] = useState(null);
-  const [newCategory, setNewCategory] = useState("");
+  const svc = useGrid(services);
+  const cat = useGrid(categories);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [filter, setFilter] = useState("");
 
   const today = todayUTC();
   // A tax that has ended is kept on old nights but offered to no new service.
@@ -56,391 +65,366 @@ export default function ServicesSetup({ propertyId, data, onChanged }) {
     () => taxes.filter((t) => t.is_active !== false && !(t.valid_to && t.valid_to < today)),
     [taxes, today]
   );
-  const taxName = useMemo(() => {
-    const m = {};
-    for (const t of taxes) m[t.id] = t;
-    return m;
-  }, [taxes]);
+
+  const allServices = [...services, ...svc.drafts];
+  const term = filter.trim().toLowerCase();
 
   /** Categories in order, with an Uncategorised bucket when anything needs it. */
   const groups = useMemo(() => {
-    const out = categories.map((c) => ({
-      id: c.id,
-      name: c.name,
-      category: c,
-      services: services.filter((s) => s.category_id === c.id),
-    }));
+    const cats = [...categories, ...cat.drafts];
     const known = new Set(categories.map((c) => c.id));
-    const loose = services.filter((s) => !s.category_id || !known.has(s.category_id));
-    if (loose.length > 0) out.push({ id: "", name: "Uncategorised", services: loose });
+    const inGroup = (id) =>
+      allServices.filter((s) => (svc.value(s, "category_id") || "") === id);
+    const out = cats.map((c) => ({ id: c.id, category: c, services: inGroup(c.id) }));
+    const loose = allServices.filter((s) => {
+      const c = svc.value(s, "category_id");
+      return !c || !known.has(c);
+    });
+    if (loose.length > 0) out.push({ id: "", category: null, services: loose });
     return out;
-  }, [categories, services]);
+  }, [categories, cat.drafts, allServices, svc]);
 
-  async function send(method, payload, qs) {
+  const categoryOptions = [
+    { id: "", label: "Uncategorised" },
+    ...categories.map((c) => ({ id: c.id, label: cat.value(c, "name") })),
+  ];
+
+  function toggleTax(service, taxId) {
+    const current = svc.value(service, "tax_ids") || [];
+    const next = current.includes(taxId)
+      ? current.filter((t) => t !== taxId)
+      : [...current, taxId].sort();
+    svc.change(service, "tax_ids", next);
+  }
+
+  const count = svc.count + cat.count;
+
+  async function saveAll() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const saved = count;
+    const nextOrder = () =>
+      categories.reduce((max, c) => Math.max(max, Number(c.sort_order) || 0), 0) + 10;
+
+    // Categories first: a service moved into a renamed category should land
+    // in it under its new name.
+    const catErrors = await cat.save({
+      label: (c) => c.name || "New category",
+      update: (c, changes, next) => {
+        if (!next.name?.trim()) throw new Error("Name is required");
+        return sendJSON("/api/pms/services", "POST", {
+          kind: "category",
+          id: c.id,
+          name: next.name,
+          sort_order: c.sort_order,
+          property_id: propertyId,
+        });
+      },
+      create: (d) => {
+        if (!d.name?.trim()) throw new Error("Name is required");
+        return sendJSON("/api/pms/services", "POST", {
+          kind: "category",
+          name: d.name,
+          sort_order: nextOrder(),
+          property_id: propertyId,
+        });
+      },
+    });
+
+    const toBody = (s) => ({
+      kind: "service",
+      ...(isDraft(s.id) ? {} : { id: s.id }),
+      name: s.name,
+      unit_price: s.unit_price,
+      charge_type: s.charge_type,
+      kind_of: s.kind,
+      category_id: s.category_id || null,
+      tax_ids: s.tax_ids || [],
+      is_room: s.is_room === true,
+      property_id: propertyId,
+    });
+    const svcErrors = await svc.save({
+      label: (s) => s.name || "New service",
+      update: (s, changes, next) => {
+        if (!next.name?.trim()) throw new Error("Name is required");
+        return sendJSON("/api/pms/services", "POST", toBody(next));
+      },
+      create: (d) => {
+        if (!d.name?.trim()) throw new Error("Name is required");
+        return sendJSON("/api/pms/services", "POST", toBody(d));
+      },
+    });
+
+    await onChanged();
+    setBusy(false);
+    const errors = [...catErrors, ...svcErrors];
+    if (errors.length) setError(errors.join(" · "));
+    else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
+  }
+
+  function discard() {
+    svc.discard();
+    cat.discard();
+  }
+
+  async function immediate(method, qs, confirmText) {
+    if (!window.confirm(confirmText)) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/pms/services${qs ? `?${qs}` : ""}`, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: payload ? JSON.stringify({ ...payload, property_id: propertyId }) : undefined,
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "That did not save");
+      const params = new URLSearchParams(qs);
+      if (propertyId) params.set("propertyId", propertyId);
+      await sendJSON(`/api/pms/services?${params}`, method);
       await onChanged();
-      return true;
     } catch (err) {
       setError(err.message);
-      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  const params = (extra) => {
-    const qs = new URLSearchParams(extra);
-    if (propertyId) qs.set("propertyId", propertyId);
-    return qs.toString();
-  };
-
-  function edit(service) {
-    setDraft({
-      id: service.id,
-      name: service.name,
-      unit_price: service.unit_price,
-      charge_type: service.charge_type,
-      kind_of: service.kind,
-      category_id: service.category_id || "",
-      tax_ids: service.tax_ids || [],
-      is_room: service.is_room === true,
-    });
-  }
-
-  async function saveDraft() {
-    if (await send("POST", { kind: "service", ...draft })) setDraft(null);
-  }
-
   function retire(service) {
-    if (
-      !window.confirm(
-        `Retire “${service.name}”? It stays on past folios, with its taxes, but is no longer offered.`
-      )
-    ) {
-      return;
-    }
-    send("DELETE", null, params({ id: service.id }));
+    if (isDraft(service.id)) return svc.removeDraft(service.id);
+    return immediate(
+      "DELETE",
+      { id: service.id },
+      `Retire “${service.name}”? It stays on past folios, with its taxes, but is no longer offered.`
+    );
   }
 
-  function renameCategory(category) {
-    const name = window.prompt("Rename category", category.name);
-    if (name && name.trim() && name.trim() !== category.name) {
-      send("POST", { kind: "category", id: category.id, name, sort_order: category.sort_order });
-    }
+  function deleteCategory(category, n) {
+    if (isDraft(category.id)) return cat.removeDraft(category.id);
+    return immediate(
+      "DELETE",
+      { id: category.id, kind: "category" },
+      n > 0
+        ? `Delete “${category.name}”? Its ${n} service${n === 1 ? "" : "s"} move to Uncategorised.`
+        : `Delete “${category.name}”?`
+    );
   }
 
-  function deleteCategory(category, count) {
-    if (
-      !window.confirm(
-        count > 0
-          ? `Delete “${category.name}”? Its ${count} service${count === 1 ? "" : "s"} move to Uncategorised.`
-          : `Delete “${category.name}”?`
-      )
-    ) {
-      return;
-    }
-    send("DELETE", null, params({ id: category.id, kind: "category" }));
-  }
-
-  function toggleTax(id) {
-    setDraft((d) => ({
-      ...d,
-      tax_ids: d.tax_ids.includes(id) ? d.tax_ids.filter((t) => t !== id) : [...d.tax_ids, id],
-    }));
-  }
-
-  const nextCategoryOrder =
-    categories.reduce((max, c) => Math.max(max, Number(c.sort_order) || 0), 0) + 10;
+  const cols = 6 + liveTaxes.length;
+  const taxById = byId(taxes);
 
   return (
-    <div className="card card-pad space-y-4">
-      <div>
-        <h3 style={{ fontWeight: 600 }}>Services</h3>
-        <p className="sub">
-          What can be billed on a stay. “Included” services come with the rate
-          (breakfast on a BB plan) and show on the folio without being charged.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <SetupHeader title={title} count={services.length} sub={sub}>
+        <SaveActions count={count} busy={busy} onSave={saveAll} onDiscard={discard} />
+      </SetupHeader>
 
-      {error && (
-        <p className="text-sm" style={{ color: "var(--danger)" }}>
-          {error}
-        </p>
-      )}
+      <Messages error={error} notice={notice} />
 
-      {groups.map((group) => (
-        <div key={group.id || "loose"} className="space-y-2">
-          <div
-            className="flex items-center justify-between gap-2"
-            style={{ borderBottom: "1px solid var(--border)", paddingBottom: "0.25rem" }}
-          >
-            <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-              {group.name}
-              <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
-                {" "}
-                · {group.services.length} service{group.services.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className="flex gap-1">
-              <button
-                className="btn btn-ghost text-xs"
-                disabled={busy}
-                onClick={() => setDraft(blank(group.id))}
-              >
-                + Service
-              </button>
-              {group.category && (
-                <>
-                  <button
-                    className="btn btn-ghost text-xs"
-                    disabled={busy}
-                    onClick={() => renameCategory(group.category)}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    className="btn btn-ghost text-xs"
-                    disabled={busy}
-                    onClick={() => deleteCategory(group.category, group.services.length)}
-                  >
-                    ✕
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+      <Toolbar>
+        <button
+          type="button"
+          className="btn btn-secondary text-sm"
+          onClick={() => cat.add({ name: "" })}
+        >
+          + Add category
+        </button>
+        {liveTaxes.length === 0 && (
+          <span className="chip chip-warn">No taxes yet — add them under Tax Setup</span>
+        )}
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter services…"
+          className="ml-auto input w-56"
+        />
+      </Toolbar>
 
-          {group.services.length === 0 ? (
-            <p className="sub" style={{ fontSize: "0.75rem" }}>
-              No services in this category yet.
-            </p>
-          ) : (
-            <table className="grid-table w-full text-sm">
-              <thead>
-                <tr>
-                  <th className="text-left">Service</th>
-                  <th className="text-right">Price</th>
-                  <th className="text-left">Charged</th>
-                  <th className="text-left">Taxes</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {group.services.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      {s.name}
-                      {s.is_room && (
-                        <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }}>
-                          Room nights
-                        </span>
-                      )}
-                      {!s.is_room && s.kind === "inclusion" && (
-                        <span className="chip chip-ok ml-2" style={{ fontSize: "0.6rem" }}>
-                          Included
-                        </span>
-                      )}
-                    </td>
-                    <td className="text-right">
-                      {s.is_room ? (
-                        <span style={{ color: "var(--text-faint)" }}>Nightly rate</span>
-                      ) : (
-                        money(s.unit_price)
-                      )}
-                    </td>
-                    <td>{CHARGE_TYPES.find((c) => c.id === s.charge_type)?.label}</td>
-                    <td>
-                      {s.kind === "inclusion" && !s.is_room ? (
-                        <span style={{ color: "var(--text-faint)" }}>Part of the rate</span>
-                      ) : (s.tax_ids || []).length === 0 ? (
-                        <span style={{ color: "var(--warn)" }}>No tax</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1">
-                          {s.tax_ids.map((id) =>
-                            taxName[id] ? (
-                              <span key={id} className="chip chip-off" style={{ fontSize: "0.65rem" }}>
-                                {taxName[id].name}
-                              </span>
-                            ) : null
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td className="text-right" style={{ whiteSpace: "nowrap" }}>
+      <Grid>
+        <thead>
+          <tr>
+            <th className="cm-sticky" style={{ minWidth: 240 }}>
+              Category &amp; service
+            </th>
+            <th style={{ width: 120 }}>Price (₹)</th>
+            <th style={{ width: 120 }}>Charged</th>
+            <th style={{ width: 120 }}>Type</th>
+            <th style={{ width: 160 }}>Category</th>
+            {liveTaxes.map((t) => (
+              <th key={t.id} className="text-center" title={`Charge ${t.name} on this service`}>
+                {t.name}
+              </th>
+            ))}
+            <th style={{ width: 60 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((group) => {
+            const shown = group.services.filter(
+              (s) => !term || (svc.value(s, "name") || "").toLowerCase().includes(term)
+            );
+            if (term && shown.length === 0) return null;
+            const c = group.category;
+            return (
+              <Fragment key={group.id || "loose"}>
+                <tr className="cm-group">
+                  <td className="cm-sticky" style={{ background: "var(--surface-2)" }}>
+                    {c ? (
+                      cat.input(c, "name", {
+                        placeholder: "Category name — Spa, Laundry…",
+                        invalid: !cat.value(c, "name")?.trim(),
+                        autoFocus: isDraft(c.id),
+                        style: { fontWeight: 600 },
+                      })
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>Uncategorised</span>
+                    )}
+                    <span className="mt-0.5 block text-xs muted">
+                      {group.services.length} service{group.services.length === 1 ? "" : "s"}
+                    </span>
+                  </td>
+                  <td colSpan={cols - 2}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost text-xs"
+                      disabled={Boolean(c && isDraft(c.id))}
+                      title={c && isDraft(c.id) ? "Save the category first" : undefined}
+                      onClick={() =>
+                        svc.add({
+                          name: "",
+                          unit_price: "",
+                          charge_type: "once",
+                          kind: "extra",
+                          category_id: group.id,
+                          tax_ids: [],
+                        })
+                      }
+                    >
+                      + Service
+                    </button>
+                  </td>
+                  <td className="text-center">
+                    {c && (
                       <button
+                        type="button"
                         className="btn btn-ghost text-xs"
                         disabled={busy}
-                        onClick={() => edit(s)}
+                        title="Delete category"
+                        onClick={() => deleteCategory(c, group.services.length)}
                       >
-                        Edit
+                        ✕
                       </button>
-                      {!s.is_room && (
-                        <button
-                          className="btn btn-ghost text-xs"
-                          disabled={busy}
-                          onClick={() => retire(s)}
-                        >
-                          Retire
-                        </button>
-                      )}
+                    )}
+                  </td>
+                </tr>
+
+                {shown.map((s) => {
+                  const draft = isDraft(s.id);
+                  const included = !s.is_room && svc.value(s, "kind") === "inclusion";
+                  const taxIds = svc.value(s, "tax_ids") || [];
+                  const taxEdited = svc.edited(s, "tax_ids");
+                  return (
+                    <tr key={s.id} className={draft ? "cm-new" : undefined}>
+                      <td className="cm-sticky" style={{ paddingLeft: 32 }}>
+                        <div className="flex items-center gap-2">
+                          {svc.input(s, "name", {
+                            placeholder: "Breakfast",
+                            invalid: !svc.value(s, "name")?.trim(),
+                            autoFocus: draft,
+                          })}
+                          {s.is_room && <span className="chip chip-off">Room nights</span>}
+                        </div>
+                      </td>
+                      <td>
+                        {s.is_room ? (
+                          <span className="text-xs muted">Nightly rate</span>
+                        ) : (
+                          svc.input(s, "unit_price", { type: "number", min: 0 })
+                        )}
+                      </td>
+                      <td>
+                        {s.is_room ? (
+                          <span className="text-xs muted">Per night</span>
+                        ) : (
+                          svc.select(s, "charge_type", CHARGE_TYPES)
+                        )}
+                      </td>
+                      <td>
+                        {s.is_room ? (
+                          <span className="text-xs muted">Charged</span>
+                        ) : (
+                          svc.select(s, "kind", KINDS)
+                        )}
+                      </td>
+                      <td>{svc.select(s, "category_id", categoryOptions)}</td>
+                      {liveTaxes.map((t) => (
+                        <td key={t.id} className="text-center">
+                          {included ? (
+                            <span className="faint">—</span>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={taxIds.includes(t.id)}
+                              onChange={() => toggleTax(s, t.id)}
+                              style={
+                                taxEdited
+                                  ? { outline: "2px solid var(--accent)", outlineOffset: 1 }
+                                  : undefined
+                              }
+                              aria-label={`${t.name} on ${s.name || "new service"}`}
+                            />
+                          )}
+                        </td>
+                      ))}
+                      <td className="text-center">
+                        {!s.is_room && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost text-xs"
+                            disabled={busy}
+                            title={draft ? "Remove this new row" : "Retire service"}
+                            onClick={() => retire(s)}
+                          >
+                            ✕
+                          </button>
+                        )}
+                        {/* An ended tax still on the service is kept, but
+                            shown so it is not a surprise on an old folio. */}
+                        {taxIds.some((id) => !liveTaxes.find((t) => t.id === id)) && (
+                          <span
+                            className="chip chip-off"
+                            title={taxIds
+                              .filter((id) => !liveTaxes.find((t) => t.id === id))
+                              .map((id) => taxById[id]?.name)
+                              .filter(Boolean)
+                              .join(", ")}
+                          >
+                            +ended
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {!term && group.services.length === 0 && (
+                  <tr>
+                    <td colSpan={cols} className="text-xs muted" style={{ paddingLeft: 32 }}>
+                      No services in this category yet.
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                )}
+              </Fragment>
+            );
+          })}
+          {groups.length === 0 && (
+            <tr>
+              <td colSpan={cols} className="cm-empty">
+                No services yet. Add a category, then its services.
+              </td>
+            </tr>
           )}
-        </div>
-      ))}
+        </tbody>
+      </Grid>
 
-      {/* ---------------- SERVICE EDITOR ---------------- */}
-      {draft && (
-        <div className="card card-pad space-y-3">
-          <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-            {draft.id ? `Edit ${draft.name}` : "New service"}
-          </div>
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}
-          >
-            <div>
-              <label className="label">Name *</label>
-              <input
-                className="input"
-                value={draft.name}
-                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                placeholder="Breakfast"
-              />
-            </div>
-            <div>
-              <label className="label">Category</label>
-              <select
-                className="input"
-                value={draft.category_id}
-                onChange={(e) => setDraft({ ...draft, category_id: e.target.value })}
-              >
-                <option value="">Uncategorised</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {!draft.is_room && (
-              <>
-                <div>
-                  <label className="label">Price (₹)</label>
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    value={draft.unit_price}
-                    onChange={(e) => setDraft({ ...draft, unit_price: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="label">Charged</label>
-                  <select
-                    className="input"
-                    value={draft.charge_type}
-                    onChange={(e) => setDraft({ ...draft, charge_type: e.target.value })}
-                  >
-                    {CHARGE_TYPES.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Type</label>
-                  <select
-                    className="input"
-                    value={draft.kind_of}
-                    onChange={(e) => setDraft({ ...draft, kind_of: e.target.value })}
-                  >
-                    {KINDS.map((k) => (
-                      <option key={k.id} value={k.id}>
-                        {k.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div>
-            <label className="label">Taxes on this service</label>
-            {liveTaxes.length === 0 ? (
-              <p className="sub" style={{ fontSize: "0.75rem" }}>
-                No taxes set up yet — add them under Setup → Tax Setup.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-3 text-sm">
-                {liveTaxes.map((t) => (
-                  <label key={t.id} className="flex items-center gap-1">
-                    <input
-                      type="checkbox"
-                      checked={draft.tax_ids.includes(t.id)}
-                      onChange={() => toggleTax(t.id)}
-                    />
-                    {t.name}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              className="btn btn-primary text-sm"
-              disabled={busy || !draft.name.trim()}
-              onClick={saveDraft}
-            >
-              Save
-            </button>
-            <button className="btn btn-ghost text-sm" onClick={() => setDraft(null)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="flex gap-2" style={{ maxWidth: 420 }}>
-        <input
-          className="input text-sm"
-          value={newCategory}
-          onChange={(e) => setNewCategory(e.target.value)}
-          placeholder="New category — e.g. Spa, Laundry"
-        />
-        <button
-          className="btn btn-secondary text-sm"
-          disabled={busy || !newCategory.trim()}
-          onClick={async () => {
-            if (
-              await send("POST", {
-                kind: "category",
-                name: newCategory,
-                sort_order: nextCategoryOrder,
-              })
-            ) {
-              setNewCategory("");
-            }
-          }}
-        >
-          Add category
-        </button>
-      </div>
+      <p className="sub">
+        “Included” services come with the rate (breakfast on a BB plan) and show on
+        the folio without being charged or taxed.
+      </p>
     </div>
   );
 }

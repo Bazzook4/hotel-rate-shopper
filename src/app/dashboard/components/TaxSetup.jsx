@@ -6,26 +6,36 @@ import {
   TAX_BASES,
   TAX_SCOPES,
   computeTaxes,
-  describeTax,
   inForce,
   indianGstPreset,
 } from "@/lib/taxes";
+import {
+  Grid,
+  Messages,
+  SaveActions,
+  SetupHeader,
+  Toolbar,
+  isDraft,
+  sendJSON,
+  useGrid,
+} from "./SetupGrid";
 
 /**
  * Taxes and fees: the rules services are taxed by.
  *
  * A rule charges nothing on its own -- it applies to the services it is
  * attached to, which can be set here ("charged on") or from each service on
- * the Services Setup page. A hotel's tax is usually several rules: Indian GST alone is four
- * (CGST and SGST, at two tariff slabs).
+ * the Services Setup page. A hotel's tax is usually several rules: Indian GST
+ * alone is four (CGST and SGST, at two tariff slabs).
  *
- * The preview runs the same calculation the folio does, on the real services,
- * so a rule can be checked against a made-up stay before any guest is charged
- * by it.
+ * One row per rule, edited in place and saved together, the way the Channel
+ * Manager grid works. The preview runs the same calculation the folio does,
+ * on the real services and on the edits not yet saved, so a rule can be
+ * checked against a made-up stay before any guest is charged by it.
  *
- * A rule that changes is ended and replaced rather than edited in place,
- * because folios are taxed live: editing last year's rate would re-tax last
- * year's open bookings. "End" sets the last night the rule covers.
+ * A rule that changes should be ended and replaced rather than edited in
+ * place, because folios are taxed live: editing last year's rate would re-tax
+ * last year's open bookings. "End" sets the last night the rule covers.
  */
 
 function money(value) {
@@ -55,26 +65,53 @@ function shift(date, days) {
   return formatDateISO(addDays(parseDateISO(date), days));
 }
 
-export default function TaxSetup({ propertyId, data, onChanged }) {
-  const { taxes, services, categories } = data;
+const CALC_TYPES = [
+  { id: "percent", label: "%" },
+  { id: "fixed", label: "₹ fixed" },
+];
 
-  const [draft, setDraft] = useState(null);
+/** Inputs hand back text; the tax maths wants numbers or nulls. */
+function numeric(t) {
+  const n = (v) => (v === "" || v === null || v === undefined ? null : Number(v));
+  return {
+    ...t,
+    value: Number(t.value) || 0,
+    rate_above: n(t.rate_above),
+    rate_up_to: n(t.rate_up_to),
+    max_nights: n(t.max_nights),
+    valid_from: t.valid_from || null,
+    valid_to: t.valid_to || null,
+  };
+}
+
+export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
+  const { taxes: storedTaxes, services, categories } = data;
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
 
   const today = todayUTC();
   const roomService = services.find((s) => s.is_room) || null;
   // Included services are part of the rate, so they are never taxed alone.
   const taxable = services.filter((s) => s.is_room || s.kind !== "inclusion");
 
-  /** Which services carry each tax, from the services' side of the link. */
-  const servicesFor = useMemo(() => {
-    const m = {};
+  /** Each rule with the services it is charged on, read from the services. */
+  const taxes = useMemo(() => {
+    const on = {};
     for (const s of services) {
-      for (const id of s.tax_ids || []) (m[id] = m[id] || []).push(s);
+      for (const id of s.tax_ids || []) (on[id] = on[id] || []).push(s.id);
     }
-    return m;
-  }, [services]);
+    return storedTaxes.map((t) => {
+      const out = { ...t, service_ids: (on[t.id] || []).sort() };
+      for (const k of ["rate_above", "rate_up_to", "max_nights", "valid_from", "valid_to"]) {
+        if (out[k] === null || out[k] === undefined) out[k] = "";
+      }
+      return out;
+    });
+  }, [storedTaxes, services]);
+
+  const grid = useGrid(taxes);
 
   const categoryName = useMemo(() => {
     const m = {};
@@ -82,49 +119,54 @@ export default function TaxSetup({ propertyId, data, onChanged }) {
     return m;
   }, [categories]);
 
-  async function save(rules) {
+  async function saveAll() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const saved = grid.count;
+    const send = (rule) =>
+      sendJSON("/api/pms/taxes", "POST", {
+        rules: [{ ...rule, ...(isDraft(rule.id) ? { id: undefined } : {}) }],
+        property_id: propertyId,
+      });
+    const errors = await grid.save({
+      label: (t) => t.name || "New tax",
+      update: (t, changes, next) => send(next),
+      create: (d) => send(d),
+    });
+    await onChanged();
+    setBusy(false);
+    if (errors.length) setError(errors.join(" · "));
+    else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
+  }
+
+  async function immediate(fn) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/pms/taxes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rules, property_id: propertyId }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Could not save");
+      await fn();
       await onChanged();
-      return true;
     } catch (err) {
       setError(err.message);
-      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  async function remove(tax) {
+  function remove(tax) {
+    if (isDraft(tax.id)) return grid.removeDraft(tax.id);
     if (
       !window.confirm(
         `Delete “${tax.name}”? It disappears from every booking not yet invoiced, including past ones. To stop charging it from now on, use End instead.`
       )
     ) {
-      return;
+      return undefined;
     }
-    setBusy(true);
-    setError(null);
-    try {
+    return immediate(() => {
       const qs = new URLSearchParams({ id: tax.id });
       if (propertyId) qs.set("propertyId", propertyId);
-      const res = await fetch(`/api/pms/taxes?${qs}`, { method: "DELETE" });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Could not delete");
-      await onChanged();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
+      return sendJSON(`/api/pms/taxes?${qs}`, "DELETE");
+    });
   }
 
   /** Stop a rule after last night: it keeps covering the nights before today. */
@@ -137,10 +179,15 @@ export default function TaxSetup({ propertyId, data, onChanged }) {
     ) {
       return;
     }
-    save([{ ...tax, valid_to: lastNight }]);
+    immediate(() =>
+      sendJSON("/api/pms/taxes", "POST", {
+        rules: [{ ...tax, valid_to: lastNight }],
+        property_id: propertyId,
+      })
+    );
   }
 
-  async function addGst() {
+  function addGst() {
     if (
       !window.confirm(
         "Add Indian GST for hotel rooms, in force from 22 Sep 2025, charged on the room?\n\n" +
@@ -153,27 +200,25 @@ export default function TaxSetup({ propertyId, data, onChanged }) {
       return;
     }
     const attach = roomService ? [roomService.id] : [];
-    await save(indianGstPreset().map((r) => ({ ...r, service_ids: attach })));
+    immediate(() =>
+      sendJSON("/api/pms/taxes", "POST", {
+        rules: indianGstPreset().map((r) => ({ ...r, service_ids: attach })),
+        property_id: propertyId,
+      })
+    );
   }
 
   const nextOrder =
-    taxes.reduce((max, t) => Math.max(max, Number(t.sort_order) || 0), 0) + 10;
+    [...taxes, ...grid.drafts].reduce((max, t) => Math.max(max, Number(t.sort_order) || 0), 0) +
+    10;
 
-  function edit(tax) {
-    const out = { ...tax, service_ids: (servicesFor[tax.id] || []).map((s) => s.id) };
-    for (const k of ["rate_above", "rate_up_to", "max_nights", "valid_from", "valid_to"]) {
-      if (out[k] === null || out[k] === undefined) out[k] = "";
-    }
-    setDraft(out);
-  }
-
-  function toggleService(id) {
-    setDraft((d) => ({
-      ...d,
-      service_ids: d.service_ids.includes(id)
-        ? d.service_ids.filter((s) => s !== id)
-        : [...d.service_ids, id],
-    }));
+  function toggleService(tax, id) {
+    const current = grid.value(tax, "service_ids") || [];
+    grid.change(
+      tax,
+      "service_ids",
+      current.includes(id) ? current.filter((s) => s !== id) : [...current, id].sort()
+    );
   }
 
   // ----- preview -------------------------------------------------------
@@ -187,7 +232,14 @@ export default function TaxSetup({ propertyId, data, onChanged }) {
     residency: "domestic",
   });
 
+  // The preview taxes by the grid as it stands, saved or not.
+  const liveRows = [...taxes.map((t) => grid.merged(t)), ...grid.drafts].filter(
+    (t) => t.name?.trim() && t.value !== ""
+  );
+  const liveKey = JSON.stringify(liveRows);
+
   const previewResult = useMemo(() => {
+    const rules = JSON.parse(liveKey).map(numeric);
     const lines = Array.from({ length: Math.max(0, Number(preview.nights) || 0) }, (_, i) => ({
       service_id: roomService?.id || null,
       date: shift(today, i),
@@ -199,291 +251,209 @@ export default function TaxSetup({ propertyId, data, onChanged }) {
       lines.push({ service_id: preview.serviceId, date: today, unit_price: extra, quantity: 1 });
     }
     const serviceTaxes = {};
-    for (const s of services) serviceTaxes[s.id] = s.tax_ids || [];
-    const result = computeTaxes(taxes, serviceTaxes, lines, {
+    for (const s of services) serviceTaxes[s.id] = [];
+    for (const r of rules) {
+      for (const sid of r.service_ids || []) (serviceTaxes[sid] = serviceTaxes[sid] || []).push(r.id);
+    }
+    const result = computeTaxes(rules, serviceTaxes, lines, {
       adults: preview.adults,
       children: preview.children,
       residency: preview.residency,
     });
-    const subtotal = lines.reduce((s, l) => s + l.unit_price * l.quantity, 0);
+    const subtotal = lines.reduce((sum, l) => sum + l.unit_price * l.quantity, 0);
     return { ...result, subtotal };
-  }, [taxes, services, roomService, preview, today]);
+  }, [liveKey, services, roomService, preview, today]);
 
   const setP = (k) => (e) => setPreview((p) => ({ ...p, [k]: e.target.value }));
-  const setD = (k) => (e) =>
-    setDraft((d) => ({
-      ...d,
-      [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
-    }));
+
+  const rows = [...taxes, ...grid.drafts];
 
   return (
-    <div className="card card-pad space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 style={{ fontWeight: 600 }}>Taxes and fees</h3>
-          <p className="sub">
-            Each rule is charged on the services it is attached to. Combine as
-            many as needed — a percentage, a fixed fee per night or per guest,
-            a slab by price, a levy for international guests only.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button className="btn btn-secondary text-sm" disabled={busy} onClick={addGst}>
-            + Indian GST preset
-          </button>
-          <button
-            className="btn btn-primary text-sm"
-            disabled={busy}
-            onClick={() => setDraft(blank(nextOrder))}
-          >
-            + Add a tax
-          </button>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <SetupHeader title={title} count={storedTaxes.length} sub={sub}>
+        <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
+      </SetupHeader>
 
-      {error && (
-        <p className="text-sm" style={{ color: "var(--danger)" }}>
-          {error}
-        </p>
-      )}
+      <Messages error={error} notice={notice} />
 
-      {taxes.length === 0 && (
-        <p className="sub">
-          No taxes set up — bookings are billed with no tax. Start from the
-          Indian GST preset, or add a rule.
-        </p>
-      )}
+      <Toolbar>
+        <button
+          type="button"
+          className="btn btn-secondary text-sm"
+          onClick={() => grid.add(blank(nextOrder))}
+        >
+          + Add a tax
+        </button>
+        <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={addGst}>
+          + Indian GST preset
+        </button>
+        <span className="ml-auto text-xs muted">
+          Price bands are checked against each line&apos;s unit price — for the room,
+          each night&apos;s rate. To change a rate, End the old rule and add a new one.
+        </span>
+      </Toolbar>
 
-      {taxes.length > 0 && (
-        <table className="grid-table w-full text-sm">
-          <thead>
-            <tr>
-              <th className="text-left">Tax</th>
-              <th className="text-left">Rule</th>
-              <th className="text-left">Charged on</th>
-              <th className="text-left">In force</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {taxes.map((t) => {
-              const ended = t.valid_to && t.valid_to < today;
-              const future = t.valid_from && t.valid_from > today;
-              const on = servicesFor[t.id] || [];
-              return (
-                <tr key={t.id} style={{ opacity: ended ? 0.55 : 1 }}>
-                  <td style={{ fontWeight: 600 }}>{t.name}</td>
-                  <td style={{ color: "var(--text-muted)" }}>{describeTax(t, money)}</td>
-                  <td>
-                    {on.length === 0 ? (
-                      <span style={{ color: "var(--warn)" }}>Nothing — charges nothing</span>
-                    ) : (
-                      on.map((s) => s.name).join(", ")
-                    )}
-                  </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    {ended ? (
-                      <span className="chip chip-off">Ended {t.valid_to}</span>
-                    ) : future ? (
-                      <span className="chip chip-warn">From {t.valid_from}</span>
-                    ) : inForce(t, today) ? (
-                      <span className="chip chip-ok">
-                        {t.valid_to ? `Until ${t.valid_to}` : "Now"}
+      <Grid>
+        <thead>
+          <tr>
+            <th className="cm-sticky" style={{ minWidth: 160 }}>
+              Tax (as invoiced)
+            </th>
+            <th>Type</th>
+            <th>Rate</th>
+            <th>Charged</th>
+            <th>Who pays</th>
+            <th title="Applies when the unit price is above this">Price above</th>
+            <th title="…and up to this">Up to</th>
+            <th title="Only the first N nights">First N nights</th>
+            <th>From night</th>
+            <th>To night</th>
+            <th title="Already included in the price">Incl.</th>
+            <th title="Charged on top of the taxes above it">Compound</th>
+            <th style={{ minWidth: 200 }}>Charged on</th>
+            <th title="Order the rules are applied in">Order</th>
+            <th>Status</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => {
+            const draft = isDraft(t.id);
+            const m = draft ? t : grid.merged(t);
+            const percent = m.calc_type !== "fixed";
+            const ended = !draft && t.valid_to && t.valid_to < today;
+            const future = m.valid_from && m.valid_from > today;
+            const on = m.service_ids || [];
+            const onEdited = grid.edited(t, "service_ids");
+            return (
+              <tr
+                key={t.id}
+                className={draft ? "cm-new" : ended ? "cm-muted" : undefined}
+              >
+                <td className="cm-sticky">
+                  {grid.input(t, "name", {
+                    placeholder: "CGST, City tax…",
+                    invalid: !m.name?.trim(),
+                    autoFocus: draft,
+                    style: { fontWeight: 600 },
+                  })}
+                </td>
+                <td style={{ minWidth: 90 }}>{grid.select(t, "calc_type", CALC_TYPES)}</td>
+                <td style={{ minWidth: 90 }}>
+                  {grid.input(t, "value", {
+                    type: "number",
+                    min: 0,
+                    step: "0.01",
+                    invalid: m.value === "",
+                  })}
+                </td>
+                <td style={{ minWidth: 190 }}>
+                  {percent ? (
+                    <span className="text-xs muted">On the price</span>
+                  ) : (
+                    grid.select(t, "basis", TAX_BASES)
+                  )}
+                </td>
+                <td style={{ minWidth: 170 }}>{grid.select(t, "guest_scope", TAX_SCOPES)}</td>
+                <td style={{ minWidth: 100 }}>
+                  {grid.input(t, "rate_above", { type: "number", min: 0, placeholder: "Any" })}
+                </td>
+                <td style={{ minWidth: 100 }}>
+                  {grid.input(t, "rate_up_to", { type: "number", min: 0, placeholder: "Any" })}
+                </td>
+                <td style={{ minWidth: 90 }}>
+                  {grid.input(t, "max_nights", { type: "number", min: 1, placeholder: "All" })}
+                </td>
+                <td>{grid.input(t, "valid_from", { type: "date" })}</td>
+                <td>{grid.input(t, "valid_to", { type: "date" })}</td>
+                <td className="text-center">
+                  {percent ? grid.check(t, "is_inclusive") : <span className="faint">—</span>}
+                </td>
+                <td className="text-center">
+                  {percent ? grid.check(t, "is_compound") : <span className="faint">—</span>}
+                </td>
+                <td>
+                  <div
+                    className="flex flex-wrap gap-1"
+                    style={
+                      onEdited
+                        ? { outline: "1px solid var(--accent)", borderRadius: 4, padding: 2 }
+                        : undefined
+                    }
+                  >
+                    {taxable.map((s) => {
+                      const active = on.includes(s.id);
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => toggleService(t, s.id)}
+                          className={`chip ${active ? "chip-ok" : "chip-off"}`}
+                          style={{ opacity: active ? 1 : 0.6, cursor: "pointer" }}
+                          title={categoryName[s.category_id] || undefined}
+                        >
+                          {active ? "✓ " : ""}
+                          {s.name}
+                        </button>
+                      );
+                    })}
+                    {on.length === 0 && (
+                      <span className="text-xs" style={{ color: "var(--warn)" }}>
+                        Nothing — charges nothing
                       </span>
-                    ) : null}
-                  </td>
-                  <td className="text-right" style={{ whiteSpace: "nowrap" }}>
-                    <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => edit(t)}>
-                      Edit
-                    </button>
-                    {!ended && (
-                      <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => end(t)}>
-                        End
-                      </button>
                     )}
-                    <button className="btn btn-ghost text-xs" disabled={busy} onClick={() => remove(t)}>
-                      ✕
+                  </div>
+                </td>
+                <td style={{ minWidth: 70 }}>{grid.input(t, "sort_order", { type: "number" })}</td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {draft ? (
+                    <span className="chip chip-warn">New</span>
+                  ) : ended ? (
+                    <span className="chip chip-off">Ended {t.valid_to}</span>
+                  ) : future ? (
+                    <span className="chip chip-warn">From {m.valid_from}</span>
+                  ) : inForce(t, today) ? (
+                    <span className="chip chip-ok">{t.valid_to ? `Until ${t.valid_to}` : "Now"}</span>
+                  ) : null}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }}>
+                  {!draft && !ended && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost text-xs"
+                      disabled={busy}
+                      onClick={() => end(t)}
+                      title="Stop charging from today"
+                    >
+                      End
                     </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-
-      {/* ---------------- EDITOR ---------------- */}
-      {draft && (
-        <div className="card card-pad space-y-3">
-          <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-            {draft.id ? `Edit ${draft.name}` : "New tax or fee"}
-          </div>
-
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
-          >
-            <div>
-              <label className="label">Name on the invoice *</label>
-              <input
-                className="input"
-                value={draft.name}
-                onChange={setD("name")}
-                placeholder="CGST, City tax…"
-              />
-            </div>
-            <div>
-              <label className="label">Type</label>
-              <select className="input" value={draft.calc_type} onChange={setD("calc_type")}>
-                <option value="percent">Percentage</option>
-                <option value="fixed">Fixed amount</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">{draft.calc_type === "fixed" ? "Amount (₹)" : "Rate (%)"}</label>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                step="0.01"
-                value={draft.value}
-                onChange={setD("value")}
-              />
-            </div>
-            {draft.calc_type === "fixed" && (
-              <div>
-                <label className="label">Charged</label>
-                <select className="input" value={draft.basis} onChange={setD("basis")}>
-                  {TAX_BASES.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div>
-              <label className="label">Who pays</label>
-              <select className="input" value={draft.guest_scope} onChange={setD("guest_scope")}>
-                {TAX_SCOPES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Charged on</label>
-            <div className="flex flex-wrap gap-3 text-sm">
-              {taxable.map((s) => (
-                <label key={s.id} className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={draft.service_ids.includes(s.id)}
-                    onChange={() => toggleService(s.id)}
-                  />
-                  {s.name}
-                  <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
-                    {categoryName[s.category_id] || ""}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div
-            className="grid gap-2"
-            style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
-          >
-            <div>
-              <label className="label">Price above (₹)</label>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                value={draft.rate_above}
-                onChange={setD("rate_above")}
-                placeholder="Any"
-              />
-            </div>
-            <div>
-              <label className="label">…up to (₹)</label>
-              <input
-                className="input"
-                type="number"
-                min="0"
-                value={draft.rate_up_to}
-                onChange={setD("rate_up_to")}
-                placeholder="Any"
-              />
-            </div>
-            <div>
-              <label className="label">Only the first N nights</label>
-              <input
-                className="input"
-                type="number"
-                min="1"
-                step="1"
-                value={draft.max_nights}
-                onChange={setD("max_nights")}
-                placeholder="All nights"
-              />
-            </div>
-            <div>
-              <label className="label">In force from night</label>
-              <input className="input" type="date" value={draft.valid_from} onChange={setD("valid_from")} />
-            </div>
-            <div>
-              <label className="label">…to night</label>
-              <input className="input" type="date" value={draft.valid_to} onChange={setD("valid_to")} />
-            </div>
-            <div>
-              <label className="label">Order</label>
-              <input className="input" type="number" value={draft.sort_order} onChange={setD("sort_order")} />
-            </div>
-          </div>
-
-          {draft.calc_type === "percent" && (
-            <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={draft.is_inclusive} onChange={setD("is_inclusive")} />
-                Already included in the price
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={draft.is_compound} onChange={setD("is_compound")} />
-                Charged on top of the taxes above it
-              </label>
-            </div>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-ghost text-xs"
+                    disabled={busy}
+                    onClick={() => remove(t)}
+                    title={draft ? "Remove this new row" : "Delete tax"}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={16} className="cm-empty">
+                No taxes set up — bookings are billed with no tax. Start from the
+                Indian GST preset, or add a rule.
+              </td>
+            </tr>
           )}
-
-          <p className="sub" style={{ fontSize: "0.7rem" }}>
-            The price band is checked line by line against the unit price — for
-            the room, each night&apos;s rate. That is how GST slabs work. Dates
-            are stay nights: to change a rate, end the old rule and add a new one
-            from the day it changes, so earlier nights keep the old rate.
-          </p>
-
-          <div className="flex gap-2">
-            <button
-              className="btn btn-primary text-sm"
-              disabled={busy || !draft.name.trim() || draft.value === ""}
-              onClick={async () => {
-                if (await save([draft])) setDraft(null);
-              }}
-            >
-              Save
-            </button>
-            <button className="btn btn-ghost text-sm" onClick={() => setDraft(null)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+        </tbody>
+      </Grid>
 
       {/* ---------------- PREVIEW ---------------- */}
-      {taxes.length > 0 && (
+      {rows.length > 0 && (
         <div className="card card-pad space-y-3">
           <div>
             <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>Try it on a stay</div>

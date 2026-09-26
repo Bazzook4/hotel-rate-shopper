@@ -171,6 +171,78 @@ body {
   .grid-table tbody tr:last-child td { border-bottom: none; }
   .grid-table tbody tr:hover td { background: var(--surface-2); }
 
+  /* The Channel Manager grid, as a reusable class.
+   *
+   * Every setup page that takes data is this one table: ruled cells, a
+   * sticky first column, grey group rows with children indented under them,
+   * and inputs that sit flush in the cell and turn accent when edited but not
+   * yet saved. Taken from the CM grid so a hotelier who can use one screen
+   * can use them all. */
+  .cm-grid {
+    min-width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.875rem;
+  }
+  .cm-grid thead th {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-strong);
+    border-right: 1px solid var(--border);
+    padding: 0.6rem 0.75rem;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .cm-grid tbody td {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 0.35rem 0.5rem;
+    color: var(--text);
+    vertical-align: middle;
+  }
+  .cm-grid th:last-child,
+  .cm-grid td:last-child { border-right: none; }
+  .cm-grid tbody tr:last-child td { border-bottom: none; }
+  .cm-grid .cm-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    border-right: 1px solid var(--border-strong);
+  }
+  .cm-grid thead .cm-sticky { z-index: 20; }
+  .cm-grid tr.cm-group td {
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border-strong);
+    padding: 0.6rem 0.75rem;
+  }
+  .cm-grid tr.cm-muted td { opacity: 0.55; }
+  .cm-grid tr.cm-new td { background: var(--accent-soft); }
+  .cm-grid td.cm-num { text-align: right; }
+  .cm-grid .cm-empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .cm-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    padding: 0.3rem 0.45rem;
+    font-size: 0.85rem;
+    color: var(--text);
+  }
+  .cm-input:focus { outline: none; border-color: var(--accent); }
+  .cm-input[type="number"] { text-align: right; }
+  .cm-input.is-edited { border-color: var(--accent); font-weight: 600; }
+  .cm-input.is-invalid { border-color: var(--danger); }
+
   /* Number inputs lose their spinner arrows.
    *
    * The rate grid is dense -- a narrow cell holding a four-figure rate -- and
