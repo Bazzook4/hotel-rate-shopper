@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
+import { todayUTC } from "@/lib/date";
 
 /**
  * One booking, opened from the tape chart.
@@ -150,6 +151,14 @@ export default function BookingModal({
   }
 
   const actions = reservation ? NEXT_ACTIONS[reservation.status] || [] : [];
+
+  // A stay that has not started yet cannot be checked in. The action stays
+  // visible -- hiding it would leave the desk wondering where check-in went --
+  // but it is disabled and says why.
+  const tooEarly =
+    reservation && reservation.check_in > todayUTC()
+      ? `Arrives ${reservation.check_in} — check-in opens that day`
+      : null;
 
   return (
     <div
@@ -332,16 +341,20 @@ export default function BookingModal({
                 ✕ Cancel booking
               </button>
             )}
-            {actions.map((a) => (
-              <button
-                key={a.status}
-                className={`btn ${a.kind} text-sm`}
-                disabled={busy}
-                onClick={() => changeStatus(a.status)}
-              >
-                {a.label}
-              </button>
-            ))}
+            {actions.map((a) => {
+              const blocked = a.status === "in_house" && tooEarly;
+              return (
+                <button
+                  key={a.status}
+                  className={`btn ${a.kind} text-sm`}
+                  disabled={busy || Boolean(blocked)}
+                  title={blocked || undefined}
+                  onClick={() => changeStatus(a.status)}
+                >
+                  {a.label}
+                </button>
+              );
+            })}
             <button className="btn btn-secondary text-sm" onClick={onClose}>
               Close
             </button>

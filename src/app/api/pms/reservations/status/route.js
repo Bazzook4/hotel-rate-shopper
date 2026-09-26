@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pmsGuard } from "@/lib/pmsGuard";
 import { getReservation, setReservationStatus } from "@/lib/database";
+import { todayUTC } from "@/lib/date";
 
 /**
  * Moving a reservation through its lifecycle.
@@ -60,6 +61,21 @@ export async function POST(req) {
       return NextResponse.json(
         {
           error: `A ${current.status.replace("_", " ")} booking cannot move to ${status.replace("_", " ")}.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // A guest cannot be checked in before the day they arrive. The desk
+    // otherwise marks tomorrow's arrival in house today, which makes the
+    // occupancy figures and the tape chart disagree with the building -- and
+    // nothing downstream can tell that it was a mis-click rather than a stay
+    // that really started early. A late arrival is a different matter and is
+    // allowed: the guest is standing there, the date has simply passed.
+    if (status === "in_house" && current.check_in > todayUTC()) {
+      return NextResponse.json(
+        {
+          error: `This booking arrives on ${current.check_in}. Move the dates if the guest is arriving early.`,
         },
         { status: 409 }
       );

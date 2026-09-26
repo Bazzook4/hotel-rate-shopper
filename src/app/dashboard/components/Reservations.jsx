@@ -210,6 +210,16 @@ export default function Reservations({ session }) {
    * for one here rather than being sent to the edit form and back.
    */
   async function checkIn(reservation) {
+    // The API refuses this too. Stopping here as well means the desk gets the
+    // reason without a round trip, and the button that led here is already
+    // disabled -- this covers the case of a stale list left open overnight.
+    if (reservation.check_in > today) {
+      setError(
+        `${reservation.guest_name} arrives on ${shortDate(reservation.check_in)} — check-in opens that day.`
+      );
+      return;
+    }
+
     let roomId = reservation.room_id;
 
     if (!roomId) {
@@ -430,7 +440,12 @@ export default function Reservations({ session }) {
                         {r.status === "confirmed" && (
                           <button
                             className="btn btn-primary text-xs"
-                            disabled={busy}
+                            disabled={busy || r.check_in > today}
+                            title={
+                              r.check_in > today
+                                ? `Arrives ${shortDate(r.check_in)} — check-in opens that day`
+                                : undefined
+                            }
                             onClick={() => checkIn(r)}
                           >
                             Check in

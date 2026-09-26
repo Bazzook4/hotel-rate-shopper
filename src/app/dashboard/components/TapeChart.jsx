@@ -62,6 +62,19 @@ export default function TapeChart({ session }) {
   const [newBooking, setNewBooking] = useState(null);
 
   /**
+   * Which room type the chart is narrowed to, and which type headers are folded
+   * shut.
+   *
+   * A property with six types and forty rooms is forty rows of scrolling, and
+   * the desk usually wants one type at a time. The filter answers that; the
+   * collapse answers the other half, where two types matter and the rest are
+   * noise. Both are view state and deliberately not persisted -- the chart
+   * should open showing everything.
+   */
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [collapsed, setCollapsed] = useState({});
+
+  /**
    * The drag in progress.
    *
    * Held in a ref as well as state: the pointer handlers are bound to the
@@ -106,13 +119,35 @@ export default function TapeChart({ session }) {
     load();
   }, [load]);
 
-  /** Every room across every type, flattened, which is what the rows iterate. */
-  const rows = useMemo(() => {
+  /**
+   * The chart's rooms grouped by type, which is what the body iterates.
+   *
+   * The grid was one flat list of rooms with the type name in small print under
+   * each number, which reads as a single undifferentiated block -- a deluxe and
+   * a suite in adjacent rows look like neighbours. Grouping puts a header
+   * between them, so a type's rooms can be found without reading every row.
+   */
+  const groups = useMemo(() => {
     if (!chart) return [];
-    return chart.roomTypes.flatMap((rt) =>
-      rt.rooms.map((room) => ({ ...room, typeName: rt.name }))
-    );
+    return chart.roomTypes
+      .filter((rt) => typeFilter === "all" || rt.id === typeFilter)
+      .map((rt) => ({ id: rt.id, name: rt.name, rooms: rt.rooms }));
+  }, [chart, typeFilter]);
+
+  /**
+   * Every room in the chart, ignoring the filter.
+   *
+   * The drag handlers need this -- a bar being dragged has to be findable by id
+   * even if its row is filtered out -- and "has this property any rooms at all"
+   * is a question about the property, not about the current filter.
+   */
+  const allRooms = useMemo(() => {
+    if (!chart) return [];
+    return chart.roomTypes.flatMap((rt) => rt.rooms);
   }, [chart]);
+
+  /** The rooms actually drawn, which is what the empty state asks about. */
+  const visibleRooms = useMemo(() => groups.flatMap((g) => g.rooms), [groups]);
 
   // ----- dragging -------------------------------------------------------
 
@@ -257,13 +292,31 @@ export default function TapeChart({ session }) {
    */
   function barsForRoom(room) {
     const dragged = drag
-      ? rows.flatMap((r) => r.reservations).find((r) => r.id === drag.id)
+      ? allRooms.flatMap((r) => r.reservations).find((r) => r.id === drag.id)
       : null;
 
     const here = room.reservations.filter((r) => r.id !== drag?.id);
 
     if (dragged && drag.preview.room_id === room.id) return [...here, dragged];
     return here;
+  }
+
+  /**
+   * How many of a type's rooms are occupied on the window's first date.
+   *
+   * Shown on the type header so a folded group still answers the one question
+   * worth asking about a type: is anything left. A stay counts when the date
+   * falls on or after arrival and strictly before departure -- departure day is
+   * the room being handed back, not slept in.
+   */
+  function occupiedOnAnchor(group) {
+    return group.rooms.filter((room) =>
+      room.reservations.some((r) => r.check_in <= anchor && r.check_out > anchor)
+    ).length;
+  }
+
+  function toggleGroup(id) {
+    setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
   }
 
   return (
@@ -308,6 +361,21 @@ export default function TapeChart({ session }) {
               {w.label}
             </button>
           ))}
+          {chart?.roomTypes?.length > 1 && (
+            <select
+              className="input text-sm"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              style={{ maxWidth: 170 }}
+            >
+              <option value="all">All room types</option>
+              {chart.roomTypes.map((rt) => (
+                <option key={rt.id} value={rt.id}>
+                  {rt.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -344,14 +412,21 @@ export default function TapeChart({ session }) {
       <div className="card" style={{ overflow: "hidden" }}>
         {loading && <p className="sub card-pad">Loading…</p>}
 
-        {!loading && rows.length === 0 && (
+        {!loading && allRooms.length === 0 && (
           <p className="sub card-pad">
             No rooms set up yet. Add them in Room Setup — the chart needs actual
             rooms to lay bookings out against.
           </p>
         )}
 
-        {!loading && rows.length > 0 && (
+        {!loading && allRooms.length > 0 && visibleRooms.length === 0 && (
+          <p className="sub card-pad">
+            That room type has no rooms yet. Add them in Room Setup, or pick
+            another type above.
+          </p>
+        )}
+
+        {!loading && visibleRooms.length > 0 && (
           <div style={{ overflowX: "auto" }} ref={gridRef}>
             <div style={{ minWidth: ROOM_COL + windowDays * DAY_WIDTH }}>
               {/* Date header */}
@@ -414,142 +489,186 @@ export default function TapeChart({ session }) {
                 })}
               </div>
 
-              {/* One row per room */}
-              {rows.map((room) => (
-                <div
-                  key={room.id}
-                  style={{
-                    display: "flex",
-                    position: "relative",
-                    height: 40,
-                    borderBottom: "1px solid var(--border)",
-                  }}
-                >
+              {/* One group per room type, one row per room within it */}
+              {groups.map((group) => (
+                <div key={group.id}>
+                  {/* The type header. Sticky to the left edge so it stays
+                      readable while the grid scrolls sideways. */}
                   <div
+                    onClick={() => toggleGroup(group.id)}
                     style={{
-                      width: ROOM_COL,
-                      flexShrink: 0,
-                      padding: "0.35rem 0.5rem",
-                      fontSize: "0.8rem",
-                      borderRight: "1px solid var(--border-strong)",
-                      background: "var(--surface)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
                       position: "sticky",
                       left: 0,
+                      width: ROOM_COL + windowDays * DAY_WIDTH,
+                      padding: "0.35rem 0.5rem",
+                      background: "var(--surface-2)",
+                      borderTop: "1px solid var(--border-strong)",
+                      borderBottom: "1px solid var(--border-strong)",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      userSelect: "none",
                       zIndex: 2,
                     }}
                   >
-                    <div style={{ fontWeight: 600 }}>{room.room_number}</div>
-                    <div style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>
-                      {room.typeName}
-                      {!room.is_active && " · out of order"}
-                    </div>
+                    <span style={{ width: 10, color: "var(--text-faint)" }}>
+                      {collapsed[group.id] ? "▸" : "▾"}
+                    </span>
+                    <span>{group.name}</span>
+                    <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
+                      {group.rooms.length} room{group.rooms.length === 1 ? "" : "s"}
+                      {" · "}
+                      {occupiedOnAnchor(group)} occupied
+                    </span>
                   </div>
 
-                  {/* The day cells: the drop target, and a click starts a booking */}
-                  <div style={{ display: "flex", position: "relative", flex: 1 }}>
-                    {dates.map((d) => {
-                      const parsed = parseDateISO(d);
-                      const weekend = [0, 6].includes(parsed.getUTCDay());
-                      return (
-                        <div
-                          key={d}
-                          data-room-id={room.id}
-                          data-date={d}
-                          onClick={() =>
-                            room.is_active &&
-                            setNewBooking({
-                              room_id: room.id,
-                              room_type_id: room.room_type_id,
-                              check_in: d,
-                              check_out: shiftDate(d, 1),
-                            })
-                          }
-                          style={{
-                            width: DAY_WIDTH,
-                            flexShrink: 0,
-                            borderRight: "1px solid var(--border)",
-                            background:
-                              d === today
-                                ? "var(--accent-soft)"
-                                : weekend
-                                  ? "var(--surface-2)"
-                                  : undefined,
-                            cursor: room.is_active ? "cell" : "not-allowed",
-                          }}
-                        />
-                      );
-                    })}
+                  {!collapsed[group.id] &&
+                    group.rooms.map((room) => (
+                    <div
+                      key={room.id}
+                      style={{
+                        display: "flex",
+                        position: "relative",
+                        height: 40,
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: ROOM_COL,
+                          flexShrink: 0,
+                          padding: "0.35rem 0.5rem",
+                          fontSize: "0.8rem",
+                          borderRight: "1px solid var(--border-strong)",
+                          background: "var(--surface)",
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 2,
+                        }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{room.room_number}</div>
+                        {/* The type sits on the group header now, so the row
+                            shows only what the header cannot say about this
+                            one room. */}
+                        {!room.is_active && (
+                          <div
+                            style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}
+                          >
+                            out of order
+                          </div>
+                        )}
+                      </div>
 
-                    {/* Bars for this room, over the cells */}
-                    {barsForRoom(room).map((r) => {
-                          const geo = barGeometry(r);
-                          if (!geo) return null;
-                          const isDragging = drag?.id === r.id;
-                          const style = BAR_STYLE[r.status] || BAR_STYLE.confirmed;
-
+                      {/* The day cells: the drop target, and a click starts a booking */}
+                      <div style={{ display: "flex", position: "relative", flex: 1 }}>
+                        {dates.map((d) => {
+                          const parsed = parseDateISO(d);
+                          const weekend = [0, 6].includes(parsed.getUTCDay());
                           return (
                             <div
-                              key={r.id}
-                              onPointerDown={(e) => beginDrag(e, r, "move")}
-                              title={`${r.guest_name} · ${r.reference}\n${r.check_in} → ${r.check_out}`}
+                              key={d}
+                              data-room-id={room.id}
+                              data-date={d}
+                              onClick={() =>
+                                room.is_active &&
+                                setNewBooking({
+                                  room_id: room.id,
+                                  room_type_id: room.room_type_id,
+                                  check_in: d,
+                                  check_out: shiftDate(d, 1),
+                                })
+                              }
                               style={{
-                                position: "absolute",
-                                left: geo.left,
-                                width: geo.width,
-                                top: 5,
-                                height: 30,
-                                ...style,
-                                borderRadius: 4,
-                                borderTopLeftRadius: geo.clippedStart ? 0 : 4,
-                                borderBottomLeftRadius: geo.clippedStart ? 0 : 4,
-                                borderTopRightRadius: geo.clippedEnd ? 0 : 4,
-                                borderBottomRightRadius: geo.clippedEnd ? 0 : 4,
-                                display: "flex",
-                                alignItems: "center",
-                                padding: "0 0.4rem",
-                                fontSize: "0.7rem",
-                                fontWeight: 600,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                cursor: isDragging ? "grabbing" : "grab",
-                                opacity: isDragging ? 0.75 : 1,
-                                zIndex: isDragging ? 5 : 1,
-                                userSelect: "none",
-                                boxShadow: isDragging
-                                  ? "0 2px 8px rgba(0,0,0,0.3)"
-                                  : undefined,
+                                width: DAY_WIDTH,
+                                flexShrink: 0,
+                                borderRight: "1px solid var(--border)",
+                                background:
+                                  d === today
+                                    ? "var(--accent-soft)"
+                                    : weekend
+                                      ? "var(--surface-2)"
+                                      : undefined,
+                                cursor: room.is_active ? "cell" : "not-allowed",
                               }}
-                            >
-                              {/* Resize handles, left and right */}
-                              <span
-                                onPointerDown={(e) => beginDrag(e, r, "start")}
-                                style={{
-                                  position: "absolute",
-                                  left: 0,
-                                  top: 0,
-                                  bottom: 0,
-                                  width: 6,
-                                  cursor: "ew-resize",
-                                }}
-                              />
-                              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {r.guest_name}
-                              </span>
-                              <span
-                                onPointerDown={(e) => beginDrag(e, r, "end")}
-                                style={{
-                                  position: "absolute",
-                                  right: 0,
-                                  top: 0,
-                                  bottom: 0,
-                                  width: 6,
-                                  cursor: "ew-resize",
-                                }}
-                              />
-                            </div>
+                            />
                           );
                         })}
-                  </div>
+
+                        {/* Bars for this room, over the cells */}
+                        {barsForRoom(room).map((r) => {
+                              const geo = barGeometry(r);
+                              if (!geo) return null;
+                              const isDragging = drag?.id === r.id;
+                              const style = BAR_STYLE[r.status] || BAR_STYLE.confirmed;
+
+                              return (
+                                <div
+                                  key={r.id}
+                                  onPointerDown={(e) => beginDrag(e, r, "move")}
+                                  title={`${r.guest_name} · ${r.reference}\n${r.check_in} → ${r.check_out}`}
+                                  style={{
+                                    position: "absolute",
+                                    left: geo.left,
+                                    width: geo.width,
+                                    top: 5,
+                                    height: 30,
+                                    ...style,
+                                    borderRadius: 4,
+                                    borderTopLeftRadius: geo.clippedStart ? 0 : 4,
+                                    borderBottomLeftRadius: geo.clippedStart ? 0 : 4,
+                                    borderTopRightRadius: geo.clippedEnd ? 0 : 4,
+                                    borderBottomRightRadius: geo.clippedEnd ? 0 : 4,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    padding: "0 0.4rem",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 600,
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    cursor: isDragging ? "grabbing" : "grab",
+                                    opacity: isDragging ? 0.75 : 1,
+                                    zIndex: isDragging ? 5 : 1,
+                                    userSelect: "none",
+                                    boxShadow: isDragging
+                                      ? "0 2px 8px rgba(0,0,0,0.3)"
+                                      : undefined,
+                                  }}
+                                >
+                                  {/* Resize handles, left and right */}
+                                  <span
+                                    onPointerDown={(e) => beginDrag(e, r, "start")}
+                                    style={{
+                                      position: "absolute",
+                                      left: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: 6,
+                                      cursor: "ew-resize",
+                                    }}
+                                  />
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {r.guest_name}
+                                  </span>
+                                  <span
+                                    onPointerDown={(e) => beginDrag(e, r, "end")}
+                                    style={{
+                                      position: "absolute",
+                                      right: 0,
+                                      top: 0,
+                                      bottom: 0,
+                                      width: 6,
+                                      cursor: "ew-resize",
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })}
+                      </div>
+                    </div>
+                    ))}
                 </div>
               ))}
             </div>
