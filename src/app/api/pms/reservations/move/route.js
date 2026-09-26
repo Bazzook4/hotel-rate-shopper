@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { getReservation, updateReservation, getSupabaseAdmin } from "@/lib/database";
+import {
+  getReservation,
+  planStayChange,
+  applyStayChange,
+  getSupabaseAdmin,
+} from "@/lib/database";
 
 /**
  * Moving or resizing a stay by dragging it on the tape chart.
@@ -10,6 +15,13 @@ import { getReservation, updateReservation, getSupabaseAdmin } from "@/lib/datab
  * than the room type -- dropping a bar on room 204 must fail if 204 is taken,
  * even when three other rooms of the same type are free, which is not what
  * the type-level availability check answers.
+ *
+ * A resize changes what the stay costs, and that is the desk's decision, not
+ * the chart's. So a drag that changes the number of nights is answered first
+ * with `needsPricing` and the figures -- nothing is saved -- and the client
+ * re-sends with `pricing: "adjust"` or `"keep"` once the desk has chosen. A
+ * drag that keeps the length carries each night's rate across and saves at
+ * once.
  */
 
 function isDate(value) {
@@ -125,7 +137,17 @@ export async function POST(req) {
       updates.room_type_id = room.room_type_id;
     }
 
-    const reservation = await updateReservation(id, updates);
+    const plan = await planStayChange(current, {
+      check_in,
+      check_out,
+      room_type_id: updates.room_type_id,
+    });
+
+    if (plan.lengthChanged && !["adjust", "keep"].includes(body.pricing)) {
+      return NextResponse.json({ needsPricing: true, plan });
+    }
+
+    const reservation = await applyStayChange(id, updates, plan, body.pricing);
     return NextResponse.json({ reservation });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

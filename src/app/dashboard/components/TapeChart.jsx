@@ -85,6 +85,14 @@ export default function TapeChart({ session }) {
   const dragRef = useRef(null);
   const gridRef = useRef(null);
 
+  /**
+   * A resize waiting on the desk's pricing decision.
+   *
+   * The bar stays where it was dropped while the dialog is open, so the desk
+   * is deciding about what they can see rather than a bar that snapped back.
+   */
+  const [pending, setPending] = useState(null);
+
   const today = todayUTC();
 
   const dates = useMemo(() => {
@@ -150,6 +158,47 @@ export default function TapeChart({ session }) {
   const visibleRooms = useMemo(() => groups.flatMap((g) => g.rooms), [groups]);
 
   // ----- dragging -------------------------------------------------------
+
+  /**
+   * Send a move to the server, and handle its answer.
+   *
+   * A resize comes back unsaved with the pricing worked out, and waits in
+   * `pending` for the desk to choose; everything else is saved on the spot.
+   */
+  const sendMove = useCallback(
+    async (move, pricing = null) => {
+      setError(null);
+      try {
+        const res = await fetch("/api/pms/reservations/move", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: move.id,
+            property_id: propertyId,
+            room_id: move.room_id,
+            check_in: move.check_in,
+            check_out: move.check_out,
+            ...(pricing ? { pricing } : {}),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not move the booking");
+
+        if (data.needsPricing) {
+          setPending({ move, plan: data.plan });
+          return;
+        }
+        setPending(null);
+      } catch (err) {
+        setPending(null);
+        setError(err.message);
+      }
+      // Reload either way: on success to pick up the move, on failure to snap
+      // the bar back to where it actually is.
+      await load();
+    },
+    [load, propertyId]
+  );
 
   function beginDrag(e, reservation, mode) {
     e.preventDefault();
@@ -229,28 +278,7 @@ export default function TapeChart({ session }) {
         return;
       }
 
-      setError(null);
-      try {
-        const res = await fetch("/api/pms/reservations/move", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: d.id,
-            property_id: propertyId,
-            room_id: d.preview.room_id,
-            check_in: d.preview.check_in,
-            check_out: d.preview.check_out,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Could not move the booking");
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        // Reload either way: on success to pick up the move, on failure to
-        // snap the bar back to where it actually is.
-        await load();
-      }
+      await sendMove({ id: d.id, ...d.preview });
     }
 
     window.addEventListener("pointermove", onMove);
@@ -259,11 +287,16 @@ export default function TapeChart({ session }) {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [drag, load, propertyId]);
+  }, [drag, sendMove]);
 
   /** Where a bar sits and how wide it is, in pixels across the date window. */
   function barGeometry(reservation) {
-    const d = drag?.id === reservation.id ? drag.preview : reservation;
+    const d =
+      drag?.id === reservation.id
+        ? drag.preview
+        : pending?.move.id === reservation.id
+          ? pending.move
+          : reservation;
 
     const offset = daysBetween(anchor, d.check_in);
     const nights = daysBetween(d.check_in, d.check_out);
@@ -719,6 +752,17 @@ export default function TapeChart({ session }) {
         </span>
       </div>
 
+      {pending && (
+        <PricingDialog
+          plan={pending.plan}
+          reservation={allRooms
+            .flatMap((r) => r.reservations)
+            .find((r) => r.id === pending.move.id)}
+          onChoose={(pricing) => sendMove(pending.move, pricing)}
+          onCancel={() => setPending(null)}
+        />
+      )}
+
       {(openId || newBooking) && (
         <BookingModal
           session={session}
@@ -732,6 +776,151 @@ export default function TapeChart({ session }) {
           onChanged={load}
         />
       )}
+    </div>
+  );
+}
+
+function formatMoney(value, currency = "INR") {
+  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
+  return `${symbol}${(Number(value) || 0).toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function nightLabel(date) {
+  return parseDateISO(date).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * The question a resize asks: what happens to the price?
+ *
+ * Both answers are shown with their real figures, because "adjust the total"
+ * means nothing until the desk can see it is ₹9,000 for two Saturday nights.
+ * Neither answer is assumed: closing the dialog cancels the move.
+ */
+function PricingDialog({ plan, reservation, onChoose, onCancel }) {
+  const [busy, setBusy] = useState(false);
+  const currency = reservation?.currency || "INR";
+  const longer = plan.added.length > 0;
+  const changed = longer ? plan.added : plan.removed;
+  const nights = changed.length;
+  const noun = `${nights} night${nights === 1 ? "" : "s"}`;
+  const estimated = plan.added.some((n) => n.estimated);
+
+  async function choose(pricing) {
+    setBusy(true);
+    await onChoose(pricing);
+    setBusy(false);
+  }
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        zIndex: 60,
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "4rem 1rem",
+      }}
+    >
+      <div
+        className="card card-pad space-y-3"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 460, background: "var(--surface)" }}
+      >
+        <div style={{ fontWeight: 600 }}>
+          {longer ? `Stay extended by ${noun}` : `Stay shortened by ${noun}`}
+          {reservation ? ` — ${reservation.guest_name}` : ""}
+        </div>
+
+        <table className="grid-table w-full text-sm">
+          <tbody>
+            {changed.map((n) => (
+              <tr key={n.stay_date}>
+                <td>
+                  {longer ? "+ " : "− "}
+                  {nightLabel(n.stay_date)}
+                  {n.estimated && (
+                    <span style={{ color: "var(--warn)", fontSize: "0.7rem" }}>
+                      {" "}
+                      · no rate set, stay average used
+                    </span>
+                  )}
+                </td>
+                <td className="text-right">{formatMoney(n.rate, currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div className="text-sm space-y-1">
+          <div className="flex justify-between">
+            <span style={{ color: "var(--text-muted)" }}>Room charge now</span>
+            <span>{formatMoney(plan.currentTotal, currency)}</span>
+          </div>
+          <div className="flex justify-between" style={{ fontWeight: 600 }}>
+            <span>{longer ? "If increased" : "If decreased"}</span>
+            <span>
+              {formatMoney(plan.adjustedTotal, currency)}{" "}
+              <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
+                ({plan.delta >= 0 ? "+" : "−"}
+                {formatMoney(Math.abs(plan.delta), currency)})
+              </span>
+            </span>
+          </div>
+        </div>
+
+        {estimated && (
+          <p className="sub" style={{ fontSize: "0.7rem" }}>
+            The Channel Manager has no rate for some of the new nights, so they are
+            priced at this stay&apos;s average night. You can change any night
+            afterwards in the booking&apos;s Inclusions tab.
+          </p>
+        )}
+
+        <p className="sub" style={{ fontSize: "0.7rem" }}>
+          {longer
+            ? "Keeping the amount adds the new nights at no charge."
+            : "Keeping the amount records the dropped nights as a retention charge on the folio, so the total stays the same."}
+        </p>
+
+        <div className="flex flex-wrap gap-2 justify-end">
+          <button className="btn btn-ghost text-sm" disabled={busy} onClick={onCancel}>
+            Cancel move
+          </button>
+          <button
+            className="btn btn-secondary text-sm"
+            disabled={busy}
+            onClick={() => choose("keep")}
+          >
+            Keep {formatMoney(plan.currentTotal, currency)}
+          </button>
+          <button
+            className="btn btn-primary text-sm"
+            disabled={busy}
+            onClick={() => choose("adjust")}
+          >
+            {longer ? "Increase" : "Decrease"} to {formatMoney(plan.adjustedTotal, currency)}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

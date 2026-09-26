@@ -2402,8 +2402,12 @@ export async function getReservation(id) {
  * Called on create and on any edit that moves the dates. Replacing wholesale
  * rather than diffing keeps the nights table a pure function of the
  * reservation's dates, which is the property the availability count relies on.
+ *
+ * `rates` maps a date to what that night costs. Dates it does not cover fall
+ * back to an even share of the total, which is the honest answer when the
+ * price was only ever recorded as one figure.
  */
-async function writeNights(reservation, { rate = null } = {}) {
+async function writeNights(reservation, { rate = null, rates = null } = {}) {
   const { error: clearError } = await supabase
     .from('reservation_nights')
     .delete()
@@ -2424,13 +2428,17 @@ async function writeNights(reservation, { rate = null } = {}) {
       ? Number(reservation.total_amount) / nights.length
       : null);
 
-  const rows = nights.map((stay_date) => ({
-    reservation_id: reservation.id,
-    stay_date,
-    room_type_id: reservation.room_type_id,
-    room_id: reservation.room_id || null,
-    rate: perNight != null ? Number(perNight.toFixed(2)) : null,
-  }));
+  const rows = nights.map((stay_date) => {
+    const own = rates?.[stay_date];
+    const value = own != null && Number.isFinite(Number(own)) ? Number(own) : perNight;
+    return {
+      reservation_id: reservation.id,
+      stay_date,
+      room_type_id: reservation.room_type_id,
+      room_id: reservation.room_id || null,
+      rate: value != null ? Number(value.toFixed(2)) : null,
+    };
+  });
 
   if (rows.length === 0) return 0;
 
@@ -2440,12 +2448,38 @@ async function writeNights(reservation, { rate = null } = {}) {
 }
 
 /**
+ * A night-by-night breakdown the caller supplied, if it can be trusted.
+ *
+ * Accepted only when it covers exactly the stay's nights and adds up to the
+ * stay's total -- a breakdown that disagrees with the total it came with would
+ * make the folio's arithmetic lie, which is the thing it exists not to do.
+ * Returns a date -> rate map, or null to fall back to spreading the total.
+ */
+export function acceptNightRates(nightRates, checkIn, checkOut, total) {
+  if (!Array.isArray(nightRates) || total == null || total === '') return null;
+
+  const dates = nightsBetween(checkIn, checkOut);
+  const map = {};
+  for (const n of nightRates) {
+    const value = Number(n?.rate);
+    if (!n?.stay_date || !Number.isFinite(value) || value < 0) return null;
+    map[n.stay_date] = value;
+  }
+
+  if (dates.length !== Object.keys(map).length) return null;
+  if (!dates.every((d) => d in map)) return null;
+
+  const sum = dates.reduce((acc, d) => acc + map[d], 0);
+  return Math.abs(sum - Number(total)) < 0.01 ? map : null;
+}
+
+/**
  * Create a reservation and the nights it occupies.
  *
  * The reference can collide, so a duplicate is retried with a fresh one
  * rather than surfacing a constraint error the hotelier cannot act on.
  */
-export async function createReservation(row, { rate = null } = {}) {
+export async function createReservation(row, { rate = null, rates = null } = {}) {
   let lastError = null;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -2458,7 +2492,7 @@ export async function createReservation(row, { rate = null } = {}) {
       .single();
 
     if (!error) {
-      await writeNights(data, { rate });
+      await writeNights(data, { rate, rates });
       return getReservation(data.id);
     }
 
@@ -2481,8 +2515,20 @@ export async function createReservation(row, { rate = null } = {}) {
  *
  * Dates, room type and assigned room all feed the nights rows, so a change to
  * any of them makes the stored nights stale.
+ *
+ * What each night costs is carried across rather than re-spread wherever the
+ * edit did not change it. The Details form re-sends every field on save, and
+ * re-spreading the total on every save would flatten a weekend rate or a
+ * night the desk re-priced by hand into an average nobody chose.
+ *
+ *   `rates` given          the caller priced the stay night by night
+ *   same dates, same total each night keeps what it cost
+ *   same dates, new total  each night is scaled, so the shape survives
+ *   anything else          the total is spread evenly, as before
  */
-export async function updateReservation(id, updates) {
+export async function updateReservation(id, updates, { rates = null } = {}) {
+  const before = await getReservation(id);
+
   const { data, error } = await supabase
     .from('reservations')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -2495,9 +2541,258 @@ export async function updateReservation(id, updates) {
   const touchesNights = ['check_in', 'check_out', 'room_type_id', 'room_id', 'total_amount'].some(
     (k) => k in updates
   );
-  if (touchesNights) await writeNights(data);
+
+  if (touchesNights) {
+    let carried = rates;
+
+    const sameDates =
+      before.check_in === data.check_in && before.check_out === data.check_out;
+    const oldRates = {};
+    for (const n of before.reservation_nights || []) {
+      if (n.rate != null) oldRates[n.stay_date] = Number(n.rate);
+    }
+    const oldCount = Object.keys(oldRates).length;
+    const oldSum = Object.values(oldRates).reduce((a, b) => a + b, 0);
+    const complete = oldCount > 0 && oldCount === (before.reservation_nights || []).length;
+
+    if (!carried && sameDates && complete) {
+      const newTotal = data.total_amount == null ? null : Number(data.total_amount);
+      if (newTotal == null || Math.abs(newTotal - oldSum) < 0.01) {
+        carried = oldRates;
+      } else if (oldSum > 0) {
+        carried = scaleRates(oldRates, newTotal);
+      }
+    }
+
+    await writeNights(data, { rates: carried });
+  }
 
   return getReservation(id);
+}
+
+/**
+ * Scale a date -> rate map to a new total, keeping its proportions.
+ *
+ * Rounded to the paisa, with the rounding left over put on the last night so
+ * the nights still add up to exactly the total they were scaled to.
+ */
+function scaleRates(rates, total) {
+  const dates = Object.keys(rates).sort();
+  const sum = dates.reduce((acc, d) => acc + rates[d], 0);
+  const out = {};
+  let running = 0;
+  dates.forEach((d, i) => {
+    if (i === dates.length - 1) {
+      out[d] = Number((total - running).toFixed(2));
+    } else {
+      out[d] = Number(((rates[d] / sum) * total).toFixed(2));
+      running += out[d];
+    }
+  });
+  return out;
+}
+
+/**
+ * What each night of a stay costs, as the stay stands now.
+ *
+ * Nights recorded without a rate -- an OTA booking that arrived as one total
+ * -- are given an even share of that total, the same way the nights were
+ * written in the first place.
+ */
+function currentNightRates(reservation) {
+  const nights = [...(reservation.reservation_nights || [])].sort((a, b) =>
+    a.stay_date.localeCompare(b.stay_date)
+  );
+  const total = Number(reservation.total_amount) || 0;
+  const share = nights.length > 0 ? total / nights.length : 0;
+  return nights.map((n) => ({
+    stay_date: n.stay_date,
+    rate: n.rate != null ? Number(n.rate) : Number(share.toFixed(2)),
+  }));
+}
+
+/**
+ * What changing a stay's dates does to its price, before anything is saved.
+ *
+ * The calendar used to move a stay and leave its total alone, so dragging a
+ * three-night bar out to five gave the guest two nights free without anyone
+ * deciding that. This works the change out night by night instead:
+ *
+ *   A move that keeps the length (drag the whole bar) carries each night's
+ *   rate across in order. It is the same stay on different dates, and the desk
+ *   did not ask for it to be re-priced.
+ *
+ *   A resize keeps the nights that survive at what they cost, prices each new
+ *   night from the Channel Manager exactly as a new booking would be quoted,
+ *   and lists the nights that fall away with what they were worth.
+ *
+ * The desk then chooses: adjust the total by the difference, or keep it. The
+ * result carries both outcomes so the dialog can show real figures for each.
+ */
+export async function planStayChange(reservation, { check_in, check_out, room_type_id }) {
+  const current = currentNightRates(reservation);
+  const oldTotal = Number(reservation.total_amount) || 0;
+  const newDates = nightsBetween(check_in, check_out);
+  const typeId = room_type_id || reservation.room_type_id;
+
+  // Same length: the stay slid along the chart. Night i keeps night i's rate.
+  if (newDates.length === current.length) {
+    return {
+      lengthChanged: false,
+      nights: newDates.map((stay_date, i) => ({
+        stay_date,
+        rate: current[i]?.rate ?? 0,
+        state: 'kept',
+      })),
+      added: [],
+      removed: [],
+      currentTotal: oldTotal,
+      adjustedTotal: oldTotal,
+      delta: 0,
+    };
+  }
+
+  const byDate = {};
+  for (const n of current) byDate[n.stay_date] = n.rate;
+
+  const addedDates = newDates.filter((d) => !(d in byDate));
+  const removed = current.filter((n) => !newDates.includes(n.stay_date));
+
+  // New nights are quoted exactly as a new booking would be, so an extension
+  // is charged what the channels are selling that night for.
+  let quoted = {};
+  let source = null;
+  if (addedDates.length > 0) {
+    const quote = await quoteReservation({
+      property_id: reservation.property_id,
+      room_type_id: typeId,
+      rate_plan_id: reservation.rate_plan_id,
+      check_in,
+      check_out,
+      adults: reservation.adults,
+      children: reservation.children,
+    }).catch(() => null);
+    for (const n of quote?.nights || []) {
+      if (n.rate != null) quoted[n.stay_date] = n.rate;
+    }
+    source = quote?.source || null;
+  }
+
+  // A night nothing is configured for is priced at the stay's own average
+  // night, and flagged, rather than silently becoming free.
+  const average = current.length > 0 ? oldTotal / current.length : 0;
+
+  const nights = newDates.map((stay_date) => {
+    if (stay_date in byDate) return { stay_date, rate: byDate[stay_date], state: 'kept' };
+    const hit = quoted[stay_date];
+    return hit != null
+      ? { stay_date, rate: hit, state: 'added' }
+      : { stay_date, rate: Number(average.toFixed(2)), state: 'added', estimated: true };
+  });
+
+  const added = nights.filter((n) => n.state === 'added');
+  const adjustedTotal = Number(nights.reduce((sum, n) => sum + n.rate, 0).toFixed(2));
+
+  return {
+    lengthChanged: true,
+    nights,
+    added,
+    removed,
+    source,
+    currentTotal: oldTotal,
+    adjustedTotal,
+    delta: Number((adjustedTotal - oldTotal).toFixed(2)),
+  };
+}
+
+/**
+ * Apply a planned stay change, with the pricing the desk chose.
+ *
+ *   'adjust'  the total becomes the sum of the new nights
+ *   'keep'    the guest pays what they were paying: added nights go on at
+ *             nothing, and nights taken away are kept as a retention charge
+ *             on the folio, so the total stands and the breakdown still says
+ *             where every rupee comes from
+ *
+ * In both cases the reservation's total is the sum of its nights, which is
+ * what lets the Inclusions tab show how the total was arrived at.
+ */
+export async function applyStayChange(id, updates, plan, pricing = 'adjust') {
+  const keep = pricing === 'keep' && plan.lengthChanged;
+
+  const rates = {};
+  for (const n of plan.nights) {
+    rates[n.stay_date] = keep && n.state === 'added' ? 0 : n.rate;
+  }
+  const total = Number(Object.values(rates).reduce((a, b) => a + b, 0).toFixed(2));
+
+  const reservation = await updateReservation(
+    id,
+    { ...updates, total_amount: total },
+    { rates }
+  );
+
+  if (keep && plan.removed.length > 0) {
+    const retained = plan.removed.reduce((sum, n) => sum + n.rate, 0);
+    if (retained > 0) {
+      const readable = (d) =>
+        new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', {
+          day: 'numeric',
+          month: 'short',
+          timeZone: 'UTC',
+        });
+      const first = readable(plan.removed[0].stay_date);
+      const last = readable(plan.removed[plan.removed.length - 1].stay_date);
+      await addReservationExtra(id, {
+        name: `Retained — shortened stay (${first === last ? first : `${first} to ${last}`})`,
+        unit_price: Number(retained.toFixed(2)),
+        quantity: 1,
+        kind: 'extra',
+      });
+    }
+  }
+
+  return reservation;
+}
+
+/**
+ * Re-price one night of a stay by hand.
+ *
+ * The total follows: it is the sum of the nights, and letting the two drift
+ * apart would make the folio's "how this adds up" a claim rather than a sum.
+ */
+export async function setNightRate(reservationId, stayDate, rate) {
+  const value = Number(rate);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error('A night cannot cost less than nothing.');
+  }
+
+  const { data, error } = await supabase
+    .from('reservation_nights')
+    .update({ rate: Number(value.toFixed(2)) })
+    .eq('reservation_id', reservationId)
+    .eq('stay_date', stayDate)
+    .select('stay_date');
+
+  if (error) throw new Error(`Failed to save the night: ${error.message}`);
+  if (!data || data.length === 0) throw new Error('That night is not part of this stay.');
+
+  const { data: nights, error: nightsError } = await supabase
+    .from('reservation_nights')
+    .select('rate')
+    .eq('reservation_id', reservationId);
+
+  if (nightsError) throw new Error(`Failed to re-total the stay: ${nightsError.message}`);
+
+  const total = (nights || []).reduce((sum, n) => sum + (Number(n.rate) || 0), 0);
+
+  const { error: totalError } = await supabase
+    .from('reservations')
+    .update({ total_amount: Number(total.toFixed(2)), updated_at: new Date().toISOString() })
+    .eq('id', reservationId);
+
+  if (totalError) throw new Error(`Failed to re-total the stay: ${totalError.message}`);
+  return true;
 }
 
 /**
@@ -2929,12 +3224,23 @@ export async function getReservationFolio(reservationId) {
 
   const total = room + extrasTotal;
 
+  // The room charge night by night, which is how the total is arrived at.
+  // `matches` is false only for a stay whose total was edited apart from its
+  // nights before nights carried their own rates; the tab says so rather than
+  // presenting a breakdown that does not add up.
+  const nights = [...(reservation.reservation_nights || [])]
+    .sort((a, b) => a.stay_date.localeCompare(b.stay_date))
+    .map((n) => ({ stay_date: n.stay_date, rate: n.rate == null ? null : Number(n.rate) }));
+  const nightsSum = nights.reduce((sum, n) => sum + (n.rate || 0), 0);
+
   return {
     reservation,
     guests,
     extras,
     payments,
     invoices,
+    nights,
+    nightsMatch: nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01,
     totals: {
       room,
       extras: Number(extrasTotal.toFixed(2)),
@@ -2970,6 +3276,26 @@ export async function listReservationInvoices(reservationId) {
 export async function createReservationInvoice(reservationId, userId = null) {
   const folio = await getReservationFolio(reservationId);
   const { reservation, totals } = folio;
+  const property = await getPropertyById(reservation.property_id).catch(() => null);
+  const roomName = reservation.room_types?.room_type_name || 'room';
+
+  // One line per night where the nights add up to the room charge, so the
+  // invoice shows how the total was reached; one line for the stay otherwise.
+  const roomLines = folio.nightsMatch && folio.nights.length > 0
+    ? folio.nights.map((n) => ({
+        description: `Accommodation — ${roomName}, night of ${n.stay_date}`,
+        quantity: 1,
+        unit_price: n.rate,
+        amount: n.rate,
+      }))
+    : [
+        {
+          description: `Accommodation — ${roomName} (${folio.nights.length} night${
+            folio.nights.length === 1 ? '' : 's'
+          })`,
+          amount: totals.room,
+        },
+      ];
 
   const year = new Date().getFullYear();
 
@@ -2983,6 +3309,21 @@ export async function createReservationInvoice(reservationId, userId = null) {
   }
 
   const snapshot = {
+    // The issuer as it stood on the day: a hotel that later changes its
+    // address must not change what an old invoice says it was issued from.
+    property: property
+      ? {
+          name: property.name,
+          address: property.address,
+          city: property.city,
+          state: property.state,
+          postal_code: property.postal_code,
+          country: property.country,
+          phone: property.phone,
+          email: property.email,
+        }
+      : null,
+    currency: reservation.currency || 'INR',
     guest_name: reservation.guest_name,
     guest_email: reservation.guest_email,
     guest_phone: reservation.guest_phone,
@@ -2993,11 +3334,9 @@ export async function createReservationInvoice(reservationId, userId = null) {
     room_number: reservation.rooms?.room_number || null,
     adults: reservation.adults,
     children: reservation.children,
+    rate_plan: reservation.rate_plans?.plan_name || null,
     lines: [
-      {
-        description: `Accommodation — ${reservation.room_types?.room_type_name || 'room'}`,
-        amount: totals.room,
-      },
+      ...roomLines,
       ...folio.extras
         .filter((e) => e.kind === 'extra')
         .map((e) => ({
@@ -3040,6 +3379,17 @@ export async function createReservationInvoice(reservationId, userId = null) {
   }
 
   throw new Error('Failed to issue the invoice: could not allocate a number.');
+}
+
+export async function getReservationInvoice(id) {
+  const { data, error } = await supabase
+    .from('reservation_invoices')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) throw new Error(`Failed to load the invoice: ${error.message}`);
+  return data;
 }
 
 /**

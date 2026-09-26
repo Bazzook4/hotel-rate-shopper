@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 /**
- * The tabs hanging off a booking: guests, extras, payments, invoices.
+ * The tabs hanging off a booking: guests, inclusions, payments, invoices.
  *
  * All four write through one endpoint that answers with the whole folio, so
  * the totals shown here can never drift from the rows they were added up
@@ -14,6 +14,16 @@ function money(value, currency = "INR") {
   const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
   const n = Number(value) || 0;
   return `${symbol}${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+/** "Sat 26 Sep" -- a night on the folio, read in the hotel's calendar. */
+function nightLabel(date) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
 }
 
 function when(iso) {
@@ -39,8 +49,31 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
   const [error, setError] = useState(null);
 
   const [guest, setGuest] = useState(null);
-  const [line, setLine] = useState({ extra_id: "", name: "", unit_price: "", quantity: 1 });
+  const [line, setLine] = useState({
+    extra_id: "",
+    name: "",
+    unit_price: "",
+    quantity: 1,
+    stay_date: "",
+  });
   const [payment, setPayment] = useState({ amount: "", method: "cash", reference: "" });
+
+  // Night rates being edited, keyed by date. A night is saved when its box
+  // loses focus, and only if the figure actually changed.
+  const [nightEdits, setNightEdits] = useState({});
+
+  async function saveNight(stay_date) {
+    const draft = nightEdits[stay_date];
+    if (draft === undefined) return;
+    const current = folio.nights.find((n) => n.stay_date === stay_date)?.rate;
+    if (draft !== "" && Number(draft) === Number(current)) {
+      setNightEdits(({ [stay_date]: _, ...rest }) => rest);
+      return;
+    }
+    if (await post("night", { stay_date, rate: draft })) {
+      setNightEdits(({ [stay_date]: _, ...rest }) => rest);
+    }
+  }
 
   async function post(kind, payload) {
     setBusy(true);
@@ -232,9 +265,122 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
         </div>
       )}
 
-      {/* ---------------- INCLUSIONS / EXTRAS ---------------- */}
+      {/* ---------------- INCLUSIONS: NIGHTS, SERVICES, HOW IT ADDS UP ---------------- */}
       {tab === "inclusions" && (
         <div className="space-y-3">
+          <div style={{ fontWeight: 600, fontSize: "0.8rem" }}>
+            Room charges, night by night
+          </div>
+
+          {folio.nights.length === 0 && (
+            <p className="sub">This stay has no nights recorded.</p>
+          )}
+
+          {folio.nights.length > 0 && (
+            <table className="grid-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left">Night</th>
+                  <th className="text-left">Services that night</th>
+                  <th className="text-right">Room rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {folio.nights.map((n) => {
+                  const dated = folio.extras.filter((e) => e.stay_date === n.stay_date);
+                  const draft = nightEdits[n.stay_date];
+                  return (
+                    <tr key={n.stay_date}>
+                      <td>{nightLabel(n.stay_date)}</td>
+                      <td style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
+                        {dated.length > 0
+                          ? dated
+                              .map((e) =>
+                                e.kind === "inclusion"
+                                  ? `${e.name} (included)`
+                                  : `${e.name} ${money(Number(e.unit_price) * Number(e.quantity), currency)}`
+                              )
+                              .join(", ")
+                          : "—"}
+                      </td>
+                      <td className="text-right">
+                        <input
+                          className="input text-sm"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={busy}
+                          value={draft !== undefined ? draft : n.rate ?? ""}
+                          placeholder="—"
+                          onChange={(e) =>
+                            setNightEdits((prev) => ({ ...prev, [n.stay_date]: e.target.value }))
+                          }
+                          onBlur={() => saveNight(n.stay_date)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                          }}
+                          style={{ maxWidth: 120, textAlign: "right", marginLeft: "auto" }}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+
+          {folio.nights.length > 0 && !folio.nightsMatch && (
+            <p className="sub" style={{ fontSize: "0.7rem", color: "var(--warn)" }}>
+              The nights do not add up to the room charge of{" "}
+              {money(folio.totals.room, currency)} — it was recorded as one figure.
+              Setting any night&apos;s rate makes the room charge the sum of the
+              nights.
+            </p>
+          )}
+
+          <div className="card card-pad space-y-1 text-sm">
+            <div style={{ fontWeight: 600, fontSize: "0.8rem", marginBottom: "0.25rem" }}>
+              How the total adds up
+            </div>
+            {[
+              [
+                `Room — ${folio.nights.length} night${folio.nights.length === 1 ? "" : "s"}`,
+                folio.totals.room,
+              ],
+              ["Services & extras", folio.totals.extras],
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between">
+                <span style={{ color: "var(--text-muted)" }}>{label}</span>
+                <span>{money(value, currency)}</span>
+              </div>
+            ))}
+            <div
+              className="flex justify-between"
+              style={{ borderTop: "1px solid var(--border)", paddingTop: "0.25rem", fontWeight: 600 }}
+            >
+              <span>Total</span>
+              <span>{money(folio.totals.total, currency)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span style={{ color: "var(--text-muted)" }}>Paid</span>
+              <span>− {money(folio.totals.paid, currency)}</span>
+            </div>
+            <div
+              className="flex justify-between"
+              style={{
+                fontWeight: 600,
+                color: folio.totals.balance > 0 ? "var(--warn)" : "var(--text)",
+              }}
+            >
+              <span>Balance</span>
+              <span>{money(folio.totals.balance, currency)}</span>
+            </div>
+          </div>
+
+          <div style={{ fontWeight: 600, fontSize: "0.8rem", paddingTop: "0.25rem" }}>
+            Services & extras
+          </div>
+
           {folio.extras.length === 0 && (
             <p className="sub">Nothing added to this stay yet.</p>
           )}
@@ -255,6 +401,12 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                   <tr key={e.id}>
                     <td>
                       {e.name}
+                      {e.stay_date && (
+                        <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
+                          {" "}
+                          · {nightLabel(e.stay_date)}
+                        </span>
+                      )}
                       {e.kind === "inclusion" && (
                         <span className="chip chip-ok ml-2" style={{ fontSize: "0.6rem" }}>
                           Included
@@ -336,13 +488,29 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                   onChange={(e) => setLine({ ...line, quantity: e.target.value })}
                 />
               </div>
+              <div>
+                <label className="label">Night</label>
+                <select
+                  className="input"
+                  value={line.stay_date}
+                  onChange={(e) => setLine({ ...line, stay_date: e.target.value })}
+                >
+                  <option value="">Whole stay</option>
+                  {folio.nights.map((n) => (
+                    <option key={n.stay_date} value={n.stay_date}>
+                      {nightLabel(n.stay_date)}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="flex items-end">
                 <button
                   className="btn btn-primary text-sm w-full"
                   disabled={busy}
                   onClick={async () => {
-                    if (await post("extra", { line })) {
-                      setLine({ extra_id: "", name: "", unit_price: "", quantity: 1 });
+                    const payload = { ...line, stay_date: line.stay_date || null };
+                    if (await post("extra", { line: payload })) {
+                      setLine({ extra_id: "", name: "", unit_price: "", quantity: 1, stay_date: "" });
                     }
                   }}
                 >
@@ -518,18 +686,27 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                     {inv.void_reason ? ` · ${inv.void_reason}` : ""}
                   </div>
                 </div>
-                {!inv.voided_at && (
-                  <button
-                    className="btn btn-ghost text-xs"
-                    disabled={busy}
-                    onClick={() => {
-                      const reason = window.prompt("Why is this invoice being voided?");
-                      if (reason !== null) remove("invoice", inv.id, reason);
-                    }}
+                <div className="flex items-center gap-1">
+                  <a
+                    className="btn btn-secondary text-xs"
+                    href={`/api/pms/invoice?id=${inv.id}`}
+                    download={`${inv.invoice_number}.pdf`}
                   >
-                    Void
-                  </button>
-                )}
+                    ↓ PDF
+                  </a>
+                  {!inv.voided_at && (
+                    <button
+                      className="btn btn-ghost text-xs"
+                      disabled={busy}
+                      onClick={() => {
+                        const reason = window.prompt("Why is this invoice being voided?");
+                        if (reason !== null) remove("invoice", inv.id, reason);
+                      }}
+                    >
+                      Void
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}

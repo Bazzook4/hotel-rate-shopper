@@ -299,6 +299,9 @@ export default function BookingForm({
         room_id: form.room_id || null,
         rate_plan_id: form.rate_plan_id || null,
         allow_overbook: allowOverbook,
+        // The quote's night-by-night prices, sent only while the total is
+        // the quoted one -- a typed total has no breakdown to go with it.
+        night_rates: !manualTotal && quote?.nights ? quote.nights : undefined,
         ...(reservation ? { id: reservation.id } : {}),
       };
 

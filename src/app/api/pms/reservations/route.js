@@ -6,6 +6,7 @@ import {
   updateReservation,
   deleteReservation,
   checkAvailability,
+  acceptNightRates,
 } from "@/lib/database";
 
 /** A date the database will accept, and that a person actually typed. */
@@ -119,12 +120,25 @@ export async function POST(req) {
       }
     }
 
-    const reservation = await createReservation({
-      ...bookingFields(body),
-      property_id: propertyId,
-      status: body.status || "confirmed",
-      created_by: session.userId,
-    });
+    // A quoted booking arrives with the price of each night, so the folio can
+    // show a Saturday at the Saturday rate rather than an even average.
+    const fields = bookingFields(body);
+    const rates = acceptNightRates(
+      body.night_rates,
+      fields.check_in,
+      fields.check_out,
+      fields.total_amount
+    );
+
+    const reservation = await createReservation(
+      {
+        ...fields,
+        property_id: propertyId,
+        status: body.status || "confirmed",
+        created_by: session.userId,
+      },
+      { rates }
+    );
 
     return NextResponse.json({ reservation });
   } catch (err) {
@@ -175,7 +189,15 @@ export async function PATCH(req) {
       }
     }
 
-    const reservation = await updateReservation(id, bookingFields(body));
+    const fields = bookingFields(body);
+    const rates = acceptNightRates(
+      body.night_rates,
+      fields.check_in,
+      fields.check_out,
+      fields.total_amount
+    );
+
+    const reservation = await updateReservation(id, fields, { rates });
     return NextResponse.json({ reservation });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

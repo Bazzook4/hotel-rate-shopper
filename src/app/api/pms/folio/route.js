@@ -10,10 +10,12 @@ import {
   deleteReservationPayment,
   createReservationInvoice,
   voidReservationInvoice,
+  setNightRate,
 } from "@/lib/database";
 
 /**
- * Everything hanging off one reservation: guests, extras, payments, invoices.
+ * Everything hanging off one reservation: guests, nights, extras, payments,
+ * invoices.
  *
  * One route rather than four, because the booking modal opens all of them at
  * once and closing four round trips into one is the difference between the
@@ -95,6 +97,21 @@ export async function POST(req) {
           );
         }
         await addReservationPayment(reservationId, body.payment, session.userId);
+        break;
+      }
+
+      case "night": {
+        const rate = Number(body.rate);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(body.stay_date || "")) {
+          return NextResponse.json({ error: "Which night?" }, { status: 400 });
+        }
+        if (body.rate === "" || !Number.isFinite(rate) || rate < 0) {
+          return NextResponse.json(
+            { error: "Enter what the night costs — zero or more." },
+            { status: 400 }
+          );
+        }
+        await setNightRate(reservationId, body.stay_date, rate);
         break;
       }
 
