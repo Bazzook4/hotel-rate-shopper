@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { handleExpiredSession } from "@/lib/authRedirect";
 
 /**
  * Entering or editing a booking.
@@ -58,9 +59,10 @@ function toForm(reservation) {
 
 /** Where a quoted price came from, in the desk's language rather than ours. */
 const SOURCE_LABEL = {
-  daily_rates: "from the rate calendar",
+  daily_rates: "live channel manager rate",
+  derived: "derived from the master plan",
   rate_plan: "from the rate plan",
-  base_price: "from the room's base price",
+  base_price: "room base price — not a channel rate",
 };
 
 /**
@@ -119,8 +121,15 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
 
   const perNight = nights > 0 ? Math.round(quote.total / nights) : null;
 
+  // A base-price quote is the one case the desk should not trust blindly: it
+  // is what the room costs in setup, not what the channels are selling.
+  const weak = quote.source === "base_price";
+
   return (
-    <p className="sub" style={{ fontSize: "0.7rem" }}>
+    <p
+      className="sub"
+      style={{ fontSize: "0.7rem", color: weak ? "var(--warn)" : undefined }}
+    >
       {SOURCE_LABEL[quote.source] || "from configured rates"}
       {perNight != null && nights > 1 && (
         <> · {perNight.toLocaleString("en-IN")}/night × {nights}</>
@@ -297,7 +306,22 @@ export default function BookingForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+
+      // A session that expired while the form was open sends the desk to sign
+      // in and back, rather than failing a booking they have already typed.
+      if (handleExpiredSession(res)) return;
+
+      // A response that is not JSON means something answered in front of the
+      // route -- a proxy, an error page. Reading it as JSON throws a parser
+      // message that tells the desk nothing, so the status is reported instead.
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(
+          `The server did not answer properly (${res.status}). Try again.`
+        );
+      }
 
       if (res.status === 409 && data.availability) {
         setConflict(data.error);
