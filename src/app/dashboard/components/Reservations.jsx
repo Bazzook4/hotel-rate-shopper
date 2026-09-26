@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingForm from "./BookingForm";
+import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -198,6 +199,8 @@ export default function Reservations({ session }) {
       setReservations((prev) =>
         prev.map((r) => (r.id === reservation.id ? data.reservation : r))
       );
+      const warning = inventoryWarning(data);
+      if (warning) setError(warning);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -279,6 +282,8 @@ export default function Reservations({ session }) {
           : "No new OTA bookings to import."
       );
       await load();
+      const warning = inventoryWarning(data);
+      if (warning) setError(warning);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -296,11 +301,13 @@ export default function Reservations({ session }) {
     setFormOpen(true);
   }
 
-  async function afterSave(message) {
+  async function afterSave(message, warning) {
     setFormOpen(false);
     setEditing(null);
     setNotice(message);
     await load();
+    // After the reload, which clears errors, so the warning stays up.
+    if (warning) setError(warning);
   }
 
   return (

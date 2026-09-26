@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import {
+  adoptPartnerReservations,
   getIntegrationByWebhookToken,
   recordPartnerReservation,
   recordSyncLog,
 } from "@/lib/database";
+import { syncInventory } from "@/lib/inventorySync";
 
 /**
  * Inbound reservations from a channel manager.
@@ -13,6 +15,12 @@ import {
  * path is what authenticates it, and it must be treated as a credential.
  *
  * Aiosell posts book, modify and cancel to the endpoint we supply.
+ *
+ * The raw booking is recorded first and acknowledged, so a fault further on
+ * can never make the partner think the booking was lost. Then, after the
+ * answer has gone, the booking is adopted into the PMS and the new
+ * availability is pushed back out -- the channel that sold the room already
+ * knows, but every other channel learns it from that push.
  */
 
 const ACTIONS = { book: "book", modify: "modify", cancel: "cancel" };
@@ -39,10 +47,18 @@ function summarise(body) {
       [guest.firstName, guest.lastName].filter(Boolean).join(" ") ||
       b.guestName ||
       null,
-    check_in: b.checkIn || b.check_in || b.arrival || null,
-    check_out: b.checkOut || b.check_out || b.departure || null,
-    amount: Number(b.amount ?? b.totalAmount ?? b.total ?? NaN),
-    currency: b.currency || null,
+    // Aiosell spells these all in lower case.
+    check_in: b.checkin || b.checkIn || b.check_in || b.arrival || null,
+    check_out: b.checkout || b.checkOut || b.check_out || b.departure || null,
+    // Aiosell sends the amount as an object with and without tax; the guest
+    // pays the figure after tax.
+    amount: Number(
+      typeof b.amount === "object" && b.amount !== null
+        ? b.amount.amountAfterTax ?? b.amount.amountBeforeTax ?? NaN
+        : b.amount ?? b.totalAmount ?? b.total ?? NaN
+    ),
+    currency:
+      (typeof b.amount === "object" && b.amount?.currency) || b.currency || null,
   };
 }
 
@@ -123,6 +139,12 @@ export async function POST(req, { params }) {
 
     await recordSyncLog({ ...logBase, status: "success", request: body });
 
+    if (summary.partner_booking_id) {
+      after(() =>
+        adoptAndPush(integration.property_id, integration.id, summary.partner_booking_id)
+      );
+    }
+
     // Partners generally expect a simple acknowledgement.
     return NextResponse.json({ success: true, message: "Reservation received" });
   } catch (err) {
@@ -134,6 +156,45 @@ export async function POST(req, { params }) {
       request: body,
     });
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+/**
+ * Fold one booking into the PMS and push what it changed.
+ *
+ * Failures are logged rather than thrown: the booking is already safe in the
+ * raw log, and the Adopt button on the Reservations page picks it up again.
+ */
+async function adoptAndPush(propertyId, integrationId, bookingId) {
+  try {
+    const result = await adoptPartnerReservations(propertyId, { bookingIds: [bookingId] });
+    if (result.reasons.length) {
+      await recordSyncLog({
+        property_id: propertyId,
+        integration_id: integrationId,
+        kind: "reservation",
+        direction: "in",
+        status: "skipped",
+        source: "pms",
+        summary: `Booking #${bookingId} not adopted`,
+        error: result.reasons.join("; "),
+      });
+    }
+    if (result.touched.length) {
+      await syncInventory(propertyId, result.touched, { actor: "OTA booking" });
+    }
+  } catch (err) {
+    console.error(`Adopting booking ${bookingId} failed`, err);
+    await recordSyncLog({
+      property_id: propertyId,
+      integration_id: integrationId,
+      kind: "reservation",
+      direction: "in",
+      status: "failed",
+      source: "pms",
+      summary: `Booking #${bookingId} could not be adopted — use Adopt on the Reservations page`,
+      error: err.message,
+    });
   }
 }
 

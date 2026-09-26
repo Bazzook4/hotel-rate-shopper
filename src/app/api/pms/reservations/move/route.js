@@ -6,6 +6,7 @@ import {
   applyStayChange,
   getSupabaseAdmin,
 } from "@/lib/database";
+import { syncInventory, staySpan } from "@/lib/inventorySync";
 
 /**
  * Moving or resizing a stay by dragging it on the tape chart.
@@ -148,7 +149,16 @@ export async function POST(req) {
     }
 
     const reservation = await applyStayChange(id, updates, plan, body.pricing);
-    return NextResponse.json({ reservation });
+
+    // A drag can change the nights and the room type at once; the old span
+    // is sent too, so whatever the stay let go of is reopened.
+    const inventory = await syncInventory(
+      propertyId,
+      [staySpan(current), staySpan(reservation)],
+      { session }
+    );
+
+    return NextResponse.json({ reservation, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

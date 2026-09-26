@@ -2440,24 +2440,43 @@ const OCCUPYING_STATUSES = ['confirmed', 'in_house', 'checked_out'];
  * exists: a stay spanning the window's edge must still count on the dates it
  * covers. Cancellations and no-shows are excluded -- they released the room.
  *
- * Returns a map of `<roomTypeId>|<date>` -> count.
+ * Returns a map of `<roomTypeId>|<date>` -> count. `roomTypeIds` narrows it
+ * to some room types, for a caller that only needs the ones that changed.
+ *
+ * Read in pages: PostgREST caps a response at 1000 rows, and a 231-room hotel
+ * passes that in under a week of good occupancy. Without paging the count
+ * would stop short silently, and a short count is a room sold twice.
  */
-export async function getSoldCounts(propertyId, startDate, endDate) {
-  const { data, error } = await supabase
-    .from('reservation_nights')
-    .select('stay_date, room_type_id, reservations!inner(property_id, status)')
-    .eq('reservations.property_id', propertyId)
-    .in('reservations.status', OCCUPYING_STATUSES)
-    .gte('stay_date', startDate)
-    .lte('stay_date', endDate);
-
-  if (error) throw new Error(`Failed to load occupancy: ${error.message}`);
-
+export async function getSoldCounts(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
+  const PAGE = 1000;
   const sold = {};
-  for (const row of data || []) {
-    const key = `${row.room_type_id}|${row.stay_date}`;
-    sold[key] = (sold[key] || 0) + 1;
+
+  for (let offset = 0; ; offset += PAGE) {
+    let query = supabase
+      .from('reservation_nights')
+      .select('reservation_id, stay_date, room_type_id, reservations!inner(property_id, status)')
+      .eq('reservations.property_id', propertyId)
+      .in('reservations.status', OCCUPYING_STATUSES)
+      .gte('stay_date', startDate)
+      .lte('stay_date', endDate);
+    if (Array.isArray(roomTypeIds) && roomTypeIds.length > 0) {
+      query = query.in('room_type_id', roomTypeIds);
+    }
+
+    // A stable order is what makes the pages add up to the whole.
+    const { data, error } = await query
+      .order('reservation_id')
+      .order('stay_date')
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`Failed to load occupancy: ${error.message}`);
+
+    for (const row of data || []) {
+      const key = `${row.room_type_id}|${row.stay_date}`;
+      sold[key] = (sold[key] || 0) + 1;
+    }
+    if (!data || data.length < PAGE) break;
   }
+
   return sold;
 }
 
@@ -3031,6 +3050,70 @@ export async function deleteReservation(id) {
 }
 
 /**
+ * The rooms an OTA booking asked for, read from what the partner sent.
+ *
+ * Aiosell sends a `rooms` array, one entry per room booked, each naming its
+ * room code, occupancy and a price per night. Field names are read loosely,
+ * as the webhook's are, since the payload has only been seen in the partner's
+ * documentation. A booking with no rooms array is treated as one room.
+ */
+function readPartnerRooms(payload) {
+  const b = payload?.booking || payload?.reservation || payload || {};
+  const list = Array.isArray(b.rooms) ? b.rooms : Array.isArray(b.roomStays) ? b.roomStays : [];
+
+  return list.map((r) => {
+    const occupancy = r?.occupancy || {};
+    const prices = {};
+    for (const p of Array.isArray(r?.prices) ? r.prices : []) {
+      const value = Number(p?.sellRate ?? p?.rate ?? p?.amount);
+      if (p?.date && Number.isFinite(value)) prices[p.date] = value;
+    }
+    const adults = Number(occupancy.adults ?? r?.adults);
+    const children = Number(occupancy.children ?? r?.children);
+    return {
+      roomCode: r?.roomCode || r?.room_code || r?.roomTypeCode || null,
+      adults: Number.isFinite(adults) && adults > 0 ? adults : null,
+      children: Number.isFinite(children) && children >= 0 ? children : null,
+      prices: Object.keys(prices).length > 0 ? prices : null,
+    };
+  });
+}
+
+/** Stay dates from the stored row, or from the payload for rows logged before they were read. */
+function partnerStayDates(row) {
+  const b = row.payload?.booking || row.payload?.reservation || row.payload || {};
+  return {
+    check_in: row.check_in || b.checkin || b.checkIn || b.check_in || b.arrival || null,
+    check_out: row.check_out || b.checkout || b.checkOut || b.check_out || b.departure || null,
+  };
+}
+
+/**
+ * The reservation id each room of a booking is kept under.
+ *
+ * The first room keeps the booking id itself, so single-room bookings --
+ * nearly all of them, and all adopted before rooms were split -- still match.
+ */
+function partnerRoomKey(bookingId, index) {
+  return index === 0 ? bookingId : `${bookingId}#${index + 1}`;
+}
+
+/** The reservations already adopted from one booking, every room of it. */
+async function listAdoptedForBooking(propertyId, bookingId) {
+  const pattern = `${bookingId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('*')
+    .eq('property_id', propertyId)
+    .like('partner_booking_id', pattern);
+
+  if (error) throw new Error(`Failed to match existing reservations: ${error.message}`);
+  return (data || []).filter(
+    (r) => r.partner_booking_id === bookingId || r.partner_booking_id.startsWith(`${bookingId}#`)
+  );
+}
+
+/**
  * Turn inbound partner bookings into PMS reservations.
  *
  * `partner_reservations` is a raw log of what the channel manager sent: one
@@ -3039,71 +3122,88 @@ export async function deleteReservation(id) {
  * adoption folds the log down rather than copying it row for row -- the
  * newest row per booking id wins, and its action decides what happens.
  *
+ * Runs on each webhook call for the booking that arrived, and from the Adopt
+ * button for anything that did not make it through. Either way the PMS must
+ * hold every OTA booking before it next pushes availability: a count that
+ * leaves one out reopens a room the OTA already sold.
+ *
+ * Each room of a multi-room booking becomes its own reservation, since a
+ * reservation holds one room a night and availability counts nights. The room
+ * type comes from the partner room code through the Integrations mapping; an
+ * unmapped code falls back to the first room type, flagged for the desk.
+ *
  * Bookings missing dates are skipped and reported rather than guessed at: a
  * stay with no arrival is not something the front desk can work with, and
  * inventing one would quietly corrupt availability.
+ *
+ * Returns the counts, plus `touched` -- the nights each change affected, as
+ * they were and as they are -- for the caller to push.
  */
-export async function adoptPartnerReservations(propertyId, { limit = 200 } = {}) {
-  const { data: inbound, error } = await supabase
+export async function adoptPartnerReservations(propertyId, { bookingIds = null, limit = 500 } = {}) {
+  let query = supabase
     .from('partner_reservations')
     .select('*')
     .eq('property_id', propertyId)
-    .order('received_at', { ascending: true })
+    .order('received_at', { ascending: false })
     .limit(limit);
+  if (Array.isArray(bookingIds) && bookingIds.length > 0) {
+    query = query.in('partner_booking_id', bookingIds);
+  }
 
+  const { data: inbound, error } = await query;
   if (error) throw new Error(`Failed to load partner reservations: ${error.message}`);
 
-  // Ascending order means a later row overwrites an earlier one, leaving the
-  // most recent state of each booking.
+  // Newest first, so the first row seen for a booking is its current state.
+  // Reading newest-first also means a long history cannot push new bookings
+  // past the limit and out of reach.
   const latest = new Map();
   for (const row of inbound || []) {
-    if (!row.partner_booking_id) continue;
+    if (!row.partner_booking_id || latest.has(row.partner_booking_id)) continue;
     latest.set(row.partner_booking_id, row);
   }
 
-  if (latest.size === 0) {
-    return { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [] };
-  }
+  const result = { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [], touched: [] };
+  if (latest.size === 0) return result;
 
-  const { data: existingRows, error: existingError } = await supabase
-    .from('reservations')
-    .select('id, partner_booking_id, status')
-    .eq('property_id', propertyId)
-    .in('partner_booking_id', [...latest.keys()]);
-
-  if (existingError) {
-    throw new Error(`Failed to match existing reservations: ${existingError.message}`);
-  }
-
-  const existing = new Map(
-    (existingRows || []).map((r) => [r.partner_booking_id, r])
-  );
-
-  // An OTA booking names a room type only in free text, if at all, so the
-  // adopted stay lands on the property's first room type and is flagged for
-  // the front desk to correct. Guessing by name matching would be worse:
-  // a wrong match is harder to notice than an obvious default.
   const roomTypes = await listRoomTypes(propertyId);
   const fallbackRoomType = roomTypes[0];
 
-  const result = { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [] };
+  const found = await getPropertyIntegration(propertyId, 'aiosell').catch(() => null);
+  const typeByCode = {};
+  for (const row of found?.codeMap || []) {
+    if (!row.rate_plan_id && row.room_type_id && row.partner_room_code) {
+      typeByCode[String(row.partner_room_code).toLowerCase()] = row.room_type_id;
+    }
+  }
+
+  const span = (r) =>
+    r?.room_type_id && r.check_in && r.check_out
+      ? { roomTypeId: r.room_type_id, from: r.check_in, to: nightsBetween(r.check_in, r.check_out).pop() }
+      : null;
+
+  const cancel = async (reservation) => {
+    if (reservation.status === 'cancelled') return false;
+    await setReservationStatus(reservation.id, 'cancelled');
+    result.touched.push(span(reservation));
+    return true;
+  };
 
   for (const [bookingId, row] of latest) {
-    const match = existing.get(bookingId);
+    const adopted = await listAdoptedForBooking(propertyId, bookingId);
+    const byKey = new Map(adopted.map((r) => [r.partner_booking_id, r]));
 
     if (row.action === 'cancel') {
-      if (match && match.status !== 'cancelled') {
-        await setReservationStatus(match.id, 'cancelled');
-        result.cancelled += 1;
-      } else if (!match) {
-        // A cancellation for a stay never adopted is not an error -- there is
-        // simply nothing to cancel.
-        result.skipped += 1;
-      }
+      let any = false;
+      for (const r of adopted) any = (await cancel(r)) || any;
+      if (any) result.cancelled += 1;
+      // A cancellation for a stay never adopted is not an error -- there is
+      // simply nothing to cancel.
+      else if (adopted.length === 0) result.skipped += 1;
       continue;
     }
 
-    if (!row.check_in || !row.check_out) {
+    const { check_in, check_out } = partnerStayDates(row);
+    if (!check_in || !check_out || check_out <= check_in) {
       result.skipped += 1;
       result.reasons.push(`${bookingId}: no stay dates in the booking`);
       continue;
@@ -3115,31 +3215,96 @@ export async function adoptPartnerReservations(propertyId, { limit = 200 } = {})
       continue;
     }
 
-    const fields = {
-      guest_name: row.guest_name || 'OTA guest',
-      check_in: row.check_in,
-      check_out: row.check_out,
-      total_amount: row.amount,
-      currency: row.currency || 'INR',
-      source: row.channel || 'OTA',
-    };
+    const rooms = readPartnerRooms(row.payload);
+    if (rooms.length === 0) rooms.push({ roomCode: null, adults: null, children: null, prices: null });
 
-    if (match) {
-      await updateReservation(match.id, fields);
-      result.updated += 1;
-    } else {
-      await createReservation({
-        ...fields,
-        property_id: propertyId,
-        room_type_id: fallbackRoomType.id,
-        partner_booking_id: bookingId,
-        status: 'confirmed',
-        notes: `Adopted from ${row.channel || 'the channel manager'} — confirm the room type.`,
-      });
-      result.created += 1;
+    const nights = nightsBetween(check_in, check_out);
+    let createdAny = false;
+    let updatedAny = false;
+
+    for (let i = 0; i < rooms.length; i += 1) {
+      const room = rooms[i];
+      const key = partnerRoomKey(bookingId, i);
+      const existing = byKey.get(key);
+      const mappedType = room.roomCode ? typeByCode[String(room.roomCode).toLowerCase()] : null;
+
+      // A room's own nightly prices are its amount when they cover the stay;
+      // otherwise the booking's total is shared evenly between its rooms.
+      const covered = room.prices && nights.every((d) => d in room.prices);
+      const amount = covered
+        ? Number(nights.reduce((sum, d) => sum + room.prices[d], 0).toFixed(2))
+        : row.amount != null
+        ? Number((Number(row.amount) / rooms.length).toFixed(2))
+        : null;
+      const rates = covered
+        ? acceptNightRates(
+            nights.map((d) => ({ stay_date: d, rate: room.prices[d] })),
+            check_in,
+            check_out,
+            amount
+          )
+        : null;
+
+      const fields = {
+        guest_name: row.guest_name || 'OTA guest',
+        check_in,
+        check_out,
+        total_amount: amount,
+        currency: row.currency || 'INR',
+        source: row.channel || 'OTA',
+        ...(room.adults ? { adults: room.adults } : {}),
+        ...(room.children != null ? { children: room.children } : {}),
+      };
+
+      if (existing) {
+        const updates = { ...fields };
+        // Only a mapped code may move the room type: a desk correction of a
+        // fallback must not be undone by the next modification.
+        if (mappedType && mappedType !== existing.room_type_id) {
+          updates.room_type_id = mappedType;
+          updates.room_id = null;
+        }
+        // A modification of a booking cancelled here means it is live again.
+        if (existing.status === 'cancelled') updates.status = 'confirmed';
+
+        const after = await updateReservation(existing.id, updates, { rates });
+        result.touched.push(span(existing), span(after));
+        updatedAny = true;
+      } else {
+        const note = mappedType
+          ? null
+          : room.roomCode
+          ? `Adopted from ${row.channel || 'the channel manager'} — its room "${room.roomCode}" is not mapped under Integrations; confirm the room type.`
+          : `Adopted from ${row.channel || 'the channel manager'} — confirm the room type.`;
+
+        const created = await createReservation(
+          {
+            ...fields,
+            property_id: propertyId,
+            room_type_id: mappedType || fallbackRoomType.id,
+            partner_booking_id: key,
+            status: 'confirmed',
+            notes: note,
+          },
+          { rates }
+        );
+        result.touched.push(span(created));
+        createdAny = true;
+      }
     }
+
+    // A modification that dropped rooms leaves their reservations behind;
+    // those rooms are no longer booked.
+    const keep = new Set(rooms.map((_, i) => partnerRoomKey(bookingId, i)));
+    for (const r of adopted) {
+      if (!keep.has(r.partner_booking_id)) await cancel(r);
+    }
+
+    if (createdAny) result.created += 1;
+    else if (updatedAny) result.updated += 1;
   }
 
+  result.touched = result.touched.filter(Boolean);
   return result;
 }
 
@@ -3150,12 +3315,16 @@ export async function adoptPartnerReservations(propertyId, { limit = 200 } = {})
  * calendar and a booking attempt can never disagree about whether a date is
  * full.
  */
-export async function getAvailabilityGrid(propertyId, startDate, endDate) {
-  const [roomTypes, rooms, sold] = await Promise.all([
+export async function getAvailabilityGrid(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
+  const [allTypes, rooms, sold] = await Promise.all([
     listRoomTypes(propertyId),
     listRooms(propertyId, { includeInactive: false }),
-    getSoldCounts(propertyId, startDate, endDate),
+    getSoldCounts(propertyId, startDate, endDate, { roomTypeIds }),
   ]);
+  const roomTypes =
+    Array.isArray(roomTypeIds) && roomTypeIds.length > 0
+      ? allTypes.filter((rt) => roomTypeIds.includes(rt.id))
+      : allTypes;
 
   const physicalByType = {};
   for (const room of rooms) {

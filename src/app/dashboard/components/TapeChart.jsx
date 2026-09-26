@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingModal from "./BookingModal";
+import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -57,6 +58,9 @@ export default function TapeChart({ session }) {
   const [extras, setExtras] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Kept apart from `error`, which every reload clears: a change saves and
+  // then reloads, and the warning that the OTAs missed it must outlive that.
+  const [syncWarning, setSyncWarning] = useState(null);
 
   const [openId, setOpenId] = useState(null);
   const [newBooking, setNewBooking] = useState(null);
@@ -189,6 +193,7 @@ export default function TapeChart({ session }) {
           return;
         }
         setPending(null);
+        setSyncWarning(inventoryWarning(data));
       } catch (err) {
         setPending(null);
         setError(err.message);
@@ -411,6 +416,18 @@ export default function TapeChart({ session }) {
           )}
         </div>
       </div>
+
+      {syncWarning && (
+        <div
+          className="card card-pad text-sm flex items-start gap-3"
+          style={{ borderColor: "var(--warn)", background: "var(--warn-soft)", color: "var(--warn)" }}
+        >
+          <span className="flex-1">{syncWarning}</span>
+          <button type="button" className="muted" onClick={() => setSyncWarning(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {error && (
         <div
@@ -773,7 +790,10 @@ export default function TapeChart({ session }) {
             setOpenId(null);
             setNewBooking(null);
           }}
-          onChanged={load}
+          onChanged={(warning) => {
+            if (warning) setSyncWarning(warning);
+            load();
+          }}
         />
       )}
     </div>

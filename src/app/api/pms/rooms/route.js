@@ -9,6 +9,7 @@ import {
   deleteRoom,
   reorderRooms,
 } from "@/lib/database";
+import { syncInventoryForward } from "@/lib/inventorySync";
 
 /**
  * The physical rooms a property owns.
@@ -31,6 +32,19 @@ async function requireSetup(req) {
     };
   }
   return { session };
+}
+
+/**
+ * Push the new availability of room types whose room count just changed.
+ *
+ * Once a room type has numbered rooms, those rooms are its capacity, so
+ * adding one, taking one out of order or deleting one changes what every
+ * future night can sell.
+ */
+function pushCapacity(propertyId, roomTypeIds, session) {
+  const ids = [...new Set(roomTypeIds.filter(Boolean))];
+  if (ids.length === 0) return null;
+  return syncInventoryForward(propertyId, ids, { session });
 }
 
 export async function GET(req) {
@@ -103,7 +117,8 @@ export async function POST(req) {
         prefix: prefix || "",
         floor: floor || null,
       });
-      return NextResponse.json({ rooms, created: rooms.length });
+      const inventory = await pushCapacity(propertyId, [body.room_type_id], session);
+      return NextResponse.json({ rooms, created: rooms.length, inventory });
     }
 
     if (!body.room_number?.trim()) {
@@ -117,7 +132,8 @@ export async function POST(req) {
       floor: body.floor?.trim() || null,
       notes: body.notes?.trim() || null,
     });
-    return NextResponse.json({ room });
+    const inventory = await pushCapacity(propertyId, [body.room_type_id], session);
+    return NextResponse.json({ room, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -164,7 +180,18 @@ export async function PATCH(req) {
     if (updates.floor !== undefined) {
       updates.floor = String(updates.floor ?? "").trim() || null;
     }
-    return NextResponse.json({ room: await updateRoom(propertyId, id, updates) });
+    // Only a change of type or of in-order status alters what can be sold.
+    const capacityChanges = "room_type_id" in updates || "is_active" in updates;
+    const before = capacityChanges
+      ? (await listRooms(propertyId)).find((r) => r.id === id)
+      : null;
+
+    const room = await updateRoom(propertyId, id, updates);
+
+    const inventory = capacityChanges
+      ? await pushCapacity(propertyId, [before?.room_type_id, room?.room_type_id], session)
+      : null;
+    return NextResponse.json({ room, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -187,8 +214,10 @@ export async function DELETE(req) {
   }
 
   try {
+    const before = (await listRooms(propertyId)).find((r) => r.id === id);
     await deleteRoom(propertyId, id);
-    return NextResponse.json({ success: true });
+    const inventory = await pushCapacity(propertyId, [before?.room_type_id], session);
+    return NextResponse.json({ success: true, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

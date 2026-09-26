@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { pmsGuard } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { getReservation, setReservationStatus } from "@/lib/database";
+import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { todayUTC } from "@/lib/date";
 
 /**
@@ -12,6 +13,9 @@ import { todayUTC } from "@/lib/date";
  */
 
 const STATUSES = ["confirmed", "in_house", "checked_out", "cancelled", "no_show"];
+
+/** The statuses that hold a room; moving between these and the rest changes what is free. */
+const HOLDS_ROOM = new Set(["confirmed", "in_house", "checked_out"]);
 
 /**
  * Which moves make sense from where.
@@ -29,7 +33,7 @@ const ALLOWED = {
 };
 
 export async function POST(req) {
-  const { error } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req);
   if (error) return error;
 
   let body;
@@ -48,8 +52,13 @@ export async function POST(req) {
   }
 
   try {
-    const current = await getReservation(id);
-    if (!current) {
+    // The desk's buttons do not name a property, so the booking's own stands
+    // in -- resolvePropertyId still refuses it to anyone it does not belong to.
+    const current = await getReservation(id).catch(() => null);
+    const propertyId = current
+      ? await resolvePropertyId(session, body.property_id || current.property_id)
+      : null;
+    if (!current || !propertyId || current.property_id !== propertyId) {
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
     }
 
@@ -94,7 +103,14 @@ export async function POST(req) {
       roomId: room_id !== undefined ? room_id : undefined,
     });
 
-    return NextResponse.json({ reservation });
+    // Cancelling or marking a no-show gives the nights back; reinstating one
+    // takes them again. A check-in or check-out changes nothing on sale.
+    let inventory = null;
+    if (HOLDS_ROOM.has(current.status) !== HOLDS_ROOM.has(status)) {
+      inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
+    }
+
+    return NextResponse.json({ reservation, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

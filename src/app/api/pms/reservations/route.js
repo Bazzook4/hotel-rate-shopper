@@ -7,7 +7,9 @@ import {
   deleteReservation,
   checkAvailability,
   acceptNightRates,
+  getReservation,
 } from "@/lib/database";
+import { syncInventory, staySpan } from "@/lib/inventorySync";
 
 /** A date the database will accept, and that a person actually typed. */
 function isDate(value) {
@@ -141,7 +143,10 @@ export async function POST(req) {
       { rates }
     );
 
-    return NextResponse.json({ reservation });
+    // The rooms this booking took are no longer for sale anywhere else.
+    const inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
+
+    return NextResponse.json({ reservation, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -172,6 +177,11 @@ export async function PATCH(req) {
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   try {
+    const before = await getReservation(id).catch(() => null);
+    if (!before || before.property_id !== propertyId) {
+      return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
+    }
+
     if (!body.allow_overbook) {
       // The stay checks its own dates without counting itself as competition
       // for the room it already holds.
@@ -199,14 +209,23 @@ export async function PATCH(req) {
     );
 
     const reservation = await updateReservation(id, fields, { rates });
-    return NextResponse.json({ reservation });
+
+    // Both the nights given up and the nights now held, so a stay moved to
+    // next week reopens this week on the channels as well as closing next.
+    const inventory = await syncInventory(
+      propertyId,
+      [staySpan(before), staySpan(reservation)],
+      { session }
+    );
+
+    return NextResponse.json({ reservation, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function DELETE(req) {
-  const { error } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");
@@ -215,8 +234,23 @@ export async function DELETE(req) {
   }
 
   try {
+    const before = await getReservation(id).catch(() => null);
+    const propertyId = before
+      ? await resolvePropertyId(
+          session,
+          req.nextUrl.searchParams.get("propertyId") || before.property_id
+        )
+      : null;
+    if (!before || !propertyId || before.property_id !== propertyId) {
+      return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
+    }
+
     await deleteReservation(id);
-    return NextResponse.json({ success: true });
+
+    // A deleted stay frees its nights, so they go back on sale.
+    const inventory = await syncInventory(propertyId, [staySpan(before)], { session });
+
+    return NextResponse.json({ success: true, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

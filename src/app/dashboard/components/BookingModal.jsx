@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
 import { todayUTC } from "@/lib/date";
+import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
  * One booking, opened from the tape chart.
@@ -131,7 +132,7 @@ export default function BookingModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update the booking");
       await loadFolio();
-      onChanged?.();
+      onChanged?.(inventoryWarning(data));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -295,8 +296,8 @@ export default function BookingModal({
                 rooms={rooms}
                 ratePlans={ratePlans}
                 embedded
-                onSaved={async () => {
-                  onChanged?.();
+                onSaved={async (_message, warning) => {
+                  onChanged?.(warning);
                   if (isNew) onClose();
                   else await loadFolio();
                 }}

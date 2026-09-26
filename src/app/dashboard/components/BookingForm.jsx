@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import { handleExpiredSession } from "@/lib/authRedirect";
+import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
  * Entering or editing a booking.
@@ -338,7 +339,8 @@ export default function BookingForm({
       onSaved(
         reservation
           ? `Booking ${data.reservation.reference} updated.`
-          : `Booking ${data.reservation.reference} created for ${data.reservation.guest_name}.`
+          : `Booking ${data.reservation.reference} created for ${data.reservation.guest_name}.`,
+        inventoryWarning(data)
       );
     } catch (err) {
       setError(err.message);

@@ -174,6 +174,7 @@ export default function ChannelManager() {
   const [resyncWhat, setResyncWhat] = useState({
     rates: true,
     restrictions: true,
+    availability: true,
   });
   const [resyncRooms, setResyncRooms] = useState([]);
   const [resyncPlans, setResyncPlans] = useState([]);
@@ -494,8 +495,8 @@ export default function ChannelManager() {
       setNotice("The start date is after the end date.");
       return;
     }
-    if (!resyncWhat.rates && !resyncWhat.restrictions) {
-      setNotice("Pick rates, restrictions, or both.");
+    if (!resyncWhat.rates && !resyncWhat.restrictions && !resyncWhat.availability) {
+      setNotice("Pick rates, restrictions or availability.");
       return;
     }
 
@@ -584,12 +585,37 @@ export default function ChannelManager() {
         }
       }
 
-      if (rateRows.length === 0 && restrictionRows.length === 0) {
+      if (
+        rateRows.length === 0 &&
+        restrictionRows.length === 0 &&
+        !resyncWhat.availability
+      ) {
         setNotice("Nothing to resend for those dates and selection.");
         return;
       }
 
       const sent = [];
+
+      // Availability is not read from this grid: the PMS works out what is
+      // free for each night and sends that, so only the range and rooms go.
+      if (resyncWhat.availability) {
+        const invRes = await fetch("/api/cm/inventory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            start: resyncFrom,
+            end: resyncTo,
+            roomTypeIds: resyncRooms.length ? resyncRooms : null,
+          }),
+        });
+        const invJson = await invRes.json();
+        const inv = invJson?.inventory;
+        if (!invRes.ok || inv?.status === "failed") {
+          throw new Error(inv?.message || invJson?.error || "Availability resync failed");
+        }
+        if (inv?.status === "sent") sent.push("availability");
+        else if (inv?.message) sent.push(`no availability (${inv.message})`);
+      }
 
       if (rateRows.length > 0) {
         const updates = ratesToUpdates(rateRows);
@@ -728,9 +754,9 @@ export default function ChannelManager() {
             <h3 className="text-sm font-semibold text-ink">Resync to Aiosell</h3>
             <p className="mt-1 text-xs muted">
               Resends the rates this grid shows for these dates, including
-              dates priced only by the plan&rsquo;s rack rate. Nothing is
-              changed here — use it when the channel manager has drifted out
-              of step with this grid.
+              dates priced only by the plan&rsquo;s rack rate, and the rooms
+              free on each night as the PMS counts them. Nothing is changed
+              here — use it when the channel manager has drifted out of step.
             </p>
           </div>
 
@@ -760,6 +786,7 @@ export default function ChannelManager() {
                 {[
                   ["rates", "Rates"],
                   ["restrictions", "Restrictions"],
+                  ["availability", "Availability"],
                 ].map(([k, label]) => (
                   <label key={k} className="flex items-center gap-1.5 text-sm text-ink">
                     <input
@@ -1000,6 +1027,7 @@ export default function ChannelManager() {
                 }
                 restrictions={restrictions}
                 storedRestrictions={grid?.dailyRestrictions || {}}
+                availability={grid?.availability || {}}
                 planView={planView}
                 onPlanViewChange={(planId, view) =>
                   setPlanView((p) => ({ ...p, [planId]: view }))
@@ -1048,6 +1076,7 @@ function ExpandableRoom({
   onRateChange,
   restrictions,
   storedRestrictions,
+  availability,
   planView,
   onPlanViewChange,
   onRestrictionChange,
@@ -1081,19 +1110,38 @@ function ExpandableRoom({
             </span>
           </button>
         </td>
-        {dates.map((d) => (
-          <td
-            key={d}
-            className="px-3 py-2.5 text-center muted"
-            style={{
-              background: "var(--surface-2)",
-              borderBottom: "1px solid var(--border-strong)",
-              borderRight: "1px solid var(--border)",
-            }}
-          >
-            {room.count ?? "—"}
-          </td>
-        ))}
+        {dates.map((d) => {
+          // Rooms free that night, as the PMS counts them -- the number the
+          // channels are sent. Falls back to the room count if it is missing.
+          const a = availability[`${room.id}|${d}`];
+          const full = a && a.free === 0;
+          return (
+            <td
+              key={d}
+              className="px-3 py-2.5 text-center"
+              title={a ? `${a.sold} sold of ${a.capacity} · ${a.free} free` : undefined}
+              style={{
+                background: full ? "var(--warn-soft)" : "var(--surface-2)",
+                borderBottom: "1px solid var(--border-strong)",
+                borderRight: "1px solid var(--border)",
+              }}
+            >
+              {a ? (
+                <>
+                  <span
+                    className="block font-medium"
+                    style={{ color: full ? "var(--warn)" : "var(--text)" }}
+                  >
+                    {a.free}
+                  </span>
+                  <span className="block text-xs faint">of {a.capacity}</span>
+                </>
+              ) : (
+                <span className="muted">{room.count ?? "—"}</span>
+              )}
+            </td>
+          );
+        })}
       </tr>
 
       {open &&

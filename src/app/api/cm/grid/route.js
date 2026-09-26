@@ -9,6 +9,7 @@ import {
   listDailyRates,
   listDailyRestrictions,
   listRatePlanRooms,
+  getAvailabilityGrid,
 } from "@/lib/database";
 import { resolveAllRates, plansForRoom } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
@@ -53,6 +54,7 @@ export async function GET(req) {
       stored,
       storedRestrictions,
       assignments,
+      availabilityGrid,
     ] = await Promise.all([
         listRoomTypes(propertyId),
         listRatePlans(propertyId),
@@ -64,7 +66,24 @@ export async function GET(req) {
         // Additive: a property with no assignments yet still loads, and the
         // room_type_id fallback below keeps its grid working.
         listRatePlanRooms(propertyId).catch(() => []),
+        // What the PMS says is free -- the number the channels are sent.
+        // Optional: a failure here leaves the rate grid usable.
+        start && end
+          ? getAvailabilityGrid(propertyId, start, end).catch(() => null)
+          : null,
       ]);
+
+    // Keyed "<roomTypeId>|<date>", like the rate keys.
+    const availability = {};
+    for (const rt of availabilityGrid?.roomTypes || []) {
+      for (const day of rt.days) {
+        availability[`${rt.id}|${day.date}`] = {
+          capacity: rt.capacity,
+          sold: day.sold,
+          free: day.free,
+        };
+      }
+    }
 
     // Per-date restrictions, keyed "<ratePlanId>|<date>". A null field means
     // nothing is set for that date, so the plan's own value still applies --
@@ -220,6 +239,7 @@ export async function GET(req) {
       rooms,
       dailyRates,
       dailyRestrictions,
+      availability,
       connected: Boolean(integration?.integration?.enabled),
       hotelCode: integration?.integration?.hotel_code || null,
       unmappedRooms: unmapped,

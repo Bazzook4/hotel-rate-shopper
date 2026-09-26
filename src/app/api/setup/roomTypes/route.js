@@ -9,6 +9,7 @@ import {
   deleteRoomType,
   getUserPropertyId,
 } from "@/lib/database";
+import { syncInventoryForward } from "@/lib/inventorySync";
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -91,7 +92,7 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  const { error } = await guard(req);
+  const { error, session } = await guard(req);
   if (error) return error;
 
   let body;
@@ -107,7 +108,16 @@ export async function PATCH(req) {
   }
 
   try {
-    return NextResponse.json({ roomType: await updateRoomType(id, updates) });
+    const roomType = await updateRoomType(id, updates);
+
+    // The count is the capacity of a room type with no numbered rooms, so
+    // editing it changes what every future night can sell.
+    const inventory =
+      "number_of_rooms" in updates && roomType?.property_id
+        ? await syncInventoryForward(roomType.property_id, [roomType.id], { session })
+        : null;
+
+    return NextResponse.json({ roomType, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
