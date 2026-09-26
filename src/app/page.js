@@ -16,6 +16,7 @@ import TapeChart from "./dashboard/components/TapeChart";
 import RoomInventory from "./dashboard/components/RoomInventory";
 import Housekeeping from "./dashboard/components/Housekeeping";
 import BillingSetup from "./dashboard/components/BillingSetup";
+import BookingPerformance from "./dashboard/components/BookingPerformance";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -378,6 +379,8 @@ export default function V2Dashboard() {
                 {active === "parity" && <RateParity session={scopedSession} />}
 
                 {active === "pricing" && <DynamicPricingGrid session={scopedSession} />}
+
+                {active === "performance" && <BookingPerformance session={scopedSession} />}
 
                 {/* Rooms and rate plans are separate pages; the component
                     renders one panel or the other. */}

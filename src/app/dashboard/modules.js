@@ -39,6 +39,7 @@ export const AREAS = [
       { id: "parity", label: "Rate Parity", icon: "compass" },
       { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
       { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
+      { id: "performance", label: "Booking Performance", icon: "trend" },
     ],
   },
   {
