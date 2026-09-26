@@ -82,7 +82,10 @@ export default function Reservations({ session }) {
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
-  const today = formatDateISO(todayUTC());
+  // todayUTC() is already a YYYY-MM-DD string. Passing it through
+  // formatDateISO, which expects a Date, yields "" and quietly breaks every
+  // date comparison below.
+  const today = todayUTC();
 
   const load = useCallback(async () => {
     setLoading(true);

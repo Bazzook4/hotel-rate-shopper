@@ -48,7 +48,10 @@ function shiftDate(date, days) {
 export default function TapeChart({ session }) {
   const propertyId = session?.propertyId || null;
 
-  const [anchor, setAnchor] = useState(() => formatDateISO(todayUTC()));
+  // todayUTC() already gives a YYYY-MM-DD string; formatDateISO takes a Date
+  // and returns "" for anything else, which would leave the chart with no
+  // window to ask for.
+  const [anchor, setAnchor] = useState(() => todayUTC());
   const [windowDays, setWindowDays] = useState(14);
   const [chart, setChart] = useState(null);
   const [extras, setExtras] = useState([]);
@@ -69,7 +72,7 @@ export default function TapeChart({ session }) {
   const dragRef = useRef(null);
   const gridRef = useRef(null);
 
-  const today = formatDateISO(todayUTC());
+  const today = todayUTC();
 
   const dates = useMemo(() => {
     const out = [];
