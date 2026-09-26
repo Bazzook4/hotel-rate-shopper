@@ -25,6 +25,7 @@ function emptyBooking() {
     guest_name: "",
     guest_email: "",
     guest_phone: "",
+    guest_residency: "domestic",
     room_type_id: "",
     room_id: "",
     rate_plan_id: "",
@@ -44,6 +45,7 @@ function toForm(reservation) {
     guest_name: reservation.guest_name || "",
     guest_email: reservation.guest_email || "",
     guest_phone: reservation.guest_phone || "",
+    guest_residency: reservation.guest_residency || "domestic",
     room_type_id: reservation.room_type_id || "",
     room_id: reservation.room_id || "",
     rate_plan_id: reservation.rate_plan_id || "",
@@ -391,6 +393,19 @@ export default function BookingForm({
             value={form.guest_email}
             onChange={(e) => set("guest_email", e.target.value)}
           />
+        </div>
+        <div>
+          {/* Decides which taxes apply -- some levies are for foreign
+              guests only, and some exemptions are too. */}
+          <label className="label">Guest is</label>
+          <select
+            className="input"
+            value={form.guest_residency}
+            onChange={(e) => set("guest_residency", e.target.value)}
+          >
+            <option value="domestic">Domestic</option>
+            <option value="international">International</option>
+          </select>
         </div>
 
         <div>

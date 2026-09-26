@@ -54,6 +54,8 @@ function describe(line) {
 
 async function renderInvoice(invoice, fallbackProperty) {
   const snap = invoice.snapshot || {};
+  // Invoices issued before taxes existed carry no `taxes`, and print as before.
+  const taxes = snap.taxes || [];
   const currency = snap.currency || invoice.currency || "INR";
   const property = snap.property || fallbackProperty || {};
 
@@ -96,7 +98,11 @@ async function renderInvoice(invoice, fallbackProperty) {
 
   // ---- Header: issuer on the left, the document on the right ----
   text(property.name || "Invoice", MARGIN, { bold: true, size: 16 });
-  text("TAX INVOICE", right, { bold: true, size: 12, align: "right" });
+  text(taxes.length > 0 ? "TAX INVOICE" : "INVOICE", right, {
+    bold: true,
+    size: 12,
+    align: "right",
+  });
   y -= 16;
 
   const issuerLines = [
@@ -194,7 +200,9 @@ async function renderInvoice(invoice, fallbackProperty) {
   const totalRows = [
     ["Room", totals.room],
     ["Extras", totals.extras],
+    ...taxes.filter((t) => !t.inclusive).map((t) => [t.name, t.amount]),
     ["Total", totals.total, true],
+    ...taxes.filter((t) => t.inclusive).map((t) => [`Includes ${t.name}`, t.amount]),
     ["Paid", totals.paid],
     ["Balance due", totals.balance, true],
   ];

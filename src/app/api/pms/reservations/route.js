@@ -43,6 +43,7 @@ function bookingFields(body) {
     guest_name: body.guest_name?.trim(),
     guest_email: body.guest_email?.trim() || null,
     guest_phone: body.guest_phone?.trim() || null,
+    guest_residency: body.guest_residency === "international" ? "international" : "domestic",
     room_type_id: body.room_type_id,
     room_id: body.room_id || null,
     rate_plan_id: body.rate_plan_id || null,

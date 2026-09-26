@@ -354,6 +354,20 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                 <span>{money(value, currency)}</span>
               </div>
             ))}
+            {(folio.taxes || [])
+              .filter((t) => !t.inclusive)
+              .map((t, i) => (
+                <div key={`${t.tax_id}-${i}`} className="flex justify-between">
+                  <span style={{ color: "var(--text-muted)" }}>
+                    {t.name}
+                    <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
+                      {" "}
+                      · {t.detail}
+                    </span>
+                  </span>
+                  <span>{money(t.amount, currency)}</span>
+                </div>
+              ))}
             <div
               className="flex justify-between"
               style={{ borderTop: "1px solid var(--border)", paddingTop: "0.25rem", fontWeight: 600 }}
@@ -361,6 +375,18 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
               <span>Total</span>
               <span>{money(folio.totals.total, currency)}</span>
             </div>
+            {(folio.taxes || [])
+              .filter((t) => t.inclusive)
+              .map((t, i) => (
+                <div
+                  key={`inc-${t.tax_id}-${i}`}
+                  className="flex justify-between"
+                  style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}
+                >
+                  <span>Includes {t.name}</span>
+                  <span>{money(t.amount, currency)}</span>
+                </div>
+              ))}
             <div className="flex justify-between">
               <span style={{ color: "var(--text-muted)" }}>Paid</span>
               <span>− {money(folio.totals.paid, currency)}</span>
@@ -538,6 +564,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
             {[
               ["Room", folio.totals.room],
               ["Extras", folio.totals.extras],
+              ["Tax", folio.totals.tax || 0],
               ["Total", folio.totals.total],
               ["Paid", folio.totals.paid],
             ].map(([label, value]) => (

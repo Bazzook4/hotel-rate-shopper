@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
 import { resolveAllRates } from '@/lib/ratePlanPricing';
+import { computeTaxes } from '@/lib/taxes';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -3098,6 +3099,50 @@ export async function savePropertyExtra(row) {
   return data;
 }
 
+/**
+ * The property's tax and fee rules, in the order they are applied.
+ *
+ * A missing table reads as no rules rather than an error, so the folio keeps
+ * working in the window between this code deploying and the migration that
+ * creates the table being run by hand.
+ */
+export async function listPropertyTaxes(propertyId, { includeInactive = false } = {}) {
+  let query = supabase
+    .from('property_taxes')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (!includeInactive) query = query.eq('is_active', true);
+
+  const { data, error } = await query;
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') return [];
+    throw new Error(`Failed to load taxes: ${error.message}`);
+  }
+  return data || [];
+}
+
+export async function savePropertyTax(row) {
+  const query = row.id
+    ? supabase.from('property_taxes').update(row).eq('id', row.id).eq('property_id', row.property_id)
+    : supabase.from('property_taxes').insert(row);
+
+  const { data, error } = await query.select('*').single();
+  if (error) throw new Error(`Failed to save the tax: ${error.message}`);
+  return data;
+}
+
+export async function deletePropertyTax(id, propertyId) {
+  const { error } = await supabase
+    .from('property_taxes')
+    .delete()
+    .eq('id', id)
+    .eq('property_id', propertyId);
+  if (error) throw new Error(`Failed to delete the tax: ${error.message}`);
+  return true;
+}
+
 export async function listReservationExtras(reservationId) {
   const { data, error } = await supabase
     .from('reservation_extras')
@@ -3233,6 +3278,18 @@ export async function getReservationFolio(reservationId) {
     .map((n) => ({ stay_date: n.stay_date, rate: n.rate == null ? null : Number(n.rate) }));
   const nightsSum = nights.reduce((sum, n) => sum + (n.rate || 0), 0);
 
+  // Taxes are worked out from the rules on every read, like the balance. A
+  // rule in force only from a date applies only to the nights from that date.
+  const taxRules = await listPropertyTaxes(reservation.property_id);
+  const tax = computeTaxes(taxRules, {
+    nights: nights.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, nights.length) })),
+    extras,
+    adults: reservation.adults,
+    children: reservation.children,
+    residency: reservation.guest_residency,
+  });
+  const grandTotal = total + tax.added;
+
   return {
     reservation,
     guests,
@@ -3241,12 +3298,17 @@ export async function getReservationFolio(reservationId) {
     invoices,
     nights,
     nightsMatch: nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01,
+    taxes: tax.lines,
     totals: {
       room,
       extras: Number(extrasTotal.toFixed(2)),
-      total: Number(total.toFixed(2)),
+      // Exclusive taxes, added to the bill. Inclusive ones are already inside
+      // the room and extras figures and are reported separately.
+      tax: tax.added,
+      taxIncluded: tax.included,
+      total: Number(grandTotal.toFixed(2)),
       paid: Number(paid.toFixed(2)),
-      balance: Number((total - paid).toFixed(2)),
+      balance: Number((grandTotal - paid).toFixed(2)),
     },
   };
 }
@@ -3346,6 +3408,8 @@ export async function createReservationInvoice(reservationId, userId = null) {
           amount: Number(e.unit_price) * Number(e.quantity),
         })),
     ],
+    taxes: folio.taxes,
+    guest_residency: reservation.guest_residency || 'domestic',
     totals,
     payments: folio.payments.map((p) => ({
       amount: Number(p.amount),
