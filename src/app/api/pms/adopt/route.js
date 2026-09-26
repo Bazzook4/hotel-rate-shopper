@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { adoptPartnerReservations, recordSyncLog } from "@/lib/database";
+import {
+  adoptPartnerReservations,
+  listUnadoptedPartnerReservations,
+  recordSyncLog,
+} from "@/lib/database";
 import { syncInventory } from "@/lib/inventorySync";
 
 /**
@@ -11,7 +15,28 @@ import { syncInventory } from "@/lib/inventorySync";
  * adoption code was failing, or history from before it adopted on arrival.
  * Adoption is idempotent -- the newest row per booking decides -- so pressing
  * it with nothing outstanding changes nothing.
+ *
+ * GET lists the bookings still outside the PMS, so the desk can see what is
+ * stuck; POST with `booking_id` retries just that one.
  */
+export async function GET(req) {
+  const { error, session } = await pmsGuard(req);
+  if (error) return error;
+
+  const { searchParams } = new URL(req.url);
+  const propertyId = await resolvePropertyId(session, searchParams.get("propertyId"));
+  if (!propertyId) {
+    return NextResponse.json({ error: "No property selected" }, { status: 400 });
+  }
+
+  try {
+    const pending = await listUnadoptedPartnerReservations(propertyId);
+    return NextResponse.json({ pending });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
 export async function POST(req) {
   const { error, session } = await pmsGuard(req);
   if (error) return error;
@@ -29,7 +54,11 @@ export async function POST(req) {
   }
 
   try {
-    const result = await adoptPartnerReservations(propertyId);
+    const bookingId = typeof body.booking_id === "string" ? body.booking_id.trim() : "";
+    const result = await adoptPartnerReservations(
+      propertyId,
+      bookingId ? { bookingIds: [bookingId] } : {}
+    );
 
     const summary = [
       result.created ? `${result.created} created` : null,
@@ -47,7 +76,10 @@ export async function POST(req) {
       status: "success",
       source: "pms",
       entry_count: result.created + result.updated + result.cancelled,
-      summary: `Adopted OTA bookings — ${summary || "nothing to adopt"}`,
+      summary: `${bookingId ? `Retried booking #${bookingId}` : "Adopted OTA bookings"} — ${
+        summary || "nothing to adopt"
+      }`,
+      error: result.reasons.length ? result.reasons.join("; ") : null,
     }).catch(() => {
       // The log is a record, not the work. A failed log line must not lose
       // reservations that were genuinely created.

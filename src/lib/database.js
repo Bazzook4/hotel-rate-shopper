@@ -3089,6 +3089,22 @@ function partnerStayDates(row) {
 }
 
 /**
+ * Amount and currency from the stored row, or from the payload -- the same
+ * fallback as the dates, for rows logged before Aiosell's `amount` object
+ * was read. Without it such a booking is adopted in the wrong currency.
+ */
+function partnerAmount(row) {
+  const b = row.payload?.booking || row.payload?.reservation || row.payload || {};
+  const obj = typeof b.amount === 'object' && b.amount !== null ? b.amount : null;
+  const raw = row.amount ?? (obj ? obj.amountAfterTax ?? obj.amountBeforeTax : b.amount ?? b.totalAmount);
+  const amount = raw == null || raw === '' ? null : Number(raw);
+  return {
+    amount: Number.isFinite(amount) ? amount : null,
+    currency: row.currency || obj?.currency || b.currency || null,
+  };
+}
+
+/**
  * The reservation id each room of a booking is kept under.
  *
  * The first room keeps the booking id itself, so single-room bookings --
@@ -3219,6 +3235,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
     if (rooms.length === 0) rooms.push({ roomCode: null, adults: null, children: null, prices: null });
 
     const nights = nightsBetween(check_in, check_out);
+    const booked = partnerAmount(row);
     let createdAny = false;
     let updatedAny = false;
 
@@ -3233,8 +3250,8 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
       const covered = room.prices && nights.every((d) => d in room.prices);
       const amount = covered
         ? Number(nights.reduce((sum, d) => sum + room.prices[d], 0).toFixed(2))
-        : row.amount != null
-        ? Number((Number(row.amount) / rooms.length).toFixed(2))
+        : booked.amount != null
+        ? Number((booked.amount / rooms.length).toFixed(2))
         : null;
       const rates = covered
         ? acceptNightRates(
@@ -3250,7 +3267,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
         check_in,
         check_out,
         total_amount: amount,
-        currency: row.currency || 'INR',
+        currency: booked.currency || 'INR',
         source: row.channel || 'OTA',
         ...(room.adults ? { adults: room.adults } : {}),
         ...(room.children != null ? { children: room.children } : {}),
@@ -3306,6 +3323,66 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
 
   result.touched = result.touched.filter(Boolean);
   return result;
+}
+
+/**
+ * Inbound bookings the PMS does not hold: the newest row per booking is a
+ * book or modify, yet no reservation carries its id.
+ *
+ * This is what the desk must see. Adoption normally happens on arrival, and
+ * a booking that slipped through otherwise leaves no trace on the
+ * Reservations page -- while the next availability push reopens its room.
+ * Each comes with the reason it cannot be adopted where one is knowable, so
+ * a Retry that cannot succeed says why before it is pressed.
+ */
+export async function listUnadoptedPartnerReservations(propertyId, { limit = 500 } = {}) {
+  const { data: inbound, error } = await supabase
+    .from('partner_reservations')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('received_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Failed to load partner reservations: ${error.message}`);
+
+  const latest = new Map();
+  for (const row of inbound || []) {
+    if (!row.partner_booking_id || latest.has(row.partner_booking_id)) continue;
+    latest.set(row.partner_booking_id, row);
+  }
+  const live = [...latest.values()].filter((row) => row.action !== 'cancel');
+  if (live.length === 0) return [];
+
+  // The first room of a booking is kept under the booking id itself, so an
+  // exact match on that is enough to know the booking is in.
+  const { data: held, error: heldError } = await supabase
+    .from('reservations')
+    .select('partner_booking_id')
+    .eq('property_id', propertyId)
+    .in('partner_booking_id', live.map((row) => row.partner_booking_id));
+  if (heldError) throw new Error(`Failed to match existing reservations: ${heldError.message}`);
+  const have = new Set((held || []).map((r) => r.partner_booking_id));
+
+  return live
+    .filter((row) => !have.has(row.partner_booking_id))
+    .map((row) => {
+      const { check_in, check_out } = partnerStayDates(row);
+      const { amount, currency } = partnerAmount(row);
+      return {
+        partner_booking_id: row.partner_booking_id,
+        action: row.action,
+        channel: row.channel,
+        guest_name: row.guest_name,
+        check_in,
+        check_out,
+        amount,
+        currency,
+        received_at: row.received_at,
+        problem:
+          !check_in || !check_out || check_out <= check_in
+            ? 'The booking has no usable stay dates'
+            : null,
+      };
+    });
 }
 
 /**

@@ -33,7 +33,10 @@ const STATUS_CHIP = {
 
 function money(value, currency) {
   if (value == null) return "—";
-  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
+  // Anything without a symbol here shows its code, so a BDT booking is not
+  // read as rupees.
+  const symbol =
+    currency === "GBP" ? "£" : currency === "USD" ? "$" : !currency || currency === "INR" ? "₹" : `${currency} `;
   return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
 }
 
@@ -82,6 +85,10 @@ export default function Reservations({ session }) {
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
+
+  // OTA bookings received but not in the PMS -- normally none.
+  const [pending, setPending] = useState([]);
+  const [retrying, setRetrying] = useState(null);
 
   // todayUTC() is already a YYYY-MM-DD string. Passing it through
   // formatDateISO, which expects a Date, yields "" and quietly breaks every
@@ -138,9 +145,29 @@ export default function Reservations({ session }) {
     }
   }, [propertyId]);
 
+  /**
+   * Bookings the channel manager sent that never became reservations. Shown
+   * above the list with a Retry each, because otherwise they leave no trace
+   * here while their rooms are still being sold.
+   */
+  const loadPending = useCallback(async () => {
+    try {
+      const qs = propertyId ? `?propertyId=${propertyId}` : "";
+      const res = await fetch(`/api/pms/adopt${qs}`);
+      const data = await res.json();
+      if (res.ok) setPending(data.pending || []);
+    } catch {
+      // The list still works without this; the Import button remains.
+    }
+  }, [propertyId]);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    loadPending();
+  }, [loadPending]);
 
   useEffect(() => {
     loadSetup();
@@ -281,13 +308,46 @@ export default function Reservations({ session }) {
             }`
           : "No new OTA bookings to import."
       );
-      await load();
+      await Promise.all([load(), loadPending()]);
       const warning = inventoryWarning(data);
       if (warning) setError(warning);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Retry one stuck booking -- the same adoption the webhook runs. */
+  async function retryOne(bookingId) {
+    setRetrying(bookingId);
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch("/api/pms/adopt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: propertyId, booking_id: bookingId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not retry the booking");
+
+      if (data.created || data.updated) {
+        setNotice(`Booking #${bookingId} is now in the PMS.`);
+      } else {
+        setError(
+          `Booking #${bookingId} was not added${
+            data.reasons?.length ? ` — ${data.reasons.join("; ")}` : "."
+          }`
+        );
+      }
+      await Promise.all([load(), loadPending()]);
+      const warning = inventoryWarning(data);
+      if (warning) setError(warning);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRetrying(null);
     }
   }
 
@@ -345,6 +405,72 @@ export default function Reservations({ session }) {
           style={{ borderColor: "var(--accent)", color: "var(--accent-text)" }}
         >
           {notice}
+        </div>
+      )}
+
+      {pending.length > 0 && (
+        <div className="card card-pad space-y-2" style={{ borderColor: "var(--warn)" }}>
+          <div>
+            <div style={{ fontWeight: 600 }}>
+              {pending.length} OTA booking{pending.length === 1 ? "" : "s"} not in the PMS yet
+            </div>
+            <p className="sub">
+              Received from the channel manager but not turned into a reservation. Until
+              they are, their rooms are not counted and may be sold again.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="grid-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th className="text-left">Booking</th>
+                  <th className="text-left">Guest</th>
+                  <th className="text-left">Stay</th>
+                  <th className="text-right">Amount</th>
+                  <th className="text-left">Channel</th>
+                  <th className="text-left">Received</th>
+                  <th className="text-right"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((p) => (
+                  <tr key={p.partner_booking_id}>
+                    <td style={{ fontFamily: "monospace" }}>{p.partner_booking_id}</td>
+                    <td>{p.guest_name || "—"}</td>
+                    <td>
+                      {p.check_in ? `${shortDate(p.check_in)} → ${shortDate(p.check_out)}` : "—"}
+                      {p.problem && (
+                        <div style={{ color: "var(--danger)", fontSize: "0.75rem" }}>
+                          {p.problem}
+                        </div>
+                      )}
+                    </td>
+                    <td className="text-right">{money(p.amount, p.currency)}</td>
+                    <td>{p.channel || "—"}</td>
+                    <td>
+                      {p.received_at
+                        ? new Date(p.received_at).toLocaleString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </td>
+                    <td className="text-right">
+                      <button
+                        className="btn btn-primary text-xs"
+                        disabled={retrying !== null || loading}
+                        onClick={() => retryOne(p.partner_booking_id)}
+                      >
+                        {retrying === p.partner_booking_id ? "Retrying…" : "Retry"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
