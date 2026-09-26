@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import { handleExpiredSession } from "@/lib/authRedirect";
 import { inventoryWarning } from "@/lib/inventoryNotice";
+import { plansForRoom } from "@/lib/ratePlanPricing";
 
 /**
  * Entering or editing a booking.
@@ -244,6 +245,56 @@ export default function BookingForm({
   // A complimentary stay is owed nothing, so there is no price to quote or
   // type: the total is pinned at zero for as long as it stays complimentary.
   const complimentary = form.booking_type === "complimentary";
+
+  /**
+   * Which plans are sold on which room types. Fetched here rather than passed
+   * in because every caller already loads the plans, and only this form needs
+   * the pairing.
+   */
+  const [assignments, setAssignments] = useState(null);
+
+  useEffect(() => {
+    const qs = session?.propertyId ? `?propertyId=${session.propertyId}` : "";
+    fetch(`/api/setup/ratePlanRooms${qs}`)
+      .then((r) => (r.ok ? r.json() : { assignments: [] }))
+      .then((d) => setAssignments(d.assignments || []))
+      .catch(() => setAssignments([]));
+  }, [session?.propertyId]);
+
+  /** The plans this room type is sold under; every plan until a type is chosen. */
+  const plansForType = useMemo(() => {
+    if (!form.room_type_id || !assignments) return ratePlans;
+    return plansForRoom(ratePlans, form.room_type_id, assignments);
+  }, [ratePlans, form.room_type_id, assignments]);
+
+  /**
+   * A new booking starts on the plan the room is normally sold under -- the
+   * master plan if the type has one, else its first plan -- so the quote is
+   * the channel rate without the desk having to pick it. Changing room type
+   * moves the plan along only if the desk has not chosen one themselves, or
+   * if theirs is not sold on the new type. An existing booking keeps the plan
+   * it was sold on.
+   */
+  const planChosen = useRef(Boolean(prefill?.rate_plan_id));
+
+  useEffect(() => {
+    if (reservation || !assignments) return;
+    const sold = plansForType.some((p) => p.id === form.rate_plan_id);
+    if (planChosen.current && (sold || !form.rate_plan_id)) return;
+
+    const pick = plansForType.find((p) => p.is_master) || plansForType[0];
+    const next = pick?.id || "";
+    if (next !== form.rate_plan_id) {
+      planChosen.current = false;
+      setForm((prev) => ({ ...prev, rate_plan_id: next }));
+    }
+  }, [reservation, assignments, plansForType, form.rate_plan_id]);
+
+  // A booking already on a plan this type no longer sells still shows it.
+  const planOptions =
+    form.rate_plan_id && !plansForType.some((p) => p.id === form.rate_plan_id)
+      ? [...plansForType, ...ratePlans.filter((p) => p.id === form.rate_plan_id)]
+      : plansForType;
 
   /** Only rooms of the chosen type can hold this booking. */
   const roomsForType = useMemo(
@@ -550,10 +601,13 @@ export default function BookingForm({
           <select
             className="input"
             value={form.rate_plan_id}
-            onChange={(e) => set("rate_plan_id", e.target.value)}
+            onChange={(e) => {
+              planChosen.current = true;
+              set("rate_plan_id", e.target.value);
+            }}
           >
             <option value="">None</option>
-            {ratePlans.map((p) => (
+            {planOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.plan_name}
               </option>

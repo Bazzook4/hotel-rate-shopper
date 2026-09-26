@@ -64,7 +64,16 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
     const qs = propertyId ? `?propertyId=${propertyId}` : "";
     fetch(`/api/setup/ratePlans${qs}`)
       .then((r) => r.json())
-      .then((d) => setRatePlans(d.ratePlans || []))
+      .then((d) => {
+        const plans = d.ratePlans || [];
+        setRatePlans(plans);
+        // A group spans room types, so it starts on the property's master
+        // plan -- the one every other plan is priced from.
+        const master = plans.find((p) => p.is_master);
+        if (master) {
+          setForm((prev) => (prev.rate_plan_id ? prev : { ...prev, rate_plan_id: master.id }));
+        }
+      })
       .catch(() => {});
   }, [propertyId]);
 
