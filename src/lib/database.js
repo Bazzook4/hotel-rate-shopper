@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
+// The Channel Manager's own resolver. Shared rather than reimplemented so a
+// booking and the grid cannot drift to different prices for the same night.
+import { resolveAllRates } from '@/lib/ratePlanPricing';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -3104,27 +3107,27 @@ export async function getTapeChart(propertyId, startDate, endDate) {
 }
 
 /**
- * What a stay costs, from the rates already configured for the property.
+ * What a stay costs, priced exactly as the Channel Manager prices it.
  *
- * The desk was typing every total by hand while the system already knew the
- * answer: rooms are assigned to plans with a price per occupancy, and the
- * pricing grid writes a rate for specific dates on top of that. Asking the
- * receptionist to re-enter it invites a booking priced at whatever they
- * remembered, which then disagrees with what the channels are selling.
+ * The desk was typing every total by hand while the system already held the
+ * answer -- and the answer that matters is the one the channels are selling,
+ * not a figure derived some other way. A direct booking quoted off a stale
+ * base price undercuts or overcharges against the same room on the OTAs,
+ * which is the parity problem this product exists to stop.
  *
- * Three sources, in order of how specific they are:
+ * So this resolves through the same path as `/api/cm/grid`, in the same
+ * order, using the same shared resolver:
  *
- *   daily_rates      a price set for this plan, room type and date
- *   rate_plan_rooms  the plan's standing price for this occupancy
- *   room_types       the room's base price, as a last resort
+ *   daily_rates       the rate set for that plan, room and date in the grid,
+ *                     including anything pushed to the channels
+ *   rate_plan_rooms   the plan's assigned rate for the room, per occupancy
+ *   derivation        a derived plan follows its master, via resolveAllRates
+ *   room base_price   only where a plan has no assignment at all
  *
- * Each night is priced on its own, so a stay across a weekend picks up the
- * weekend rate on the nights it applies to rather than an average. Extra
- * adults and children beyond the plan's included occupancy are added per
- * night where the plan charges for them.
- *
- * Returns null for `total` when nothing is configured, rather than guessing:
- * a made-up number that looks authoritative is worse than an empty box.
+ * The derivation step is the one that cannot be skipped: a plan priced as
+ * "master minus 10%" has no rate of its own, so reading its assignment alone
+ * yields nothing and the booking silently falls back to a base price the
+ * channels never see.
  */
 export async function quoteReservation({
   property_id,
@@ -3141,78 +3144,115 @@ export async function quoteReservation({
   }
 
   const occupancy = Math.max(1, Number(adults) || 1);
+  const lastNight = nights[nights.length - 1];
 
-  // The per-date grid, which is the most specific thing we hold.
-  let daily = [];
-  if (rate_plan_id) {
-    daily = (await listDailyRates(property_id, check_in, nights[nights.length - 1])).filter(
-      (r) =>
-        r.rate_plan_id === rate_plan_id &&
-        (r.room_type_id === room_type_id || r.room_type_id == null)
-    );
+  const [ratePlans, assignments, stored, roomTypes] = await Promise.all([
+    listRatePlans(property_id).catch(() => []),
+    listRatePlanRooms(property_id).catch(() => []),
+    listDailyRates(property_id, check_in, lastNight).catch(() => []),
+    listRoomTypes(property_id).catch(() => []),
+  ]);
+
+  const room = roomTypes.find((r) => r.id === room_type_id) || null;
+  const baseAdults = Math.max(1, Number(room?.base_adults) || 0);
+
+  const assignmentFor = {};
+  for (const a of assignments) {
+    assignmentFor[`${a.rate_plan_id}|${a.room_type_id}`] = a;
   }
 
-  // Prefer a row written for this exact occupancy; fall back to the plan's
-  // headline row when only one occupancy was ever priced.
-  const dailyFor = (stay_date) => {
-    const rows = daily.filter((r) => r.stay_date === stay_date);
-    const exact = rows.find((r) => Number(r.occupancy) === occupancy);
-    const any = rows.find((r) => Number.isFinite(Number(r.rate)));
-    const hit = exact || any;
-    return hit && Number.isFinite(Number(hit.rate)) ? Number(hit.rate) : null;
+  // The grid's stored rates, keyed as the CM keys them. A row written against
+  // no room applies to every room, which is what older rows mean.
+  const dailyRates = {};
+  for (const row of stored) {
+    dailyRates[
+      `${row.rate_plan_id}|${row.room_type_id || ''}|${row.occupancy}|${row.stay_date}`
+    ] = Number(row.rate);
+  }
+
+  const dailyFor = (planId, stay_date, occ) => {
+    for (const roomKey of [room_type_id, '']) {
+      for (const occKey of [occ, 1]) {
+        const hit = dailyRates[`${planId}|${roomKey}|${occKey}|${stay_date}`];
+        if (Number.isFinite(hit)) return hit;
+      }
+    }
+    return null;
   };
 
-  // The plan's standing price for this room and occupancy.
-  let link = null;
-  if (rate_plan_id) {
-    const links = await listRatePlanRooms(property_id);
-    link =
-      links.find(
-        (l) => l.rate_plan_id === rate_plan_id && l.room_type_id === room_type_id
-      ) || null;
-  }
-
-  const planRate = () => {
-    if (!link) return null;
-    const perAdult = link.adult_rates || {};
-    const exact = Number(perAdult[String(occupancy)]);
-    if (Number.isFinite(exact) && exact > 0) return exact;
-    const full = Number(link.full_rate);
-    return Number.isFinite(full) && full > 0 ? full : null;
+  // A plan's standing rate in this room, before derivation.
+  const baseRateFor = (plan) => {
+    const a = assignmentFor[`${plan.id}|${room_type_id}`];
+    if (a && a.full_rate !== null && a.full_rate !== undefined) return Number(a.full_rate);
+    return room ? Number(room.base_price) : null;
   };
 
-  // The room's own base price, which exists even with no plan configured.
-  let basePrice = null;
-  {
-    const { data } = await supabase
-      .from('room_types')
-      .select('base_price')
-      .eq('id', room_type_id)
-      .maybeSingle();
-    const n = Number(data?.base_price);
-    basePrice = Number.isFinite(n) && n > 0 ? n : null;
-  }
+  // Derived plans follow their master, resolved in THIS room -- the same call
+  // the CM grid makes, so the two cannot drift apart.
+  const baseRates = {};
+  for (const p of ratePlans) baseRates[p.id] = baseRateFor(p);
+  const resolved = resolveAllRates(ratePlans, baseRates);
 
-  // What a plan adds for heads beyond what it includes.
-  const included = Number(link?.included_occupancy) || null;
-  const extraAdult = Number(link?.extra_adult_rate) || 0;
-  const extraChild = Number(link?.extra_child_rate) || 0;
-  const extraAdults = included ? Math.max(0, occupancy - included) : 0;
-  const perNightExtras = extraAdults * extraAdult + (Number(children) || 0) * extraChild;
+  /**
+   * The rate for a given occupancy, following the CM's rule: within base
+   * occupancy a room is priced per adult, since a single and a double are
+   * different prices rather than the same room half empty; beyond it, each
+   * further adult adds the extra-person rate.
+   */
+  const rateForOccupancy = (planId, base, occ) => {
+    const a = assignmentFor[`${planId}|${room_type_id}`];
+    const perAdult = a?.adult_rates || null;
 
+    if (perAdult && occ <= baseAdults) {
+      const own = Number(perAdult[occ] ?? perAdult[String(occ)]);
+      if (Number.isFinite(own)) return own;
+    }
+
+    if (base === null || base === undefined || !Number.isFinite(Number(base))) return null;
+
+    const atBase = perAdult
+      ? Number(perAdult[baseAdults] ?? perAdult[String(baseAdults)] ?? base)
+      : Number(base);
+    const extra = Number(a?.extra_adult_rate);
+    if (!Number.isFinite(extra) || !Number.isFinite(atBase)) return Number(base);
+    return atBase + Math.max(0, occ - baseAdults) * extra;
+  };
+
+  // Children are charged where the plan says so; the CM grid prices adults
+  // only, so this is additive rather than a divergence from it.
+  const link = assignmentFor[`${rate_plan_id}|${room_type_id}`];
+  const perNightChildren = (Number(children) || 0) * (Number(link?.extra_child_rate) || 0);
+
+  const plan = ratePlans.find((p) => p.id === rate_plan_id) || null;
   const sources = new Set();
-  const breakdown = nights.map((stay_date) => {
-    const fromGrid = dailyFor(stay_date);
-    const fromPlan = fromGrid == null ? planRate() : null;
-    const base = fromGrid ?? fromPlan ?? basePrice;
 
-    if (fromGrid != null) sources.add('daily_rates');
-    else if (fromPlan != null) sources.add('rate_plan');
-    else if (base != null) sources.add('base_price');
+  const breakdown = nights.map((stay_date) => {
+    let rate = null;
+
+    if (plan) {
+      // The grid wins: it is what was priced for that date and pushed out.
+      const fromGrid = dailyFor(plan.id, stay_date, occupancy);
+      if (fromGrid != null) {
+        rate = fromGrid;
+        sources.add('daily_rates');
+      } else {
+        const fromPlan = rateForOccupancy(plan.id, resolved[plan.id], occupancy);
+        if (fromPlan != null) {
+          rate = fromPlan;
+          sources.add(plan.derive_from_id ? 'derived' : 'rate_plan');
+        }
+      }
+    }
+
+    // No plan chosen, or nothing configured for it: the room's own price.
+    if (rate == null && room && Number.isFinite(Number(room.base_price))) {
+      rate = Number(room.base_price);
+      sources.add('base_price');
+    }
 
     return {
       stay_date,
-      rate: base == null ? null : Number((base + perNightExtras).toFixed(2)),
+      rate: rate == null ? null : Number((rate + perNightChildren).toFixed(2)),
     };
   });
 
@@ -3223,22 +3263,20 @@ export async function quoteReservation({
       nights: breakdown,
       source: null,
       reason:
-        'No rate is configured for this room type and plan. Set one in Rate Plan Setup, or enter the total by hand.',
+        'No rate is configured for this room type and plan. Set one in the Channel Manager grid or Rate Plan Setup, or enter the total by hand.',
     };
   }
 
-  const total = Number(priced.reduce((sum, n) => sum + n.rate, 0).toFixed(2));
-
   return {
-    total,
+    total: Number(priced.reduce((sum, n) => sum + n.rate, 0).toFixed(2)),
     nights: breakdown,
-    // Which source did most of the work, for the note under the total.
     source: sources.has('daily_rates')
       ? 'daily_rates'
-      : sources.has('rate_plan')
-        ? 'rate_plan'
-        : 'base_price',
-    // A stay only partly covered by configured rates is worth flagging.
+      : sources.has('derived')
+        ? 'derived'
+        : sources.has('rate_plan')
+          ? 'rate_plan'
+          : 'base_price',
     partial: priced.length !== breakdown.length,
     reason: null,
   };
