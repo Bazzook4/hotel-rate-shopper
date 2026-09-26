@@ -15,8 +15,8 @@ import {
  * Taxes and fees: the rules services are taxed by.
  *
  * A rule charges nothing on its own -- it applies to the services it is
- * attached to, which can be set here ("charged on") or from each service
- * above. A hotel's tax is usually several rules: Indian GST alone is four
+ * attached to, which can be set here ("charged on") or from each service on
+ * the Services Setup page. A hotel's tax is usually several rules: Indian GST alone is four
  * (CGST and SGST, at two tariff slabs).
  *
  * The preview runs the same calculation the folio does, on the real services,

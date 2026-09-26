@@ -48,8 +48,11 @@ export const AREAS = [
       { id: "setup", label: "Property Setup", icon: "building" },
       { id: "rooms", label: "Room Setup", icon: "bed" },
       { id: "rateplans", label: "Rate Plan Setup", icon: "money" },
-      { id: "pmssetup", label: "PMS Setup", icon: "bed" },
-      { id: "taxsetup", label: "Services & Taxes", icon: "list" },
+      // Ids are what user grants are stored against, so a page keeps its id
+      // when its label changes: "pmssetup" is the room number page.
+      { id: "pmssetup", label: "Room Number Setup", icon: "bed" },
+      { id: "servicesetup", label: "Services Setup", icon: "list" },
+      { id: "taxsetup", label: "Tax Setup", icon: "money" },
     ],
   },
 ];
@@ -80,6 +83,7 @@ const SETUP_PAGES = new Set([
   "rooms",
   "rateplans",
   "pmssetup",
+  "servicesetup",
   "taxsetup",
   "integrations",
 ]);

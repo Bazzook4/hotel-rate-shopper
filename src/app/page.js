@@ -14,7 +14,7 @@ import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
 import Reservations from "./dashboard/components/Reservations";
 import TapeChart from "./dashboard/components/TapeChart";
 import RoomInventory from "./dashboard/components/RoomInventory";
-import ServicesAndTaxes from "./dashboard/components/ServicesAndTaxes";
+import BillingSetup from "./dashboard/components/BillingSetup";
 import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
@@ -387,18 +387,21 @@ export default function V2Dashboard() {
                 {active === "pmssetup" && (
                   <div className="space-y-4">
                     <div>
-                      <h2 className="h1">PMS Setup</h2>
+                      <h2 className="h1">Room Number Setup</h2>
                       <p className="sub">
-                        What the front office needs before it can work: the actual
-                        rooms guests are checked into. What a stay can be billed
-                        for is under Services &amp; Taxes.
+                        The actual rooms guests are checked into, numbered and
+                        assigned to their room type.
                       </p>
                     </div>
                     <RoomInventory session={scopedSession} />
                   </div>
                 )}
 
-                {active === "taxsetup" && <ServicesAndTaxes session={scopedSession} />}
+                {active === "servicesetup" && (
+                  <BillingSetup session={scopedSession} only="services" />
+                )}
+
+                {active === "taxsetup" && <BillingSetup session={scopedSession} only="taxes" />}
 
                 {active === "rateplans" && (
                   <PropertySetup session={scopedSession} only="plans" />

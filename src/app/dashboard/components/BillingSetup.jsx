@@ -5,15 +5,26 @@ import ServicesSetup from "./ServicesSetup";
 import TaxSetup from "./TaxSetup";
 
 /**
- * The Services & Taxes page: what the hotel bills for, and how each is taxed.
+ * The Services Setup and Tax Setup pages.
  *
- * One page because the two are one decision. A tax charges nothing until it
- * is attached to a service, and a service's price means little without the
- * tax that goes with it, so the hotelier sets both up looking at both. The
- * data is loaded once here and handed to each panel, so ticking a tax on a
- * service shows up in the tax list's "charged on" at the same moment.
+ * Two pages, one loader. They are set up separately, but each needs the
+ * other's data: a service shows which taxes it carries, and a tax shows which
+ * services it is charged on. So both load the same thing here and render one
+ * panel or the other, the way PropertySetup renders rooms or plans.
  */
-export default function ServicesAndTaxes({ session }) {
+
+const PAGES = {
+  services: {
+    title: "Services Setup",
+    sub: "Everything a stay is billed for is a service — the room itself, breakfast, a pickup — grouped into categories. Each service carries its own taxes, set up under Tax Setup.",
+  },
+  taxes: {
+    title: "Tax Setup",
+    sub: "The tax and fee rules, and the services each is charged on. A rule attached to no service charges nothing.",
+  },
+};
+
+export default function BillingSetup({ session, only = "services" }) {
   const propertyId = session?.propertyId || null;
 
   const [data, setData] = useState({ categories: [], services: [], taxes: [] });
@@ -47,12 +58,8 @@ export default function ServicesAndTaxes({ session }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="h1">Services &amp; Taxes</h2>
-        <p className="sub">
-          Everything a stay is billed for is a service — the room itself,
-          breakfast, a pickup — grouped into categories. Each service carries
-          its own taxes.
-        </p>
+        <h2 className="h1">{PAGES[only].title}</h2>
+        <p className="sub">{PAGES[only].sub}</p>
       </div>
 
       {error && (
@@ -68,8 +75,10 @@ export default function ServicesAndTaxes({ session }) {
         <p className="sub">Loading…</p>
       ) : (
         <>
-          <ServicesSetup propertyId={propertyId} data={data} onChanged={load} />
-          <TaxSetup propertyId={propertyId} data={data} onChanged={load} />
+          {only === "services" && (
+            <ServicesSetup propertyId={propertyId} data={data} onChanged={load} />
+          )}
+          {only === "taxes" && <TaxSetup propertyId={propertyId} data={data} onChanged={load} />}
         </>
       )}
     </div>

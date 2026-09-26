@@ -383,7 +383,7 @@ export default function ServicesSetup({ propertyId, data, onChanged }) {
             <label className="label">Taxes on this service</label>
             {liveTaxes.length === 0 ? (
               <p className="sub" style={{ fontSize: "0.75rem" }}>
-                No taxes set up yet — add them under Taxes and fees below.
+                No taxes set up yet — add them under Setup → Tax Setup.
               </p>
             ) : (
               <div className="flex flex-wrap gap-3 text-sm">

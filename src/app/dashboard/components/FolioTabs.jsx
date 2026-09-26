@@ -589,8 +589,8 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
             </div>
             {sellable.length === 0 && (
               <p className="sub" style={{ fontSize: "0.7rem" }}>
-                No services set up yet. Add them under Setup → Services &amp;
-                Taxes, where each one gets its taxes.
+                No services set up yet. Add them under Setup → Services Setup,
+                and give each its taxes under Tax Setup.
               </p>
             )}
           </div>
