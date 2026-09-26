@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { getTapeChart, listPropertyExtras } from "@/lib/database";
+import { getTapeChart, getTapeRates, listPropertyExtras } from "@/lib/database";
 
 /**
  * The tape chart: rooms down the side, dates across, stays as bars.
  *
  * The property's extras list rides along because the booking modal opens
  * straight from a bar on this chart, and fetching the menu only once the
- * modal is open would leave its Inclusions tab briefly empty.
+ * modal is open would leave its Inclusions tab briefly empty. The two-adult
+ * rate per type and night rides along too, for the fine print on the chart.
  */
 
 const MAX_DAYS = 60;
@@ -52,11 +53,14 @@ export async function GET(req) {
   }
 
   try {
-    const [chart, extras] = await Promise.all([
+    const [chart, extras, rates] = await Promise.all([
       getTapeChart(propertyId, start, end),
       listPropertyExtras(propertyId),
+      // A rate that fails to price leaves the fine print blank; it must not
+      // take the chart down with it.
+      getTapeRates(propertyId, start, end).catch(() => ({})),
     ]);
-    return NextResponse.json({ ...chart, extras });
+    return NextResponse.json({ ...chart, extras, rates });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

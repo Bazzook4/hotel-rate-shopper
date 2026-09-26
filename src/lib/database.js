@@ -4177,6 +4177,63 @@ export async function getTapeChart(propertyId, startDate, endDate) {
 }
 
 /**
+ * The rate for two adults on each night of the chart, per room type.
+ *
+ * Shown as fine print under each type's sold count, so the desk quoting a
+ * walk-in sees the price the channels are selling without leaving the chart.
+ * Priced through `quoteReservation` rather than read from the grid, so it is
+ * the same figure a booking taken from that cell would be quoted.
+ *
+ * One plan per type: the master plan the type is assigned to, else any plan
+ * it is assigned to, else none -- which prices at the base price and is
+ * flagged as such, rather than borrowing a plan that does not sell the room.
+ */
+export async function getTapeRates(propertyId, startDate, endDate) {
+  const [roomTypes, ratePlans, assignments] = await Promise.all([
+    listRoomTypes(propertyId),
+    listRatePlans(propertyId).catch(() => []),
+    listRatePlanRooms(propertyId).catch(() => []),
+  ]);
+
+  // The chart's last date is a night to price, so the quote runs to the day after.
+  const after = new Date(`${endDate}T00:00:00Z`);
+  after.setUTCDate(after.getUTCDate() + 1);
+  const checkOut = after.toISOString().slice(0, 10);
+
+  const entries = await Promise.all(
+    roomTypes.map(async (rt) => {
+      const assigned = ratePlans.filter((p) =>
+        assignments.some((a) => a.rate_plan_id === p.id && a.room_type_id === rt.id)
+      );
+      const plan = assigned.find((p) => p.is_master) || assigned[0] || null;
+
+      const quote = await quoteReservation({
+        property_id: propertyId,
+        room_type_id: rt.id,
+        rate_plan_id: plan?.id || null,
+        check_in: startDate,
+        check_out: checkOut,
+        adults: 2,
+      }).catch(() => null);
+
+      const nights = {};
+      for (const n of quote?.nights || []) nights[n.stay_date] = n.rate;
+
+      return [
+        rt.id,
+        {
+          plan_name: plan?.plan_name || null,
+          base_price_only: quote?.source === 'base_price',
+          nights,
+        },
+      ];
+    })
+  );
+
+  return Object.fromEntries(entries);
+}
+
+/**
  * What a stay costs, priced exactly as the Channel Manager prices it.
  *
  * The desk was typing every total by hand while the system already held the

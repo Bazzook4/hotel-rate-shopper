@@ -371,18 +371,33 @@ export default function TapeChart({ session }) {
   }
 
   /**
-   * How many of a type's rooms are occupied on the window's first date.
+   * How many of each type's rooms are sold on each date of the window.
    *
-   * Shown on the type header so a folded group still answers the one question
-   * worth asking about a type: is anything left. A stay counts when the date
-   * falls on or after arrival and strictly before departure -- departure day is
-   * the room being handed back, not slept in.
+   * Shown in the type header under every date, so the desk reads "2/8" at a
+   * glance instead of counting bars -- and a folded type still answers the
+   * one question worth asking of it. Unassigned stays count: they have sold a
+   * room of the type even before one is chosen, and the channel manager has
+   * already deducted them. A date is sold when it falls on or after arrival
+   * and strictly before departure -- departure day is the room handed back.
    */
-  function occupiedOnAnchor(group) {
-    return group.rooms.filter((room) =>
-      room.reservations.some((r) => r.check_in <= anchor && r.check_out > anchor)
-    ).length;
-  }
+  const soldByType = useMemo(() => {
+    if (!chart) return {};
+    const out = {};
+    const stays = [
+      ...chart.roomTypes.flatMap((rt) =>
+        rt.rooms.flatMap((room) => room.reservations)
+      ),
+      ...(chart.unassigned || []),
+    ];
+    for (const rt of chart.roomTypes) {
+      const own = stays.filter((r) => r.room_type_id === rt.id);
+      out[rt.id] = {};
+      for (const d of dates) {
+        out[rt.id][d] = own.filter((r) => r.check_in <= d && r.check_out > d).length;
+      }
+    }
+    return out;
+  }, [chart, dates]);
 
   function toggleGroup(id) {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -616,37 +631,101 @@ export default function TapeChart({ session }) {
               {/* One group per room type, one row per room within it */}
               {groups.map((group) => (
                 <div key={group.id}>
-                  {/* The type header. Sticky to the left edge so it stays
-                      readable while the grid scrolls sideways. */}
+                  {/* The type header: name on the left, then each date's
+                      sold count with the two-adult rate in fine print. */}
                   <div
                     onClick={() => toggleGroup(group.id)}
                     style={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      position: "sticky",
-                      left: 0,
-                      width: ROOM_COL + windowDays * dayWidth,
-                      padding: "0.35rem 0.5rem",
                       background: "var(--surface-2)",
                       borderTop: "1px solid var(--border-strong)",
                       borderBottom: "1px solid var(--border-strong)",
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
                       cursor: "pointer",
                       userSelect: "none",
-                      zIndex: 2,
                     }}
                   >
-                    <span style={{ width: 10, color: "var(--text-faint)" }}>
-                      {collapsed[group.id] ? "▸" : "▾"}
-                    </span>
-                    <span>{group.name}</span>
-                    <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
-                      {group.rooms.length} room{group.rooms.length === 1 ? "" : "s"}
-                      {" · "}
-                      {occupiedOnAnchor(group)} occupied
-                    </span>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        width: ROOM_COL,
+                        flexShrink: 0,
+                        padding: "0.35rem 0.5rem",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        background: "var(--surface-2)",
+                        borderRight: "1px solid var(--border-strong)",
+                        position: "sticky",
+                        left: 0,
+                        zIndex: 2,
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <span style={{ width: 10, color: "var(--text-faint)" }}>
+                        {collapsed[group.id] ? "▸" : "▾"}
+                      </span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {group.name}
+                      </span>
+                      <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
+                        {group.rooms.length} room{group.rooms.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                    {dates.map((d) => {
+                      const sold = soldByType[group.id]?.[d] || 0;
+                      const total = group.rooms.length;
+                      const full = total > 0 && sold >= total;
+                      const typeRates = chart.rates?.[group.id];
+                      const rate = typeRates?.nights?.[d];
+                      return (
+                        <div
+                          key={d}
+                          title={
+                            rate != null
+                              ? `${sold} of ${total} sold · ${formatMoney(rate)} for 2 adults${
+                                  typeRates.base_price_only
+                                    ? " (base price — no channel rate set)"
+                                    : typeRates.plan_name
+                                      ? ` on ${typeRates.plan_name}`
+                                      : ""
+                                }`
+                              : `${sold} of ${total} sold`
+                          }
+                          style={{
+                            width: dayWidth,
+                            flexShrink: 0,
+                            textAlign: "center",
+                            padding: "0.2rem 0",
+                            lineHeight: 1.2,
+                            borderRight: "1px solid var(--border)",
+                            background: d === today ? "var(--accent-soft)" : undefined,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              fontWeight: 600,
+                              color: full ? "var(--danger)" : "var(--text)",
+                            }}
+                          >
+                            {sold}/{total}
+                          </div>
+                          {rate != null && (
+                            <div
+                              style={{
+                                fontSize: "0.6rem",
+                                color: "var(--text-faint)",
+                                fontStyle: typeRates.base_price_only ? "italic" : undefined,
+                              }}
+                            >
+                              {formatMoney(rate)}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {!collapsed[group.id] &&
