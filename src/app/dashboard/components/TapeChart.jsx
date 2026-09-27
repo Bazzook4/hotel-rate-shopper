@@ -224,6 +224,12 @@ export default function TapeChart({ session }) {
     load();
   }, [load]);
 
+  // Only the first load blanks the chart. Every save reloads it, and swapping
+  // the grid for "Loading…" each time threw away the scroll position and made
+  // a one-cell change look like the whole page reloading; after that the
+  // chart stays up, dimmed, until the fresh copy replaces it.
+  const firstLoad = !chart && !error;
+
   /**
    * The chart's rooms grouped by type, which is what the body iterates.
    *
@@ -783,24 +789,31 @@ export default function TapeChart({ session }) {
         </span>
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
-        {loading && <p className="sub card-pad">Loading…</p>}
+      <div
+        className="card"
+        style={{
+          overflow: "hidden",
+          opacity: loading && !firstLoad ? 0.6 : 1,
+          transition: "opacity 0.15s",
+        }}
+      >
+        {firstLoad && <p className="sub card-pad">Loading…</p>}
 
-        {!loading && allRooms.length === 0 && (
+        {!firstLoad && allRooms.length === 0 && (
           <p className="sub card-pad">
             No rooms set up yet. Add them in Room Setup — the chart needs actual
             rooms to lay bookings out against.
           </p>
         )}
 
-        {!loading && allRooms.length > 0 && visibleRooms.length === 0 && (
+        {!firstLoad && allRooms.length > 0 && visibleRooms.length === 0 && (
           <p className="sub card-pad">
             That room type has no rooms yet. Add them in Room Setup, or pick
             another type above.
           </p>
         )}
 
-        {!loading && visibleRooms.length > 0 && (
+        {!firstLoad && visibleRooms.length > 0 && (
           <div style={{ overflowX: "auto" }} ref={measureGrid}>
             <div style={{ minWidth: ROOM_COL + windowDays * dayWidth }}>
               {/* Date header */}

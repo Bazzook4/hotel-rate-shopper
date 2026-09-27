@@ -4488,11 +4488,9 @@ export async function getTapeChart(propertyId, startDate, endDate) {
  * flagged as such, rather than borrowing a plan that does not sell the room.
  */
 export async function getTapeRates(propertyId, startDate, endDate) {
-  const [roomTypes, ratePlans, assignments] = await Promise.all([
-    listRoomTypes(propertyId),
-    listRatePlans(propertyId).catch(() => []),
-    listRatePlanRooms(propertyId).catch(() => []),
-  ]);
+  // One load for every type's quote; see `loadQuoteData`.
+  const preloaded = await loadQuoteData(propertyId, startDate, endDate);
+  const { roomTypes, ratePlans, assignments } = preloaded;
 
   // The chart's last date is a night to price, so the quote runs to the day after.
   const checkOut = dayAfter(endDate);
@@ -4511,7 +4509,7 @@ export async function getTapeRates(propertyId, startDate, endDate) {
         check_in: startDate,
         check_out: checkOut,
         adults: 2,
-      }).catch(() => null);
+      }, preloaded).catch(() => null);
 
       const nights = {};
       for (const n of quote?.nights || []) nights[n.stay_date] = n.rate;
@@ -4528,6 +4526,25 @@ export async function getTapeRates(propertyId, startDate, endDate) {
   );
 
   return Object.fromEntries(entries);
+}
+
+/**
+ * Everything `quoteReservation` reads, for one property and a run of nights.
+ *
+ * A caller pricing many stays at once -- every room type on the tape chart,
+ * every room in a group -- loads this once and passes it to each quote.
+ * Otherwise each quote fetches the same four tables again, and on a chart
+ * with five room types that is twenty round trips to the database on every
+ * load and every save.
+ */
+export async function loadQuoteData(propertyId, firstNight, lastNight) {
+  const [ratePlans, assignments, stored, roomTypes] = await Promise.all([
+    listRatePlans(propertyId).catch(() => []),
+    listRatePlanRooms(propertyId).catch(() => []),
+    listDailyRates(propertyId, firstNight, lastNight).catch(() => []),
+    listRoomTypes(propertyId).catch(() => []),
+  ]);
+  return { ratePlans, assignments, stored, roomTypes };
 }
 
 /**
@@ -4553,15 +4570,18 @@ export async function getTapeRates(propertyId, startDate, endDate) {
  * yields nothing and the booking silently falls back to a base price the
  * channels never see.
  */
-export async function quoteReservation({
-  property_id,
-  room_type_id,
-  rate_plan_id,
-  check_in,
-  check_out,
-  adults = 2,
-  children = 0,
-}) {
+export async function quoteReservation(
+  {
+    property_id,
+    room_type_id,
+    rate_plan_id,
+    check_in,
+    check_out,
+    adults = 2,
+    children = 0,
+  },
+  preloaded = null
+) {
   const nights = nightsBetween(check_in, check_out);
   if (!property_id || !room_type_id || nights.length === 0) {
     return { total: null, nights: [], source: null, reason: 'Nothing to price yet.' };
@@ -4570,12 +4590,8 @@ export async function quoteReservation({
   const occupancy = Math.max(1, Number(adults) || 1);
   const lastNight = nights[nights.length - 1];
 
-  const [ratePlans, assignments, stored, roomTypes] = await Promise.all([
-    listRatePlans(property_id).catch(() => []),
-    listRatePlanRooms(property_id).catch(() => []),
-    listDailyRates(property_id, check_in, lastNight).catch(() => []),
-    listRoomTypes(property_id).catch(() => []),
-  ]);
+  const { ratePlans, assignments, stored, roomTypes } =
+    preloaded || (await loadQuoteData(property_id, check_in, lastNight));
 
   const room = roomTypes.find((r) => r.id === room_type_id) || null;
   const baseAdults = Math.max(1, Number(room?.base_adults) || 0);

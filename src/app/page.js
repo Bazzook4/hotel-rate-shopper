@@ -1,26 +1,92 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { visibleAreas, areaForPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
-import ChannelManager from "./dashboard/components/ChannelManager";
-import PropertySetup from "./dashboard/components/PropertySetup";
-import Integrations from "./dashboard/components/Integrations";
-import ActivityLog from "./dashboard/components/ActivityLog";
-import RateParity from "./dashboard/components/RateParity";
-import GoogleListingSetup from "./dashboard/components/GoogleListingSetup";
-import CompetitorShopper from "./dashboard/components/CompetitorShopper";
-import DynamicPricingGrid from "./dashboard/components/DynamicPricingGrid";
-import Reservations from "./dashboard/components/Reservations";
-import TapeChart from "./dashboard/components/TapeChart";
-import RoomInventory from "./dashboard/components/RoomInventory";
-import Housekeeping from "./dashboard/components/Housekeeping";
-import BillingSetup from "./dashboard/components/BillingSetup";
-import BookingPerformance from "./dashboard/components/BookingPerformance";
-import AdminUserManager from "./components/AdminUserManager";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
 import Icon from "./components/Icon";
+
+/**
+ * Each page is fetched the first time it is opened, not with the dashboard.
+ *
+ * Imported directly, every page -- the Channel Manager, the tape chart, the
+ * reports and the charting library behind them -- was downloaded and parsed
+ * before the first one could show, though a session opens only a few. Once
+ * fetched a page is cached, so returning to it is immediate.
+ */
+function PageLoading() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div
+        className="inline-block h-7 w-7 animate-spin rounded-full border-2"
+        style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }}
+      />
+    </div>
+  );
+}
+
+const ChannelManager = dynamic(() => import("./dashboard/components/ChannelManager"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const PropertySetup = dynamic(() => import("./dashboard/components/PropertySetup"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const Integrations = dynamic(() => import("./dashboard/components/Integrations"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const ActivityLog = dynamic(() => import("./dashboard/components/ActivityLog"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const RateParity = dynamic(() => import("./dashboard/components/RateParity"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const GoogleListingSetup = dynamic(() => import("./dashboard/components/GoogleListingSetup"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const CompetitorShopper = dynamic(() => import("./dashboard/components/CompetitorShopper"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const DynamicPricingGrid = dynamic(() => import("./dashboard/components/DynamicPricingGrid"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const Reservations = dynamic(() => import("./dashboard/components/Reservations"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const TapeChart = dynamic(() => import("./dashboard/components/TapeChart"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const RoomInventory = dynamic(() => import("./dashboard/components/RoomInventory"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const Housekeeping = dynamic(() => import("./dashboard/components/Housekeeping"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const BillingSetup = dynamic(() => import("./dashboard/components/BillingSetup"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const BookingPerformance = dynamic(() => import("./dashboard/components/BookingPerformance"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const AdminUserManager = dynamic(() => import("./components/AdminUserManager"), {
+  ssr: false,
+  loading: PageLoading,
+});
 
 /**
  * A page that is agreed but not yet built.

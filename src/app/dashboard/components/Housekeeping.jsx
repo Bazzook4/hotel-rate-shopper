@@ -325,7 +325,9 @@ export default function Housekeeping({ session }) {
             </tr>
           </thead>
           <tbody>
-            {loading && (
+            {/* Only while there is nothing to show yet; a reload keeps the
+                rooms on screen instead of blanking the table. */}
+            {loading && rooms.length === 0 && (
               <tr>
                 <td colSpan={9} className="sub">
                   Loading…
@@ -339,75 +341,74 @@ export default function Housekeeping({ session }) {
                 </td>
               </tr>
             )}
-            {!loading && rooms.length > 0 && visible.length === 0 && (
+            {rooms.length > 0 && visible.length === 0 && (
               <tr>
                 <td colSpan={9} className="sub">
                   Nothing here for this view.
                 </td>
               </tr>
             )}
-            {!loading &&
-              visible.map((room) => {
-                const guest = room.occupied || room.arriving || room.departing;
-                return (
-                  <tr key={room.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(room.id)}
-                        onChange={() => toggle(room.id)}
-                      />
-                    </td>
-                    <td>{room.floor || "—"}</td>
-                    <td style={{ fontWeight: 600 }}>{room.room_number}</td>
-                    <td>{room.room_types?.room_type_name || "—"}</td>
-                    <td>
-                      <span className={`chip ${STATUS[room.housekeeping]?.chip || "chip-off"}`}>
-                        {roomCode(room)}
+            {visible.map((room) => {
+              const guest = room.occupied || room.arriving || room.departing;
+              return (
+                <tr key={room.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(room.id)}
+                      onChange={() => toggle(room.id)}
+                    />
+                  </td>
+                  <td>{room.floor || "—"}</td>
+                  <td style={{ fontWeight: 600 }}>{room.room_number}</td>
+                  <td>{room.room_types?.room_type_name || "—"}</td>
+                  <td>
+                    <span className={`chip ${STATUS[room.housekeeping]?.chip || "chip-off"}`}>
+                      {roomCode(room)}
+                    </span>
+                  </td>
+                  <td>
+                    {occupancyLabel(room)}
+                    {room.arriving && (
+                      <span className="chip chip-warn" style={{ marginLeft: 6 }}>
+                        Arrival
                       </span>
-                    </td>
-                    <td>
-                      {occupancyLabel(room)}
-                      {room.arriving && (
-                        <span className="chip chip-warn" style={{ marginLeft: 6 }}>
-                          Arrival
+                    )}
+                  </td>
+                  <td className="text-sm">
+                    {guest ? (
+                      <>
+                        {guest.guest_name}
+                        <span style={{ color: "var(--text-faint)" }}>
+                          {" "}
+                          · {guest.adults}A
+                          {guest.children ? ` ${guest.children}C` : ""}
                         </span>
-                      )}
-                    </td>
-                    <td className="text-sm">
-                      {guest ? (
-                        <>
-                          {guest.guest_name}
-                          <span style={{ color: "var(--text-faint)" }}>
-                            {" "}
-                            · {guest.adults}A
-                            {guest.children ? ` ${guest.children}C` : ""}
-                          </span>
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>
-                      <select
-                        className="input"
-                        style={{ padding: "0.25rem 0.4rem", fontSize: "0.8rem" }}
-                        value={room.housekeeping}
-                        onChange={(e) => mark([room.id], e.target.value)}
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="sub" style={{ fontSize: "0.75rem" }}>
-                      {timeAgo(room.housekeeping_updated_at)}
-                    </td>
-                  </tr>
-                );
-              })}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td>
+                    <select
+                      className="input"
+                      style={{ padding: "0.25rem 0.4rem", fontSize: "0.8rem" }}
+                      value={room.housekeeping}
+                      onChange={(e) => mark([room.id], e.target.value)}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="sub" style={{ fontSize: "0.75rem" }}>
+                    {timeAgo(room.housekeeping_updated_at)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

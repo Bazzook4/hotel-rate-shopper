@@ -127,7 +127,9 @@ export default function Integrations({ session }) {
     }
   }
 
-  if (loading) {
+  // Only before the first load. A save reloads, and the form stays up
+  // meanwhile rather than being swapped out for a spinner.
+  if (loading && !data) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="space-y-3 text-center">

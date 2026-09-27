@@ -30,6 +30,10 @@ export default function PropertySetup({ session, only = "rooms" }) {
   const [roomTypes, setRoomTypes] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Set once the first load lands. Every save reloads the page's data, and
+  // only the very first load should blank it -- after that the tables stay up
+  // so a saved row does not look like the whole page reloading.
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -68,6 +72,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
 
       const aj = a && a.ok ? await a.json().catch(() => null) : null;
       setAssignments(aj?.assignments || []);
+      setLoaded(true);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -226,7 +231,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
     await send(`/api/setup/ratePlans?id=${encodeURIComponent(id)}`, "DELETE");
   }
 
-  if (loading) return <Loading label="Loading property setup…" />;
+  if (loading && !loaded) return <Loading label="Loading property setup…" />;
 
   if (error) {
     return (

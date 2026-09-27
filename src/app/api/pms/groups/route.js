@@ -5,6 +5,7 @@ import {
   findRoomClash,
   getAvailabilityGrid,
   quoteReservation,
+  loadQuoteData,
   createReservationGroup,
   getReservationGroup,
   deleteReservationGroup,
@@ -172,6 +173,16 @@ export async function POST(req) {
       created_by: session.userId,
     });
 
+    // Every room is quoted for the same nights, so the pricing tables are
+    // read once for the whole group rather than once per room.
+    const finalNight = new Date(`${check_out}T00:00:00Z`);
+    finalNight.setUTCDate(finalNight.getUTCDate() - 1);
+    const quoteData = await loadQuoteData(
+      propertyId,
+      check_in,
+      finalNight.toISOString().slice(0, 10)
+    );
+
     const reservations = [];
     try {
       for (const [i, room] of chosen.entries()) {
@@ -188,7 +199,7 @@ export async function POST(req) {
           check_out,
           adults,
           children,
-        });
+        }, quoteData);
 
         // A total the desk typed is what the room is owed; it has no nightly
         // breakdown, so it is spread evenly, as a single booking's would be.

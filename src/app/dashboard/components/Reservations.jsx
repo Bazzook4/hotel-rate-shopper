@@ -78,6 +78,14 @@ export default function Reservations({ session }) {
 
   const [view, setView] = useState("current");
   const [search, setSearch] = useState("");
+  // What the list is actually filtered by: the box, once typing pauses.
+  // Searching on every keystroke sent a request per letter, and the answers
+  // could land out of order and leave the list showing an older search.
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
@@ -101,7 +109,7 @@ export default function Reservations({ session }) {
     try {
       const qs = new URLSearchParams();
       if (propertyId) qs.set("propertyId", propertyId);
-      if (search.trim()) qs.set("search", search.trim());
+      if (query) qs.set("search", query);
 
       // "Current" means stays that touch the next month, which is the window
       // a desk actually works in. Everything else asks for the full list and
@@ -120,7 +128,7 @@ export default function Reservations({ session }) {
     } finally {
       setLoading(false);
     }
-  }, [propertyId, search, view, today]);
+  }, [propertyId, query, view, today]);
 
   /** The setup the booking form needs: room types, rooms and rate plans. */
   const loadSetup = useCallback(async () => {
@@ -509,7 +517,7 @@ export default function Reservations({ session }) {
           />
         </div>
 
-        {loading && <p className="sub">Loading…</p>}
+        {loading && visible.length === 0 && <p className="sub">Loading…</p>}
 
         {!loading && visible.length === 0 && (
           <p className="sub">

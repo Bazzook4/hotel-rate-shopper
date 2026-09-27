@@ -142,7 +142,6 @@ export default function ChannelManager() {
   const [property, setProperty] = useState(null);
   const [grid, setGrid] = useState(null);
   const [source, setSource] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [days, setDays] = useState(15);
   const [anchor, setAnchor] = useState(() => isoDate(new Date()));
@@ -190,31 +189,69 @@ export default function ChannelManager() {
     [anchor, days]
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // How many loads are in flight. The property and the grid load separately,
+  // so one finishing must not clear the spinner while the other is still out.
+  const [inFlight, setInFlight] = useState(0);
+  const loading = inFlight > 0;
+  // Whether the grid has arrived at least once; until then the page shows a
+  // spinner, and afterwards it never goes back to one.
+  const [gridLoaded, setGridLoaded] = useState(false);
+
+  const track = useCallback(async (task) => {
+    setInFlight((n) => n + 1);
     setError("");
     try {
-      const [chRes, gridRes] = await Promise.all([
-        fetch("/api/cm/property"),
-        fetch(`/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}`),
-      ]);
-      const json = await chRes.json();
-      if (!chRes.ok) throw new Error(json?.error || `Request failed (${chRes.status})`);
-      setProperty(json.property);
-      setSource(json.source);
-
-      // The grid comes from this property's own setup, not from the partner.
-      const gridJson = gridRes.ok ? await gridRes.json() : null;
-      setGrid(gridJson);
-      setExpanded(
-        Object.fromEntries((gridJson?.rooms || []).map((r) => [r.id, true]))
-      );
+      await task();
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setInFlight((n) => n - 1);
     }
-  }, [dates]);
+  }, []);
+
+  /**
+   * The connected channels and their multipliers.
+   *
+   * Loaded once rather than with the grid: it is a live call to Aiosell, so
+   * repeating it on every date change and every publish made each of those
+   * wait on the partner's API for an answer that had not changed.
+   */
+  const loadProperty = useCallback(
+    () =>
+      track(async () => {
+        const chRes = await fetch("/api/cm/property");
+        const json = await chRes.json();
+        if (!chRes.ok) throw new Error(json?.error || `Request failed (${chRes.status})`);
+        setProperty(json.property);
+        setSource(json.source);
+      }),
+    [track]
+  );
+
+  /** The grid for the dates on screen, from this property's own setup. */
+  const load = useCallback(
+    () =>
+      track(async () => {
+        const gridRes = await fetch(
+          `/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}`
+        );
+        const gridJson = gridRes.ok ? await gridRes.json() : null;
+        setGrid(gridJson);
+        setGridLoaded(true);
+        // New rooms open expanded; rooms already on screen keep whatever the
+        // user left them as, rather than all springing open after a publish.
+        setExpanded((prev) => {
+          const next = { ...prev };
+          for (const r of gridJson?.rooms || []) if (!(r.id in next)) next[r.id] = true;
+          return next;
+        });
+      }),
+    [dates, track]
+  );
+
+  useEffect(() => {
+    loadProperty();
+  }, [loadProperty]);
 
   useEffect(() => {
     load();
@@ -660,7 +697,10 @@ export default function ChannelManager() {
     }
   }
 
-  if (loading) {
+  // Only the first load replaces the page with a spinner. After that a reload
+  // -- a new date range, a publish -- leaves the grid up, dimmed, so the page
+  // keeps its scroll and nothing appears to start over.
+  if (!gridLoaded && !error) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center space-y-3">
@@ -677,7 +717,10 @@ export default function ChannelManager() {
         <p className="text-sm text-[var(--danger)]">{error}</p>
         <button
           type="button"
-          onClick={load}
+          onClick={() => {
+            loadProperty();
+            load();
+          }}
           className="mt-3 btn btn-secondary text-xs"
         >
           Retry
@@ -938,7 +981,10 @@ export default function ChannelManager() {
       {/* Grid — every cell is ruled, so a rate can be read across a row and
           down a date without losing its place. Weekends are tinted, since
           they are what a revenue manager scans for. */}
-      <div className="overflow-x-auto card" style={{ padding: 0 }}>
+      <div
+        className="overflow-x-auto card"
+        style={{ padding: 0, opacity: loading ? 0.6 : 1, transition: "opacity 0.15s" }}
+      >
         <table
           className="min-w-full text-sm"
           style={{ borderCollapse: "separate", borderSpacing: 0 }}

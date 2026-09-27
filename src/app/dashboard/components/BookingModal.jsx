@@ -86,6 +86,10 @@ export default function BookingModal({
     }
   }, [reservationId, isNew]);
 
+  // Only the first load blanks the modal. A payment or a charge reloads the
+  // folio, and the tab should stay where it is while that happens.
+  const firstLoad = loading && !folio;
+
   /** The setup the Details form needs to offer rooms and plans. */
   const loadSetup = useCallback(async () => {
     const qs = propertyId ? `?propertyId=${propertyId}` : "";
@@ -290,9 +294,9 @@ export default function BookingModal({
             </p>
           )}
 
-          {loading && <p className="sub">Loading…</p>}
+          {firstLoad && <p className="sub">Loading…</p>}
 
-          {!loading && (tab === "details" || isNew) && (
+          {!firstLoad && (tab === "details" || isNew) && (
             <>
               {reservation && (
                 <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -356,7 +360,7 @@ export default function BookingModal({
             </>
           )}
 
-          {!loading && !isNew && tab !== "details" && folio && (
+          {!firstLoad && !isNew && tab !== "details" && folio && (
             <FolioTabs
               tab={tab}
               folio={folio}
