@@ -500,11 +500,34 @@ export default function TapeChart({ session }) {
     }
   }
 
+  /**
+   * Check a guest in from the chart. The route refuses an early arrival or a
+   * stay with no room, and the menu only offers it when neither applies.
+   */
+  async function checkIn(r) {
+    setError(null);
+    try {
+      const res = await fetch("/api/pms/reservations/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, status: "in_house" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not check the guest in");
+      setSyncWarning(inventoryWarning(data));
+    } catch (err) {
+      setError(err.message);
+    }
+    await load();
+  }
+
   function chooseBookingAction(action) {
     const r = bookingMenu?.reservation;
     setBookingMenu(null);
     if (!r) return;
-    if (action === "upgrade") {
+    if (action === "checkin") {
+      checkIn(r);
+    } else if (action === "upgrade") {
       setUpgrade(r);
     } else {
       setOpenTab(action);
@@ -1193,6 +1216,7 @@ export default function TapeChart({ session }) {
           y={bookingMenu.y}
           reservation={bookingMenu.reservation}
           room={allRooms.find((room) => room.id === bookingMenu.reservation.room_id)}
+          today={today}
           onChoose={chooseBookingAction}
           onClose={() => setBookingMenu(null)}
         />
@@ -1513,9 +1537,12 @@ function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
  * then say what for. A stay that is over cannot change room, and the action
  * stays in the menu but disabled so its absence is not a puzzle.
  */
-function BookingMenu({ x, y, reservation: r, room, onChoose, onClose }) {
+function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
   const nights = daysBetween(r.check_in, r.check_out);
   const settled = SETTLED.includes(r.status);
+  // Offered from the arrival day on -- a late arrival still checks in -- and
+  // never before it, which the route would refuse anyway.
+  const arriving = r.status === "confirmed" && r.check_in <= today;
 
   useEffect(() => {
     function onKey(e) {
@@ -1540,6 +1567,14 @@ function BookingMenu({ x, y, reservation: r, room, onChoose, onClose }) {
           {nights === 1 ? "" : "s"}
         </div>
       </div>
+      {arriving && (
+        <MenuItem
+          label="Check in"
+          disabled={!room}
+          title={room ? undefined : "Assign a room first"}
+          onClick={() => onChoose("checkin")}
+        />
+      )}
       {BOOKING_ACTIONS.map((a) => {
         const locked = a.id === "upgrade" && settled;
         return (
