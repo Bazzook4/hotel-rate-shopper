@@ -44,7 +44,12 @@ const METHODS = [
   { id: "other", label: "Other" },
 ];
 
-export default function FolioTabs({ tab, folio, extras, reservationId, onChanged }) {
+/**
+ * `intent` is the job the folio was opened for from the tape chart's menu --
+ * "inclusions" to add a service, "payments" to collect one -- and puts the
+ * cursor in that form, with a payment starting at what is still owed.
+ */
+export default function FolioTabs({ tab, folio, extras, reservationId, intent, onChanged }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -56,7 +61,12 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
     quantity: "",
     stay_date: "",
   });
-  const [payment, setPayment] = useState({ amount: "", method: "cash", reference: "" });
+  const [payment, setPayment] = useState(() => ({
+    amount:
+      intent === "payments" && folio?.totals?.balance > 0 ? String(folio.totals.balance) : "",
+    method: "cash",
+    reference: "",
+  }));
 
   // Night rates being edited, keyed by date. A night is saved when its box
   // loses focus, and only if the figure actually changed.
@@ -490,6 +500,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                 <label className="label">Service *</label>
                 <select
                   className="input"
+                  autoFocus={intent === "inclusions"}
                   value={line.extra_id}
                   onChange={(e) => {
                     // Picking a service fills its name and price, which the
@@ -684,6 +695,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, onChanged
                 <input
                   className="input"
                   type="number"
+                  autoFocus={intent === "payments"}
                   value={payment.amount}
                   onChange={(e) => setPayment({ ...payment, amount: e.target.value })}
                   placeholder="Negative to refund"

@@ -47,6 +47,7 @@ const NEXT_ACTIONS = {
 export default function BookingModal({
   session,
   reservationId,
+  initialTab = "details",
   prefill,
   extras,
   onClose,
@@ -54,7 +55,10 @@ export default function BookingModal({
 }) {
   const isNew = !reservationId;
 
-  const [tab, setTab] = useState("details");
+  // Opened from the tape chart's menu, a booking starts on the tab for the job
+  // it was opened for; the add form there is ready until the desk moves away.
+  const [tab, setTab] = useState(isNew ? "details" : initialTab);
+  const [intent, setIntent] = useState(isNew ? null : initialTab);
   const [folio, setFolio] = useState(null);
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
@@ -257,7 +261,10 @@ export default function BookingModal({
             {TABS.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  setTab(t.id);
+                  setIntent(null);
+                }}
                 className="btn text-xs"
                 style={{
                   borderRadius: "4px 4px 0 0",
@@ -355,6 +362,7 @@ export default function BookingModal({
               folio={folio}
               extras={extras}
               reservationId={reservationId}
+              intent={intent === tab ? intent : null}
               onChanged={async () => {
                 await loadFolio();
                 onChanged?.();

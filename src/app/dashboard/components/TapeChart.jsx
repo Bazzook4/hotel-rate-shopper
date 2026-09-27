@@ -63,6 +63,21 @@ const SELECTION_ACTIONS = [
   { id: "block", label: "Out of order" },
 ];
 
+/**
+ * What can be done with a booking already on the chart, offered when its bar
+ * is clicked. Each opens the booking where that job is done rather than on
+ * Details, so taking a payment is one click and not a hunt for the tab.
+ */
+const BOOKING_ACTIONS = [
+  { id: "details", label: "Edit booking" },
+  { id: "upgrade", label: "Upgrade / change room", assign: "Assign a room" },
+  { id: "inclusions", label: "Add service" },
+  { id: "payments", label: "Collect payment" },
+];
+
+/** Stays whose room can no longer change: they are over, or never happened. */
+const SETTLED = ["checked_out", "cancelled", "no_show"];
+
 function daysBetween(a, b) {
   return Math.round(
     (new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000
@@ -90,7 +105,14 @@ export default function TapeChart({ session }) {
   const [syncWarning, setSyncWarning] = useState(null);
 
   const [openId, setOpenId] = useState(null);
+  // Which tab an opened booking starts on, and the job it was opened for --
+  // "payments" from Collect payment puts the cursor in the amount.
+  const [openTab, setOpenTab] = useState("details");
   const [newBooking, setNewBooking] = useState(null);
+  // A clicked booking's menu ({ reservation, x, y }), and a stay whose room is
+  // being changed from it.
+  const [bookingMenu, setBookingMenu] = useState(null);
+  const [upgrade, setUpgrade] = useState(null);
   // An out-of-order block being created ({ room, start_date, end_date }) or
   // opened ({ block }), and a group booking started from a selection.
   const [blockEdit, setBlockEdit] = useState(null);
@@ -282,6 +304,7 @@ export default function TapeChart({ session }) {
 
     const start = {
       id: reservation.id,
+      reservation,
       mode, // "move" | "start" | "end"
       originX: e.clientX,
       originY: e.clientY,
@@ -337,7 +360,7 @@ export default function TapeChart({ session }) {
       setDrag(next);
     }
 
-    async function onUp() {
+    async function onUp(e) {
       const d = dragRef.current;
       dragRef.current = null;
       setDrag(null);
@@ -348,9 +371,9 @@ export default function TapeChart({ session }) {
         d.preview.check_out !== d.check_out ||
         d.preview.room_id !== d.room_id;
 
-      // A click that never moved is a click, and opens the booking.
+      // A click that never moved is a click, and asks what to do with it.
       if (!moved) {
-        setOpenId(d.id);
+        setBookingMenu({ reservation: d.reservation, x: e.clientX, y: e.clientY });
         return;
       }
 
@@ -474,6 +497,18 @@ export default function TapeChart({ session }) {
       setNewGroup({ room_ids: [room.id], check_in, check_out });
     } else if (action === "block") {
       setBlockEdit({ room, start_date: check_in, end_date: check_out });
+    }
+  }
+
+  function chooseBookingAction(action) {
+    const r = bookingMenu?.reservation;
+    setBookingMenu(null);
+    if (!r) return;
+    if (action === "upgrade") {
+      setUpgrade(r);
+    } else {
+      setOpenTab(action);
+      setOpenId(r.id);
     }
   }
 
@@ -650,7 +685,9 @@ export default function TapeChart({ session }) {
                 key={r.id}
                 className="chip chip-warn"
                 style={{ cursor: "pointer" }}
-                onClick={() => setOpenId(r.id)}
+                onClick={(e) =>
+                  setBookingMenu({ reservation: r, x: e.clientX, y: e.clientY })
+                }
                 title={`${r.check_in} → ${r.check_out}`}
               >
                 {r.guest_name} · {r.room_types?.room_type_name}
@@ -1150,6 +1187,34 @@ export default function TapeChart({ session }) {
         />
       )}
 
+      {bookingMenu && (
+        <BookingMenu
+          x={bookingMenu.x}
+          y={bookingMenu.y}
+          reservation={bookingMenu.reservation}
+          room={allRooms.find((room) => room.id === bookingMenu.reservation.room_id)}
+          onChoose={chooseBookingAction}
+          onClose={() => setBookingMenu(null)}
+        />
+      )}
+
+      {upgrade && (
+        <RoomChangeDialog
+          reservation={upgrade}
+          roomTypes={chart?.roomTypes || []}
+          onChoose={async (roomId) => {
+            setUpgrade(null);
+            await sendMove({
+              id: upgrade.id,
+              room_id: roomId,
+              check_in: upgrade.check_in,
+              check_out: upgrade.check_out,
+            });
+          }}
+          onCancel={() => setUpgrade(null)}
+        />
+      )}
+
       {blockEdit && (
         <RoomBlockModal
           session={session}
@@ -1181,10 +1246,12 @@ export default function TapeChart({ session }) {
         <BookingModal
           session={session}
           reservationId={openId}
+          initialTab={openTab}
           prefill={newBooking}
           extras={extras}
           onClose={() => {
             setOpenId(null);
+            setOpenTab("details");
             setNewBooking(null);
           }}
           onChanged={(warning) => {
@@ -1367,14 +1434,10 @@ function BarTag({ children, title, legend = false }) {
 }
 
 /**
- * What to do with a selection of empty nights, opened where the pointer let go.
- *
- * Says which room and which nights, because the ghost bar may be scrolled
- * half out of view by the time the desk reads the menu.
+ * A small menu opened where the pointer let go, with a click-away layer
+ * behind it. Kept on screen when that is near the right or bottom edge.
  */
-function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
-  const nights = daysBetween(range.check_in, range.check_out);
-  // Kept on screen when the pointer lets go near the right or bottom edge.
+function MenuShell({ x, y, onClose, children }) {
   const left = Math.min(x + 4, (typeof window !== "undefined" ? window.innerWidth : 1200) - 230);
   const top = Math.min(y + 4, (typeof window !== "undefined" ? window.innerHeight : 800) - 250);
 
@@ -1397,25 +1460,218 @@ function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
           boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
         }}
       >
-        <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
-          <div style={{ fontWeight: 600 }}>Room {room.room_number}</div>
-          <div style={{ color: "var(--text-muted)" }}>
-            {nightLabel(range.check_in)} → {nightLabel(range.check_out)} · {nights} night
-            {nights === 1 ? "" : "s"}
-          </div>
-          {conflict && <div style={{ color: "var(--danger)" }}>{conflict}</div>}
-        </div>
-        {SELECTION_ACTIONS.map((a) => (
-          <button
-            key={a.id}
-            className="btn btn-ghost text-sm"
-            style={{ width: "100%", justifyContent: "flex-start" }}
-            onClick={() => onChoose(a.id)}
-          >
-            {a.label}
-          </button>
-        ))}
+        {children}
       </div>
     </>
+  );
+}
+
+function MenuItem({ label, disabled, title, onClick }) {
+  return (
+    <button
+      className="btn btn-ghost text-sm"
+      style={{ width: "100%", justifyContent: "flex-start" }}
+      disabled={disabled}
+      title={title}
+      onClick={onClick}
+    >
+      {label}
+    </button>
+  );
+}
+
+/**
+ * What to do with a selection of empty nights, opened where the pointer let go.
+ *
+ * Says which room and which nights, because the ghost bar may be scrolled
+ * half out of view by the time the desk reads the menu.
+ */
+function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
+  const nights = daysBetween(range.check_in, range.check_out);
+
+  return (
+    <MenuShell x={x} y={y} onClose={onClose}>
+      <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
+        <div style={{ fontWeight: 600 }}>Room {room.room_number}</div>
+        <div style={{ color: "var(--text-muted)" }}>
+          {nightLabel(range.check_in)} → {nightLabel(range.check_out)} · {nights} night
+          {nights === 1 ? "" : "s"}
+        </div>
+        {conflict && <div style={{ color: "var(--danger)" }}>{conflict}</div>}
+      </div>
+      {SELECTION_ACTIONS.map((a) => (
+        <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
+      ))}
+    </MenuShell>
+  );
+}
+
+/**
+ * What to do with a booking already on the chart, opened where it was clicked.
+ *
+ * The same gesture as for empty nights, so the desk learns one thing: click,
+ * then say what for. A stay that is over cannot change room, and the action
+ * stays in the menu but disabled so its absence is not a puzzle.
+ */
+function BookingMenu({ x, y, reservation: r, room, onChoose, onClose }) {
+  const nights = daysBetween(r.check_in, r.check_out);
+  const settled = SETTLED.includes(r.status);
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <MenuShell x={x} y={y} onClose={onClose}>
+      <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
+        <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {r.guest_name}
+        </div>
+        <div style={{ color: "var(--text-muted)" }}>
+          {r.reference}
+          {room ? ` · Room ${room.room_number}` : " · no room yet"}
+        </div>
+        <div style={{ color: "var(--text-muted)" }}>
+          {nightLabel(r.check_in)} → {nightLabel(r.check_out)} · {nights} night
+          {nights === 1 ? "" : "s"}
+        </div>
+      </div>
+      {BOOKING_ACTIONS.map((a) => {
+        const locked = a.id === "upgrade" && settled;
+        return (
+          <MenuItem
+            key={a.id}
+            label={a.id === "upgrade" && !room ? a.assign : a.label}
+            disabled={locked}
+            title={locked ? "This stay is over — its room can no longer change" : undefined}
+            onClick={() => onChoose(a.id)}
+          />
+        );
+      })}
+    </MenuShell>
+  );
+}
+
+/**
+ * Pick another room for a stay's same nights: an upgrade, a move for a
+ * complaint, or a first room for a booking that has none.
+ *
+ * Saved through the same move a drag makes, so it keeps what the guest is
+ * paying night by night -- an upgrade given, not sold. Charging for the
+ * better room is a price change, made on the booking where the new type can
+ * be re-quoted.
+ *
+ * Rooms are offered only if nothing on the chart sits on those nights. The
+ * chart shows a window, so a clash beyond it is not seen here; the server
+ * checks the whole stay and refuses one.
+ */
+function RoomChangeDialog({ reservation: r, roomTypes, onChoose, onCancel }) {
+  const [busy, setBusy] = useState(false);
+  const nights = daysBetween(r.check_in, r.check_out);
+
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const free = (room) =>
+    room.is_active &&
+    room.id !== r.room_id &&
+    !room.reservations.some(
+      (o) => o.id !== r.id && o.check_in < r.check_out && o.check_out > r.check_in
+    ) &&
+    !(room.blocks || []).some((b) => b.start_date < r.check_out && b.end_date > r.check_in);
+
+  // The stay's own type first -- a move within it is the common case -- then
+  // the rest in the chart's order.
+  const options = roomTypes
+    .map((rt) => ({ ...rt, rooms: rt.rooms.filter(free) }))
+    .filter((rt) => rt.rooms.length > 0)
+    .sort((a, b) => (b.id === r.room_type_id) - (a.id === r.room_type_id));
+
+  async function choose(roomId) {
+    setBusy(true);
+    await onChoose(roomId);
+  }
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        zIndex: 60,
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+        padding: "4rem 1rem",
+      }}
+    >
+      <div
+        className="card card-pad space-y-3"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "100%", maxWidth: 460, background: "var(--surface)" }}
+      >
+        <div>
+          <div style={{ fontWeight: 600 }}>
+            {r.room_id ? "Upgrade / change room" : "Assign a room"} — {r.guest_name}
+          </div>
+          <div className="sub" style={{ fontSize: "0.75rem" }}>
+            {nightLabel(r.check_in)} → {nightLabel(r.check_out)} · {nights} night
+            {nights === 1 ? "" : "s"}
+          </div>
+        </div>
+
+        {options.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            No other room is free for all of these nights.
+          </p>
+        ) : (
+          <div className="space-y-2" style={{ maxHeight: "50vh", overflowY: "auto" }}>
+            {options.map((rt) => (
+              <div key={rt.id}>
+                <div
+                  style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)" }}
+                >
+                  {rt.name}
+                  {rt.id === r.room_type_id ? " · same type" : ""}
+                </div>
+                <div className="flex flex-wrap gap-1" style={{ marginTop: 4 }}>
+                  {rt.rooms.map((room) => (
+                    <button
+                      key={room.id}
+                      className="btn btn-secondary text-sm"
+                      disabled={busy}
+                      onClick={() => choose(room.id)}
+                    >
+                      {room.room_number}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <p className="sub" style={{ fontSize: "0.7rem" }}>
+          The guest keeps paying what they were booked at. To charge for a better
+          room, use Edit booking and re-quote the new type.
+        </p>
+
+        <div className="flex justify-end">
+          <button className="btn btn-ghost text-sm" disabled={busy} onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
