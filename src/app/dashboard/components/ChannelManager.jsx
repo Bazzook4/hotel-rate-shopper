@@ -992,12 +992,11 @@ export default function ChannelManager() {
           <thead>
             <tr>
               <th
-                className="sticky left-0 z-20 px-4 py-2.5 text-left text-xs uppercase tracking-wide muted"
+                className="cm-name-col sticky left-0 z-20 px-2 py-2.5 text-left text-xs uppercase tracking-wide muted md:px-4"
                 style={{
                   background: "var(--surface-2)",
                   borderBottom: "1px solid var(--border-strong)",
                   borderRight: "1px solid var(--border-strong)",
-                  minWidth: 260,
                 }}
               >
                 Room type &amp; rate plan
@@ -1118,7 +1117,7 @@ function ExpandableRoom({
     <>
       <tr>
         <td
-          className="sticky left-0 z-10 px-4 py-2.5"
+          className="sticky left-0 z-10 px-2 py-2.5 md:px-4"
           style={{
             background: "var(--surface-2)",
             borderBottom: "1px solid var(--border-strong)",
@@ -1184,7 +1183,7 @@ function ExpandableRoom({
               {rows.map((occ, i) => (
                 <tr key={`${plan.id}-${view}-${occ.occupancy}`}>
                   <td
-                    className="sticky left-0 z-10 px-4 py-1.5 pl-10"
+                    className="sticky left-0 z-10 px-2 py-1.5 pl-4 md:px-4 md:pl-10"
                     style={{
                       background: "var(--surface)",
                       borderBottom: "1px solid var(--border)",
@@ -1192,7 +1191,10 @@ function ExpandableRoom({
                     }}
                   >
                     {i === 0 && (
-                      <span className="flex items-center gap-2">
+                      // Wraps on a phone, so the plan's name, view and
+                      // channels stack in a narrow column rather than
+                      // holding one long line that leaves no room for dates.
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap">
                         <span className="chip chip-off font-mono">
                           {plan.label}
                         </span>
@@ -1367,7 +1369,7 @@ function ChannelRow({
   return (
     <tr>
       <td
-        className="sticky left-0 z-10 px-4 py-1 pl-16"
+        className="sticky left-0 z-10 px-2 py-1 pl-6 md:px-4 md:pl-16"
         style={{
           background: "var(--surface)",
           borderBottom: "1px solid var(--border)",

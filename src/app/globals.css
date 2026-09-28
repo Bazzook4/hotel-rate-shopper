@@ -393,6 +393,11 @@ body {
    * wrapper; this catches the plain tables that do not. */
   .card:has(> .table),
   .card:has(> .grid-table) { overflow-x: auto; }
+
+  /* The Channel Manager's room-type-and-plan column. Wide on a desktop so a
+   * plan's controls sit on one line; on a phone it gives the width back to
+   * the dates and lets those controls stack. */
+  .cm-name-col { min-width: 260px; }
 }
 
 /*
@@ -425,6 +430,8 @@ body {
   /* The date button's fixed width is what pushed the stepper past a
    * phone's edge; its label is short enough to size itself. */
   .seg > .seg-date { min-width: 0; }
+
+  .cm-name-col { min-width: 0; }
 }
 
 /* A finger needs a bigger target than a pointer, whatever the screen size. */

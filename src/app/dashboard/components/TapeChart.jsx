@@ -31,6 +31,12 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
 const MIN_DAY_WIDTH = 44;
 /** Width of the fixed room-name column on the left. */
 const ROOM_COL = 150;
+/**
+ * The same column on a phone. A room row shows only its number, so on a
+ * narrow screen the full width goes to the nights instead.
+ */
+const ROOM_COL_NARROW = 72;
+const NARROW_GRID = 640;
 
 const WINDOWS = [
   { days: 14, label: "14 days" },
@@ -175,9 +181,11 @@ export default function TapeChart({ session }) {
     observer.observe(el);
     observerRef.current = observer;
   }, []);
+  const narrow = gridWidth > 0 && gridWidth < NARROW_GRID;
+  const roomCol = narrow ? ROOM_COL_NARROW : ROOM_COL;
   const dayWidth = Math.max(
     MIN_DAY_WIDTH,
-    Math.floor((gridWidth - ROOM_COL) / windowDays) || 0
+    Math.floor((gridWidth - roomCol) / windowDays) || 0
   );
   const dayWidthRef = useRef(dayWidth);
   dayWidthRef.current = dayWidth;
@@ -815,7 +823,7 @@ export default function TapeChart({ session }) {
 
         {!firstLoad && visibleRooms.length > 0 && (
           <div style={{ overflowX: "auto" }} ref={measureGrid}>
-            <div style={{ minWidth: ROOM_COL + windowDays * dayWidth }}>
+            <div style={{ minWidth: roomCol + windowDays * dayWidth }}>
               {/* Date header */}
               <div
                 style={{
@@ -829,7 +837,7 @@ export default function TapeChart({ session }) {
               >
                 <div
                   style={{
-                    width: ROOM_COL,
+                    width: roomCol,
                     flexShrink: 0,
                     padding: "0.5rem",
                     fontSize: "0.75rem",
@@ -897,7 +905,7 @@ export default function TapeChart({ session }) {
                         display: "flex",
                         alignItems: "center",
                         gap: "0.4rem",
-                        width: ROOM_COL,
+                        width: roomCol,
                         flexShrink: 0,
                         padding: "0.35rem 0.5rem",
                         fontSize: "0.75rem",
@@ -917,9 +925,13 @@ export default function TapeChart({ session }) {
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
                         {group.name}
                       </span>
-                      <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
-                        {group.rooms.length} room{group.rooms.length === 1 ? "" : "s"}
-                      </span>
+                      {/* The count gives way on a phone, where the column
+                          is only wide enough for the type's name. */}
+                      {!narrow && (
+                        <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
+                          {group.rooms.length} room{group.rooms.length === 1 ? "" : "s"}
+                        </span>
+                      )}
                     </div>
                     {dates.map((d) => {
                       const sold = soldByType[group.id]?.[d] || 0;
@@ -991,7 +1003,7 @@ export default function TapeChart({ session }) {
                     >
                       <div
                         style={{
-                          width: ROOM_COL,
+                          width: roomCol,
                           flexShrink: 0,
                           padding: "0.35rem 0.5rem",
                           fontSize: "0.8rem",
