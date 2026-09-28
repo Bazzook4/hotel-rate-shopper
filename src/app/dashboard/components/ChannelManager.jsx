@@ -47,6 +47,24 @@ function maxOf(a, b) {
   return Math.max(a, b);
 }
 
+/**
+ * Whether a plan's name already carries its meal-plan code, as "CP" or
+ * "CP Breakfast" does. Such a plan needs no separate code chip beside it.
+ */
+function planNameSays(plan) {
+  if (!plan.name || !plan.label) return !plan.label;
+  const escaped = plan.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|\\W)${escaped}(\\W|$)`, "i").test(plan.name);
+}
+
+/** What the grid can show across the dates, for every plan at once. */
+const VIEWS = [
+  { id: "rates", label: "Rates" },
+  { id: "min_stay", label: "Min nights" },
+  { id: "max_stay", label: "Max nights" },
+  { id: "stop_sell", label: "Stop sell" },
+];
+
 function minOf(a, b) {
   if (a === null || a === undefined) return b ?? null;
   if (b === null || b === undefined) return a;
@@ -143,7 +161,8 @@ export default function ChannelManager() {
   const [grid, setGrid] = useState(null);
   const [source, setSource] = useState(null);
   const [error, setError] = useState("");
-  const [days, setDays] = useState(15);
+  // Two weeks or a month, the same windows as the tape chart.
+  const [days, setDays] = useState(14);
   const [anchor, setAnchor] = useState(() => isoDate(new Date()));
   const [expanded, setExpanded] = useState({});
   const [filter, setFilter] = useState("");
@@ -161,10 +180,12 @@ export default function ChannelManager() {
   // patch -- only the fields actually touched -- merged over the stored row
   // when rendering and when saving.
   const [restrictions, setRestrictions] = useState({});
-  // Which metric each rate plan's row is showing, keyed by plan id. Rows
-  // default to rates; picking another metric swaps the cells in place rather
-  // than adding rows, so the grid keeps one line per rate plan.
-  const [planView, setPlanView] = useState({});
+  // Which metric the grid is showing -- rates, min or max nights, or stop
+  // sell -- for every rate plan at once. It was once chosen per plan, but a
+  // desk setting min nights sets them across the plans, and a grid mixing
+  // rates in one row with nights in the next read as one set of numbers.
+  // Swapping the cells in place keeps one line per rate plan.
+  const [view, setView] = useState("rates");
   // Resync: resend what is already stored, without editing anything. Open
   // state, the range it covers, what to send, and which rooms/plans to
   // include. An empty room or plan set means every one of them.
@@ -940,9 +961,24 @@ export default function ChannelManager() {
         value={anchor}
         onChange={setAnchor}
         step={days}
-        windows={[15, 30]}
+        windows={[14, 30]}
         windowDays={days}
         onWindowChange={setDays}
+        actions={
+          <div className="seg" role="group" aria-label="What the grid shows">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                className={view === v.id ? "seg-on" : ""}
+                aria-pressed={view === v.id}
+                onClick={() => setView(v.id)}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+        }
         onClearAll={filter ? () => setFilter("") : undefined}
         filters={
           <ToolbarField label="Room types & rate plans" htmlFor="cm-filter" width={280}>
@@ -1053,10 +1089,7 @@ export default function ChannelManager() {
                 restrictions={restrictions}
                 storedRestrictions={grid?.dailyRestrictions || {}}
                 availability={grid?.availability || {}}
-                planView={planView}
-                onPlanViewChange={(planId, view) =>
-                  setPlanView((p) => ({ ...p, [planId]: view }))
-                }
+                view={view}
                 onRestrictionChange={(key, field, value) =>
                   setRestrictions((prev) => ({
                     ...prev,
@@ -1102,8 +1135,7 @@ function ExpandableRoom({
   restrictions,
   storedRestrictions,
   availability,
-  planView,
-  onPlanViewChange,
+  view,
   onRestrictionChange,
   channels,
   openChannels,
@@ -1175,7 +1207,6 @@ function ExpandableRoom({
 
       {open &&
         room.plans.map((plan) => {
-          const view = planView[plan.id] || "rates";
           // Rates are priced per occupancy; a restriction applies to the whole
           // rate plan, so those views collapse to a single row.
           const rows =
@@ -1194,39 +1225,22 @@ function ExpandableRoom({
                     }}
                   >
                     {i === 0 && (
-                      // Wraps on a phone, so the plan's name, view and
-                      // channels stack in a narrow column rather than
-                      // holding one long line that leaves no room for dates.
+                      // Wraps on a phone, so the plan's name and channels
+                      // stack in a narrow column rather than holding one
+                      // long line that leaves no room for dates.
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap">
-                        <span className="chip chip-off font-mono">
-                          {plan.label}
-                        </span>
-                        <span className="text-sm text-ink">{plan.name}</span>
+                        {/* The meal-plan code is shown only when the name
+                            does not already say it -- a plan called "CP"
+                            otherwise read "CP CP". */}
+                        {!planNameSays(plan) && (
+                          <span className="chip chip-off font-mono">
+                            {plan.label}
+                          </span>
+                        )}
+                        <span className="text-sm text-ink">{plan.name || plan.label}</span>
                         {plan.restrictions.stopSell && (
                           <span className="chip chip-warn">Stop sell</span>
                         )}
-                        <select
-                          value={view}
-                          onChange={(e) =>
-                            onPlanViewChange(plan.id, e.target.value)
-                          }
-                          title="Choose what this row shows across the dates"
-                          className="rounded border px-1.5 py-0.5 text-xs uppercase tracking-wide"
-                          style={{
-                            background: "var(--surface-2)",
-                            borderColor:
-                              view === "rates"
-                                ? "var(--border)"
-                                : "var(--accent)",
-                            color: "var(--text)",
-                          }}
-                          aria-label={`What to show for ${plan.name}`}
-                        >
-                          <option value="rates">Rates</option>
-                          <option value="min_stay">Min nights</option>
-                          <option value="max_stay">Max nights</option>
-                          <option value="stop_sell">Stop sell</option>
-                        </select>
 
                         {channels.length > 0 && (
                           <button
