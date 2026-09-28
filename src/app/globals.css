@@ -398,6 +398,7 @@ body {
    * plan's controls sit on one line; on a phone it gives the width back to
    * the dates and lets those controls stack. */
   .cm-name-col { min-width: 260px; }
+  .cm-date-col { min-width: 74px; }
 }
 
 /*
@@ -432,6 +433,19 @@ body {
   .seg > .seg-date { min-width: 0; }
 
   .cm-name-col { min-width: 0; }
+
+  /* The rate grid on a phone, as the tape chart is: the name column says
+   * only which room and plan a row is -- partner codes and counts are for
+   * the desktop -- and the dates close up, so four fit beside it. A
+   * mapping problem still shows, as the amber outline on the cell. */
+  .cm-rate-grid .cm-meta { display: none; }
+  .cm-rate-grid .cm-date-col { min-width: 60px; }
+  .cm-rate-grid th:not(.sticky),
+  .cm-rate-grid td:not(.sticky) { padding-left: 0.2rem; padding-right: 0.2rem; }
+  .cm-rate-grid td:not(.sticky) input[type="number"] {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
 }
 
 /* A finger needs a bigger target than a pointer, whatever the screen size. */

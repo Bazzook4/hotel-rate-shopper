@@ -986,7 +986,7 @@ export default function ChannelManager() {
         style={{ padding: 0, opacity: loading ? 0.6 : 1, transition: "opacity 0.15s" }}
       >
         <table
-          className="min-w-full text-sm"
+          className="cm-rate-grid min-w-full text-sm"
           style={{ borderCollapse: "separate", borderSpacing: 0 }}
         >
           <thead>
@@ -1007,7 +1007,7 @@ export default function ChannelManager() {
                 return (
                   <th
                     key={d}
-                    className="px-3 py-2 text-center text-[11px] font-medium"
+                    className="cm-date-col px-3 py-2 text-center text-[11px] font-medium"
                     style={{
                       background: f.weekend
                         ? "var(--warn-soft)"
@@ -1015,7 +1015,6 @@ export default function ChannelManager() {
                       borderBottom: "1px solid var(--border-strong)",
                       borderRight: "1px solid var(--border)",
                       color: f.weekend ? "var(--warn)" : "var(--text-muted)",
-                      minWidth: 74,
                     }}
                   >
                     <div
@@ -1129,9 +1128,13 @@ function ExpandableRoom({
             <span>
               <span className="block font-medium text-ink">{room.name}</span>
               <span className="block text-xs muted">
-                {room.plans.length} rate plan{room.plans.length === 1 ? "" : "s"} ·{" "}
+                <span className="cm-meta">
+                  {room.plans.length} rate plan{room.plans.length === 1 ? "" : "s"} ·{" "}
+                </span>
                 {room.count} rooms
-                {room.partnerCode ? ` · ${room.partnerCode}` : " · not mapped"}
+                <span className="cm-meta">
+                  {room.partnerCode ? ` · ${room.partnerCode}` : " · not mapped"}
+                </span>
               </span>
             </span>
           </button>
@@ -1245,12 +1248,14 @@ function ExpandableRoom({
                     {view === "rates" ? (
                       <span className="block text-xs muted">
                         Adult {occ.occupancy}
-                        {occ.partnerCode
-                          ? ` · ${occ.partnerCode}`
-                          : " · not mapped"}
+                        <span className="cm-meta">
+                          {occ.partnerCode
+                            ? ` · ${occ.partnerCode}`
+                            : " · not mapped"}
+                        </span>
                       </span>
                     ) : (
-                      <span className="block text-xs muted">
+                      <span className="cm-meta block text-xs muted">
                         Applies to the whole rate plan
                       </span>
                     )}
