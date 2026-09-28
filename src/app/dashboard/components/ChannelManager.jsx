@@ -1155,18 +1155,23 @@ function ExpandableRoom({
             borderRight: "1px solid var(--border-strong)",
           }}
         >
-          <button type="button" onClick={onToggle} className="flex items-center gap-2 text-left">
+          {/* The partner code is only needed when checking a mapping, so it
+              sits in the tooltip; the row says "not mapped" only when that
+              is something the desk has to fix. */}
+          <button
+            type="button"
+            onClick={onToggle}
+            className="flex items-center gap-2 text-left"
+            title={room.partnerCode ? `Partner code: ${room.partnerCode}` : "Not mapped to a partner code"}
+          >
             <span className="muted">{open ? "▾" : "▸"}</span>
             <span>
               <span className="block font-medium text-ink">{room.name}</span>
               <span className="block text-xs muted">
-                <span className="cm-meta">
-                  {room.plans.length} rate plan{room.plans.length === 1 ? "" : "s"} ·{" "}
-                </span>
                 {room.count} rooms
-                <span className="cm-meta">
-                  {room.partnerCode ? ` · ${room.partnerCode}` : " · not mapped"}
-                </span>
+                {!room.partnerCode && (
+                  <span style={{ color: "var(--warn)" }}> · not mapped</span>
+                )}
               </span>
             </span>
           </button>
@@ -1224,7 +1229,10 @@ function ExpandableRoom({
                       borderRight: "1px solid var(--border-strong)",
                     }}
                   >
-                    {i === 0 && (
+                    {/* One line per row: the plan's name on its first row,
+                        the occupancy at the right of every row. */}
+                    <span className="flex items-center justify-between gap-2">
+                    {i === 0 ? (
                       // Wraps on a phone, so the plan's name and channels
                       // stack in a narrow column rather than holding one
                       // long line that leaves no room for dates.
@@ -1258,17 +1266,25 @@ function ExpandableRoom({
                           </button>
                         )}
                       </span>
-                    )}
-                    {view === "rates" ? (
-                      <span className="block text-xs muted">
-                        Adult {occ.occupancy}
-                        <span className="cm-meta">
-                          {occ.partnerCode
-                            ? ` · ${occ.partnerCode}`
-                            : " · not mapped"}
-                        </span>
-                      </span>
                     ) : (
+                      <span />
+                    )}
+                    {view === "rates" && (
+                      <span
+                        className="shrink-0 whitespace-nowrap text-xs muted"
+                        title={
+                          occ.partnerCode
+                            ? `Partner code: ${occ.partnerCode}`
+                            : "Not mapped to a partner code"
+                        }
+                        style={occ.partnerCode ? undefined : { color: "var(--warn)" }}
+                      >
+                        {occ.occupancy} adult{occ.occupancy === 1 ? "" : "s"}
+                        {!occ.partnerCode && " !"}
+                      </span>
+                    )}
+                    </span>
+                    {view !== "rates" && (
                       <span className="cm-meta block text-xs muted">
                         Applies to the whole rate plan
                       </span>
