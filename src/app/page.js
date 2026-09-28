@@ -128,6 +128,11 @@ export default function V2Dashboard() {
   // The sidebar collapses to give the grid its full width, which matters most
   // on the Channel Manager's 30-day view.
   const [railOpen, setRailOpen] = useState(true);
+  // On a phone there is no room for a rail beside the page, so the sidebar
+  // becomes a drawer over it, opened from the header and closed by choosing
+  // a page. Separate from `railOpen`, so collapsing the rail on a desktop is
+  // not undone by visiting on a phone, nor the other way round.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // The property every page works against. A super admin switches it here in
   // the header rather than inside each page, so there is one answer to "which
   // property am I changing" wherever they are.
@@ -247,31 +252,70 @@ export default function V2Dashboard() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // Escape closes the drawer, as it would any other overlay.
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (e) => e.key === "Escape" && setDrawerOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen]);
+
+  // Widening past a phone -- a rotated tablet, a resized window -- brings the
+  // rail back, so a drawer left open would sit on the rail as a wider copy.
+  useEffect(() => {
+    const wide = window.matchMedia("(min-width: 768px)");
+    const onChange = (e) => e.matches && setDrawerOpen(false);
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, []);
+
+  function openPage(id) {
+    setActive(id);
+    setDrawerOpen(false);
+  }
+
+  // The drawer lists every area's pages, so a phone reaches any page in two
+  // taps rather than choosing an area first and then opening the drawer. The
+  // rail beside the page stays with the open area, as the tabs above it do.
+  const railAreas = drawerOpen ? areas : currentArea ? [currentArea] : [];
+  const expanded = railOpen || drawerOpen;
+
   const pageLabel = currentArea?.pages.find((p) => p.id === active)?.label || "";
 
   return (
     <main className="min-h-screen" style={{ background: "var(--page)" }}>
       {/* Row 1 — brand, property, account */}
       <header
-        className="sticky top-0 z-30 flex h-[46px] items-center justify-between px-4"
+        className="sticky top-0 z-30 flex h-[46px] items-center justify-between gap-2 px-3 md:px-4"
         style={{
           background: "var(--surface)",
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-shrink-0 items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            className="-ml-1 flex h-9 w-9 items-center justify-center rounded md:hidden"
+            style={{ color: "var(--text)" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+              <path d="M3 5h12M3 9h12M3 13h12" />
+            </svg>
+          </button>
           <span
             className="flex h-[22px] w-[22px] items-center justify-center rounded text-[10px] font-bold"
             style={{ background: "var(--accent)", color: "#fff" }}
           >
             RS
           </span>
-          <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+          <span className="hidden text-sm font-semibold sm:inline" style={{ color: "var(--text)" }}>
             Rate Shopper
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           {/* A super admin picks the property; everyone else sees theirs named.
               Either way this is the one place it is set. */}
           {session?.canSwitchProperties && properties.length > 1 ? (
@@ -279,7 +323,7 @@ export default function V2Dashboard() {
               value={propertyId}
               onChange={(e) => setPropertyId(e.target.value)}
               aria-label="Property"
-              className="mr-2 rounded px-2 py-1 text-sm"
+              className="mr-2 min-w-0 max-w-[38vw] truncate rounded px-2 py-1 text-sm md:max-w-none"
               style={{
                 background: "var(--surface-2)",
                 border: "1px solid var(--border)",
@@ -294,26 +338,26 @@ export default function V2Dashboard() {
             </select>
           ) : (
             scopedSession?.propertyName && (
-              <span className="mr-2 text-sm" style={{ color: "var(--text-muted)" }}>
+              <span className="mr-2 min-w-0 truncate text-sm" style={{ color: "var(--text-muted)" }}>
                 {scopedSession.propertyName}
               </span>
             )
           )}
           <Link
             href="/admin"
-            className="rounded px-2 py-1 text-xs transition hover:opacity-70"
+            className="flex-shrink-0 rounded px-2 py-1 text-xs transition hover:opacity-70"
             style={{ color: "var(--text-muted)" }}
           >
             Admin
           </Link>
           <ThemeToggle />
-          <LogoutButton />
+          <LogoutButton className="whitespace-nowrap" />
         </div>
       </header>
 
       {/* Row 2 — areas */}
       <nav
-        className="sticky top-[46px] z-20 flex items-center gap-1 px-4"
+        className="no-scrollbar sticky top-[46px] z-20 flex items-center gap-1 overflow-x-auto whitespace-nowrap px-2 md:px-4"
         style={{
           background: "var(--surface)",
           borderBottom: "1px solid var(--border)",
@@ -327,8 +371,8 @@ export default function V2Dashboard() {
               type="button"
               // Entering an area opens its first page, so a tab click always
               // lands somewhere rather than leaving the content blank.
-              onClick={() => setActive(area.pages[0].id)}
-              className="relative px-3 py-2.5 text-[13px] transition"
+              onClick={() => openPage(area.pages[0].id)}
+              className="relative flex-shrink-0 px-3 py-2.5 text-[13px] transition"
               style={{
                 color: on ? "var(--accent-text)" : "var(--text-muted)",
                 fontWeight: on ? 600 : 500,
@@ -347,22 +391,49 @@ export default function V2Dashboard() {
       </nav>
 
       <div className="flex">
-        {/* Sidebar — the pages of the open area */}
+        {/* Backdrop behind the drawer on a phone; a tap outside closes it. */}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 z-40 md:hidden"
+            style={{ background: "rgba(0, 0, 0, 0.4)" }}
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden
+          />
+        )}
+
+        {/* Sidebar — the pages of the open area. A rail beside the page from
+            tablet width up; below that, a drawer that slides in over it. */}
         <aside
-          className="sticky top-[84px] h-[calc(100vh-84px)] flex-shrink-0 overflow-y-auto transition-all"
+          className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 overflow-y-auto transition-all md:sticky md:top-[84px] md:z-auto md:h-[calc(100vh-84px)] md:translate-x-0 ${
+            drawerOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
           style={{
-            width: railOpen ? 208 : 44,
+            width: expanded ? (drawerOpen ? 256 : 208) : 44,
             background: "var(--surface)",
             borderRight: "1px solid var(--border)",
           }}
+          aria-label="Pages"
         >
-          <div className="flex justify-end px-2 py-2">
+          <div className="flex items-center justify-between px-2 py-2">
+            {/* The drawer's own close button, where the rail has its collapse. */}
+            <span className="px-2 text-sm font-semibold md:hidden" style={{ color: "var(--text)" }}>
+              Menu
+            </span>
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close menu"
+              className="flex h-9 w-9 items-center justify-center rounded text-lg md:hidden"
+              style={{ color: "var(--text-muted)" }}
+            >
+              ×
+            </button>
             <button
               type="button"
               onClick={() => setRailOpen((v) => !v)}
               aria-label={railOpen ? "Collapse menu" : "Expand menu"}
               title={railOpen ? "Collapse menu" : "Expand menu"}
-              className="rounded px-1.5 py-1 text-xs transition hover:opacity-70"
+              className="ml-auto hidden rounded px-1.5 py-1 text-xs transition hover:opacity-70 md:block"
               style={{ color: "var(--text-faint)" }}
             >
               {railOpen ? "«" : "»"}
@@ -370,59 +441,65 @@ export default function V2Dashboard() {
           </div>
 
           <nav className="flex flex-col gap-0.5 px-2 pb-4">
-            {railOpen && (
-              <p
-                className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
-                style={{ color: "var(--text-faint)" }}
-              >
-                {currentArea?.label}
-              </p>
-            )}
+            {railAreas.map((area, i) => (
+              <div key={area.id} className={`flex flex-col gap-0.5 ${i > 0 ? "mt-3" : ""}`}>
+                {expanded && (
+                  <p
+                    className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--text-faint)" }}
+                  >
+                    {area.label}
+                  </p>
+                )}
 
-            {currentArea?.pages.map((page) => {
-              const on = active === page.id;
-              const soon = PLACEHOLDER_PAGES.has(page.id);
-              return (
-                <button
-                  key={page.id}
-                  type="button"
-                  onClick={() => setActive(page.id)}
-                  title={railOpen ? undefined : page.label}
-                  className="flex items-center gap-2.5 rounded px-2 py-[7px] text-left text-[13px] transition"
-                  style={{
-                    background: on ? "var(--accent-soft)" : "transparent",
-                    color: on ? "var(--accent-text)" : "var(--text-muted)",
-                    fontWeight: on ? 600 : 500,
-                  }}
-                >
-                  <span className="flex-shrink-0">
-                    <Icon name={page.icon} />
-                  </span>
-                  {railOpen && (
-                    <>
-                      <span className="flex-1 truncate">{page.label}</span>
-                      {soon && (
-                        <span
-                          className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
-                          style={{
-                            background: "var(--surface-2)",
-                            color: "var(--text-faint)",
-                          }}
-                        >
-                          Soon
-                        </span>
+                {area.pages.map((page) => {
+                  const on = active === page.id;
+                  const soon = PLACEHOLDER_PAGES.has(page.id);
+                  return (
+                    <button
+                      key={page.id}
+                      type="button"
+                      onClick={() => openPage(page.id)}
+                      title={expanded ? undefined : page.label}
+                      className={`flex items-center gap-2.5 rounded px-2 text-left text-[13px] transition ${
+                        drawerOpen ? "py-2.5" : "py-[7px]"
+                      }`}
+                      style={{
+                        background: on ? "var(--accent-soft)" : "transparent",
+                        color: on ? "var(--accent-text)" : "var(--text-muted)",
+                        fontWeight: on ? 600 : 500,
+                      }}
+                    >
+                      <span className="flex-shrink-0">
+                        <Icon name={page.icon} />
+                      </span>
+                      {expanded && (
+                        <>
+                          <span className="flex-1 truncate">{page.label}</span>
+                          {soon && (
+                            <span
+                              className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
+                              style={{
+                                background: "var(--surface-2)",
+                                color: "var(--text-faint)",
+                              }}
+                            >
+                              Soon
+                            </span>
+                          )}
+                        </>
                       )}
-                    </>
-                  )}
-                </button>
-              );
-            })}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         </aside>
 
         {/* Content */}
         <section className="min-w-0 flex-1">
-          <div className="mx-auto max-w-[1400px] p-6">
+          <div className="mx-auto max-w-[1400px] p-3 sm:p-4 md:p-6">
             {sessionLoading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="space-y-3 text-center">

@@ -382,4 +382,53 @@ body {
   .h1 { font-size: 1.5rem; font-weight: 600; color: var(--text); }
   .h2 { font-size: 1.125rem; font-weight: 600; color: var(--text); }
   .sub { font-size: 0.875rem; color: var(--text-muted); }
+
+  /* Scrolls without drawing a bar -- the area tabs on a phone, where the
+   * bar would sit over the tab labels. */
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* A table set straight into a card scrolls inside it rather than pushing
+   * the whole page sideways. The CM-style grids already sit in a scrolling
+   * wrapper; this catches the plain tables that do not. */
+  .card:has(> .table),
+  .card:has(> .grid-table) { overflow-x: auto; }
+}
+
+/*
+ * Phones.
+ *
+ * The grids stay grids -- a rate calendar is a table, and turning it into
+ * cards would lose the row-across, column-down reading it exists for. They
+ * scroll sideways under a sticky first column instead. What changes here is
+ * the space around them, and the size of what a finger has to hit.
+ */
+@media (max-width: 767px) {
+  .h1 { font-size: 1.25rem; }
+  .card-pad { padding: 1rem; }
+
+  /* Safari zooms the page into any field under 16px when it is focused,
+   * and does not zoom back out -- the desk is left scrolling a magnified
+   * grid. At 16px it stays put. */
+  .input,
+  .cm-input,
+  select,
+  textarea,
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  input[type="search"],
+  input[type="date"] { font-size: 16px; }
+
+  /* The date button's fixed width is what pushed the stepper past a
+   * phone's edge; its label is short enough to size itself. */
+  .seg > .seg-date { min-width: 0; }
+}
+
+/* A finger needs a bigger target than a pointer, whatever the screen size. */
+@media (pointer: coarse) {
+  .btn,
+  .seg > button { min-height: 2.5rem; }
 }

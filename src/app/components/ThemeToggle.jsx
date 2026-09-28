@@ -37,7 +37,8 @@ export default function ThemeToggle({ className = "" }) {
       title={theme === "dark" ? "Light mode" : "Dark mode"}
     >
       <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
-      <span className="text-xs">{theme === "dark" ? "Light" : "Dark"}</span>
+      {/* The icon alone on a phone, where the header has no room to spare. */}
+      <span className="hidden text-xs sm:inline">{theme === "dark" ? "Light" : "Dark"}</span>
     </button>
   );
 }
