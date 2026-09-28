@@ -2137,9 +2137,9 @@ export async function saveParityChannelOrder(propertyId, channelKeys) {
  * than Date objects, because a stay date is a calendar fact about the hotel
  * and must not shift when the server's timezone differs from the property's.
  */
-function dayAfter(date) {
+function dayAfter(date, days = 1) {
   const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
@@ -4433,8 +4433,14 @@ export async function getTapeChart(propertyId, startDate, endDate) {
     listRooms(propertyId),
     listRoomTypes(propertyId),
     // `to` is exclusive of arrivals, and the window's last date is shown, so
-    // a stay arriving on it must still come back.
-    listReservations(propertyId, { from: startDate, to: dayAfter(endDate), limit: 1000 }),
+    // a stay arriving on it must still come back. `from` is exclusive of
+    // departures, and a guest leaving on the first date still holds the room
+    // that morning -- the chart draws that half day -- so it starts a day early.
+    listReservations(propertyId, {
+      from: dayAfter(startDate, -1),
+      to: dayAfter(endDate),
+      limit: 1000,
+    }),
     listRoomBlocks(propertyId, startDate, endDate),
   ]);
 
@@ -4449,7 +4455,8 @@ export async function getTapeChart(propertyId, startDate, endDate) {
   const unassigned = [];
   for (const r of live) {
     if (r.room_id) (byRoom[r.room_id] = byRoom[r.room_id] || []).push(r);
-    else unassigned.push(r);
+    // A stay with no room that left on the first morning is past placing.
+    else if (r.check_out > startDate) unassigned.push(r);
   }
 
   const typeName = {};

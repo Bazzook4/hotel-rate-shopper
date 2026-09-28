@@ -549,18 +549,32 @@ export default function TapeChart({ session }) {
     }
   }
 
-  /** Where a span of dates sits in the window, in pixels; null if off-screen. */
+  /**
+   * Where a span of dates sits in the window, in pixels; null if off-screen.
+   *
+   * A span runs from the middle of its first day to the middle of its last,
+   * not edge to edge. Check-out is late morning and check-in early afternoon,
+   * so a departure day is shared: the leaving guest holds the room's first
+   * half, and the next arrival can take its second. Drawn whole-day, the
+   * departure cell looked empty and a same-day turnover looked like a clash.
+   */
   function spanGeometry(from, until) {
-    const offset = daysBetween(anchor, from);
+    const offset = daysBetween(anchor, from) + 0.5;
     const nights = daysBetween(from, until);
     const start = Math.max(0, offset);
     const end = Math.min(windowDays, offset + nights);
     if (end <= 0 || start >= windowDays) return null;
+    const clippedStart = offset < 0;
+    const clippedEnd = offset + nights > windowDays;
+    // A small gap either end, so a departure and an arrival on the same day
+    // read as two bars meeting rather than one.
+    const left = start * dayWidth + (clippedStart ? 0 : 2);
+    const right = end * dayWidth - (clippedEnd ? 0 : 2);
     return {
-      left: start * dayWidth,
-      width: Math.max(dayWidth * 0.6, (end - start) * dayWidth - 4),
-      clippedStart: offset < 0,
-      clippedEnd: offset + nights > windowDays,
+      left,
+      width: right - left,
+      clippedStart,
+      clippedEnd,
     };
   }
 
