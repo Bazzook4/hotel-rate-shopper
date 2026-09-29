@@ -58,12 +58,12 @@ function shift(iso, days) {
   return formatDateISO(addDays(iso, days));
 }
 
-function notMigrated(error) {
+export function notMigrated(error) {
   return ['PGRST205', 'PGRST200', '42P01', '42703'].includes(error?.code);
 }
 
 /** Every row a query matches, in pages -- PostgREST stops at 1000 silently. */
-async function readAll(build, what) {
+export async function readAll(build, what) {
   const rows = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await build().range(offset, offset + PAGE - 1);
@@ -79,7 +79,7 @@ async function readAll(build, what) {
 }
 
 /** Split ids into chunks small enough to go in a URL as an `in` filter. */
-function chunks(ids) {
+export function chunks(ids) {
   const out = [];
   for (let i = 0; i < ids.length; i += ID_CHUNK) out.push(ids.slice(i, i + ID_CHUNK));
   return out;
@@ -94,7 +94,7 @@ function chunks(ids) {
  * is the split a channel-mix report is for; the finer "how" is the booking
  * method breakdown.
  */
-function channelOf(r) {
+export function channelOf(r) {
   if (r.partner_booking_id) return r.source || 'OTA';
   if (r.source === 'ota') return 'OTA (entered by hand)';
   return 'Direct';
@@ -317,7 +317,7 @@ function measure(parts, { roomNightsAvailable = null } = {}) {
   };
 }
 
-function round(n, places = 2) {
+export function round(n, places = 2) {
   const f = 10 ** places;
   return Math.round(n * f) / f;
 }
@@ -446,7 +446,7 @@ function weekdayOf(iso) {
  * fallback the availability check uses. Out-of-order blocks are not taken off;
  * occupancy here is against the whole house.
  */
-async function capacityOf(propertyId) {
+export async function capacityOf(propertyId) {
   const [types, rooms] = await Promise.all([
     listRoomTypes(propertyId),
     listRooms(propertyId, { includeInactive: false }).catch(() => []),

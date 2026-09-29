@@ -83,6 +83,18 @@ const BookingPerformance = dynamic(() => import("./dashboard/components/BookingP
   ssr: false,
   loading: PageLoading,
 });
+const NightAudit = dynamic(() => import("./dashboard/components/NightAudit"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const InvoicingReport = dynamic(() => import("./dashboard/components/InvoicingReport"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const PaymentsReport = dynamic(() => import("./dashboard/components/PaymentsReport"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const AdminUserManager = dynamic(() => import("./components/AdminUserManager"), {
   ssr: false,
   loading: PageLoading,
@@ -526,6 +538,12 @@ export default function V2Dashboard() {
                 {active === "pricing" && <DynamicPricingGrid session={scopedSession} />}
 
                 {active === "performance" && <BookingPerformance session={scopedSession} />}
+
+                {active === "nightaudit" && <NightAudit session={scopedSession} />}
+
+                {active === "invoicing" && <InvoicingReport session={scopedSession} />}
+
+                {active === "payments" && <PaymentsReport session={scopedSession} />}
 
                 {/* Rooms and rate plans are separate pages; the component
                     renders one panel or the other. */}

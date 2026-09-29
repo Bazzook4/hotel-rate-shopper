@@ -659,24 +659,41 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
               </thead>
               <tbody>
                 {folio.payments.map((p) => (
-                  <tr key={p.id}>
+                  // A voided payment stays on the folio, struck through, so
+                  // the desk can see what was taken back and why.
+                  <tr key={p.id} style={p.voided_at ? { color: "var(--text-faint)" } : undefined}>
                     <td>{when(p.paid_at)}</td>
                     <td>{METHODS.find((m) => m.id === p.method)?.label || p.method}</td>
-                    <td>{p.reference || "—"}</td>
+                    <td>
+                      {p.reference || "—"}
+                      {p.voided_at && (
+                        <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }}>
+                          Voided{p.void_reason ? ` · ${p.void_reason}` : ""}
+                        </span>
+                      )}
+                    </td>
                     <td
                       className="text-right"
-                      style={{ color: Number(p.amount) < 0 ? "var(--danger)" : undefined }}
+                      style={{
+                        color: !p.voided_at && Number(p.amount) < 0 ? "var(--danger)" : undefined,
+                        textDecoration: p.voided_at ? "line-through" : undefined,
+                      }}
                     >
                       {money(p.amount, currency)}
                     </td>
                     <td className="text-right">
-                      <button
-                        className="btn btn-ghost text-xs"
-                        disabled={busy}
-                        onClick={() => remove("payment", p.id)}
-                      >
-                        ✕
-                      </button>
+                      {!p.voided_at && (
+                        <button
+                          className="btn btn-ghost text-xs"
+                          disabled={busy}
+                          onClick={() => {
+                            const reason = window.prompt("Why is this payment being voided?");
+                            if (reason !== null) remove("payment", p.id, reason);
+                          }}
+                        >
+                          Void
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

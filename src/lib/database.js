@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
 import { resolveAllRates } from '@/lib/ratePlanPricing';
-import { computeTaxes, stayLines } from '@/lib/taxes';
+import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -4176,10 +4176,35 @@ export async function addReservationPayment(reservationId, payment, userId = nul
   return data;
 }
 
-export async function deleteReservationPayment(id) {
-  const { error } = await supabase.from('reservation_payments').delete().eq('id', id);
-  if (error) throw new Error(`Failed to remove the payment: ${error.message}`);
-  return true;
+/**
+ * Void a payment recorded in error.
+ *
+ * Never deleted, for the same reason an invoice is not: money that was
+ * written down and then vanished is exactly what a cash-up cannot explain.
+ * The row stays, stops counting as paid, and says who voided it and why.
+ */
+export async function voidReservationPayment(id, reason, userId = null) {
+  const { data, error } = await supabase
+    .from('reservation_payments')
+    .update({
+      voided_at: new Date().toISOString(),
+      void_reason: reason?.trim() || null,
+      voided_by: userId,
+    })
+    .eq('id', id)
+    .is('voided_at', null)
+    .select('*');
+
+  if (error) {
+    if (notMigrated(error)) {
+      throw new Error(
+        'Payments cannot be voided until the database is updated (migration 030). Ask your administrator to apply it.'
+      );
+    }
+    throw new Error(`Failed to void the payment: ${error.message}`);
+  }
+  if (!data?.length) throw new Error('That payment was not found, or is already voided.');
+  return data[0];
 }
 
 /**
@@ -4199,13 +4224,6 @@ export async function getReservationFolio(reservationId) {
   ]);
 
   const room = Number(reservation.total_amount) || 0;
-  // Inclusions come with the rate, so they are shown but never charged.
-  const extrasTotal = extras
-    .filter((e) => e.kind === 'extra')
-    .reduce((sum, e) => sum + Number(e.unit_price) * Number(e.quantity), 0);
-  const paid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-
-  const total = room + extrasTotal;
 
   // The room charge night by night, which is how the total is arrived at.
   // `matches` is false only for a stay whose total was edited apart from its
@@ -4222,24 +4240,14 @@ export async function getReservationFolio(reservationId) {
     listPropertyTaxes(reservation.property_id),
     listPropertyExtras(reservation.property_id, { includeInactive: true }),
   ]);
-  const roomService = services.find((sv) => sv.is_room) || null;
-  const serviceTaxes = {};
-  for (const sv of services) serviceTaxes[sv.id] = sv.tax_ids;
-
-  const tax = computeTaxes(
+  const { tax, roomService, totals } = folioTotals({
+    reservation,
+    nights,
+    extras,
+    payments,
     taxRules,
-    serviceTaxes,
-    stayLines({
-      nights: nights.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, nights.length) })),
-      extras,
-      roomServiceId: roomService?.id || null,
-    }),
-    {
-      adults: reservation.adults,
-      children: reservation.children,
-      residency: reservation.guest_residency,
-    }
-  );
+    services,
+  });
 
   /**
    * The bill by category: what was charged under each, and the taxes that
@@ -4273,8 +4281,6 @@ export async function getReservationFolio(reservationId) {
     tax: Number(g.tax.toFixed(2)),
   }));
 
-  const grandTotal = total + tax.added;
-
   return {
     reservation,
     guests,
@@ -4286,17 +4292,7 @@ export async function getReservationFolio(reservationId) {
     taxes: tax.lines,
     categories,
     roomServiceId: roomService?.id || null,
-    totals: {
-      room,
-      extras: Number(extrasTotal.toFixed(2)),
-      // Exclusive taxes, added to the bill. Inclusive ones are already inside
-      // the room and extras figures and are reported separately.
-      tax: tax.added,
-      taxIncluded: tax.included,
-      total: Number(grandTotal.toFixed(2)),
-      paid: Number(paid.toFixed(2)),
-      balance: Number((grandTotal - paid).toFixed(2)),
-    },
+    totals,
   };
 }
 
@@ -4398,7 +4394,7 @@ export async function createReservationInvoice(reservationId, userId = null) {
     taxes: folio.taxes,
     guest_residency: reservation.guest_residency || 'domestic',
     totals,
-    payments: folio.payments.map((p) => ({
+    payments: folio.payments.filter((p) => !p.voided_at).map((p) => ({
       amount: Number(p.amount),
       method: p.method,
       paid_at: p.paid_at,

@@ -7,7 +7,7 @@ import {
   addReservationExtra,
   deleteReservationExtra,
   addReservationPayment,
-  deleteReservationPayment,
+  voidReservationPayment,
   createReservationInvoice,
   voidReservationInvoice,
   setNightRate,
@@ -131,7 +131,7 @@ export async function POST(req) {
 }
 
 export async function DELETE(req) {
-  const { error } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;
@@ -155,7 +155,8 @@ export async function DELETE(req) {
         await deleteReservationExtra(id);
         break;
       case "payment":
-        await deleteReservationPayment(id);
+        // Voided, never removed -- the cash-up has to be able to see it.
+        await voidReservationPayment(id, params.get("reason"), session.userId);
         break;
       case "invoice":
         // Voided, never removed -- see the helper for why.

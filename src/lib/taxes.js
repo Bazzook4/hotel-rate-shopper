@@ -135,6 +135,8 @@ export function stayLines({ nights = [], extras = [], roomServiceId = null }) {
  *   added:     sum of exclusive taxes -- what goes on top of the bill
  *   included:  sum of inclusive taxes -- already inside the price
  *   byService: { [service_id]: { added, included } }
+ *   byDate:    { [date]: { [tax name]: { amount, inclusive } } } -- which night
+ *              each tax fell on, for posting one day's tax in the night audit
  * }
  */
 export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
@@ -158,10 +160,16 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
 
   const out = [];
   const byService = {};
+  const byDate = {};
   const credit = (serviceId, amount, inclusive) => {
     const key = serviceId || "none";
     byService[key] = byService[key] || { added: 0, included: 0 };
     byService[key][inclusive ? "included" : "added"] += amount;
+  };
+  const date = (line, name, amount, inclusive) => {
+    const day = (byDate[line.date || "none"] = byDate[line.date || "none"] || {});
+    day[name] = day[name] || { amount: 0, inclusive };
+    day[name].amount += amount;
   };
 
   for (const tax of rules) {
@@ -221,6 +229,7 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
     for (const [l, a] of shares) {
       if (!inclusive) l.taxSoFar += a;
       credit(l.service_id, a, inclusive);
+      date(l, tax.name, a, inclusive);
     }
 
     const base = round2(shares.reduce((s, [l]) => s + l.unit_price * l.quantity, 0));
@@ -242,12 +251,75 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
       included: round2(byService[key].included),
     };
   }
+  for (const day of Object.values(byDate)) {
+    for (const t of Object.values(day)) t.amount = round2(t.amount);
+  }
 
   return {
     lines: out,
     added: round2(out.filter((l) => !l.inclusive).reduce((s, l) => s + l.amount, 0)),
     included: round2(out.filter((l) => l.inclusive).reduce((s, l) => s + l.amount, 0)),
     byService,
+    byDate,
+  };
+}
+
+/**
+ * What a stay owes, from its rows: the folio's arithmetic, in one place.
+ *
+ * The folio modal and every finance report call this, so a balance on the
+ * outstanding-balances report is by construction the balance the desk sees
+ * when it opens the stay. Two copies of this sum would, sooner or later,
+ * disagree.
+ *
+ * A voided payment is kept on the folio but no longer counts as paid.
+ * Nights without a rate of their own take an even share of the room total,
+ * as they do everywhere else.
+ */
+export function folioTotals({ reservation, nights = [], extras = [], payments = [], taxRules = [], services = [] }) {
+  const room = Number(reservation.total_amount) || 0;
+  // Inclusions come with the rate, so they are shown but never charged.
+  const extrasTotal = extras
+    .filter((e) => e.kind === "extra")
+    .reduce((sum, e) => sum + Number(e.unit_price) * Number(e.quantity), 0);
+  const paid = payments
+    .filter((p) => !p.voided_at)
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+
+  const roomService = services.find((sv) => sv.is_room) || null;
+  const serviceTaxes = {};
+  for (const sv of services) serviceTaxes[sv.id] = sv.tax_ids || [];
+
+  const tax = computeTaxes(
+    taxRules,
+    serviceTaxes,
+    stayLines({
+      nights: nights.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, nights.length) })),
+      extras,
+      roomServiceId: roomService?.id || null,
+    }),
+    {
+      adults: reservation.adults,
+      children: reservation.children,
+      residency: reservation.guest_residency,
+    }
+  );
+
+  const grandTotal = room + extrasTotal + tax.added;
+  return {
+    tax,
+    roomService,
+    totals: {
+      room,
+      extras: round2(extrasTotal),
+      // Exclusive taxes, added to the bill. Inclusive ones are already inside
+      // the room and extras figures and are reported separately.
+      tax: tax.added,
+      taxIncluded: tax.included,
+      total: round2(grandTotal),
+      paid: round2(paid),
+      balance: round2(grandTotal - paid),
+    },
   };
 }
 

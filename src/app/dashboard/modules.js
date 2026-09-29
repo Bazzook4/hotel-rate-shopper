@@ -40,6 +40,9 @@ export const AREAS = [
       { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
       { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
       { id: "performance", label: "Booking Performance", icon: "trend" },
+      { id: "nightaudit", label: "Night Audit", icon: "moon" },
+      { id: "invoicing", label: "Invoicing", icon: "list" },
+      { id: "payments", label: "Payments", icon: "money" },
     ],
   },
   {
