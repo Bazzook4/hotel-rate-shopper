@@ -43,11 +43,38 @@ const WINDOWS = [
   { days: 30, label: "30 days" },
 ];
 
-/** How a bar is coloured, which is how status reads at a glance. */
+/**
+ * How a bar is coloured, which is how status reads at a glance. A stay that
+ * is only promised is light -- dashed while it is still an inquiry -- and one
+ * where the guest has actually arrived or left is solid.
+ */
 const BAR_STYLE = {
-  confirmed: { background: "var(--accent)", color: "#fff" },
-  in_house: { background: "var(--warn)", color: "#fff" },
-  checked_out: { background: "var(--surface-2)", color: "var(--text-muted)" },
+  inquiry: {
+    background: "var(--warn-soft)",
+    color: "var(--warn)",
+    border: "1px dashed var(--warn)",
+  },
+  confirmed: {
+    background: "var(--accent-soft)",
+    color: "var(--accent-text)",
+    border: "1px solid var(--accent)",
+  },
+  in_house: { background: "var(--status-in)", color: "#fff" },
+  checked_out: { background: "var(--status-out)", color: "#fff" },
+};
+
+/** The legend, in the order a stay moves through them. */
+const LEGEND = [
+  { status: "inquiry", label: "Inquiry" },
+  { status: "confirmed", label: "Confirmed" },
+  { status: "in_house", label: "Checked in" },
+  { status: "checked_out", label: "Checked out" },
+];
+
+/** Comp and group are tags on top of any status, each in a hue of its own. */
+const TAG_COLOR = {
+  COMP: "var(--tag-comp)",
+  GRP: "var(--tag-group)",
 };
 
 /**
@@ -64,6 +91,7 @@ const BLOCK_STYLE = {
 /** What a selection of empty nights can become. */
 const SELECTION_ACTIONS = [
   { id: "reservation", label: "New reservation" },
+  { id: "inquiry", label: "Inquiry (hold the room)" },
   { id: "complimentary", label: "Complimentary stay" },
   { id: "group", label: "Group booking" },
   { id: "block", label: "Out of order" },
@@ -499,13 +527,14 @@ export default function TapeChart({ session }) {
     const { check_in, check_out } = selectionRange(sel);
     const room = sel.room;
 
-    if (action === "reservation" || action === "complimentary") {
+    if (action === "reservation" || action === "complimentary" || action === "inquiry") {
       setNewBooking({
         room_id: room.id,
         room_type_id: room.room_type_id,
         check_in,
         check_out,
         ...(action === "complimentary" ? { booking_type: "complimentary" } : {}),
+        ...(action === "inquiry" ? { status: "inquiry" } : {}),
       });
     } else if (action === "group") {
       setNewGroup({ room_ids: [room.id], check_in, check_out });
@@ -515,19 +544,20 @@ export default function TapeChart({ session }) {
   }
 
   /**
-   * Check a guest in from the chart. The route refuses an early arrival or a
-   * stay with no room, and the menu only offers it when neither applies.
+   * Move a booking on from the chart: check a guest in, or confirm an
+   * inquiry. The route refuses an early arrival or a stay with no room, and
+   * the menu only offers check-in when neither applies.
    */
-  async function checkIn(r) {
+  async function setStatus(r, status) {
     setError(null);
     try {
       const res = await fetch("/api/pms/reservations/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, status: "in_house" }),
+        body: JSON.stringify({ id: r.id, status }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Could not check the guest in");
+      if (!res.ok) throw new Error(data.error || "Could not update the booking");
       setSyncWarning(inventoryWarning(data));
     } catch (err) {
       setError(err.message);
@@ -540,7 +570,9 @@ export default function TapeChart({ session }) {
     setBookingMenu(null);
     if (!r) return;
     if (action === "checkin") {
-      checkIn(r);
+      setStatus(r, "in_house");
+    } else if (action === "confirm") {
+      setStatus(r, "confirmed");
     } else if (action === "upgrade") {
       setUpgrade(r);
     } else {
@@ -749,46 +781,23 @@ export default function TapeChart({ session }) {
       )}
 
       <div className="flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 10,
-              height: 10,
-              background: "var(--accent)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          Confirmed
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 10,
-              height: 10,
-              background: "var(--warn)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          In house
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 10,
-              height: 10,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 2,
-              marginRight: 4,
-            }}
-          />
-          Checked out
-        </span>
+        {LEGEND.map(({ status, label }) => (
+          <span key={status}>
+            <span
+              style={{
+                display: "inline-block",
+                width: 12,
+                height: 12,
+                boxSizing: "border-box",
+                ...BAR_STYLE[status],
+                borderRadius: 2,
+                marginRight: 4,
+                verticalAlign: "middle",
+              }}
+            />
+            {label}
+          </span>
+        ))}
         <span>
           <span
             style={{
@@ -1161,6 +1170,7 @@ export default function TapeChart({ session }) {
                                     width: geo.width,
                                     top: 5,
                                     height: 30,
+                                    boxSizing: "border-box",
                                     ...style,
                                     borderRadius: 4,
                                     borderTopLeftRadius: geo.clippedStart ? 0 : 4,
@@ -1472,7 +1482,11 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
   );
 }
 
-/** A small marker on a bar for what its colour cannot say: comp, group. */
+/**
+ * A small marker on a bar for what its colour cannot say: comp, group. Solid
+ * in a hue no status uses, so it stands out on a light bar and a solid one
+ * alike.
+ */
 function BarTag({ children, title, legend = false }) {
   return (
     <span
@@ -1480,15 +1494,16 @@ function BarTag({ children, title, legend = false }) {
       style={{
         flexShrink: 0,
         marginRight: legend ? 2 : 4,
-        padding: "0 3px",
+        padding: "0 4px",
         borderRadius: 3,
         fontSize: "0.55rem",
         fontWeight: 700,
         letterSpacing: "0.03em",
         lineHeight: "14px",
-        background: legend ? "var(--surface-2)" : "rgba(255,255,255,0.25)",
-        border: legend ? "1px solid var(--border-strong)" : "1px solid rgba(255,255,255,0.6)",
-        color: legend ? "var(--text-muted)" : "inherit",
+        background: TAG_COLOR[children],
+        color: "#fff",
+        // A thin light edge keeps it apart from a solid bar of similar depth.
+        boxShadow: "0 0 0 1px rgba(255,255,255,0.7)",
       }}
     >
       {children}
@@ -1606,6 +1621,9 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           {nights === 1 ? "" : "s"}
         </div>
       </div>
+      {r.status === "inquiry" && (
+        <MenuItem label="Confirm booking" onClick={() => onChoose("confirm")} />
+      )}
       {arriving && (
         <MenuItem
           label="Check in"

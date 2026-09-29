@@ -15,18 +15,24 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
  */
 
 const STATUS_LABELS = {
+  inquiry: "Inquiry",
   confirmed: "Confirmed",
-  in_house: "In house",
+  in_house: "Checked in",
   checked_out: "Checked out",
   cancelled: "Cancelled",
   no_show: "No show",
 };
 
-/** Which chip a status wears. Cancelled and no-show are muted, not alarming. */
+/**
+ * Which chip a status wears, matching the tape chart: promised stays are
+ * light, stays where the guest has arrived or left are solid. Cancelled and
+ * no-show are muted, not alarming.
+ */
 const STATUS_CHIP = {
+  inquiry: "chip-warn",
   confirmed: "chip-ok",
-  in_house: "chip-warn",
-  checked_out: "chip-off",
+  in_house: "chip-in",
+  checked_out: "chip-out",
   cancelled: "chip-off",
   no_show: "chip-off",
 };
@@ -64,7 +70,7 @@ const VIEWS = [
   { id: "current", label: "Current" },
   { id: "arrivals", label: "Arrivals today" },
   { id: "departures", label: "Departures today" },
-  { id: "in_house", label: "In house" },
+  { id: "in_house", label: "Checked in" },
   { id: "all", label: "All" },
 ];
 
@@ -418,7 +424,7 @@ export default function Reservations({ session }) {
           <h2 className="h1">Reservations</h2>
           <p className="sub">
             {counts.arrivals} arriving today · {counts.departures} departing ·{" "}
-            {counts.inHouse} in house
+            {counts.inHouse} checked in
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -611,6 +617,15 @@ export default function Reservations({ session }) {
                         </span>
                       </td>
                       <td className="text-right whitespace-nowrap">
+                        {r.status === "inquiry" && (
+                          <button
+                            className="btn btn-primary text-xs"
+                            disabled={busy}
+                            onClick={() => changeStatus(r, "confirmed")}
+                          >
+                            Confirm
+                          </button>
+                        )}
                         {r.status === "confirmed" && (
                           <button
                             className="btn btn-primary text-xs"
@@ -640,14 +655,14 @@ export default function Reservations({ session }) {
                         >
                           Edit
                         </button>
-                        {r.status === "confirmed" && (
+                        {(r.status === "confirmed" || r.status === "inquiry") && (
                           <button
                             className="btn btn-ghost text-xs ml-1"
                             disabled={busy}
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  `Cancel ${r.guest_name}'s booking ${r.reference}?`
+                                  `Cancel ${r.guest_name}'s ${r.status === "inquiry" ? "inquiry" : "booking"} ${r.reference}?`
                                 )
                               ) {
                                 changeStatus(r, "cancelled");

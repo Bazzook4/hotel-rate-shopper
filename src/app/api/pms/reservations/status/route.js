@@ -12,10 +12,10 @@ import { todayUTC } from "@/lib/date";
  * transitions it allows are narrower than "set any field".
  */
 
-const STATUSES = ["confirmed", "in_house", "checked_out", "cancelled", "no_show"];
+const STATUSES = ["inquiry", "confirmed", "in_house", "checked_out", "cancelled", "no_show"];
 
 /** The statuses that hold a room; moving between these and the rest changes what is free. */
-const HOLDS_ROOM = new Set(["confirmed", "in_house", "checked_out"]);
+const HOLDS_ROOM = new Set(["inquiry", "confirmed", "in_house", "checked_out"]);
 
 /**
  * Which moves make sense from where.
@@ -25,12 +25,19 @@ const HOLDS_ROOM = new Set(["confirmed", "in_house", "checked_out"]);
  * desk from recording a sequence of events that never happened.
  */
 const ALLOWED = {
-  confirmed: ["in_house", "cancelled", "no_show"],
+  // An inquiry is confirmed or dropped; the guest is not checked in on one.
+  inquiry: ["confirmed", "cancelled"],
+  confirmed: ["in_house", "cancelled", "no_show", "inquiry"],
   in_house: ["checked_out", "confirmed"],
   checked_out: ["in_house"],
   cancelled: ["confirmed"],
   no_show: ["confirmed"],
 };
+
+/** A status in the desk's words; `in_house` is shown as "checked in". */
+function statusLabel(status) {
+  return status === "in_house" ? "checked in" : status.replace("_", " ");
+}
 
 export async function POST(req) {
   const { error, session } = await pmsGuard(req);
@@ -69,7 +76,7 @@ export async function POST(req) {
     if (!ALLOWED[current.status]?.includes(status)) {
       return NextResponse.json(
         {
-          error: `A ${current.status.replace("_", " ")} booking cannot move to ${status.replace("_", " ")}.`,
+          error: `A ${statusLabel(current.status)} booking cannot move to ${statusLabel(status)}.`,
         },
         { status: 409 }
       );

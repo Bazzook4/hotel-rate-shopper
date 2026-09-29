@@ -27,6 +27,14 @@
   --warn: #b45309;
   --warn-soft: #fef3c7;
 
+  /* Stay status on the tape chart. A booking that is only promised is light;
+   * one where the guest has actually come or gone is solid. Comp and group
+   * are tags on top of any status, so they take hues no status uses. */
+  --status-in: #15803d;
+  --status-out: #64748b;
+  --tag-comp: #7c3aed;
+  --tag-group: #1d4ed8;
+
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
 
   /* Chart series, in a fixed order that keeps neighbours apart for
@@ -62,6 +70,11 @@
   --danger-soft: #3b1618;
   --warn: #fbbf24;
   --warn-soft: #3a2c10;
+
+  --status-in: #15803d;
+  --status-out: #475569;
+  --tag-comp: #7c3aed;
+  --tag-group: #2563eb;
 
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 
@@ -317,6 +330,8 @@ body {
   .chip-ok { background: var(--accent-soft); color: var(--accent-text); }
   .chip-warn { background: var(--warn-soft); color: var(--warn); }
   .chip-off { background: var(--surface-2); color: var(--text-muted); }
+  .chip-in { background: var(--status-in); color: #fff; }
+  .chip-out { background: var(--status-out); color: #fff; }
 
   /* Joined button group: the date stepper and the window toggle over every
    * date grid. One outline, hairline dividers, the chosen option tinted. */

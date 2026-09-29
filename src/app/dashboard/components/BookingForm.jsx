@@ -41,6 +41,9 @@ function emptyBooking(country = "") {
     children: 0,
     source: "direct",
     booking_type: "standard",
+    // Only chosen when the booking is made; after that it moves through the
+    // desk's status buttons, not the form.
+    status: "confirmed",
     total_amount: "",
     notes: "",
   };
@@ -683,6 +686,20 @@ export default function BookingForm({
             <option value="complimentary">Complimentary</option>
           </select>
         </Field>
+        {/* An inquiry holds the room like a confirmed booking, but is left
+            out of revenue until it is confirmed. */}
+        {!reservation && (
+          <Field label="Status">
+            <select
+              className="input"
+              value={form.status}
+              onChange={(e) => set("status", e.target.value)}
+            >
+              <option value="confirmed">Confirmed</option>
+              <option value="inquiry">Inquiry</option>
+            </select>
+          </Field>
+        )}
         <Field label="Total amount (whole stay)" wide>
           <input
             className="input"

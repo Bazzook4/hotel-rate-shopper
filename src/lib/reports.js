@@ -124,7 +124,10 @@ async function loadFacts(propertyId, fromDate, toDate, basis) {
     let q = supabase
       .from('reservations')
       .select('*')
-      .eq('property_id', propertyId);
+      .eq('property_id', propertyId)
+      // An inquiry holds a room but is not yet business; it is counted once
+      // it is confirmed.
+      .neq('status', 'inquiry');
     q =
       basis === 'booked'
         ? q.gte('created_at', `${fromDate}T00:00:00Z`).lt('created_at', `${shift(toDate, 1)}T00:00:00Z`)

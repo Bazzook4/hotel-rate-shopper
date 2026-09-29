@@ -25,8 +25,9 @@ const TABS = [
 ];
 
 const STATUS_LABELS = {
+  inquiry: "Inquiry",
   confirmed: "Confirmed",
-  in_house: "In house",
+  in_house: "Checked in",
   checked_out: "Checked out",
   cancelled: "Cancelled",
   no_show: "No show",
@@ -34,6 +35,7 @@ const STATUS_LABELS = {
 
 /** What the desk can do next, given where the stay is now. */
 const NEXT_ACTIONS = {
+  inquiry: [{ status: "confirmed", label: "Confirm", kind: "btn-primary" }],
   confirmed: [
     { status: "in_house", label: "Check in", kind: "btn-primary" },
     { status: "no_show", label: "No show", kind: "btn-ghost" },
@@ -174,7 +176,7 @@ export default function BookingModal({
   async function cancelBooking() {
     if (
       !window.confirm(
-        `Cancel ${reservation.guest_name}'s booking ${reservation.reference}?`
+        `Cancel ${reservation.guest_name}'s ${reservation.status === "inquiry" ? "inquiry" : "booking"} ${reservation.reference}?`
       )
     ) {
       return;
@@ -387,14 +389,14 @@ export default function BookingModal({
               borderTop: "1px solid var(--border)",
             }}
           >
-            {reservation.status === "confirmed" && (
+            {(reservation.status === "confirmed" || reservation.status === "inquiry") && (
               <button
                 className="btn btn-ghost text-sm"
                 style={{ color: "var(--danger)", marginRight: "auto" }}
                 onClick={cancelBooking}
                 disabled={busy}
               >
-                ✕ Cancel booking
+                ✕ Cancel {reservation.status === "inquiry" ? "inquiry" : "booking"}
               </button>
             )}
             {actions.map((a) => {

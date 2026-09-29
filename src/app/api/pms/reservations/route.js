@@ -192,7 +192,9 @@ export async function POST(req) {
       {
         ...fields,
         property_id: propertyId,
-        status: body.status || "confirmed",
+        // A new booking starts as confirmed or, if the guest has only asked,
+        // as an inquiry -- which holds the room all the same.
+        status: body.status === "inquiry" ? "inquiry" : "confirmed",
         created_by: session.userId,
       },
       { rates }

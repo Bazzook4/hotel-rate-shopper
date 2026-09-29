@@ -2465,7 +2465,7 @@ function partnerGuestCountry(row) {
 }
 
 /** The statuses that still hold a room. A cancelled stay frees its nights. */
-const OCCUPYING_STATUSES = ['confirmed', 'in_house', 'checked_out'];
+const OCCUPYING_STATUSES = ['inquiry', 'confirmed', 'in_house', 'checked_out'];
 
 /**
  * Rooms sold per room type per date, across a window.
