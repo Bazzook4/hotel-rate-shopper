@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { getReservation, setReservationStatus } from "@/lib/database";
+import { findRoomClash, getReservation, setReservationStatus } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { todayUTC } from "@/lib/date";
 
@@ -97,6 +97,18 @@ export async function POST(req) {
         { error: "Assign a room before checking this guest in." },
         { status: 409 }
       );
+    }
+
+    // A room named here is being assigned at the desk, and must be free for
+    // the whole stay -- the same refusal a booking or a drag gets, so a guest
+    // cannot be checked into a room someone else is in, or one out of order.
+    if (room_id && room_id !== current.room_id) {
+      const clash = await findRoomClash(room_id, current.check_in, current.check_out, {
+        ignoreReservationId: id,
+      });
+      if (clash) {
+        return NextResponse.json({ error: clash.message }, { status: 409 });
+      }
     }
 
     const reservation = await setReservationStatus(id, status, {

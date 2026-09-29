@@ -3,6 +3,7 @@ import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   canManageSetup,
   listRooms,
+  listTakenRoomIds,
   createRoom,
   createRoomRange,
   updateRoom,
@@ -60,7 +61,25 @@ export async function GET(req) {
   }
 
   try {
-    return NextResponse.json({ rooms: await listRooms(propertyId) });
+    const rooms = await listRooms(propertyId);
+
+    // Given a stay's dates, each room also says whether it is free for them,
+    // so the desk picking a room is only offered the ones it can have.
+    const params = req.nextUrl.searchParams;
+    const checkIn = params.get("checkIn");
+    const checkOut = params.get("checkOut");
+    if (checkIn && checkOut) {
+      const taken = new Set(
+        await listTakenRoomIds(propertyId, checkIn, checkOut, {
+          ignoreReservationId: params.get("ignoreReservationId"),
+        })
+      );
+      return NextResponse.json({
+        rooms: rooms.map((room) => ({ ...room, taken: taken.has(room.id) })),
+      });
+    }
+
+    return NextResponse.json({ rooms });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

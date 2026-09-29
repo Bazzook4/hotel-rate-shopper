@@ -276,13 +276,21 @@ export async function PATCH(req) {
 
     const reservation = await updateReservation(id, fields, { rates });
 
+    // The channels sell room types, not rooms: an edit that keeps the type and
+    // the dates -- assigning a room, fixing a phone number -- changes nothing
+    // on sale, and waiting on a push for it only kept the desk waiting.
+    const sameSale =
+      reservation.room_type_id === before.room_type_id &&
+      reservation.check_in === before.check_in &&
+      reservation.check_out === before.check_out;
+
     // Both the nights given up and the nights now held, so a stay moved to
     // next week reopens this week on the channels as well as closing next.
-    const inventory = await syncInventory(
-      propertyId,
-      [staySpan(before), staySpan(reservation)],
-      { session }
-    );
+    const inventory = sameSale
+      ? null
+      : await syncInventory(propertyId, [staySpan(before), staySpan(reservation)], {
+          session,
+        });
 
     return NextResponse.json({ reservation, inventory });
   } catch (err) {

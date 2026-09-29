@@ -2720,6 +2720,47 @@ export async function findRoomClash(
   return null;
 }
 
+/**
+ * The rooms at a property already held for any of a span of nights, by a stay
+ * or an out-of-order block -- `findRoomClash` for every room at once, so a
+ * room picker can leave out the ones it would be refused.
+ */
+export async function listTakenRoomIds(
+  propertyId,
+  checkIn,
+  checkOut,
+  { ignoreReservationId = null } = {}
+) {
+  const { data: stays, error } = await supabase
+    .from('reservations')
+    .select('id, room_id')
+    .eq('property_id', propertyId)
+    .not('room_id', 'is', null)
+    .not('status', 'in', '(cancelled,no_show)')
+    .lt('check_in', checkOut)
+    .gt('check_out', checkIn);
+
+  if (error) throw new Error(`Failed to check the rooms: ${error.message}`);
+
+  const taken = new Set(
+    (stays || []).filter((r) => r.id !== ignoreReservationId).map((r) => r.room_id)
+  );
+
+  const { data: blocks, error: blockError } = await supabase
+    .from('room_blocks')
+    .select('room_id')
+    .eq('property_id', propertyId)
+    .lt('start_date', checkOut)
+    .gt('end_date', checkIn);
+
+  if (blockError && !notMigrated(blockError)) {
+    throw new Error(`Failed to check the rooms: ${blockError.message}`);
+  }
+  for (const b of blocks || []) taken.add(b.room_id);
+
+  return [...taken];
+}
+
 /** Only what a client may set on a block. */
 function blockFields(row) {
   const out = {};

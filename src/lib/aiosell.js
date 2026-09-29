@@ -14,6 +14,12 @@
 
 const DEFAULT_BASE_URL = "https://live.aiosell.com/api/v2/cm";
 
+/**
+ * How long a call to Aiosell may take before it counts as failed. Long enough
+ * for a bulk Resync, short enough that a hung partner cannot hold a save open.
+ */
+const REQUEST_TIMEOUT_MS = 15000;
+
 /** Aiosell channel slug -> display name shown in the UI. */
 export const CHANNEL_LABELS = {
   "booking.com": "Booking.com",
@@ -71,6 +77,9 @@ export function createAiosellClient({ partner, hotelCode } = {}) {
     };
     if (body !== undefined) headers["Content-Type"] = "application/json";
 
+    // A partner that does not answer must not hold a booking save open: the
+    // PMS waits on this push before it replies, and a hung request left the
+    // desk looking at a form that never came back although the room was saved.
     let res;
     try {
       res = await fetch(`${baseUrl}${path}`, {
@@ -78,9 +87,14 @@ export function createAiosellClient({ partner, hotelCode } = {}) {
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
         cache: "no-store",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (err) {
-      throw new Error(`Aiosell request failed (${method} ${path}): ${err.message}`);
+      const reason =
+        err.name === "TimeoutError"
+          ? `no answer after ${REQUEST_TIMEOUT_MS / 1000}s`
+          : err.message;
+      throw new Error(`Aiosell request failed (${method} ${path}): ${reason}`);
     }
 
     const text = await res.text();

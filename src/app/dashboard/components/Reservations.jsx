@@ -261,12 +261,38 @@ export default function Reservations({ session }) {
     let roomId = reservation.room_id;
 
     if (!roomId) {
-      const free = rooms.filter(
+      const ofType = rooms.filter(
         (r) => r.room_type_id === reservation.room_type_id && r.is_active
       );
-      if (free.length === 0) {
+      if (ofType.length === 0) {
         setError(
           "No rooms of that type have been set up yet — add them in Room Setup first."
+        );
+        return;
+      }
+
+      // Only the rooms free for the whole stay are offered: one with a guest
+      // in it, or out of order, would be refused by the server anyway.
+      let free = ofType;
+      try {
+        const qs = new URLSearchParams({
+          checkIn: reservation.check_in,
+          checkOut: reservation.check_out,
+          ignoreReservationId: reservation.id,
+        });
+        if (propertyId) qs.set("propertyId", propertyId);
+        const res = await fetch(`/api/pms/rooms?${qs}`);
+        const data = await res.json();
+        if (res.ok) {
+          const taken = new Set((data.rooms || []).filter((r) => r.taken).map((r) => r.id));
+          free = ofType.filter((r) => !taken.has(r.id));
+        }
+      } catch {
+        // Offer every room of the type; the server still refuses a taken one.
+      }
+      if (free.length === 0) {
+        setError(
+          `Every room of that type is taken or out of order for ${reservation.guest_name}'s stay.`
         );
         return;
       }
@@ -280,7 +306,14 @@ export default function Reservations({ session }) {
         (r) => r.room_number.toLowerCase() === answer.trim().toLowerCase()
       );
       if (!match) {
-        setError(`There is no room ${answer.trim()} of that type.`);
+        const exists = ofType.some(
+          (r) => r.room_number.toLowerCase() === answer.trim().toLowerCase()
+        );
+        setError(
+          exists
+            ? `Room ${answer.trim()} is not free for this stay.`
+            : `There is no room ${answer.trim()} of that type.`
+        );
         return;
       }
       roomId = match.id;

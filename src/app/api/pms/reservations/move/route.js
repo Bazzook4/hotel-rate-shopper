@@ -126,13 +126,20 @@ export async function POST(req) {
 
     const reservation = await applyStayChange(id, updates, plan, body.pricing);
 
+    // Dropped on another room of the same type for the same nights: nothing
+    // the channels sell has changed, so the chart is not kept waiting on a push.
+    const sameSale =
+      reservation.room_type_id === current.room_type_id &&
+      reservation.check_in === current.check_in &&
+      reservation.check_out === current.check_out;
+
     // A drag can change the nights and the room type at once; the old span
     // is sent too, so whatever the stay let go of is reopened.
-    const inventory = await syncInventory(
-      propertyId,
-      [staySpan(current), staySpan(reservation)],
-      { session }
-    );
+    const inventory = sameSale
+      ? null
+      : await syncInventory(propertyId, [staySpan(current), staySpan(reservation)], {
+          session,
+        });
 
     return NextResponse.json({ reservation, inventory });
   } catch (err) {
