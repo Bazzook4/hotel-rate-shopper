@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchHotel, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fetch";
+import { getSessionFromRequest } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/permissions";
 
 /**
  * Ad-hoc hotel lookup, kept for manual checks and debugging.
@@ -8,6 +10,16 @@ import { fetchHotel, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fet
  * response shape so anything pointed at this route keeps working.
  */
 export async function GET(req) {
+  // Any query, any hotel, no property to count it against: a paid fetch with
+  // no natural limit, so it is held back for the people debugging with it.
+  const session = await getSessionFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isSuperAdmin(session)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
 

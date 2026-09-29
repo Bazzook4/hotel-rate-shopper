@@ -5,6 +5,7 @@ import { getPropertyById, listCompetitors } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { rankSuggestions } from "@/lib/competitors";
 import { addDays, formatDateISO } from "@/lib/date";
+import { recordScrape, scrapeAllowance, SCRAPE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 
 /**
  * Nearby hotels that could be competitors -- the Search by Location idea,
@@ -63,8 +64,20 @@ export async function GET(req) {
   const checkOut = formatDateISO(addDays(new Date(), SAMPLE_LEAD_DAYS + 1));
 
 
+  // A search is a paid fetch like any refresh, and counts against the same
+  // allowance: a search box can be hammered as easily as a refresh button.
+  try {
+    if ((await scrapeAllowance(propertyId)) <= 0) {
+      return NextResponse.json({ error: SCRAPE_LIMIT_MESSAGE, code: "rate_limited" }, { status: 429 });
+    }
+  } catch (err) {
+    console.error("Rate refresh limit unavailable:", err.message);
+    return NextResponse.json({ error: "Search is unavailable right now. Try again shortly." }, { status: 503 });
+  }
+
   let json;
   try {
+    await recordScrape(propertyId);
     json = await fetchSearch(`hotels near ${where}`, {
       checkIn,
       checkOut,

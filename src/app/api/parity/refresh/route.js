@@ -10,6 +10,7 @@ import {
 import { normaliseChannels } from "@/lib/parity";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
 import { createBudget, cursorFrom } from "@/lib/scraper/budget";
+import { recordScrape, scrapeAllowance, SCRAPE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -123,6 +124,17 @@ export async function POST(req) {
   // address instead of hopping between them.
   const sessionId = sessionIdFor(propertyId);
 
+  let allowance;
+  try {
+    allowance = await scrapeAllowance(propertyId);
+  } catch (err) {
+    console.error("Rate refresh limit unavailable:", err.message);
+    return NextResponse.json({ error: "Rate refresh is unavailable right now. Try again shortly." }, { status: 503 });
+  }
+  if (allowance <= 0 && from < dates.length) {
+    return NextResponse.json({ error: SCRAPE_LIMIT_MESSAGE, code: "rate_limited" }, { status: 429 });
+  }
+
   const budget = createBudget();
   let index = from;
   let stopped = false;
@@ -134,11 +146,15 @@ export async function POST(req) {
     // Checked before starting, never during: a fetch already under way has to
     // be allowed to finish and be saved.
     if (index > from && !budget.canContinue()) break;
+    // Out of allowance mid-batch: stop with the cursor intact, and the next
+    // batch is refused with the limit message rather than fetched.
+    if (index - from >= allowance) break;
 
     const stayDate = dates[index];
     if (index > from) await sleep(jitterDelay());
 
     try {
+      await recordScrape(propertyId);
       const channels = await fetchDate(null, property.google_place_query, stayDate, nights, guests, sessionId);
       if (channels.length === 0) {
         emptyDates.push(stayDate);

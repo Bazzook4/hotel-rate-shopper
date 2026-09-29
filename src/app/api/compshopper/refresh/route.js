@@ -5,6 +5,7 @@ import { resolvePropertyId } from "@/lib/propertyScope";
 import { cheapestQuote, MAX_COMPETITORS } from "@/lib/competitors";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
 import { createBudget, cursorFrom } from "@/lib/scraper/budget";
+import { recordScrape, scrapeAllowance, SCRAPE_LIMIT_MESSAGE } from "@/lib/rateLimit";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
 /**
@@ -128,6 +129,17 @@ export async function POST(req) {
   // request, so the client calls back with the cursor until the grid is done.
   const from = Math.min(Math.max(Number(body?.from) || 0, 0), cells.length);
 
+  let allowance;
+  try {
+    allowance = await scrapeAllowance(propertyId);
+  } catch (err) {
+    console.error("Rate refresh limit unavailable:", err.message);
+    return NextResponse.json({ error: "Rate refresh is unavailable right now. Try again shortly." }, { status: 503 });
+  }
+  if (allowance <= 0 && from < cells.length) {
+    return NextResponse.json({ error: SCRAPE_LIMIT_MESSAGE, code: "rate_limited" }, { status: 429 });
+  }
+
   const budget = createBudget();
   let index = from;
 
@@ -137,6 +149,9 @@ export async function POST(req) {
     // Checked before starting, never during: a fetch already under way has to
     // be allowed to finish and be saved.
     if (index > from && !budget.canContinue()) break;
+    // Out of allowance mid-batch: stop with the cursor intact, and the next
+    // batch is refused with the limit message rather than fetched.
+    if (index - from >= allowance) break;
 
     const { competitor, stayDate } = cells[index];
 
@@ -149,6 +164,7 @@ export async function POST(req) {
     if (index > from) await sleep(jitterDelay());
 
     try {
+      await recordScrape(propertyId);
       const row = await fetchOne(competitor, stayDate, nights, guests, sessionId);
       rows.push(row);
 
