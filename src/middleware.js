@@ -3,6 +3,8 @@ import { decodeSession } from "@/lib/session";
 
 const PUBLIC_PATHS = new Set([
   "/login",
+  // A new hotel arrives here from an onboarding link, before it has an account.
+  "/onboard",
   "/api/auth/login",
   "/api/auth/logout",
 ]);

@@ -49,8 +49,30 @@ export default function PropertyAdmin({ session }) {
   // One piece of form state: null = closed, object = open. A new property
   // is just a form with no id.
   const [form, setForm] = useState(null);
+  // The last onboarding link issued, shown once so it can be copied.
+  const [invite, setInvite] = useState(null);
 
   const canCreate = session?.isSuperAdmin === true;
+
+  async function createInvite() {
+    setBusy(true);
+    setNotice("");
+    try {
+      const res = await fetch("/api/onboarding/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Could not create link");
+      setInvite(json);
+      navigator.clipboard?.writeText(json.url)?.catch(() => {});
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,6 +155,16 @@ export default function PropertyAdmin({ session }) {
           {canCreate && !form && (
             <button
               type="button"
+              disabled={busy}
+              onClick={createInvite}
+              className="btn btn-secondary"
+            >
+              Onboarding link
+            </button>
+          )}
+          {canCreate && !form && (
+            <button
+              type="button"
               onClick={() => setForm({ name: "" })}
               className="btn btn-primary"
             >
@@ -141,6 +173,21 @@ export default function PropertyAdmin({ session }) {
           )}
         </div>
       </div>
+
+      {invite && (
+        <div className="card card-pad space-y-2">
+          <p className="text-sm text-ink">
+            Onboarding link ready. Send it to the hotel — it works once and
+            expires {new Date(invite.expiresAt).toLocaleDateString()}.
+          </p>
+          <input
+            readOnly
+            value={invite.url}
+            onFocus={(e) => e.target.select()}
+            className="input"
+          />
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
