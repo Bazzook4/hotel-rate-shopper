@@ -236,6 +236,14 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
     ...(muted(col) ? { opacity: 0.55 } : {}),
   });
 
+  // A property admin sees only the pages a super admin gave the property's
+  // admins: a page they can never hand out is noise, not a choice.
+  const areas = superAdmin
+    ? AREA_COLUMNS
+    : AREA_COLUMNS.map((a) => ({ ...a, pages: a.pages.filter((p) => grantable.has(p.id)) })).filter(
+        (a) => a.pages.length
+      );
+
   const pickedName = properties.find((p) => p.id === propertyId)?.name || session?.propertyName;
 
   return (
@@ -276,7 +284,8 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
           </select>
         )}
         <span className="ml-auto text-xs muted">
-          {pickedName ? `${pickedName} · ` : ""}— means the page is above the property admins&apos; rights
+          {pickedName ? `${pickedName} · ` : ""}
+          {superAdmin ? "— means the page is above the property admins' rights" : "Pages your super admin has not given you are not listed"}
         </span>
       </Toolbar>
 
@@ -334,7 +343,7 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
               </tr>
             </thead>
             <tbody>
-              {AREA_COLUMNS.map((area) => (
+              {areas.map((area) => (
                 <Fragment key={area.id}>
                   <tr className="cm-group">
                     <td className="cm-sticky font-semibold">{area.label}</td>
