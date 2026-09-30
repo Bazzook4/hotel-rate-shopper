@@ -16,8 +16,10 @@ import {
 } from "./SetupGrid";
 
 /**
- * Users and what each may open, as one grid: a row per user, a column per
- * page, grouped by area like the navigation.
+ * Users and what each may open, as one grid: a row per page, grouped by
+ * area like the navigation, and a column per user. A property has a handful
+ * of users and a couple of dozen pages, so this way round the grid grows
+ * down rather than off the right edge.
  *
  * Rights flow down. A super admin ticks what a property's admins hold; the
  * admins tick what their users hold, and can only tick within what the
@@ -31,7 +33,7 @@ const field = (id) => `m_${id}`;
 const STATUSES = ["Active", "Suspended"].map((s) => ({ id: s, label: s }));
 const ROLE_LABEL = { [ROLES.PROPERTY_ADMIN]: "Property admin", [ROLES.PROPERTY_USER]: "User" };
 
-/** The grantable pages grouped under their areas, for the two header rows. */
+/** The grantable pages grouped under their areas, one row each. */
 const AREA_COLUMNS = AREAS.map((a) => ({
   ...a,
   pages: GRANTABLE_MODULES.filter((m) => m.area === a.id),
@@ -183,86 +185,58 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
     label: ROLE_LABEL[r],
   }));
 
-  function nameCell(row) {
-    if (!isDraft(row.id)) {
+  // One column per person, in the order rights flow: the onboarding
+  // default, then the admins, then the users they manage.
+  const drafts = new Set(grid.drafts.map((d) => d.id));
+  const stock = (r) => (drafts.has(r.id) ? r : users.find((u) => u.id === r.id));
+  const groups = [
+    defaultRow && { key: "default", label: "New hotels", cols: [defaultRow] },
+    admins.length && { key: "admins", label: "Property admins", cols: admins.map(stock) },
+    staff.length && { key: "staff", label: "Users", cols: staff.map(stock) },
+  ].filter(Boolean);
+  const cols = groups.flatMap((g) => g.cols);
+  const COL = { minWidth: 130 };
+  const plain = { textTransform: "none", letterSpacing: 0, fontWeight: 400 };
+
+  function nameCell(col) {
+    if (col.id === DEFAULT_ROW) {
+      return <span className="text-xs" style={plain}>Starting rights for an onboarded admin</span>;
+    }
+    if (!isDraft(col.id)) {
       return (
-        <td className="cm-sticky" style={{ minWidth: 150 }}>
-          <span className={row.id === DEFAULT_ROW ? "font-semibold" : "text-ink"}>{row.email}</span>
-        </td>
+        <span className="block truncate text-ink" style={{ ...plain, maxWidth: 160 }} title={col.email}>
+          {col.email}
+        </span>
       );
     }
     return (
-      <td className="cm-sticky" style={{ minWidth: 150 }}>
-        {grid.input(row, "email", { type: "email", placeholder: "Email" })}
-        <div className="mt-1">
-          {grid.input(row, "password", { type: "password", placeholder: "Password", autoComplete: "new-password" })}
-        </div>
-      </td>
+      <div className="space-y-1" style={plain}>
+        {grid.input(col, "email", { type: "email", placeholder: "Email" })}
+        {grid.input(col, "password", { type: "password", placeholder: "Password", autoComplete: "new-password" })}
+      </div>
     );
   }
 
-  function userRow(row) {
-    const canEdit = editable(row);
-    const isDefault = row.id === DEFAULT_ROW;
-    return (
-      <tr key={row.id} className={isDraft(row.id) ? "cm-new" : grid.value(row, "status") === "Suspended" ? "cm-muted" : ""}>
-        {nameCell(row)}
-        <td>
-          {isDefault ? (
-            <span className="text-xs muted">Property admin</span>
-          ) : superAdmin ? (
-            grid.select(row, "role", roleOptions)
-          ) : (
-            <span className="text-xs muted">{ROLE_LABEL[roleOf(row)] || roleOf(row)}</span>
-          )}
-        </td>
-        <td>
-          {isDefault ? null : canEdit ? (
-            grid.select(row, "status", STATUSES)
-          ) : (
-            <span className="text-xs muted">{row.status}</span>
-          )}
-        </td>
-        <td className="whitespace-nowrap">
-          {canEdit && (
-            <>
-              <button type="button" className="btn btn-ghost text-xs" onClick={() => setAll(row, true)}>
-                All
-              </button>
-              <button type="button" className="btn btn-ghost text-xs" onClick={() => setAll(row, false)}>
-                None
-              </button>
-            </>
-          )}
-        </td>
-        {PAGE_IDS.map((id) => {
-          const why = blocked(row, id);
-          return (
-            <td key={id} className="text-center" title={why || undefined}>
-              {why ? (
-                <span className="faint">—</span>
-              ) : (
-                grid.check(row, field(id), { disabled: !canEdit, "aria-label": id })
-              )}
-            </td>
-          );
-        })}
-      </tr>
-    );
+  function roleCell(col) {
+    if (col.id === DEFAULT_ROW) return <span className="text-xs muted" style={plain}>Property admin</span>;
+    if (superAdmin) return grid.select(col, "role", roleOptions);
+    return <span className="text-xs muted" style={plain}>{ROLE_LABEL[roleOf(col)] || roleOf(col)}</span>;
   }
 
-  const groupRow = (label, hint) => (
-    <tr className="cm-group">
-      <td className="cm-sticky" colSpan={4}>
-        <span className="font-semibold">{label}</span>
-        {hint && <span className="ml-2 text-xs muted">{hint}</span>}
-      </td>
-      <td colSpan={PAGE_IDS.length} />
-    </tr>
-  );
+  function statusCell(col) {
+    if (col.id === DEFAULT_ROW) return null;
+    if (editable(col)) return grid.select(col, "status", STATUSES);
+    return <span className="text-xs muted" style={plain}>{col.status}</span>;
+  }
+
+  const muted = (col) => grid.value(col, "status") === "Suspended" && !isDraft(col.id);
+  const colStyle = (col) => ({
+    ...COL,
+    ...(isDraft(col.id) ? { background: "var(--accent-soft)" } : {}),
+    ...(muted(col) ? { opacity: 0.55 } : {}),
+  });
 
   const pickedName = properties.find((p) => p.id === propertyId)?.name || session?.propertyName;
-  const drafts = new Set(grid.drafts.map((d) => d.id));
 
   return (
     <div className="space-y-4">
@@ -311,65 +285,86 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
       ) : !propertyId ? (
         <div className="card card-pad sub">Choose a property to manage its users.</div>
       ) : (
-        <Grid>
-          <thead>
-            <tr>
-              <th className="cm-sticky" rowSpan={2}>User</th>
-              <th rowSpan={2}>Role</th>
-              <th rowSpan={2}>Status</th>
-              <th rowSpan={2} />
-              {AREA_COLUMNS.map((a) => (
-                <th key={a.id} colSpan={a.pages.length} className="text-center">
-                  {a.label}
+        <>
+          {!admins.length && (
+            <div className="card px-4 py-2 sub">
+              This property has no property admin, so its users are not capped.
+            </div>
+          )}
+          <Grid>
+            <thead>
+              <tr>
+                <th className="cm-sticky" rowSpan={4} style={{ minWidth: 150, verticalAlign: "bottom" }}>
+                  Page
                 </th>
-              ))}
-            </tr>
-            <tr>
-              {AREA_COLUMNS.map((a) =>
-                a.pages.map((p) => (
-                  <th key={p.id} className="text-center" style={{ fontSize: "0.65rem" }}>
-                    {p.label}
+                {groups.map((g) => (
+                  <th key={g.key} colSpan={g.cols.length} className="text-center">
+                    {g.label}
                   </th>
-                ))
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {defaultRow && (
-              <>
-                {groupRow("Onboarding default", "what a hotel's admin gets when they sign up by link")}
-                {userRow(defaultRow)}
-              </>
-            )}
-            {groupRow(
-              "Property admins",
-              superAdmin ? "set by super admin" : "set by your super admin — read only"
-            )}
-            {admins.length ? (
-              admins.map((r) => (
-                <Fragment key={r.id}>{userRow(drafts.has(r.id) ? r : users.find((u) => u.id === r.id))}</Fragment>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4 + PAGE_IDS.length} className="cm-empty">
-                  No property admin — users here are not capped.
-                </td>
+                ))}
               </tr>
-            )}
-            {groupRow("Users", "within the property admins' rights")}
-            {staff.length ? (
-              staff.map((r) => (
-                <Fragment key={r.id}>{userRow(drafts.has(r.id) ? r : users.find((u) => u.id === r.id))}</Fragment>
-              ))
-            ) : (
               <tr>
-                <td colSpan={4 + PAGE_IDS.length} className="cm-empty">
-                  No users yet.
-                </td>
+                {cols.map((c) => (
+                  <th key={c.id} style={colStyle(c)}>{nameCell(c)}</th>
+                ))}
               </tr>
-            )}
-          </tbody>
-        </Grid>
+              <tr>
+                {cols.map((c) => (
+                  <th key={c.id} style={colStyle(c)}>{roleCell(c)}</th>
+                ))}
+              </tr>
+              <tr>
+                {cols.map((c) => (
+                  <th key={c.id} style={colStyle(c)}>
+                    <div className="flex items-center gap-1" style={plain}>
+                      <div className="flex-1">{statusCell(c)}</div>
+                      {editable(c) && (
+                        <>
+                          <button type="button" className="btn btn-ghost text-xs" title="Tick every page" onClick={() => setAll(c, true)}>
+                            All
+                          </button>
+                          <button type="button" className="btn btn-ghost text-xs" title="Untick every page" onClick={() => setAll(c, false)}>
+                            None
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {AREA_COLUMNS.map((area) => (
+                <Fragment key={area.id}>
+                  <tr className="cm-group">
+                    <td className="cm-sticky font-semibold">{area.label}</td>
+                    <td colSpan={cols.length} />
+                  </tr>
+                  {area.pages.map((page) => (
+                    <tr key={page.id}>
+                      <td className="cm-sticky" style={{ paddingLeft: "1.5rem" }}>{page.label}</td>
+                      {cols.map((c) => {
+                        const why = blocked(c, page.id);
+                        return (
+                          <td key={c.id} className="text-center" title={why || undefined} style={colStyle(c)}>
+                            {why ? (
+                              <span className="faint">—</span>
+                            ) : (
+                              grid.check(c, field(page.id), {
+                                disabled: !editable(c),
+                                "aria-label": `${page.label} for ${c.email || "new user"}`,
+                              })
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </Grid>
+        </>
       )}
     </div>
   );
