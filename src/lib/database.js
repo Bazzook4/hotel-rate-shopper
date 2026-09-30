@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
-import { resolveAdultRates } from '@/lib/ratePlanPricing';
+import { roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 
@@ -783,6 +783,8 @@ export async function createRatePlanWithDerivation({
   derive_from_id = null,
   derive_method = null,
   derive_value = null,
+  derive_value_2 = null,
+  min_rate = null,
 }) {
   const ratePlanId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -802,8 +804,17 @@ export async function createRatePlanWithDerivation({
     is_master: Boolean(is_master),
     derive_from_id: derive_from_id || null,
     derive_method: derive_from_id ? derive_method : null,
-    derive_value: derive_from_id ? Number(derive_value) : null,
+    derive_value: derive_from_id ? Number(derive_value) || 0 : null,
+    derive_value_2:
+      derive_from_id && derive_value_2 !== null && derive_value_2 !== ''
+        ? Number(derive_value_2)
+        : null,
+    min_rate: min_rate === null || min_rate === '' ? null : Number(min_rate),
   };
+  // Written only when set, so a database without migration 034 still takes
+  // an ordinary plan.
+  if (payload.derive_value_2 === null) delete payload.derive_value_2;
+  if (payload.min_rate === null) delete payload.min_rate;
 
   const { data, error } = await supabase
     .from('rate_plans')
@@ -836,6 +847,10 @@ export async function updateRatePlanDerivation(id, updates) {
   ]) {
     if (key in updates) patch[key] = updates[key];
   }
+  if ('min_rate' in updates) {
+    patch.min_rate =
+      updates.min_rate === null || updates.min_rate === '' ? null : Number(updates.min_rate);
+  }
   if ('room_type_id' in updates) patch.room_type_id = updates.room_type_id || null;
   if ('is_master' in updates) patch.is_master = Boolean(updates.is_master);
 
@@ -843,13 +858,23 @@ export async function updateRatePlanDerivation(id, updates) {
     patch.derive_from_id = updates.derive_from_id || null;
     if (patch.derive_from_id) {
       patch.derive_method = updates.derive_method || null;
+      // "Keep rates the same" has no value, but the schema wants one.
       patch.derive_value =
-        updates.derive_value === null || updates.derive_value === undefined
-          ? null
+        updates.derive_value === null ||
+        updates.derive_value === undefined ||
+        updates.derive_value === ''
+          ? 0
           : Number(updates.derive_value);
+      if ('derive_value_2' in updates) {
+        patch.derive_value_2 =
+          updates.derive_value_2 === null || updates.derive_value_2 === ''
+            ? null
+            : Number(updates.derive_value_2);
+      }
     } else {
       patch.derive_method = null;
       patch.derive_value = null;
+      if ('derive_value_2' in updates) patch.derive_value_2 = null;
     }
   }
 
@@ -1472,7 +1497,9 @@ export async function markRestrictionsPushed(propertyId, rows) {
 export async function listRatePlanRooms(propertyId) {
   const { data, error } = await supabase
     .from('rate_plan_rooms')
-    .select('id, rate_plan_id, room_type_id, full_rate, adult_rates, included_occupancy, extra_adult_rate, extra_child_rate')
+    // Every column, so the page loads on a database with or without the
+    // room-rate overrides of migration 034.
+    .select('*')
     .eq('property_id', propertyId);
 
   if (error) {
@@ -1578,6 +1605,114 @@ export async function saveRatePlanRooms(propertyId, ratePlanId, rows) {
   }
 
   return data || [];
+}
+
+/**
+ * The columns a room rate may set for itself. Each is NULL while the room
+ * rate follows its plan -- "locked" on the setup page.
+ */
+const ROOM_RATE_OVERRIDES = [
+  'description',
+  'min_stay',
+  'max_stay',
+  'release_period',
+  'stop_sell',
+  'min_rate',
+  'rate_mode',
+  'derive_from_plan_id',
+  'derive_from_room_id',
+  'derive_method',
+  'derive_value',
+  'derive_value_2',
+  'adult_overrides',
+];
+
+/**
+ * Create or update one room rate: a rate plan sold in one room.
+ *
+ * Unlike saveRatePlanRooms this touches only the one row, so assigning a
+ * room from the setup list, or editing one room rate, cannot disturb the
+ * plan's other rooms. Fields not supplied are left as they are; an override
+ * sent as null goes back to following the plan.
+ */
+export async function upsertRatePlanRoom(propertyId, row) {
+  const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
+
+  const payload = {
+    property_id: propertyId,
+    rate_plan_id: row.rate_plan_id,
+    room_type_id: row.room_type_id,
+    updated_at: new Date().toISOString(),
+  };
+
+  if ('adult_rates' in row) {
+    const rates = {};
+    for (const [k, v] of Object.entries(row.adult_rates || {})) {
+      const adults = Number(k);
+      const rate = num(v);
+      if (Number.isInteger(adults) && adults >= 1 && rate !== null && rate >= 0) {
+        rates[adults] = rate;
+      }
+    }
+    payload.adult_rates = Object.keys(rates).length ? rates : null;
+    // full_rate stays the rate at base occupancy for older readers.
+    const base = Number(row.base_adults);
+    payload.full_rate = payload.adult_rates
+      ? rates[base] ?? Math.max(...Object.values(rates))
+      : null;
+  }
+  for (const k of ['extra_adult_rate', 'extra_child_rate']) {
+    if (k in row) payload[k] = num(row[k]);
+  }
+  for (const k of ROOM_RATE_OVERRIDES) {
+    if (!(k in row)) continue;
+    const v = row[k];
+    if (['min_stay', 'max_stay', 'release_period', 'min_rate', 'derive_value', 'derive_value_2'].includes(k)) {
+      payload[k] = num(v);
+    } else if (k === 'stop_sell') {
+      payload[k] = v === null || v === undefined ? null : Boolean(v);
+    } else {
+      payload[k] = v === '' || v === undefined ? null : v;
+    }
+  }
+  // A room rate that is not derived keeps no stale link to what it once
+  // followed, so switching back to the plan leaves nothing behind.
+  if ('rate_mode' in row && row.rate_mode !== 'derived') {
+    payload.derive_from_plan_id = null;
+    payload.derive_from_room_id = null;
+    payload.derive_method = null;
+    payload.derive_value = null;
+    payload.derive_value_2 = null;
+  }
+
+  const { data, error } = await supabase
+    .from('rate_plan_rooms')
+    .upsert(payload, { onConflict: 'rate_plan_id,room_type_id' })
+    .select()
+    .single();
+
+  if (error) {
+    // The override columns arrive with migration 034; say so rather than
+    // surfacing a column error the hotelier cannot act on.
+    if (/column .* does not exist|schema cache/i.test(error.message)) {
+      throw new Error(
+        'Room rate settings need database migration 034, which has not been applied yet.'
+      );
+    }
+    throw new Error(`Failed to save room rate: ${error.message}`);
+  }
+  return data;
+}
+
+/** Take one room off a rate plan. */
+export async function deleteRatePlanRoom(propertyId, ratePlanId, roomTypeId) {
+  const { error } = await supabase
+    .from('rate_plan_rooms')
+    .delete()
+    .eq('property_id', propertyId)
+    .eq('rate_plan_id', ratePlanId)
+    .eq('room_type_id', roomTypeId);
+  if (error) throw new Error(`Failed to remove room rate: ${error.message}`);
 }
 
 // ============================================
@@ -4606,7 +4741,7 @@ export async function loadQuoteData(propertyId, firstNight, lastNight) {
  *   daily_rates       the rate set for that plan, room and date in the grid,
  *                     including anything pushed to the channels
  *   rate_plan_rooms   the plan's assigned rate for the room, per occupancy
- *   derivation        a derived plan follows its master, adult by adult, via resolveAdultRates
+ *   derivation        a derived room rate follows its source, adult by adult, via roomRateResolver
  *   room base_price   only where a plan has no assignment at all
  *
  * The derivation step is the one that cannot be skipped: a plan priced as
@@ -4696,36 +4831,26 @@ export async function quoteReservation(
     return null;
   };
 
-  /** A plan's own rate for a number of adults up to base, before derivation. */
-  const ownRateAt = (planId, adults) => {
-    const perAdult = assignmentFor[`${planId}|${room_type_id}`]?.adult_rates || null;
+  /**
+   * A plan's own rate in a room for a number of adults up to base, before
+   * derivation. Only this room is ever given an assignment fallback; a
+   * derived room rate that follows another room reads that room's own
+   * per-adult rates and nothing else, for the same reason as baseRateFor.
+   */
+  const ownRateAt = (planId, roomId, adults) => {
+    const perAdult = assignmentFor[`${planId}|${roomId}`]?.adult_rates || null;
     if (perAdult) {
       const own = Number(perAdult[adults] ?? perAdult[String(adults)]);
       if (Number.isFinite(own)) return own;
     }
-    return baseRateFor({ id: planId });
+    return roomId === room_type_id ? baseRateFor({ id: planId }) : null;
   };
 
-  // Derived plans follow their master adult by adult, resolved in THIS room
-  // -- the same call the CM grid makes, so the two cannot drift apart.
-  const adultRates = resolveAdultRates(ratePlans, baseAdults, ownRateAt);
-
-  /**
-   * The rate for a given occupancy, following the CM's rule: within base
-   * occupancy a room is priced per adult, since a single and a double are
-   * different prices rather than the same room half empty; beyond it, each
-   * further adult adds the extra-person rate.
-   */
-  const rateForOccupancy = (planId, occ) => {
-    const rates = adultRates[planId] || {};
-    if (occ <= baseAdults) return rates[occ] ?? null;
-
-    const atBase = Number(rates[baseAdults]);
-    if (!Number.isFinite(atBase)) return null;
-    const extra = Number(assignmentFor[`${planId}|${room_type_id}`]?.extra_adult_rate);
-    if (!Number.isFinite(extra)) return atBase;
-    return atBase + (occ - baseAdults) * extra;
-  };
+  // Derived room rates follow their source adult by adult -- the same
+  // resolver the CM grid uses, so the two cannot drift apart. Beyond base
+  // adults it adds the room rate's own extra-person rate, as the grid does.
+  const resolver = roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt });
+  const rateForOccupancy = (planId, occ) => resolver.rate(planId, room_type_id, occ);
 
   // Children are charged where the plan says so; the CM grid prices adults
   // only, so this is additive rather than a divergence from it.
@@ -4748,7 +4873,9 @@ export async function quoteReservation(
         const fromPlan = rateForOccupancy(plan.id, occupancy);
         if (fromPlan != null) {
           rate = fromPlan;
-          sources.add(plan.derive_from_id ? 'derived' : 'rate_plan');
+          sources.add(
+            resolver.sourceOf(plan.id, room_type_id).manual ? 'rate_plan' : 'derived'
+          );
         }
       }
     }

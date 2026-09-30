@@ -8,8 +8,10 @@ import {
   updateRatePlanDerivation,
   deleteRatePlan,
   getUserPropertyId,
+  listRatePlanRooms,
+  listRoomTypes,
 } from "@/lib/database";
-import { DERIVE_METHODS, eligibleMasters } from "@/lib/ratePlanPricing";
+import { eligibleMasters, findDerivationLoop, ruleProblem } from "@/lib/ratePlanPricing";
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -46,16 +48,8 @@ function validateDerivation(body, existingPlans, planId) {
   if (body.is_master) {
     return "A master plan cannot itself be derived from another plan.";
   }
-  if (!DERIVE_METHODS.includes(body.derive_method)) {
-    return `derive_method must be one of: ${DERIVE_METHODS.join(", ")}`;
-  }
-  const value = Number(body.derive_value);
-  if (!Number.isFinite(value)) {
-    return "derive_value must be a number";
-  }
-  if (body.derive_method === "multiplier" && value <= 0) {
-    return "A multiplier must be greater than zero";
-  }
+  const problem = ruleProblem(body.derive_method, body.derive_value, body.derive_value_2);
+  if (problem) return problem;
   if (planId && body.derive_from_id === planId) {
     return "A rate plan cannot derive from itself";
   }
@@ -70,6 +64,29 @@ function validateDerivation(body, existingPlans, planId) {
   }
 
   return null;
+}
+
+function validateMinRate(body) {
+  if (!("min_rate" in body) || body.min_rate === null || body.min_rate === "") return null;
+  const v = Number(body.min_rate);
+  return Number.isFinite(v) && v >= 0 ? null : "Minimum rate must be zero or more.";
+}
+
+/**
+ * Whether saving this plan's derivation would close a loop through a room
+ * rate that has been pointed elsewhere -- which eligibleMasters, looking at
+ * plans alone, cannot see.
+ */
+async function loopsThroughRooms(propertyId, existing, planId, body) {
+  if (!body.derive_from_id) return false;
+  const [assignments, roomTypes] = await Promise.all([
+    listRatePlanRooms(propertyId).catch(() => []),
+    listRoomTypes(propertyId).catch(() => []),
+  ]);
+  const plans = existing.map((p) =>
+    p.id === planId ? { ...p, derive_from_id: body.derive_from_id } : p
+  );
+  return Boolean(findDerivationLoop({ ratePlans: plans, assignments, roomTypes }));
 }
 
 export async function GET(req) {
@@ -111,7 +128,9 @@ export async function POST(req) {
   }
 
   const existing = await listRatePlans(propertyId).catch(() => []);
-  const invalid = validateDerivation({ ...body, property_id: propertyId }, existing, null);
+  const invalid =
+    validateDerivation({ ...body, property_id: propertyId }, existing, null) ||
+    validateMinRate(body);
   if (invalid) {
     return NextResponse.json({ error: invalid }, { status: 400 });
   }
@@ -145,9 +164,20 @@ export async function PATCH(req) {
 
   const propertyId = await resolvePropertyId(session, body.property_id);
   const existing = propertyId ? await listRatePlans(propertyId).catch(() => []) : [];
-  const invalid = validateDerivation({ ...body, property_id: propertyId }, existing, id);
+  const invalid =
+    validateDerivation({ ...body, property_id: propertyId }, existing, id) ||
+    validateMinRate(body);
   if (invalid) {
     return NextResponse.json({ error: invalid }, { status: 400 });
+  }
+  if (propertyId && (await loopsThroughRooms(propertyId, existing, id, body))) {
+    return NextResponse.json(
+      {
+        error:
+          "That would make rates follow each other in a circle, through a room rate that derives from this plan. Change that room rate first.",
+      },
+      { status: 400 }
+    );
   }
 
   try {

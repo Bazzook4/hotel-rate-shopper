@@ -11,7 +11,7 @@ import {
   listRatePlanRooms,
   getAvailabilityGrid,
 } from "@/lib/database";
-import { resolveAllRates, resolveAdultRates, plansForRoom } from "@/lib/ratePlanPricing";
+import { roomRateResolver, plansForRoom } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
 
 /**
@@ -153,24 +153,6 @@ export async function GET(req) {
       return baseRateFor({ id: planId }, roomId);
     };
 
-    /**
-     * What a plan costs in a room for a given number of adults.
-     *
-     * Up to base occupancy it is the per-adult rate, derived adult by adult
-     * for a derived plan. Beyond it, each further adult adds the plan's extra
-     * person rate on top of the base-occupancy rate.
-     */
-    const rateForOccupancy = (planId, roomId, adultRates, baseAdults, occupancy) => {
-      const rates = adultRates[planId] || {};
-      if (occupancy <= baseAdults) return rates[occupancy] ?? null;
-
-      const atBase = Number(rates[baseAdults]);
-      if (!Number.isFinite(atBase)) return null;
-      const extra = Number(assignmentFor[`${planId}|${roomId}`]?.extra_adult_rate);
-      if (!Number.isFinite(extra)) return atBase;
-      return atBase + (occupancy - baseAdults) * extra;
-    };
-
     const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
 
     /**
@@ -186,22 +168,19 @@ export async function GET(req) {
       return room ? Number(room.base_price) : null;
     };
 
+    // Every room rate resolved once, adult by adult. A room rate can follow
+    // its plan's master in the same room, or -- once unlocked in Rate Plan
+    // Setup -- any other room rate, so resolution spans rooms rather than
+    // running room by room.
+    const resolver = roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt });
+
     // One row per rate plan per occupancy, matching how the partner models
     // rate plans and how the grid displays them.
     const rooms = roomTypes.map((room) => {
       // A plan is sold on the rooms assigned to it; plansForRoom holds the
       // fallback for a property that has not assigned any yet.
       const plans = plansForRoom(ratePlans, room.id, assignments);
-
-      // Rates resolve per room, since the same plan can cost differently in
-      // each, and a derived plan must follow its master's rate in THIS room.
-      const baseRates = {};
-      for (const p of ratePlans) baseRates[p.id] = baseRateFor(p, room.id);
-      const resolved = resolveAllRates(ratePlans, baseRates);
-      const baseAdults = Math.max(1, Number(room.base_adults) || 0);
-      const adultRates = resolveAdultRates(ratePlans, baseAdults, (planId, adults) =>
-        ownRateAt(planId, room.id, adults)
-      );
+      const baseAdults = resolver.baseAdultsOf(room.id);
       const maxAdults = room.max_adults || 2;
 
       return {
@@ -217,18 +196,19 @@ export async function GET(req) {
           label: planLabel(p),
           mealPlan: p.meal_plan,
           refundable: p.refundable !== false,
+          // A room rate may override its plan's defaults; NULL follows it.
           restrictions: {
-            stopSell: Boolean(p.stop_sell),
-            minStay: p.min_stay ?? null,
-            maxStay: p.max_stay ?? null,
+            stopSell: Boolean(assignmentFor[`${p.id}|${room.id}`]?.stop_sell ?? p.stop_sell),
+            minStay: assignmentFor[`${p.id}|${room.id}`]?.min_stay ?? p.min_stay ?? null,
+            maxStay: assignmentFor[`${p.id}|${room.id}`]?.max_stay ?? p.max_stay ?? null,
           },
-          resolvedRate: resolved[p.id] ?? null,
+          resolvedRate: resolver.rate(p.id, room.id, baseAdults),
           occupancies: Array.from({ length: maxAdults }, (_, i) => i + 1).map(
             (occ) => ({
               occupancy: occ,
               // The rate a cell falls back to, which now varies by how many
               // adults the row is for.
-              resolvedRate: rateForOccupancy(p.id, room.id, adultRates, baseAdults, occ),
+              resolvedRate: resolver.rate(p.id, room.id, occ),
               partnerCode:
                 codeByPlan[`${room.id}|${p.id}|${occ}`]?.code || null,
               extraAdult:
