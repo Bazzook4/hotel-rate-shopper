@@ -46,6 +46,7 @@ export async function GET(request) {
       propertyName: property?.name || null,
       propertyLocation: property?.city || null,
       modules,
+      disabledModules: property?.disabled_modules || [],
     },
   });
 }

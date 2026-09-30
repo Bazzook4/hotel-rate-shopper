@@ -112,6 +112,8 @@ export const PLACEHOLDER_PAGES = new Set(["workflow"]);
 export function visibleAreas(session) {
   const canSetup = session?.canManageSetup === true;
   const canUsers = session?.canManageUsers === true;
+  // Switched off for the whole property, whatever the user's grants say.
+  const disabled = new Set(session?.disabledModules || []);
 
   const granted = session?.modules || [];
   // Translate any legacy ids before filtering, so a user whose grants predate
@@ -120,6 +122,7 @@ export function visibleAreas(session) {
 
   const areas = AREAS.map((area) => {
     const pages = area.pages.filter((p) => {
+      if (disabled.has(p.id)) return false;
       if (ADMIN_PAGES.has(p.id) && !canUsers) return false;
       if (SETUP_PAGES.has(p.id) && !canSetup) return false;
       // No explicit grants means full access; the roles above still apply.
@@ -136,6 +139,7 @@ export function visibleAreas(session) {
     return AREAS.map((area) => ({
       ...area,
       pages: area.pages.filter((p) => {
+        if (disabled.has(p.id)) return false;
         if (ADMIN_PAGES.has(p.id) && !canUsers) return false;
         if (SETUP_PAGES.has(p.id) && !canSetup) return false;
         return true;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchSearch, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fetch";
 import { getSessionFromRequest } from "@/lib/session";
 import { getPropertyById, listCompetitors } from "@/lib/database";
-import { resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDisabledResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { rankSuggestions } from "@/lib/competitors";
 import { addDays, formatDateISO } from "@/lib/date";
 import { recordScrape, scrapeAllowance, SCRAPE_LIMIT_MESSAGE } from "@/lib/rateLimit";
@@ -28,6 +28,8 @@ export async function GET(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
+  const disabled = await moduleDisabledResponse(propertyId, "compshopper");
+  if (disabled) return disabled;
 
   const scraperReady = isScraperConfigured();
   if (!scraperReady) {

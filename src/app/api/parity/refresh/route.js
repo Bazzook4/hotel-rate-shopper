@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import { moduleDisabledResponse } from "@/lib/propertyScope";
 import { isSuperAdmin } from "@/lib/permissions";
 import {
   getPropertyById,
@@ -59,6 +60,8 @@ export async function POST(req) {
   if (!propertyId || (!isSuperAdmin(session) && body?.propertyId && body.propertyId !== own)) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
+  const disabled = await moduleDisabledResponse(propertyId, "parity");
+  if (disabled) return disabled;
 
   if (!isScraperConfigured()) {
     return NextResponse.json(

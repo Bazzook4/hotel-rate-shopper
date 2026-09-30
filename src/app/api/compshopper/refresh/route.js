@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { listCompetitors, saveCompetitorRates } from "@/lib/database";
-import { resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDisabledResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { cheapestQuote, MAX_COMPETITORS } from "@/lib/competitors";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
 import { createBudget, cursorFrom } from "@/lib/scraper/budget";
@@ -65,6 +65,8 @@ export async function POST(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
+  const disabled = await moduleDisabledResponse(propertyId, "compshopper");
+  if (disabled) return disabled;
 
   if (!isScraperConfigured()) {
     return NextResponse.json(

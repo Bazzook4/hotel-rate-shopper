@@ -29,6 +29,7 @@ const CHECKS = [
   { migration: "011_meal_plans", table: "rate_plans", column: "max_stay" },
   { migration: "012_daily_rates", table: "daily_rates", column: "stay_date" },
   { migration: "032_onboarding_invites", table: "onboarding_invites", column: "token_hash" },
+  { migration: "033_property_disabled_modules", table: "properties", column: "disabled_modules" },
 ];
 
 export async function GET(req) {

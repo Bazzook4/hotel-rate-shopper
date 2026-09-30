@@ -8,7 +8,10 @@ import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/li
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const GONE = { error: "This onboarding link has expired or has already been used." };
+/** Paid-lookup features a self-onboarded hotel does not get until we switch them on. */
+const ONBOARDED_DISABLED_MODULES = ["parity", "compshopper"];
+
+const GONE ={ error: "This onboarding link has expired or has already been used." };
 
 /** Whether a link is still good, and the hotel name it was issued for. */
 export async function GET(request) {
@@ -60,7 +63,7 @@ export async function POST(request) {
   try {
     const { data, error } = await supabase
       .from("properties")
-      .insert({ name: propertyName, email })
+      .insert({ name: propertyName, email, disabled_modules: ONBOARDED_DISABLED_MODULES })
       .select()
       .single();
     if (error) throw new Error(`Failed to create property: ${error.message}`);

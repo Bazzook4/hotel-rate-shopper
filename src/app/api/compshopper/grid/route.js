@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { getPropertyById, listCompetitors, listCompetitorRates, listParityRates } from "@/lib/database";
-import { resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDisabledResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { medianOf } from "@/lib/competitors";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
@@ -23,6 +23,8 @@ export async function GET(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
+  const disabled = await moduleDisabledResponse(propertyId, "compshopper");
+  if (disabled) return disabled;
 
   const nights = Math.min(Math.max(Number(searchParams.get("nights")) || 1, 1), 30);
   const guests = Math.min(Math.max(Number(searchParams.get("guests")) || 2, 1), 20);

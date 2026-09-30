@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isAnyAdmin } from "@/lib/permissions";
 import { listCompetitors, saveCompetitors } from "@/lib/database";
-import { resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDisabledResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { MAX_COMPETITORS } from "@/lib/competitors";
 
 /** The competitors this property tracks. */
@@ -17,6 +17,8 @@ export async function GET(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
+  const disabled = await moduleDisabledResponse(propertyId, "compshopper");
+  if (disabled) return disabled;
 
   const competitors = await listCompetitors(propertyId);
   return NextResponse.json({ propertyId, competitors, max: MAX_COMPETITORS });
@@ -46,6 +48,8 @@ export async function PUT(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
+  const disabled = await moduleDisabledResponse(propertyId, "compshopper");
+  if (disabled) return disabled;
 
   const rows = Array.isArray(body?.competitors) ? body.competitors : [];
 
