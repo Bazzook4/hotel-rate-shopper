@@ -209,10 +209,14 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
         </span>
       );
     }
+    // Header cells do not wrap, so each box sits in its own block or the
+    // two run side by side off the edge of the column.
     return (
-      <div className="space-y-1" style={plain}>
-        {grid.input(col, "email", { type: "email", placeholder: "Email" })}
-        {grid.input(col, "password", { type: "password", placeholder: "Password", autoComplete: "new-password" })}
+      <div style={{ ...plain, width: 200, whiteSpace: "normal" }}>
+        <div>{grid.input(col, "email", { type: "email", placeholder: "Email", autoComplete: "off" })}</div>
+        <div className="mt-1">
+          {grid.input(col, "password", { type: "password", placeholder: "Password", autoComplete: "new-password" })}
+        </div>
       </div>
     );
   }
