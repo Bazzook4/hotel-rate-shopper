@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { moduleDisabledResponse, resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { saveParityChannelOrder } from "@/lib/database";
 import { channelKey } from "@/lib/parity";
 
@@ -28,8 +28,8 @@ export async function POST(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
-  const disabled = await moduleDisabledResponse(propertyId, "parity");
-  if (disabled) return disabled;
+  const denied = await moduleDeniedResponse(session, "parity");
+  if (denied) return denied;
 
   if (!Array.isArray(body?.channelKeys)) {
     return NextResponse.json({ error: "Send the channels in the order you want them." }, { status: 400 });

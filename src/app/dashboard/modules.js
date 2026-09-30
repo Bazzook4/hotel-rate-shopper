@@ -79,6 +79,16 @@ const LEGACY_ALIASES = {
 };
 
 /**
+ * Whether a user's grants include a page. No grants at all means every page,
+ * the same rule the menu applies. Shared with the API routes so a page the
+ * menu hides cannot still be reached by calling its API.
+ */
+export function grantsInclude(granted, pageId) {
+  if (!granted?.length) return true;
+  return granted.some((id) => (LEGACY_ALIASES[id] || id) === pageId);
+}
+
+/**
  * Pages that configure the property itself, rather than using it. These are
  * shown only to users who may actually change setup -- the API enforces this
  * too, so this just avoids offering a page that 403s.
@@ -112,8 +122,6 @@ export const PLACEHOLDER_PAGES = new Set(["workflow"]);
 export function visibleAreas(session) {
   const canSetup = session?.canManageSetup === true;
   const canUsers = session?.canManageUsers === true;
-  // Switched off for the whole property, whatever the user's grants say.
-  const disabled = new Set(session?.disabledModules || []);
 
   const granted = session?.modules || [];
   // Translate any legacy ids before filtering, so a user whose grants predate
@@ -122,7 +130,6 @@ export function visibleAreas(session) {
 
   const areas = AREAS.map((area) => {
     const pages = area.pages.filter((p) => {
-      if (disabled.has(p.id)) return false;
       if (ADMIN_PAGES.has(p.id) && !canUsers) return false;
       if (SETUP_PAGES.has(p.id) && !canSetup) return false;
       // No explicit grants means full access; the roles above still apply.
@@ -139,7 +146,6 @@ export function visibleAreas(session) {
     return AREAS.map((area) => ({
       ...area,
       pages: area.pages.filter((p) => {
-        if (disabled.has(p.id)) return false;
         if (ADMIN_PAGES.has(p.id) && !canUsers) return false;
         if (SETUP_PAGES.has(p.id) && !canSetup) return false;
         return true;

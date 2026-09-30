@@ -1,20 +1,19 @@
 import { NextResponse } from "next/server";
 import { isSuperAdmin } from "@/lib/permissions";
-import { getPropertyById, getUserPropertyId } from "@/lib/database";
+import { getUserModules, getUserPropertyId } from "@/lib/database";
+import { grantsInclude } from "@/app/dashboard/modules";
 
 /**
- * A 403 when the property has `moduleId` switched off, else null.
+ * A 403 when the signed-in user has not been granted `moduleId`, else null.
  *
- * Page grants live on users, so they cannot stop a property from having a
- * feature: a PropertyAdmin can add a colleague with no grants, which means
- * every page. `properties.disabled_modules` is the property's own list, and
- * the routes check it because hiding a page does not stop its API.
+ * Read from the database rather than the session cookie, which keeps the
+ * grants from sign-in for a week: taking a page away must take effect now.
  */
-export async function moduleDisabledResponse(propertyId, moduleId) {
-  const property = await getPropertyById(propertyId).catch(() => null);
-  if (!property?.disabled_modules?.includes(moduleId)) return null;
+export async function moduleDeniedResponse(session, moduleId) {
+  const granted = await getUserModules(session?.userId).catch(() => []);
+  if (grantsInclude(granted, moduleId)) return null;
   return NextResponse.json(
-    { error: "This feature is not enabled for your property." },
+    { error: "This feature is not enabled for your account." },
     { status: 403 }
   );
 }

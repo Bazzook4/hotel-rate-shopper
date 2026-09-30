@@ -1,17 +1,23 @@
 import { NextResponse } from "next/server";
-import { createUser, findUserByEmail, getSupabaseAdmin } from "@/lib/database";
+import { createUser, findUserByEmail, getSupabaseAdmin, setUserModules } from "@/lib/database";
 import { hashPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 import { ROLES } from "@/lib/permissions";
+import { MODULES } from "@/app/dashboard/modules";
 import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/lib/onboarding";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Paid-lookup features a self-onboarded hotel does not get until we switch them on. */
-const ONBOARDED_DISABLED_MODULES = ["parity", "compshopper"];
+/**
+ * Pages a self-onboarded hotel's account is not granted: both run paid
+ * lookups. Granted per user, so a super admin can tick them back on for
+ * this account from Users.
+ */
+const WITHHELD_MODULES = new Set(["parity", "compshopper"]);
+const ONBOARDED_MODULES = MODULES.map((m) => m.id).filter((id) => !WITHHELD_MODULES.has(id));
 
-const GONE ={ error: "This onboarding link has expired or has already been used." };
+const GONE = { error: "This onboarding link has expired or has already been used." };
 
 /** Whether a link is still good, and the hotel name it was issued for. */
 export async function GET(request) {
@@ -59,42 +65,49 @@ export async function POST(request) {
 
   const supabase = getSupabaseAdmin();
   let property = null;
+  let user = null;
 
   try {
     const { data, error } = await supabase
       .from("properties")
-      .insert({ name: propertyName, email, disabled_modules: ONBOARDED_DISABLED_MODULES })
+      .insert({ name: propertyName, email })
       .select()
       .single();
     if (error) throw new Error(`Failed to create property: ${error.message}`);
     property = data;
 
-    const user = await createUser({
+    user = await createUser({
       email,
       passwordHash: hashPassword(password),
       role: ROLES.PROPERTY_ADMIN,
       status: "Active",
       propertyIds: [property.id],
     });
+    // An explicit list, because no grants at all would mean every page.
+    await setUserModules(user.id, ONBOARDED_MODULES);
 
     await completeInvite(invite.id, { userId: user.id, propertyId: property.id });
 
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, propertyId: property.id, propertyName: property.name },
     });
-    // No module grants means every page the role allows, same as a user
-    // created from the admin screen without any ticked.
     await setSessionCookie(response, {
       userId: user.id,
       email: user.email,
       role: user.role,
       property_id: property.id,
-      modules: [],
+      modules: ONBOARDED_MODULES,
     });
     return response;
   } catch (err) {
     console.error("Onboarding failed:", err);
     // Leave nothing half-made behind, and let the hotel try the link again.
+    // A user left without its grants would see every page, so it goes too.
+    if (user) {
+      await supabase.from("user_modules").delete().eq("user_id", user.id);
+      await supabase.from("user_properties").delete().eq("user_id", user.id);
+      await supabase.from("users").delete().eq("id", user.id);
+    }
     if (property) await supabase.from("properties").delete().eq("id", property.id);
     await releaseInvite(invite.id);
     return NextResponse.json(

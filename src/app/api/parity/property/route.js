@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { moduleDisabledResponse } from "@/lib/propertyScope";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 import { isSuperAdmin, isAnyAdmin } from "@/lib/permissions";
 import { getPropertyById, updateProperty, getUserPropertyId } from "@/lib/database";
 import { deriveGoogleQuery } from "@/lib/parity";
@@ -33,8 +33,8 @@ export async function GET(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
-  const disabled = await moduleDisabledResponse(propertyId, "parity");
-  if (disabled) return disabled;
+  const denied = await moduleDeniedResponse(session, "parity");
+  if (denied) return denied;
 
   const property = await getPropertyById(propertyId);
   if (!property) {
@@ -80,8 +80,8 @@ export async function PUT(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
-  const disabled = await moduleDisabledResponse(propertyId, "parity");
-  if (disabled) return disabled;
+  const denied = await moduleDeniedResponse(session, "parity");
+  if (denied) return denied;
 
   const url = typeof body?.googleBusinessUrl === "string" ? body.googleBusinessUrl.trim() : "";
 

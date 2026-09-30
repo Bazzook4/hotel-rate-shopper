@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { moduleDisabledResponse } from "@/lib/propertyScope";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getPropertyById, getUserPropertyId, listParityRates, getParityChannelOrder } from "@/lib/database";
 import { parityStatus } from "@/lib/parity";
@@ -29,8 +29,8 @@ export async function GET(req) {
   if (!propertyId || (!isSuperAdmin(session) && requested && requested !== own)) {
     return NextResponse.json({ error: "No property selected." }, { status: 403 });
   }
-  const disabled = await moduleDisabledResponse(propertyId, "parity");
-  if (disabled) return disabled;
+  const denied = await moduleDeniedResponse(session, "parity");
+  if (denied) return denied;
 
   const start = parseDateISO(searchParams.get("start")) || new Date();
   const days = Math.min(Math.max(Number(searchParams.get("days")) || DEFAULT_DAYS, 1), 90);
