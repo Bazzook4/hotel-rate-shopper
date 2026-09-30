@@ -317,7 +317,9 @@ export default function RatePlanSetup({
                     const missing =
                       src.manual &&
                       Array.from({ length: base }, (_, i) => i + 1).some(
-                        (n) => blank(a?.adult_rates?.[n] ?? a?.adult_rates?.[String(n)])
+                        (n) =>
+                          !a?.occupancy_rules?.[n] &&
+                          blank(a?.adult_rates?.[n] ?? a?.adult_rates?.[String(n)])
                       );
 
                     return (
@@ -355,6 +357,13 @@ export default function RatePlanSetup({
                             <span>
                               From <strong>{roomRateName(src.planId, src.roomId)}</strong>{" "}
                               <span className="muted">· {describeRule(src.method, src.value, src.value2)}</span>
+                            </span>
+                          )}
+                          {src.manual && Object.keys(a?.occupancy_rules || {}).length > 0 && (
+                            <span className="ml-2 chip chip-off" title="Adult counts worked out from the single rate">
+                              {Object.entries(a.occupancy_rules)
+                                .map(([n, r]) => `${n}A = 1A ${describeRule(r.method, r.value, r.value2)}`)
+                                .join(" · ")}
                             </span>
                           )}
                           {overrides.length > 0 && (
@@ -1134,6 +1143,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
     derive_value_2: orBlank(existing?.derive_value_2),
     adult_rates: { ...(existing?.adult_rates || {}) },
     adult_overrides: { ...(existing?.adult_overrides || {}) },
+    occupancy_rules: { ...(existing?.occupancy_rules || {}) },
     extra_adult_rate: orBlank(existing?.extra_adult_rate),
     extra_child_rate: orBlank(existing?.extra_child_rate),
   }));
@@ -1221,6 +1231,12 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
     }
     if (src.manual) {
       for (let n = 1; n <= base; n++) {
+        const rule = form.occupancy_rules[n];
+        if (rule) {
+          const p = ruleProblem(rule.method, rule.value, rule.value2);
+          if (p) return `${n} adults: ${p}`;
+          continue;
+        }
         const v = form.adult_rates[n];
         if (blank(v) || !(Number(v) >= 0)) return `Enter the rate for ${n} adult${n === 1 ? "" : "s"}.`;
         if (effectiveMin !== null && Number(v) < effectiveMin) {
@@ -1260,6 +1276,9 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
         adult_rates: form.adult_rates,
         // Overrides only mean something on a derived rate.
         adult_overrides: !src.manual && Object.keys(form.adult_overrides).length ? form.adult_overrides : null,
+        // Rules from the single only mean something on a manual rate.
+        occupancy_rules:
+          src.manual && Object.keys(form.occupancy_rules).length ? form.occupancy_rules : null,
         extra_adult_rate: numOrNull(form.extra_adult_rate),
         extra_child_rate: numOrNull(form.extra_child_rate),
       });
@@ -1440,21 +1459,69 @@ function AdultRates({ base, src, form, set, resolver, plan, room, sourceName }) 
   const adults = Array.from({ length: base }, (_, i) => i + 1);
 
   if (src.manual) {
+    const setRule = (n, r) => {
+      const next = { ...form.occupancy_rules };
+      if (r) next[n] = r;
+      else delete next[n];
+      set({ occupancy_rules: next });
+    };
     return (
       <div>
         <span className="label">Rates per adult *</span>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {adults.map((n) => (
-            <Field key={n} label={`${n} adult${n === 1 ? "" : "s"}`}>
-              <input
-                type="number"
-                min="0"
-                className="input"
-                value={orBlank(form.adult_rates[n])}
-                onChange={(e) => set({ adult_rates: { ...form.adult_rates, [n]: e.target.value } })}
-              />
-            </Field>
-          ))}
+        <p className="mb-2 text-xs faint">
+          Enter the single, and either enter each further adult count or work it out from the single — then changing the single for a date in the Channel Manager moves the others with it.
+        </p>
+        <div className="overflow-x-auto card" style={{ padding: 0 }}>
+          <table className="grid-table">
+            <thead>
+              <tr>
+                <th>Adults</th>
+                <th>Rate setup</th>
+                <th className="text-right">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {adults.map((n) => {
+                const rule = form.occupancy_rules[n];
+                return (
+                  <tr key={n}>
+                    <td>{n}</td>
+                    <td style={{ minWidth: 260 }}>
+                      {n > 1 && (
+                        <label className="flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(rule)}
+                            onChange={(e) =>
+                              setRule(n, e.target.checked ? { method: "offset", value: "", value2: "" } : null)
+                            }
+                          />
+                          Work out from 1 adult
+                        </label>
+                      )}
+                      {rule ? (
+                        <div className="mt-2">
+                          <RuleEditor compact method={rule.method} value={rule.value} value2={rule.value2} onChange={(r) => setRule(n, r)} />
+                        </div>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          className="input mt-1"
+                          value={orBlank(form.adult_rates[n])}
+                          onChange={(e) => set({ adult_rates: { ...form.adult_rates, [n]: e.target.value } })}
+                          aria-label={`Rate for ${n} adult${n === 1 ? "" : "s"}`}
+                        />
+                      )}
+                    </td>
+                    <td className="text-right tabular-nums font-semibold">
+                      {fmt(resolver.rate(plan.id, room.id, n))}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     );

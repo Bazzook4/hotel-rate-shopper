@@ -1625,6 +1625,7 @@ const ROOM_RATE_OVERRIDES = [
   'derive_value',
   'derive_value_2',
   'adult_overrides',
+  'occupancy_rules',
 ];
 
 /**

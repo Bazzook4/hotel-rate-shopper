@@ -1364,6 +1364,11 @@ function ExpandableRoom({
                       >
                         {occ.occupancy} adult{occ.occupancy === 1 ? "" : "s"}
                         {!occ.partnerCode && " !"}
+                        {occ.fromSingle && !plan.derived && (
+                          <span className="cm-meta block text-[10px] faint">
+                            = {occ.fromSingle}
+                          </span>
+                        )}
                       </span>
                     )}
                     </span>
@@ -1392,7 +1397,7 @@ function ExpandableRoom({
                         const unpushed = savedRate && !savedRate.pushed;
                         // A derived room rate is worked out from its source
                         // on this date, as in SiteMinder: shown, not typed.
-                        if (plan.derived && pricer) {
+                        if ((plan.derived || occ.fromSingle) && pricer) {
                           const r = pricer.rate(plan.id, room.id, occ.occupancy, d);
                           return (
                             <td
@@ -1407,7 +1412,11 @@ function ExpandableRoom({
                               <div
                                 className="w-full rounded px-1.5 py-1 text-right text-sm tabular-nums"
                                 style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
-                                title={`Derived from ${plan.derived.from}${plan.derived.rule ? ` · ${plan.derived.rule}` : ""}. Change it there, or in Rate Plan Setup.`}
+                                title={
+                                  plan.derived
+                                    ? `Derived from ${plan.derived.from}${plan.derived.rule ? ` · ${plan.derived.rule}` : ""}. Change it there, or in Rate Plan Setup.`
+                                    : `Worked out as ${occ.fromSingle}. Change the 1-adult rate, or the rule in Rate Plan Setup.`
+                                }
                               >
                                 {r === null ? "—" : Math.round(r)}
                               </div>

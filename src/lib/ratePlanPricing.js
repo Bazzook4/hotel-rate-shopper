@@ -213,6 +213,18 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
     return Number.isFinite(plan) ? plan : null;
   };
 
+  /**
+   * The rule that works an adult count out from the single rate within a
+   * manually priced room rate ("2 adults = 1 adult + 500"), or null. Adult 1
+   * is always typed, and above base adults the extra-adult rate applies.
+   */
+  const occupancyRuleOf = (planId, roomId, occupancy) => {
+    if (occupancy <= 1 || occupancy > baseAdultsOf(roomId)) return null;
+    const rules = assignmentFor[key(planId, roomId)]?.occupancy_rules;
+    const r = rules?.[occupancy] ?? rules?.[String(occupancy)];
+    return r?.method ? r : null;
+  };
+
   const cache = new Map();
 
   function resolve(planId, roomId, occupancy, date, trail) {
@@ -223,10 +235,19 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
 
     const base = baseAdultsOf(roomId);
     const src = sourceOf(planId, roomId);
-    const daily = src.manual && date && dailyAt ? num(dailyAt(planId, roomId, occupancy, date)) : NaN;
+    const occRule = src.manual ? occupancyRuleOf(planId, roomId, occupancy) : null;
+    // A worked-out adult count is not typed, so a stored daily value for it
+    // is ignored -- it follows the single on that date instead.
+    const daily =
+      src.manual && !occRule && date && dailyAt
+        ? num(dailyAt(planId, roomId, occupancy, date))
+        : NaN;
 
     let rate;
-    if (Number.isFinite(daily)) {
+    if (occRule) {
+      const single = resolve(planId, roomId, 1, date, trail);
+      rate = applyRule(single, occRule.method, occRule.value, occRule.value2);
+    } else if (Number.isFinite(daily)) {
       rate = daily;
     } else if (occupancy > base) {
       const atBase = resolve(planId, roomId, base, date, trail);
@@ -273,6 +294,8 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
     sourceOf,
     /** Whether a room rate is derived, i.e. read-only in the CM grid. */
     isDerived: (planId, roomId) => !sourceOf(planId, roomId).manual,
+    occupancyRuleOf: (planId, roomId, occupancy) =>
+      sourceOf(planId, roomId).manual ? occupancyRuleOf(planId, roomId, occupancy) : null,
     minRateOf,
     baseAdultsOf,
     /** Whether following this room rate's sources ever comes back round. */

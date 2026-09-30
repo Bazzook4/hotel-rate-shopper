@@ -246,6 +246,11 @@ export async function PATCH(req) {
   }
   const oProblem = overridesProblem(row.adult_overrides);
   if (oProblem) return bad(oProblem);
+  const occProblem = overridesProblem(row.occupancy_rules);
+  if (occProblem) return bad(occProblem);
+  if (Object.keys(row.occupancy_rules || {}).some((n) => Number(n) < 2)) {
+    return bad("The 1-adult rate is always entered; only 2 adults and up can be worked out from it.");
+  }
 
   // Would this close a loop? Checked against the setup as it would stand.
   const proposed = [

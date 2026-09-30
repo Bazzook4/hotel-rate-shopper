@@ -197,6 +197,12 @@ export async function GET(req) {
               // The rate a cell falls back to, which now varies by how many
               // adults the row is for.
               resolvedRate: resolver.rate(p.id, room.id, occ),
+              // Set when this adult count is worked out from the single rate
+              // ("1 adult + 500"): shown in the grid, not typed.
+              fromSingle: (() => {
+                const r = resolver.occupancyRuleOf(p.id, room.id, occ);
+                return r ? `1 adult ${describeRule(r.method, r.value, r.value2)}` : null;
+              })(),
               partnerCode:
                 codeByPlan[`${room.id}|${p.id}|${occ}`]?.code || null,
               extraAdult:
