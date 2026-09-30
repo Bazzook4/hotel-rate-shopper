@@ -7,6 +7,7 @@ import {
   DERIVE_RULES,
   describeRule,
   eligibleMasters,
+  gridOwnRateAt,
   roomRateResolver,
   rateSourceOf,
   ruleById,
@@ -474,20 +475,11 @@ export default function RatePlanSetup({
  * that has no rate of its own: the room's base price.
  */
 function makeResolver(ratePlans, assignments, roomTypes) {
-  const assignmentFor = {};
-  for (const a of assignments) assignmentFor[`${a.rate_plan_id}|${a.room_type_id}`] = a;
-  const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
   return roomRateResolver({
     ratePlans,
     assignments,
     roomTypes,
-    ownRateAt: (planId, roomId, adults) => {
-      const a = assignmentFor[`${planId}|${roomId}`];
-      const own = Number(a?.adult_rates?.[adults] ?? a?.adult_rates?.[String(adults)]);
-      if (Number.isFinite(own)) return own;
-      if (!blank(a?.full_rate)) return Number(a.full_rate);
-      return numOrNull(roomById[roomId]?.base_price);
-    },
+    ownRateAt: gridOwnRateAt(assignments, roomTypes),
   });
 }
 

@@ -15,6 +15,7 @@ const CHANNEL_LABELS = {
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
+import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
 
 
 
@@ -146,6 +147,67 @@ function restrictionsToUpdates(rows) {
   }));
 }
 
+/**
+ * Prices any cell on any date the way the server does, over the grid's own
+ * per-date values: an unsaved edit, else the stored rate, else the room
+ * rate's standing rate. A derived room rate follows its source on the same
+ * date, so typing a master's Friday moves every plan derived from it on
+ * Friday before anything is saved. Null for a grid from before the server
+ * sent its pricing setup.
+ */
+function cellPricer(grid, edits) {
+  const p = grid?.pricing;
+  if (!p) return null;
+  const stored = grid.dailyRates || {};
+  return roomRateResolver({
+    ...p,
+    ownRateAt: gridOwnRateAt(p.assignments, p.roomTypes),
+    dailyAt: (planId, roomId, occupancy, date) => {
+      const k = `${planId}|${roomId}|${occupancy}|${date}`;
+      const v = edits?.[k] ?? stored[k]?.rate;
+      return v === "" || v === null || v === undefined ? null : v;
+    },
+  });
+}
+
+/**
+ * Worked-out cells whose rate the edits change, as rows to push.
+ *
+ * A derived rate is never typed or stored -- it is worked out from its source
+ * -- and neither is a rate beyond base adults that nobody typed, which is the
+ * base rate plus the extra-adult charge. The channel only knows what it is
+ * sent, so when a typed rate changes, every rate worked out from it on that
+ * date goes out with it.
+ */
+function derivedRowsFor(grid, edits) {
+  const after = cellPricer(grid, edits);
+  const before = cellPricer(grid, {});
+  if (!after) return [];
+  const dates = new Set(Object.keys(edits).map((k) => k.split("|")[3]));
+  const out = [];
+  for (const room of grid.rooms || []) {
+    for (const plan of room.plans || []) {
+      for (const occ of plan.occupancies || []) {
+        for (const stay_date of dates) {
+          // A typed cell is already a row of its own.
+          if (`${plan.id}|${room.id}|${occ.occupancy}|${stay_date}` in edits) continue;
+          const rate = after.rate(plan.id, room.id, occ.occupancy, stay_date);
+          if (rate === null) continue;
+          if (rate === before.rate(plan.id, room.id, occ.occupancy, stay_date)) continue;
+          out.push({
+            rate_plan_id: plan.id,
+            room_type_id: room.id,
+            occupancy: occ.occupancy,
+            stay_date,
+            rate: Math.round(rate * 100) / 100,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 function formatDay(iso) {
   const d = new Date(`${iso}T00:00:00Z`);
   return {
@@ -202,6 +264,8 @@ export default function ChannelManager() {
   const [resyncBusy, setResyncBusy] = useState(false);
 
   const dirtyRates = Object.keys(rates).length;
+  // Re-priced on every keystroke, so derived rows follow the master live.
+  const pricer = useMemo(() => cellPricer(grid, rates), [grid, rates]);
   const dirtyRestrictions = Object.keys(restrictions).length;
   const dirty = dirtyRates + dirtyRestrictions;
 
@@ -412,6 +476,7 @@ export default function ChannelManager() {
   async function publish() {
     if (!grid?.rooms?.length) return;
 
+    // Derived cells cannot be typed into, so every edit is a manual rate.
     const rows = Object.entries(rates).map(([key, value]) => {
       const [rate_plan_id, room_type_id, occupancy, stay_date] = key.split("|");
       return {
@@ -471,7 +536,11 @@ export default function ChannelManager() {
       setRates({});
       setRestrictions({});
 
-      const updates = ratesToUpdates(rows);
+      // What the edits moved in plans derived from them goes out too, since
+      // those rates are worked out here and the channel has no other way to
+      // learn them. Computed before the reload replaces the stored rates.
+      const derivedRows = derivedRowsFor(grid, rates);
+      const updates = ratesToUpdates([...rows, ...derivedRows]);
 
       let pushJson = null;
       if (updates.length > 0) {
@@ -517,6 +586,9 @@ export default function ChannelManager() {
       const parts = [];
       if (rows.length > 0) {
         parts.push(`${rows.length} rate${rows.length === 1 ? "" : "s"}`);
+      }
+      if (derivedRows.length > 0) {
+        parts.push(`${derivedRows.length} rate${derivedRows.length === 1 ? "" : "s"} worked out from them`);
       }
       if (restrictionRows.length > 0) {
         parts.push(
@@ -597,6 +669,8 @@ export default function ChannelManager() {
       const rateRows = [];
       if (resyncWhat.rates) {
         const storedRates = json.dailyRates || {};
+        // Stored values only -- a resync sends what is saved, not edits.
+        const stored = cellPricer(json, {});
         for (const room of json.rooms || []) {
           if (!roomWanted(room.id)) continue;
           for (const plan of room.plans || []) {
@@ -604,11 +678,9 @@ export default function ChannelManager() {
             for (const occ of plan.occupancies || []) {
               for (const stay_date of resyncDates) {
                 const key = `${plan.id}|${room.id}|${occ.occupancy}|${stay_date}`;
-                const rate =
-                  storedRates[key]?.rate ??
-                  occ.resolvedRate ??
-                  plan.resolvedRate ??
-                  null;
+                const rate = stored
+                  ? stored.rate(plan.id, room.id, occ.occupancy, stay_date)
+                  : storedRates[key]?.rate ?? occ.resolvedRate ?? plan.resolvedRate ?? null;
                 // A plan with no rate anywhere in the chain has nothing to
                 // send; pushing a null would blank it on the channel.
                 if (rate === null || rate === undefined || rate === "") continue;
@@ -1083,6 +1155,7 @@ export default function ChannelManager() {
                 }
                 rates={rates}
                 stored={grid?.dailyRates || {}}
+                pricer={pricer}
                 onRateChange={(key, value) =>
                   setRates((prev) => ({ ...prev, [key]: value }))
                 }
@@ -1124,6 +1197,7 @@ export default function ChannelManager() {
 }
 
 function ExpandableRoom({
+  pricer,
   room,
   dates,
   currency,
@@ -1249,6 +1323,15 @@ function ExpandableRoom({
                         {plan.restrictions.stopSell && (
                           <span className="chip chip-warn">Stop sell</span>
                         )}
+                        {plan.derived && (
+                          <span
+                            className="cm-meta text-xs muted"
+                            title="Worked out from this rate on each date; not typed here"
+                          >
+                            ↳ {plan.derived.from}
+                            {plan.derived.rule ? ` · ${plan.derived.rule}` : ""}
+                          </span>
+                        )}
 
                         {channels.length > 0 && (
                           <button
@@ -1297,14 +1380,40 @@ function ExpandableRoom({
                         // An unsaved edit wins, then the stored rate for that
                         // date, and only then the plan's resolved base price.
                         const savedRate = stored[key];
+                        const priced = pricer?.rate(plan.id, room.id, occ.occupancy, d);
                         const value =
                           rates[key] ??
                           savedRate?.rate ??
+                          (priced == null ? null : Math.round(priced)) ??
                           occ.resolvedRate ??
                           plan.resolvedRate ??
                           "";
                         const edited = rates[key] !== undefined;
                         const unpushed = savedRate && !savedRate.pushed;
+                        // A derived room rate is worked out from its source
+                        // on this date, as in SiteMinder: shown, not typed.
+                        if (plan.derived && pricer) {
+                          const r = pricer.rate(plan.id, room.id, occ.occupancy, d);
+                          return (
+                            <td
+                              key={d}
+                              className="px-1.5 py-1.5"
+                              style={{
+                                background: formatDay(d).weekend ? "var(--warn-soft)" : undefined,
+                                borderBottom: "1px solid var(--border)",
+                                borderRight: "1px solid var(--border)",
+                              }}
+                            >
+                              <div
+                                className="w-full rounded px-1.5 py-1 text-right text-sm tabular-nums"
+                                style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
+                                title={`Derived from ${plan.derived.from}${plan.derived.rule ? ` · ${plan.derived.rule}` : ""}. Change it there, or in Rate Plan Setup.`}
+                              >
+                                {r === null ? "—" : Math.round(r)}
+                              </div>
+                            </td>
+                          );
+                        }
                         return (
                           <td
                             key={d}
@@ -1363,6 +1472,7 @@ function ExpandableRoom({
                     dates={dates}
                     rates={rates}
                     stored={stored}
+                    pricer={pricer}
                     revert={revert}
                     busy={busy}
                     onMultiplier={onMultiplier}
@@ -1384,6 +1494,7 @@ function ExpandableRoom({
  * changes it for every rate plan, which the row says outright.
  */
 function ChannelRow({
+  pricer,
   channel,
   plan,
   room,
@@ -1449,8 +1560,9 @@ function ChannelRow({
 
       {dates.map((d) => {
         const key = `${plan.id}|${room.id}|${occ.occupancy}|${d}`;
-        const base =
-          rates[key] ?? stored[key]?.rate ?? occ.resolvedRate ?? plan.resolvedRate;
+        const base = pricer
+          ? pricer.rate(plan.id, room.id, occ.occupancy, d)
+          : rates[key] ?? stored[key]?.rate ?? occ.resolvedRate ?? plan.resolvedRate;
         const value = Number.isFinite(Number(base))
           ? Math.round(Number(base) * mult)
           : null;

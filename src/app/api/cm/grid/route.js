@@ -11,7 +11,12 @@ import {
   listRatePlanRooms,
   getAvailabilityGrid,
 } from "@/lib/database";
-import { roomRateResolver, plansForRoom } from "@/lib/ratePlanPricing";
+import {
+  describeRule,
+  gridOwnRateAt,
+  plansForRoom,
+  roomRateResolver,
+} from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
 
 /**
@@ -127,46 +132,13 @@ export async function GET(req) {
       }
     }
 
-    // Which rooms each plan is sold on, and at what rate, from the room
-    // assignments. Keyed "<planId>|<roomId>".
-    const assignedRate = {};
     const assignmentFor = {};
     for (const a of assignments) {
-      assignedRate[`${a.rate_plan_id}|${a.room_type_id}`] = a.full_rate;
       assignmentFor[`${a.rate_plan_id}|${a.room_type_id}`] = a;
     }
-
-    /**
-     * A plan's own rate in a room for a given number of adults, up to base
-     * occupancy and before derivation.
-     *
-     * The rate is set per adult, since a single and a double are different
-     * prices rather than the same room half-empty; an adult count with no
-     * rate of its own takes the plan's base-occupancy rate.
-     */
-    const ownRateAt = (planId, roomId, adults) => {
-      const perAdult = assignmentFor[`${planId}|${roomId}`]?.adult_rates || null;
-      if (perAdult) {
-        const own = Number(perAdult[adults] ?? perAdult[String(adults)]);
-        if (Number.isFinite(own)) return own;
-      }
-      return baseRateFor({ id: planId }, roomId);
-    };
-
+    const ownRateAt = gridOwnRateAt(assignments, roomTypes);
+    const planById = Object.fromEntries(ratePlans.map((p) => [p.id, p]));
     const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
-
-    /**
-     * A plan's own rate in one room.
-     *
-     * The assignment wins; a plan with none falls back to the room's base
-     * price, so a property that has not assigned rooms yet keeps working.
-     */
-    const baseRateFor = (plan, roomId) => {
-      const assigned = assignedRate[`${plan.id}|${roomId}`];
-      if (assigned !== undefined && assigned !== null) return Number(assigned);
-      const room = roomById[roomId];
-      return room ? Number(room.base_price) : null;
-    };
 
     // Every room rate resolved once, adult by adult. A room rate can follow
     // its plan's master in the same room, or -- once unlocked in Rate Plan
@@ -196,6 +168,22 @@ export async function GET(req) {
           label: planLabel(p),
           mealPlan: p.meal_plan,
           refundable: p.refundable !== false,
+          // Set when the room rate follows another: its cells are then worked
+          // out from the source on each date and are not typed.
+          derived: (() => {
+            const src = resolver.sourceOf(p.id, room.id);
+            if (src.manual) return null;
+            return {
+              planId: src.planId,
+              roomId: src.roomId,
+              // The room is named only when it is a different one.
+              from:
+                src.roomId === room.id
+                  ? planById[src.planId]?.plan_name || "Plan"
+                  : `${roomById[src.roomId]?.room_type_name || "Room"} / ${planById[src.planId]?.plan_name || "Plan"}`,
+              rule: describeRule(src.method, src.value, src.value2),
+            };
+          })(),
           // A room rate may override its plan's defaults; NULL follows it.
           restrictions: {
             stopSell: Boolean(assignmentFor[`${p.id}|${room.id}`]?.stop_sell ?? p.stop_sell),
@@ -230,6 +218,25 @@ export async function GET(req) {
       connected: Boolean(integration?.integration?.enabled),
       hotelCode: integration?.integration?.hotel_code || null,
       unmappedRooms: unmapped,
+      // What the browser needs to price a derived cell on a date, live as the
+      // master's cell is typed into, through the same resolver as above.
+      pricing: {
+        ratePlans: ratePlans.map((p) => ({
+          id: p.id,
+          derive_from_id: p.derive_from_id,
+          derive_method: p.derive_method,
+          derive_value: p.derive_value,
+          derive_value_2: p.derive_value_2 ?? null,
+          min_rate: p.min_rate ?? null,
+        })),
+        assignments,
+        roomTypes: roomTypes.map((r) => ({
+          id: r.id,
+          base_adults: r.base_adults,
+          max_adults: r.max_adults,
+          base_price: r.base_price,
+        })),
+      },
       ready: rooms.length > 0,
     });
   } catch (err) {

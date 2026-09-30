@@ -180,11 +180,18 @@ export function rateSourceOf(plan, assignment) {
  * Beyond the room's base adults each further adult adds the room rate's own
  * extra-person rate; that is deliberately not derived.
  *
+ * Rates can be asked for on a date. `dailyAt(planId, roomId, occupancy,
+ * date)` is the rate set in the CM grid for that date -- an unsaved edit or a
+ * stored one -- and a manual room rate takes it over its standing rate. A
+ * derived room rate never does: it follows its source on that date, so
+ * changing the master's Friday moves every plan derived from it on Friday,
+ * as SiteMinder does.
+ *
  * `rate()` returns null for a room rate caught in a loop rather than
  * throwing, so one bad setup cannot blank the whole grid. `loopAt()` says
  * whether one is, for validation.
  */
-export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt }) {
+export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt, dailyAt = null }) {
   const planById = Object.fromEntries((ratePlans || []).map((p) => [p.id, p]));
   const roomById = Object.fromEntries((roomTypes || []).map((r) => [r.id, r]));
   const assignmentFor = {};
@@ -208,38 +215,40 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt 
 
   const cache = new Map();
 
-  function resolve(planId, roomId, occupancy, trail) {
-    const k = `${key(planId, roomId)}|${occupancy}`;
+  function resolve(planId, roomId, occupancy, date, trail) {
+    const k = `${key(planId, roomId)}|${occupancy}|${date || ""}`;
     if (cache.has(k)) return cache.get(k);
     const node = key(planId, roomId);
     if (trail.has(node)) throw new Error(`Circular rate derivation at ${node}`);
 
     const base = baseAdultsOf(roomId);
+    const src = sourceOf(planId, roomId);
+    const daily = src.manual && date && dailyAt ? num(dailyAt(planId, roomId, occupancy, date)) : NaN;
+
     let rate;
-    if (occupancy > base) {
-      const atBase = resolve(planId, roomId, base, trail);
+    if (Number.isFinite(daily)) {
+      rate = daily;
+    } else if (occupancy > base) {
+      const atBase = resolve(planId, roomId, base, date, trail);
       const extra = num(assignmentFor[node]?.extra_adult_rate);
       rate =
         atBase === null
           ? null
           : atBase + (Number.isFinite(extra) ? (occupancy - base) * extra : 0);
+    } else if (src.manual) {
+      const own = ownRateAt(planId, roomId, occupancy);
+      rate = own === null || own === undefined || !Number.isFinite(Number(own)) ? null : Number(own);
     } else {
-      const src = sourceOf(planId, roomId);
-      if (src.manual) {
-        const own = ownRateAt(planId, roomId, occupancy);
-        rate = own === null || own === undefined || !Number.isFinite(Number(own)) ? null : Number(own);
-      } else {
-        const next = new Set(trail).add(node);
-        const from = resolve(src.planId, src.roomId, occupancy, next);
-        const o = src.overrides?.[occupancy] ?? src.overrides?.[String(occupancy)];
-        rate = o?.method
-          ? applyRule(from, o.method, o.value, o.value2)
-          : applyRule(from, src.method, src.value, src.value2);
-        // A floor only for derived rates: a rate typed by hand is what the
-        // hotel chose, and the setup page refuses one below the minimum.
-        const floor = minRateOf(planId, roomId);
-        if (rate !== null && floor !== null && rate < floor) rate = floor;
-      }
+      const next = new Set(trail).add(node);
+      const from = resolve(src.planId, src.roomId, occupancy, date, next);
+      const o = src.overrides?.[occupancy] ?? src.overrides?.[String(occupancy)];
+      rate = o?.method
+        ? applyRule(from, o.method, o.value, o.value2)
+        : applyRule(from, src.method, src.value, src.value2);
+      // A floor only for derived rates: a rate typed by hand is what the
+      // hotel chose, and the setup page refuses one below the minimum.
+      const floor = minRateOf(planId, roomId);
+      if (rate !== null && floor !== null && rate < floor) rate = floor;
     }
 
     cache.set(k, rate);
@@ -247,9 +256,10 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt 
   }
 
   return {
-    rate(planId, roomId, occupancy) {
+    /** A room rate for an adult count, on `date` when one is given. */
+    rate(planId, roomId, occupancy, date = null) {
       try {
-        return resolve(planId, roomId, occupancy, new Set());
+        return resolve(planId, roomId, occupancy, date, new Set());
       } catch {
         return null;
       }
@@ -261,6 +271,8 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt 
       return out;
     },
     sourceOf,
+    /** Whether a room rate is derived, i.e. read-only in the CM grid. */
+    isDerived: (planId, roomId) => !sourceOf(planId, roomId).manual,
     minRateOf,
     baseAdultsOf,
     /** Whether following this room rate's sources ever comes back round. */
@@ -276,6 +288,28 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt 
       }
       return false;
     },
+  };
+}
+
+/**
+ * A room rate's standing rate for an adult count, as the CM grid reads it:
+ * its own per-adult rate, else its base-occupancy rate, else the room's base
+ * price so a property that has not priced a room yet still shows one. The
+ * grid, the setup page and a publish all use this so they agree; a booking
+ * quote does not, since it must not pass a base price off as a plan's rate.
+ */
+export function gridOwnRateAt(assignments, roomTypes) {
+  const assignmentFor = {};
+  for (const a of assignments || []) assignmentFor[key(a.rate_plan_id, a.room_type_id)] = a;
+  const roomById = Object.fromEntries((roomTypes || []).map((r) => [r.id, r]));
+  return (planId, roomId, adults) => {
+    const a = assignmentFor[key(planId, roomId)];
+    const own = num(a?.adult_rates?.[adults] ?? a?.adult_rates?.[String(adults)]);
+    if (Number.isFinite(own)) return own;
+    const full = num(a?.full_rate);
+    if (Number.isFinite(full)) return full;
+    const price = num(roomById[roomId]?.base_price);
+    return Number.isFinite(price) ? price : null;
   };
 }
 

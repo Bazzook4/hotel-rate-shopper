@@ -4789,11 +4789,17 @@ export async function quoteReservation(
     ] = Number(row.rate);
   }
 
-  const dailyFor = (planId, stay_date, occ) => {
-    for (const roomKey of [room_type_id, '']) {
-      for (const occKey of [occ, 1]) {
-        const hit = dailyRates[`${planId}|${roomKey}|${occKey}|${stay_date}`];
-        if (Number.isFinite(hit)) return hit;
+  /**
+   * The rate set in the grid for a plan, room and date. A row stored against
+   * no room applies to every room, which is what older rows mean.
+   */
+  let dailyHit = false;
+  const dailyAt = (planId, roomId, occ, stay_date) => {
+    for (const roomKey of [roomId, '']) {
+      const hit = dailyRates[`${planId}|${roomKey}|${occ}|${stay_date}`];
+      if (Number.isFinite(hit)) {
+        dailyHit = true;
+        return hit;
       }
     }
     return null;
@@ -4849,8 +4855,11 @@ export async function quoteReservation(
   // Derived room rates follow their source adult by adult -- the same
   // resolver the CM grid uses, so the two cannot drift apart. Beyond base
   // adults it adds the room rate's own extra-person rate, as the grid does.
-  const resolver = roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt });
-  const rateForOccupancy = (planId, occ) => resolver.rate(planId, room_type_id, occ);
+  // Priced on the night, as the grid prices it: a manual room rate takes the
+  // grid's rate for that date, and a derived one follows its source's rate
+  // for that date -- so a master changed for a Friday moves a derived plan's
+  // Friday here exactly as it does on the channels.
+  const resolver = roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt, dailyAt });
 
   // Children are charged where the plan says so; the CM grid prices adults
   // only, so this is additive rather than a divergence from it.
@@ -4864,19 +4873,17 @@ export async function quoteReservation(
     let rate = null;
 
     if (plan) {
-      // The grid wins: it is what was priced for that date and pushed out.
-      const fromGrid = dailyFor(plan.id, stay_date, occupancy);
-      if (fromGrid != null) {
-        rate = fromGrid;
-        sources.add('daily_rates');
-      } else {
-        const fromPlan = rateForOccupancy(plan.id, occupancy);
-        if (fromPlan != null) {
-          rate = fromPlan;
-          sources.add(
-            resolver.sourceOf(plan.id, room_type_id).manual ? 'rate_plan' : 'derived'
-          );
-        }
+      dailyHit = false;
+      const priced = resolver.rate(plan.id, room_type_id, occupancy, stay_date);
+      if (priced != null) {
+        rate = priced;
+        sources.add(
+          dailyHit
+            ? 'daily_rates'
+            : resolver.sourceOf(plan.id, room_type_id).manual
+              ? 'rate_plan'
+              : 'derived'
+        );
       }
     }
 
