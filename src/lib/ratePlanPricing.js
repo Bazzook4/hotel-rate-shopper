@@ -86,6 +86,32 @@ export function resolveAllRates(plans, baseRates) {
 }
 
 /**
+ * Resolve every plan's rate for each adult count from 1 to `baseAdults`.
+ *
+ * Derivation applies adult by adult: a derived plan's single follows its
+ * master's single and its double the master's double. Resolving one
+ * base-occupancy figure and reusing it would sell a single at the double
+ * rate.
+ *
+ * `ownRateAt(planId, adults)` gives a plan's own rate for that many adults,
+ * which is what a master is priced at. A derived plan's own rates are not
+ * consulted -- it follows its master, as in resolveRate.
+ *
+ * Returns { [planId]: { [adults]: rate|null } }.
+ */
+export function resolveAdultRates(plans, baseAdults, ownRateAt) {
+  const out = {};
+  for (const p of plans || []) out[p.id] = {};
+  for (let adults = 1; adults <= baseAdults; adults++) {
+    const own = {};
+    for (const p of plans || []) own[p.id] = ownRateAt(p.id, adults);
+    const resolved = resolveAllRates(plans, own);
+    for (const p of plans || []) out[p.id][adults] = resolved[p.id];
+  }
+  return out;
+}
+
+/**
  * Plans that may serve as a master for `plan`: same property, not the plan
  * itself, and not already derived from it (which would create a cycle).
  */

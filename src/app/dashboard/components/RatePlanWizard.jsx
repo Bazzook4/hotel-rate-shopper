@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { MEAL_PLANS, planLabel } from "@/lib/mealPlans";
-import { DERIVE_METHODS, eligibleMasters } from "@/lib/ratePlanPricing";
+import { DERIVE_METHODS, eligibleMasters, resolveAdultRates } from "@/lib/ratePlanPricing";
 
 const METHOD_LABELS = {
   offset: "Amount",
@@ -127,6 +127,30 @@ export default function RatePlanWizard({
   /** How many adults a room is priced for, adult by adult. */
   const baseAdultsOf = (room) => Math.max(1, Number(room.base_adults) || 2);
 
+  /**
+   * A derived plan's per-adult rates in one room, following its master adult
+   * by adult as the CM grid does -- including the room's base price where
+   * the master has no rate of its own in that room.
+   */
+  function derivedAdultRates(room) {
+    const self = {
+      ...form,
+      id: form.id || "__new__",
+      derive_value: form.derive_value === "" ? null : Number(form.derive_value),
+    };
+    const plans = [...ratePlans.filter((p) => p.id !== self.id), self];
+    const ownRateAt = (planId, adults) => {
+      const a = (assignments || []).find(
+        (x) => x.rate_plan_id === planId && x.room_type_id === room.id
+      );
+      const own = Number(a?.adult_rates?.[adults]);
+      if (Number.isFinite(own)) return own;
+      const fallback = Number(a?.full_rate ?? room.base_price);
+      return Number.isFinite(fallback) ? fallback : null;
+    };
+    return resolveAdultRates(plans, baseAdultsOf(room), ownRateAt)[self.id] || {};
+  }
+
   // The widest room decides how many rate columns the table needs; rooms with
   // fewer base adults leave the surplus columns blank rather than disabled, so
   // the header stays honest about what each column means.
@@ -164,7 +188,9 @@ export default function RatePlanWizard({
         return "A multiplier must be above zero.";
       }
     }
-    if (index === 3) {
+    // A derived plan's per-adult rates come from its master, so there is
+    // nothing to type.
+    if (index === 3 && !form.derive_from_id) {
       for (const [roomId, r] of Object.entries(rooms)) {
         const room = roomTypes.find((x) => x.id === roomId);
         const base = room ? Math.max(1, Number(room.base_adults) || 2) : 1;
@@ -525,6 +551,15 @@ export default function RatePlanWizard({
               <p className="sub">
                 Which rooms can be booked on this plan, and at what rate?
               </p>
+              {derived && (
+                <p className="text-xs faint">
+                  Rates per adult follow{" "}
+                  {ratePlans.find((p) => p.id === form.derive_from_id)?.plan_name ||
+                    "the master plan"}{" "}
+                  adult by adult, so they are shown rather than entered. Extra
+                  person and child rates are still set here.
+                </p>
+              )}
 
               {roomTypes.length === 0 ? (
                 <p className="text-sm faint">
@@ -538,7 +573,7 @@ export default function RatePlanWizard({
                         <th >Room type</th>
                         {Array.from({ length: maxBaseAdults }, (_, i) => (
                           <th key={i} >
-                            Adult {i + 1} *
+                            Adult {i + 1}{derived ? "" : " *"}
                           </th>
                         ))}
                         <th >Extra person</th>
@@ -554,6 +589,7 @@ export default function RatePlanWizard({
                         // Nobody can stay beyond base, so there is no extra
                         // person to charge for.
                         const takesExtra = max > base;
+                        const followed = derived ? derivedAdultRates(room) : null;
 
                         return (
                           <tr key={room.id}>
@@ -578,7 +614,17 @@ export default function RatePlanWizard({
                               const applies = adults <= base;
                               return (
                                 <td key={adults} >
-                                  {applies ? (
+                                  {applies && followed ? (
+                                    <span
+                                      className="cm-num"
+                                      style={{ opacity: on ? 1 : 0.4 }}
+                                      title="Derived from the master plan"
+                                    >
+                                      {Number.isFinite(followed[adults])
+                                        ? Math.round(followed[adults]).toLocaleString("en-IN")
+                                        : "—"}
+                                    </span>
+                                  ) : applies ? (
                                     <input
                                       type="number"
                                       min="0"

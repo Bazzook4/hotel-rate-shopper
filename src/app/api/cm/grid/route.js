@@ -11,7 +11,7 @@ import {
   listRatePlanRooms,
   getAvailabilityGrid,
 } from "@/lib/database";
-import { resolveAllRates, plansForRoom } from "@/lib/ratePlanPricing";
+import { resolveAllRates, resolveAdultRates, plansForRoom } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
 
 /**
@@ -137,35 +137,38 @@ export async function GET(req) {
     }
 
     /**
-     * What a plan costs in a room for a given number of adults.
+     * A plan's own rate in a room for a given number of adults, up to base
+     * occupancy and before derivation.
      *
-     * The assigned full rate covers included_occupancy adults; each adult
-     * beyond that adds extra_adult_rate. Fewer adults than included are not
-     * discounted, since the rate is for the room.
+     * The rate is set per adult, since a single and a double are different
+     * prices rather than the same room half-empty; an adult count with no
+     * rate of its own takes the plan's base-occupancy rate.
      */
-    const rateForOccupancy = (planId, roomId, base, occupancy) => {
-      const a = assignmentFor[`${planId}|${roomId}`];
-      const room = roomById[roomId];
-      const baseAdults = Math.max(1, Number(room?.base_adults) || 0);
-
-      // Within base occupancy the rate is set per adult, since a single and a
-      // double are different prices rather than the same room half-empty.
-      const perAdult = a?.adult_rates || null;
-      if (perAdult && occupancy <= baseAdults) {
-        const own = Number(perAdult[occupancy] ?? perAdult[String(occupancy)]);
+    const ownRateAt = (planId, roomId, adults) => {
+      const perAdult = assignmentFor[`${planId}|${roomId}`]?.adult_rates || null;
+      if (perAdult) {
+        const own = Number(perAdult[adults] ?? perAdult[String(adults)]);
         if (Number.isFinite(own)) return own;
       }
+      return baseRateFor({ id: planId }, roomId);
+    };
 
-      if (base === null || base === undefined) return null;
+    /**
+     * What a plan costs in a room for a given number of adults.
+     *
+     * Up to base occupancy it is the per-adult rate, derived adult by adult
+     * for a derived plan. Beyond it, each further adult adds the plan's extra
+     * person rate on top of the base-occupancy rate.
+     */
+    const rateForOccupancy = (planId, roomId, adultRates, baseAdults, occupancy) => {
+      const rates = adultRates[planId] || {};
+      if (occupancy <= baseAdults) return rates[occupancy] ?? null;
 
-      // Beyond base occupancy, each further adult adds the extra person rate
-      // on top of the base-occupancy rate.
-      const atBase = perAdult
-        ? Number(perAdult[baseAdults] ?? perAdult[String(baseAdults)] ?? base)
-        : base;
-      const extra = Number(a?.extra_adult_rate);
-      if (!Number.isFinite(extra) || !Number.isFinite(atBase)) return base;
-      return atBase + Math.max(0, occupancy - baseAdults) * extra;
+      const atBase = Number(rates[baseAdults]);
+      if (!Number.isFinite(atBase)) return null;
+      const extra = Number(assignmentFor[`${planId}|${roomId}`]?.extra_adult_rate);
+      if (!Number.isFinite(extra)) return atBase;
+      return atBase + (occupancy - baseAdults) * extra;
     };
 
     const roomById = Object.fromEntries(roomTypes.map((r) => [r.id, r]));
@@ -195,6 +198,10 @@ export async function GET(req) {
       const baseRates = {};
       for (const p of ratePlans) baseRates[p.id] = baseRateFor(p, room.id);
       const resolved = resolveAllRates(ratePlans, baseRates);
+      const baseAdults = Math.max(1, Number(room.base_adults) || 0);
+      const adultRates = resolveAdultRates(ratePlans, baseAdults, (planId, adults) =>
+        ownRateAt(planId, room.id, adults)
+      );
       const maxAdults = room.max_adults || 2;
 
       return {
@@ -221,7 +228,7 @@ export async function GET(req) {
               occupancy: occ,
               // The rate a cell falls back to, which now varies by how many
               // adults the row is for.
-              resolvedRate: rateForOccupancy(p.id, room.id, resolved[p.id], occ),
+              resolvedRate: rateForOccupancy(p.id, room.id, adultRates, baseAdults, occ),
               partnerCode:
                 codeByPlan[`${room.id}|${p.id}|${occ}`]?.code || null,
               extraAdult:

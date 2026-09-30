@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
-import { resolveAllRates } from '@/lib/ratePlanPricing';
+import { resolveAdultRates } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 
@@ -4606,7 +4606,7 @@ export async function loadQuoteData(propertyId, firstNight, lastNight) {
  *   daily_rates       the rate set for that plan, room and date in the grid,
  *                     including anything pushed to the channels
  *   rate_plan_rooms   the plan's assigned rate for the room, per occupancy
- *   derivation        a derived plan follows its master, via resolveAllRates
+ *   derivation        a derived plan follows its master, adult by adult, via resolveAdultRates
  *   room base_price   only where a plan has no assignment at all
  *
  * The derivation step is the one that cannot be skipped: a plan priced as
@@ -4696,11 +4696,19 @@ export async function quoteReservation(
     return null;
   };
 
-  // Derived plans follow their master, resolved in THIS room -- the same call
-  // the CM grid makes, so the two cannot drift apart.
-  const baseRates = {};
-  for (const p of ratePlans) baseRates[p.id] = baseRateFor(p);
-  const resolved = resolveAllRates(ratePlans, baseRates);
+  /** A plan's own rate for a number of adults up to base, before derivation. */
+  const ownRateAt = (planId, adults) => {
+    const perAdult = assignmentFor[`${planId}|${room_type_id}`]?.adult_rates || null;
+    if (perAdult) {
+      const own = Number(perAdult[adults] ?? perAdult[String(adults)]);
+      if (Number.isFinite(own)) return own;
+    }
+    return baseRateFor({ id: planId });
+  };
+
+  // Derived plans follow their master adult by adult, resolved in THIS room
+  // -- the same call the CM grid makes, so the two cannot drift apart.
+  const adultRates = resolveAdultRates(ratePlans, baseAdults, ownRateAt);
 
   /**
    * The rate for a given occupancy, following the CM's rule: within base
@@ -4708,23 +4716,15 @@ export async function quoteReservation(
    * different prices rather than the same room half empty; beyond it, each
    * further adult adds the extra-person rate.
    */
-  const rateForOccupancy = (planId, base, occ) => {
-    const a = assignmentFor[`${planId}|${room_type_id}`];
-    const perAdult = a?.adult_rates || null;
+  const rateForOccupancy = (planId, occ) => {
+    const rates = adultRates[planId] || {};
+    if (occ <= baseAdults) return rates[occ] ?? null;
 
-    if (perAdult && occ <= baseAdults) {
-      const own = Number(perAdult[occ] ?? perAdult[String(occ)]);
-      if (Number.isFinite(own)) return own;
-    }
-
-    if (base === null || base === undefined || !Number.isFinite(Number(base))) return null;
-
-    const atBase = perAdult
-      ? Number(perAdult[baseAdults] ?? perAdult[String(baseAdults)] ?? base)
-      : Number(base);
-    const extra = Number(a?.extra_adult_rate);
-    if (!Number.isFinite(extra) || !Number.isFinite(atBase)) return Number(base);
-    return atBase + Math.max(0, occ - baseAdults) * extra;
+    const atBase = Number(rates[baseAdults]);
+    if (!Number.isFinite(atBase)) return null;
+    const extra = Number(assignmentFor[`${planId}|${room_type_id}`]?.extra_adult_rate);
+    if (!Number.isFinite(extra)) return atBase;
+    return atBase + (occ - baseAdults) * extra;
   };
 
   // Children are charged where the plan says so; the CM grid prices adults
@@ -4745,7 +4745,7 @@ export async function quoteReservation(
         rate = fromGrid;
         sources.add('daily_rates');
       } else {
-        const fromPlan = rateForOccupancy(plan.id, resolved[plan.id], occupancy);
+        const fromPlan = rateForOccupancy(plan.id, occupancy);
         if (fromPlan != null) {
           rate = fromPlan;
           sources.add(plan.derive_from_id ? 'derived' : 'rate_plan');
