@@ -6,8 +6,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata = {
-  title: "Rate Shopper",
-  description: "Distribution, parity and pricing for hotels",
+  title: "HMS · Online Hotelier",
+  description: "Hotel management by Online Hotelier: front office, distribution, parity and pricing",
 };
 
 // Stated rather than left to Next's default, so a phone lays the page out at

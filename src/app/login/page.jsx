@@ -39,7 +39,7 @@ export default function LoginPage() {
         className="w-full max-w-sm space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
       >
         <div className="space-y-2 text-center">
-          <p className="text-xs uppercase tracking-[0.4em] text-ink/70">Rate Shopper</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-ink/70">HMS · Online Hotelier</p>
           <h1 className="h1">Welcome back</h1>
           <p className="text-xs text-ink/70">
             Sign in to access your property dashboard.

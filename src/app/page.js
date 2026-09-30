@@ -320,10 +320,10 @@ export default function V2Dashboard() {
             className="flex h-[22px] w-[22px] items-center justify-center rounded text-[10px] font-bold"
             style={{ background: "var(--accent)", color: "#fff" }}
           >
-            RS
+            OH
           </span>
           <span className="hidden text-sm font-semibold sm:inline" style={{ color: "var(--text)" }}>
-            Rate Shopper
+            HMS<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> · Online Hotelier</span>
           </span>
         </div>
 
