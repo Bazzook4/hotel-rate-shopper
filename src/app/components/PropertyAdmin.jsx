@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import PropertyUsers from "./PropertyUsers";
 
 const inputClass =
   "input mt-1";
@@ -224,7 +223,11 @@ export default function PropertyAdmin({ session }) {
               className={inputClass}
             />
           </label>
-          {form.id && <PropertyUsers session={session} property={form} />}
+          {form.id && (
+            <p className="mt-3 text-xs muted">
+              Users and their rights are managed in the Users tab.
+            </p>
+          )}
 
           <div className="mt-3 flex gap-2">
             <button

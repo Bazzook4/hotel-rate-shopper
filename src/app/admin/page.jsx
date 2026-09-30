@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PropertyAdmin from "../components/PropertyAdmin";
 import UserList from "../components/UserList";
+import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
@@ -89,7 +90,16 @@ export default function AdminPage() {
         </div>
 
         {tab === "properties" && <PropertyAdmin session={session} />}
-        {tab === "users" && <UserList session={session} />}
+        {tab === "users" && (
+          <div className="space-y-4">
+            <UserRights
+              session={session}
+              propertyId={isSuperAdmin(session) ? null : session.propertyId}
+              pickProperty={isSuperAdmin(session)}
+            />
+            {isSuperAdmin(session) && <UserList session={session} />}
+          </div>
+        )}
         {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
       </div>
     </main>

@@ -3,19 +3,11 @@ import { createUser, findUserByEmail, getSupabaseAdmin, setUserModules } from "@
 import { hashPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 import { ROLES } from "@/lib/permissions";
-import { MODULES } from "@/app/dashboard/modules";
+import { getDefaultAdminModules } from "@/lib/rights";
 import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/lib/onboarding";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/**
- * Pages a self-onboarded hotel's account is not granted: both run paid
- * lookups. Granted per user, so a super admin can tick them back on for
- * this account from Users.
- */
-const WITHHELD_MODULES = new Set(["parity", "compshopper"]);
-const ONBOARDED_MODULES = MODULES.map((m) => m.id).filter((id) => !WITHHELD_MODULES.has(id));
 
 const GONE = { error: "This onboarding link has expired or has already been used." };
 
@@ -83,8 +75,10 @@ export async function POST(request) {
       status: "Active",
       propertyIds: [property.id],
     });
-    // An explicit list, because no grants at all would mean every page.
-    await setUserModules(user.id, ONBOARDED_MODULES);
+    // The default a super admin keeps under Users. Their own users can then
+    // be given any of these pages, and no others.
+    const modules = await getDefaultAdminModules();
+    await setUserModules(user.id, modules);
 
     await completeInvite(invite.id, { userId: user.id, propertyId: property.id });
 
@@ -96,13 +90,13 @@ export async function POST(request) {
       email: user.email,
       role: user.role,
       property_id: property.id,
-      modules: ONBOARDED_MODULES,
+      modules,
     });
     return response;
   } catch (err) {
     console.error("Onboarding failed:", err);
     // Leave nothing half-made behind, and let the hotel try the link again.
-    // A user left without its grants would see every page, so it goes too.
+    // Remove the user too: an account nobody meant to exist.
     if (user) {
       await supabase.from("user_modules").delete().eq("user_id", user.id);
       await supabase.from("user_properties").delete().eq("user_id", user.id);

@@ -95,7 +95,7 @@ const PaymentsReport = dynamic(() => import("./dashboard/components/PaymentsRepo
   ssr: false,
   loading: PageLoading,
 });
-const AdminUserManager = dynamic(() => import("./components/AdminUserManager"), {
+const UserRights = dynamic(() => import("./dashboard/components/UserRights"), {
   ssr: false,
   loading: PageLoading,
 });
@@ -525,6 +525,10 @@ export default function V2Dashboard() {
                   <p className="sub">Loading dashboard…</p>
                 </div>
               </div>
+            ) : !areas.length ? (
+              <div className="card card-pad sub">
+                No pages have been given to your account yet. Ask your property admin for access.
+              </div>
             ) : (
               <>
                 {active === "cm" && <ChannelManager />}
@@ -578,13 +582,7 @@ export default function V2Dashboard() {
                 )}
 
                 {active === "users" && session?.canManageUsers && (
-                  <div className="space-y-4">
-                    <div>
-                      <h2 className="h1">Users</h2>
-                      <p className="sub">Provision access and assign modules.</p>
-                    </div>
-                    <AdminUserManager session={scopedSession} />
-                  </div>
+                  <UserRights session={scopedSession} propertyId={scopedSession?.propertyId} />
                 )}
 
                 {active === "calendar" && <TapeChart session={scopedSession} />}

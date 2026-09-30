@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { isSuperAdmin } from "@/lib/permissions";
-import { getUserModules, getUserPropertyId } from "@/lib/database";
-import { grantsInclude } from "@/app/dashboard/modules";
+import { getUserById, getUserPropertyId } from "@/lib/database";
+import { effectiveModules } from "@/lib/rights";
 
 /**
- * A 403 when the signed-in user has not been granted `moduleId`, else null.
+ * A 403 when the signed-in user may not use `moduleId`, else null.
  *
  * Read from the database rather than the session cookie, which keeps the
- * grants from sign-in for a week: taking a page away must take effect now.
+ * rights from sign-in for a week: taking a page away must take effect now.
  */
 export async function moduleDeniedResponse(session, moduleId) {
-  const granted = await getUserModules(session?.userId).catch(() => []);
-  if (grantsInclude(granted, moduleId)) return null;
+  const user = await getUserById(session?.userId).catch(() => null);
+  const own = user && !isSuperAdmin(user) ? await getUserPropertyId(user.id).catch(() => null) : null;
+  const rights = await effectiveModules(user, own).catch(() => []);
+  if (rights.includes(moduleId)) return null;
   return NextResponse.json(
     { error: "This feature is not enabled for your account." },
     { status: 403 }

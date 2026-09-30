@@ -4,6 +4,7 @@ import {
   createUser,
   findUserByEmail,
   setUserModules,
+  setUserCanManageSetup,
   listUsersForActor,
   listUsersForProperty,
   updateUserAccount,
@@ -11,6 +12,7 @@ import {
   getUserPropertyId,
 } from "@/lib/database";
 import {
+  ROLES,
   isAnyAdmin,
   isSuperAdmin,
   canAdministerUser,
@@ -18,10 +20,47 @@ import {
   isPropertyScopedUser,
 } from "@/lib/permissions";
 import { hashPassword } from "@/lib/password";
+import { ALL_MODULE_IDS, propertyCeiling } from "@/lib/rights";
+import { SETUP_PAGES, normaliseGrants } from "@/app/dashboard/modules";
+
+const ownProperty = async (session) =>
+  session.property_id || (await getUserPropertyId(session.userId).catch(() => null));
 
 /**
- * List users. A SuperAdmin sees everyone; a PropertyAdmin sees only the
- * users attached to their own property.
+ * The pages `session` may hand out at `propertyId`. A super admin may give
+ * anything; a property admin only what the property's admins hold between
+ * them, so nothing they grant can go past what a super admin gave.
+ */
+async function grantableFor(session, propertyId) {
+  if (isSuperAdmin(session)) return ALL_MODULE_IDS;
+  return (await propertyCeiling(propertyId)) || [];
+}
+
+/** The refusal for pages outside what `session` may grant, or null. */
+function beyondGrantable(modules, grantable) {
+  const over = modules.filter((id) => !grantable.includes(id));
+  if (!over.length) return null;
+  return NextResponse.json(
+    { error: `You cannot give access to: ${over.join(", ")}.` },
+    { status: 403 }
+  );
+}
+
+/**
+ * Save a user's pages. For a PropertyUser, holding any setup page is what
+ * lets them change setup, so the API's setup flag follows the grid.
+ */
+async function saveRights(userId, role, modules) {
+  await setUserModules(userId, modules);
+  if (role === ROLES.PROPERTY_USER) {
+    await setUserCanManageSetup(userId, modules.some((id) => SETUP_PAGES.has(id)));
+  }
+}
+
+/**
+ * List users. With a property, its users with their rights, plus the cap on
+ * its PropertyUsers and what the caller may grant there. A PropertyAdmin is
+ * always given their own property.
  */
 export async function GET(request) {
   const session = await getSessionFromRequest(request);
@@ -30,30 +69,27 @@ export async function GET(request) {
   }
 
   try {
-    let propertyId = null;
+    const propertyId = isSuperAdmin(session)
+      ? request.nextUrl.searchParams.get("propertyId") || null
+      : await ownProperty(session);
 
-    if (!isSuperAdmin(session)) {
-      propertyId =
-        session.property_id ||
-        (await getUserPropertyId(session.userId).catch(() => null));
-
-      if (!propertyId) {
-        // A property admin with no property linked can see nobody.
-        return NextResponse.json({ users: [], scope: "property" });
-      }
-    } else {
-      // A SuperAdmin may narrow the list to one property.
-      propertyId = request.nextUrl.searchParams.get("propertyId") || null;
+    if (!propertyId) {
+      if (!isSuperAdmin(session)) return NextResponse.json({ users: [], scope: "property" });
+      const users = await listUsersForActor({});
+      return NextResponse.json({ users, scope: "all" });
     }
 
-    // The per-property view also carries each user's module grants.
-    const users = propertyId
-      ? await listUsersForProperty(propertyId)
-      : await listUsersForActor({ propertyId });
+    const [users, ceiling, grantable] = await Promise.all([
+      listUsersForProperty(propertyId),
+      propertyCeiling(propertyId),
+      grantableFor(session, propertyId),
+    ]);
     return NextResponse.json({
-      users,
-      scope: propertyId ? "property" : "all",
+      users: users.map((u) => ({ ...u, modules: normaliseGrants(u.modules) })),
+      scope: "property",
       propertyId,
+      ceiling,
+      grantable,
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -69,14 +105,10 @@ export async function POST(request) {
   const body = await request.json().catch(() => ({}));
   const email = body?.email?.trim()?.toLowerCase();
   const password = body?.password ?? "";
-  const role = body?.role || "PropertyUser";
+  const role = body?.role || ROLES.PROPERTY_USER;
   const status = body?.status || "Active";
-  const propertyIds = Array.isArray(body?.propertyIds)
-    ? body.propertyIds.filter(Boolean)
-    : body?.propertyId
-    ? [body.propertyId]
-    : [];
-  const modules = Array.isArray(body?.modules) ? body.modules : [];
+  const propertyId = body?.propertyId || null;
+  const modules = normaliseGrants(Array.isArray(body?.modules) ? body.modules : []);
 
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
@@ -85,47 +117,45 @@ export async function POST(request) {
   // A property admin must not be able to create a role above their own.
   const allowedRoles = assignableRoles(session).map((r) => r.value);
   if (!allowedRoles.includes(role)) {
+    return NextResponse.json({ error: `You cannot assign the role ${role}.` }, { status: 403 });
+  }
+
+  // Nor attach a user to a property other than their own.
+  if (!isSuperAdmin(session) && propertyId !== (await ownProperty(session))) {
     return NextResponse.json(
-      { error: `You cannot assign the role ${role}.` },
+      { error: "You can only add users to your own property." },
       { status: 403 }
     );
   }
 
-  // Nor attach a user to a property other than their own.
-  if (!isSuperAdmin(session)) {
-    const own =
-      session.property_id ||
-      (await getUserPropertyId(session.userId).catch(() => null));
-    if (propertyIds.some((id) => id !== own)) {
-      return NextResponse.json(
-        { error: "You can only add users to your own property." },
-        { status: 403 }
-      );
-    }
-  }
+  const refused = beyondGrantable(modules, await grantableFor(session, propertyId));
+  if (refused) return refused;
 
-  const existing = await findUserByEmail(email);
-  if (existing) {
+  if (await findUserByEmail(email)) {
     return NextResponse.json({ error: "A user with that email already exists" }, { status: 409 });
   }
 
-  const passwordHash = hashPassword(password);
-  const user = await createUser({ email, passwordHash, role, status, propertyIds });
+  const user = await createUser({
+    email,
+    passwordHash: hashPassword(password),
+    role,
+    status,
+    propertyIds: propertyId ? [propertyId] : [],
+  });
 
-  // Set module permissions
-  if (modules.length > 0) {
-    try {
-      await setUserModules(user.id, modules);
-    } catch (err) {
-      console.error('Failed to set user modules:', err);
-      // Continue anyway - user is created, just without module permissions
-    }
+  try {
+    await saveRights(user.id, role, modules);
+  } catch (err) {
+    return NextResponse.json(
+      { error: `User created, but their access could not be saved: ${err.message}` },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ user });
 }
 
-/** Update a user's role, status, property link and module access. */
+/** Update a user's role, status, property link and pages. */
 export async function PATCH(request) {
   const session = await getSessionFromRequest(request);
   if (!session || !isAnyAdmin(session)) {
@@ -151,15 +181,11 @@ export async function PATCH(request) {
     );
   }
 
-  const actorProperty =
-    session.property_id ||
-    (await getUserPropertyId(session.userId).catch(() => null));
+  const actorProperty = await ownProperty(session);
+  const targetProperty = await getUserPropertyId(target.id).catch(() => null);
 
-  if (!canAdministerUser(session, target, actorProperty)) {
-    return NextResponse.json(
-      { error: "You cannot modify this user." },
-      { status: 403 }
-    );
+  if (!canAdministerUser(session, { ...target, property_id: targetProperty }, actorProperty)) {
+    return NextResponse.json({ error: "You cannot modify this user." }, { status: 403 });
   }
 
   // Nobody may grant a role above what they can assign.
@@ -185,17 +211,20 @@ export async function PATCH(request) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
+  const modules = Array.isArray(body.modules) ? normaliseGrants(body.modules) : null;
+  if (modules) {
+    const propertyId = body.propertyId !== undefined ? body.propertyId : targetProperty;
+    const refused = beyondGrantable(modules, await grantableFor(session, propertyId));
+    if (refused) return refused;
+  }
+
   try {
     const user = await updateUserAccount(body.id, {
       role: body.role,
       status: body.status,
       propertyId: body.propertyId,
     });
-
-    if (Array.isArray(body.modules)) {
-      await setUserModules(body.id, body.modules);
-    }
-
+    if (modules) await saveRights(body.id, user.role, modules);
     return NextResponse.json({ user });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

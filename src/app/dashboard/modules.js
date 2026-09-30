@@ -78,22 +78,26 @@ const LEGACY_ALIASES = {
   location: "compshopper",
 };
 
-/**
- * Whether a user's grants include a page. No grants at all means every page,
- * the same rule the menu applies. Shared with the API routes so a page the
- * menu hides cannot still be reached by calling its API.
- */
-export function grantsInclude(granted, pageId) {
-  if (!granted?.length) return true;
-  return granted.some((id) => (LEGACY_ALIASES[id] || id) === pageId);
+/** Grants as current page ids: legacy ids translated, duplicates dropped. */
+export function normaliseGrants(granted) {
+  return [...new Set((granted || []).map((id) => LEGACY_ALIASES[id] || id))];
 }
 
 /**
- * Pages that configure the property itself, rather than using it. These are
- * shown only to users who may actually change setup -- the API enforces this
- * too, so this just avoids offering a page that 403s.
+ * Whether a user's rights include a page. Nothing granted means nothing:
+ * rights are given, never assumed. Shared with the API routes so a page the
+ * menu hides cannot still be reached by calling its API.
  */
-const SETUP_PAGES = new Set([
+export function grantsInclude(granted, pageId) {
+  return normaliseGrants(granted).includes(pageId);
+}
+
+/**
+ * Pages that configure the property itself, rather than using it. Granting
+ * any of them to a PropertyUser also lets them change setup, which the API
+ * checks separately.
+ */
+export const SETUP_PAGES = new Set([
   "setup",
   "rooms",
   "rateplans",
@@ -103,7 +107,10 @@ const SETUP_PAGES = new Set([
   "integrations",
 ]);
 
-/** Pages only an admin may see at all. */
+/**
+ * Pages that go with a role rather than a grant: every admin manages their
+ * users, and nobody else does.
+ */
 const ADMIN_PAGES = new Set(["users"]);
 
 /**
@@ -113,47 +120,33 @@ const ADMIN_PAGES = new Set(["users"]);
  */
 export const PLACEHOLDER_PAGES = new Set(["workflow"]);
 
+/** Pages a right can be given for, in navigation order. */
+export const GRANTABLE_MODULES = MODULES.filter(
+  (m) => !ADMIN_PAGES.has(m.id) && !PLACEHOLDER_PAGES.has(m.id)
+);
+
 /**
  * The pages this session may see, grouped by area.
  *
- * Areas with no visible pages are dropped, so a user who may not configure
- * anything never sees an empty Setup tab.
+ * `session.modules` is the user's effective rights, already capped by their
+ * property admins' (see lib/rights). A super admin sees everything.
+ * Areas with no visible pages are dropped.
  */
 export function visibleAreas(session) {
+  const superAdmin = session?.isSuperAdmin === true;
   const canSetup = session?.canManageSetup === true;
   const canUsers = session?.canManageUsers === true;
+  const effective = new Set(normaliseGrants(session?.modules));
 
-  const granted = session?.modules || [];
-  // Translate any legacy ids before filtering, so a user whose grants predate
-  // this dashboard still sees the pages those grants correspond to.
-  const effective = new Set(granted.map((id) => LEGACY_ALIASES[id] || id));
-
-  const areas = AREAS.map((area) => {
+  return AREAS.map((area) => {
     const pages = area.pages.filter((p) => {
-      if (ADMIN_PAGES.has(p.id) && !canUsers) return false;
+      if (ADMIN_PAGES.has(p.id)) return canUsers;
       if (SETUP_PAGES.has(p.id) && !canSetup) return false;
-      // No explicit grants means full access; the roles above still apply.
-      if (effective.size === 0) return true;
-      return effective.has(p.id);
+      if (PLACEHOLDER_PAGES.has(p.id)) return true;
+      return superAdmin || effective.has(p.id);
     });
     return { ...area, pages };
-  }).filter((a) => a.pages.length > 0);
-
-  // A user holding only ids that no longer map to anything would otherwise be
-  // left with an empty dashboard and no way to work; show what their role
-  // allows instead.
-  if (areas.length === 0) {
-    return AREAS.map((area) => ({
-      ...area,
-      pages: area.pages.filter((p) => {
-        if (ADMIN_PAGES.has(p.id) && !canUsers) return false;
-        if (SETUP_PAGES.has(p.id) && !canSetup) return false;
-        return true;
-      }),
-    })).filter((a) => a.pages.length > 0);
-  }
-
-  return areas;
+  }).filter((a) => a.pages.some((p) => !PLACEHOLDER_PAGES.has(p.id)));
 }
 
 /** The area containing a page id, for restoring the top bar from `active`. */

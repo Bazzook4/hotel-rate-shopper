@@ -6,7 +6,8 @@ import {
   canSwitchProperties,
   isSuperAdmin,
 } from "@/lib/permissions";
-import { getUserById, getPropertyById, getUserModules } from "@/lib/database";
+import { getUserById, getPropertyById } from "@/lib/database";
+import { effectiveModules } from "@/lib/rights";
 
 export async function GET(request) {
   const session = await getSessionFromRequest(request);
@@ -16,21 +17,21 @@ export async function GET(request) {
 
   const propertyId = session.property_id || null;
 
-  // Every page waits on this route before it renders, so the three lookups
-  // run together rather than one after another: none of them needs another's
-  // result, they only need the decoded session. The modules query is skipped
-  // when the cookie already carries them, which is the usual case.
-  const [user, property, fetchedModules] = await Promise.all([
+  // Every page waits on this route before it renders, so the lookups run
+  // together rather than one after another: they only need the decoded
+  // session.
+  const [user, property] = await Promise.all([
     getUserById(session.userId).catch(() => null),
     propertyId ? getPropertyById(propertyId).catch(() => null) : null,
-    session.modules?.length ? null : getUserModules(session.userId).catch(() => []),
   ]);
 
   if (!user) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const modules = session.modules?.length ? session.modules : fetchedModules || [];
+  // Worked out fresh rather than taken from the cookie, which holds the
+  // rights from sign-in for a week: a page taken away must go now.
+  const modules = await effectiveModules(user, propertyId).catch(() => []);
 
   return NextResponse.json({
     user: {
