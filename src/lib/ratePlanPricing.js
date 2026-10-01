@@ -274,7 +274,12 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
       rate = own === null || own === undefined || !Number.isFinite(Number(own)) ? null : Number(own);
     } else {
       const next = new Set(trail).add(node);
-      const from = resolve(src.planId, src.roomId, occupancy, date, next);
+      // A source room that takes fewer adults has no rate for this many, and
+      // would fall back to its base rate -- a 3-adult Deluxe following a
+      // 2-adult Standard would cost less than 2 adults. Follow its fullest
+      // occupancy instead; an adult override can still price it differently.
+      const fromAdults = Math.min(occupancy, maxAdultsOf(src.roomId));
+      const from = resolve(src.planId, src.roomId, fromAdults, date, next);
       const o = src.overrides?.[occupancy] ?? src.overrides?.[String(occupancy)];
       rate = o?.method
         ? applyRule(from, o.method, o.value, o.value2)
