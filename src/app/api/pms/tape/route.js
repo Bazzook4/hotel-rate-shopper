@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_PAGES } from "@/lib/pmsGuard";
 import { getTapeChart, getTapeRates, listPropertyExtras } from "@/lib/database";
 
 /**
@@ -20,7 +20,7 @@ function daysBetween(start, end) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;

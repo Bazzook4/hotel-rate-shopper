@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { quoteReservation } from "@/lib/database";
 
 /**
@@ -14,7 +14,7 @@ import { quoteReservation } from "@/lib/database";
  */
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   const { searchParams } = new URL(req.url);

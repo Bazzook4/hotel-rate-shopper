@@ -9,6 +9,7 @@ import {
   savePricingStrategy,
 } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 /** Floor and ceiling per room, plus how the algorithm is weighted. */
 export async function GET(req) {
@@ -16,6 +17,8 @@ export async function GET(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "pricing");
+  if (denied) return denied;
 
   const { searchParams } = new URL(req.url);
   const propertyId = await resolvePropertyId(session, searchParams.get("propertyId"));
@@ -49,6 +52,8 @@ export async function PUT(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "pricing");
+  if (denied) return denied;
   if (!isAnyAdmin(session)) {
     return NextResponse.json(
       { error: "You do not have permission to change pricing settings." },

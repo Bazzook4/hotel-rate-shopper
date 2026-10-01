@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { findRoomClash, getReservation, setReservationStatus } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { todayUTC } from "@/lib/date";
@@ -40,7 +40,7 @@ function statusLabel(status) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   let body;

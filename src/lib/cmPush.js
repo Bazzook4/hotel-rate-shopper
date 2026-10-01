@@ -13,7 +13,6 @@
 import { resolveChannelManager } from "@/lib/cmResolver";
 import {
   getPropertyIntegration,
-  getUserPropertyId,
   recordSyncLog,
 } from "@/lib/database";
 
@@ -54,16 +53,14 @@ export async function pushToChannelManager({
 
   const cm = await resolveChannelManager(session, { propertyId });
   const { client, ready } = cm;
+  if (cm.forbidden) {
+    return { status: 403, body: { error: "You cannot change another property's channels." } };
+  }
 
   // Our ids mean nothing to the partner, so every code is translated through
   // the property's mapping. A push with an unmapped code would be rejected,
   // so it is refused here with a message naming what is missing.
-  const resolvedProperty =
-    propertyId ||
-    session?.property_id ||
-    (session?.userId
-      ? await getUserPropertyId(session.userId).catch(() => null)
-      : null);
+  const resolvedProperty = cm.propertyId;
 
   const found = resolvedProperty
     ? await getPropertyIntegration(resolvedProperty, "aiosell").catch(() => null)

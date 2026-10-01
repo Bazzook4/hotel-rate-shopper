@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { decodeSession } from "@/lib/session";
+import { authDisabled, decodeSession } from "@/lib/session";
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -12,7 +12,7 @@ const PUBLIC_PATHS = new Set([
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  if (process.env.DISABLE_AUTH === "true") {
+  if (authDisabled()) {
     return NextResponse.next();
   }
 

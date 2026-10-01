@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_PAGES } from "@/lib/pmsGuard";
 import {
   getReservation,
   planStayChange,
@@ -32,7 +32,7 @@ function isDate(value) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   let body;

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { listRoomTypes, updateRoomType } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 export async function POST(request) {
   try {
@@ -8,6 +9,8 @@ export async function POST(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     if (!session.property_id) {
       return NextResponse.json(

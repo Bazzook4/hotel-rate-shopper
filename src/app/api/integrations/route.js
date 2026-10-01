@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin, isAnyAdmin } from "@/lib/permissions";
 import { randomBytes } from "crypto";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 import {
   getPropertyIntegration,
   setWebhookToken,
@@ -29,6 +30,8 @@ export async function GET(req) {
   if (!session || !isAnyAdmin(session)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const denied = await moduleDeniedResponse(session, "integrations");
+  if (denied) return denied;
 
   const propertyId = await resolveProperty(
     session,
@@ -94,6 +97,8 @@ export async function PUT(req) {
   if (!session || !isAnyAdmin(session)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const denied = await moduleDeniedResponse(session, "integrations");
+  if (denied) return denied;
 
   let body;
   try {

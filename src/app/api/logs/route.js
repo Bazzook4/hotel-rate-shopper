@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
 import { listSyncLogs, getUserPropertyId } from "@/lib/database";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 const KINDS = ["rates", "inventory", "restrictions", "multiplier", "reservation"];
 const STATUSES = ["success", "failed", "skipped"];
@@ -18,6 +19,8 @@ export async function GET(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "logs");
+  if (denied) return denied;
 
   const params = req.nextUrl.searchParams;
   const own =

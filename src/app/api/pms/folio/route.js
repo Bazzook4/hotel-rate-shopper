@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { pmsGuard } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import {
+  getReservation,
+  getSupabaseAdmin,
   getReservationFolio,
   saveReservationGuest,
   deleteReservationGuest,
@@ -28,14 +30,45 @@ async function folioResponse(reservationId) {
   return NextResponse.json(await getReservationFolio(reservationId));
 }
 
+/** A 404 or 403 unless the reservation is at a property this session may act on. */
+async function reservationDenied(session, reservationId) {
+  const reservation = await getReservation(reservationId).catch(() => null);
+  if (!reservation) {
+    return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
+  }
+  if (!(await resolvePropertyId(session, reservation.property_id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return null;
+}
+
+const FOLIO_TABLES = {
+  guest: "reservation_guests",
+  extra: "reservation_extras",
+  payment: "reservation_payments",
+  invoice: "reservation_invoices",
+};
+
+/** Whether a folio row really hangs off this reservation, not another hotel's. */
+async function rowBelongs(kind, id, reservationId) {
+  const { data } = await getSupabaseAdmin()
+    .from(FOLIO_TABLES[kind])
+    .select("reservation_id")
+    .eq("id", id)
+    .maybeSingle();
+  return data?.reservation_id === reservationId;
+}
+
 export async function GET(req) {
-  const { error } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   const reservationId = req.nextUrl.searchParams.get("reservationId");
   if (!reservationId) {
     return NextResponse.json({ error: "Reservation id is required" }, { status: 400 });
   }
+  const denied = await reservationDenied(session, reservationId);
+  if (denied) return denied;
 
   try {
     return await folioResponse(reservationId);
@@ -45,7 +78,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   let body;
@@ -59,6 +92,8 @@ export async function POST(req) {
   if (!reservationId) {
     return NextResponse.json({ error: "Reservation id is required" }, { status: 400 });
   }
+  const denied = await reservationDenied(session, reservationId);
+  if (denied) return denied;
 
   try {
     switch (kind) {
@@ -131,7 +166,7 @@ export async function POST(req) {
 }
 
 export async function DELETE(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;
@@ -144,6 +179,14 @@ export async function DELETE(req) {
       { error: "Both an id and a reservation id are required" },
       { status: 400 }
     );
+  }
+  if (!FOLIO_TABLES[kind]) {
+    return NextResponse.json({ error: "Unknown folio action" }, { status: 400 });
+  }
+  const denied = await reservationDenied(session, reservationId);
+  if (denied) return denied;
+  if (!(await rowBelongs(kind, id, reservationId))) {
+    return NextResponse.json({ error: "That line is not on this reservation" }, { status: 404 });
   }
 
   try {

@@ -7,7 +7,7 @@ import { dayRequest } from "../params";
  * money collected, and the exceptions to clear before the day is closed.
  */
 export async function GET(req) {
-  const ctx = await dayRequest(req);
+  const ctx = await dayRequest(req, "nightaudit");
   if (ctx.error) return ctx.error;
 
   try {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPropertyById, updateProperty } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 /**
  * GET /api/dynamicPricing/property
@@ -12,6 +13,8 @@ export async function GET(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     if (!session.property_id) {
       return NextResponse.json({ property: null });
@@ -43,6 +46,8 @@ export async function PATCH(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     if (!session.property_id) {
       return NextResponse.json(

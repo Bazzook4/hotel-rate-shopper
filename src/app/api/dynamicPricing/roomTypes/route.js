@@ -6,6 +6,7 @@ import {
   deleteRoomType,
 } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 export async function GET(request) {
   try {
@@ -13,6 +14,8 @@ export async function GET(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     if (!session.property_id) {
       return NextResponse.json({ roomTypes: [] });
@@ -36,6 +39,8 @@ export async function POST(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     if (!session.property_id) {
       return NextResponse.json(
@@ -84,6 +89,8 @@ export async function PATCH(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     const body = await request.json();
     const { recordId, ...updates } = body;
@@ -113,6 +120,8 @@ export async function DELETE(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     const { searchParams } = new URL(request.url);
     const recordId = searchParams.get('recordId');

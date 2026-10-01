@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { resolveChannelManager } from "@/lib/cmResolver";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 export async function GET(req) {
   const session = await getSessionFromRequest(req);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "cm");
+  if (denied) return denied;
 
   const propertyId = req.nextUrl.searchParams.get("propertyId") || undefined;
-  const { client, ready } = await resolveChannelManager(session, { propertyId });
+  const { client, ready, forbidden } = await resolveChannelManager(session, { propertyId });
+  if (forbidden) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   if (!ready) {
     // No fixture: an unconfigured connection reports what it needs rather

@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getUserPropertyId } from "@/lib/database";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
+
+/** The pages that make and change bookings. */
+export const BOOKING_PAGES = ["calendar", "reservations"];
+
+/** Those, plus the finance reports, which open a booking to show its folio. */
+export const BOOKING_VIEW_PAGES = [...BOOKING_PAGES, "nightaudit", "invoicing", "payments"];
 
 /**
  * Session and property scoping for the PMS routes.
@@ -12,10 +19,15 @@ import { getUserPropertyId } from "@/lib/database";
  * `canManageSetup`: taking a booking is ordinary front-desk work, not
  * configuring the property, so a PropertyUser must be able to do it.
  */
-export async function pmsGuard(req) {
+export async function pmsGuard(req, pages) {
   const session = await getSessionFromRequest(req);
   if (!session?.userId) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  // A page switched off for a user must be closed here too, not only hidden.
+  if (pages) {
+    const denied = await moduleDeniedResponse(session, pages);
+    if (denied) return { error: denied };
   }
   return { session };
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_PAGES } from "@/lib/pmsGuard";
 import {
   createRoomBlock,
   updateRoomBlock,
@@ -52,7 +52,7 @@ async function readBody(req) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   const body = await readBody(req);
@@ -90,7 +90,7 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   const body = await readBody(req);
@@ -138,7 +138,7 @@ export async function PATCH(req) {
 }
 
 export async function DELETE(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");

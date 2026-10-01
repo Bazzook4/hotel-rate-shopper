@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { resolveChannelManager } from "@/lib/cmResolver";
 import { recordSyncLog } from "@/lib/database";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 export async function POST(req) {
   const session = await getSessionFromRequest(req);
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "cm");
+  if (denied) return denied;
 
   let body;
   try {
@@ -32,6 +35,9 @@ export async function POST(req) {
   }
 
   const cm = await resolveChannelManager(session, { propertyId });
+  if (cm.forbidden) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const { client, ready, integration } = cm;
 
   const logBase = {

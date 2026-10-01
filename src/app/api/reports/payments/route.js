@@ -12,7 +12,7 @@ import { periodRequest } from "../params";
 const MAX_DAYS = 400;
 
 export async function GET(req) {
-  const ctx = await periodRequest(req, MAX_DAYS);
+  const ctx = await periodRequest(req, "payments", MAX_DAYS);
   if (ctx.error) return ctx.error;
 
   try {

@@ -14,7 +14,7 @@ import {
  */
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, ["housekeeping"]);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;
@@ -38,7 +38,7 @@ export async function GET(req) {
 }
 
 export async function PATCH(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, ["housekeeping"]);
   if (error) return error;
 
   let body;

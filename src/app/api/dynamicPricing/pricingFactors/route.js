@@ -4,6 +4,7 @@ import {
   getPricingFactors,
 } from '@/lib/database';
 import { getSessionFromRequest } from '@/lib/session';
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 export async function GET(request) {
   try {
@@ -11,6 +12,8 @@ export async function GET(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     const { searchParams } = new URL(request.url);
     const hotelId = searchParams.get('hotelId');
@@ -40,6 +43,8 @@ export async function POST(request) {
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const denied = await moduleDeniedResponse(session, "pricing");
+    if (denied) return denied;
 
     const body = await request.json();
     const { hotelId, ...factors } = body;

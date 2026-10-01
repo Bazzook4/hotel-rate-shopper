@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_PAGES } from "@/lib/pmsGuard";
 import {
   adoptPartnerReservations,
   listUnadoptedPartnerReservations,
@@ -20,7 +20,7 @@ import { syncInventory } from "@/lib/inventorySync";
  * stuck; POST with `booking_id` retries just that one.
  */
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   const { searchParams } = new URL(req.url);
@@ -38,7 +38,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   let body = {};

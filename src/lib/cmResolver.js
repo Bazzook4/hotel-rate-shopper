@@ -10,16 +10,18 @@ import { createAiosellClient } from "@/lib/aiosell";
 import {
   getPartnerBySlug,
   getPropertyIntegration,
-  getUserPropertyId,
 } from "@/lib/database";
+import { resolvePropertyId } from "@/lib/propertyScope";
 
 export async function resolveChannelManager(session, { propertyId } = {}) {
   const partner = await getPartnerBySlug("aiosell").catch(() => null);
 
-  const resolvedPropertyId =
-    propertyId ||
-    session?.property_id ||
-    (await getUserPropertyId(session?.userId).catch(() => null));
+  // A signed-in user reaches only their own property's connection; naming
+  // another hotel's is refused. Without a session the push was started by the
+  // server itself (an OTA booking), which already knows the property.
+  const allowed = session ? await resolvePropertyId(session, propertyId) : propertyId;
+  const forbidden = Boolean(session && propertyId && !allowed);
+  const resolvedPropertyId = forbidden ? null : allowed;
 
   let hotelCode = null;
   let integration = null;
@@ -41,6 +43,7 @@ export async function resolveChannelManager(session, { propertyId } = {}) {
     partner,
     integration,
     propertyId: resolvedPropertyId,
+    forbidden,
     ready: connected,
 
     /**

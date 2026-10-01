@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { pushToChannelManager } from "@/lib/cmPush";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,6 +28,8 @@ export async function POST(req) {
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "cm");
+  if (denied) return denied;
 
   let body;
   try {

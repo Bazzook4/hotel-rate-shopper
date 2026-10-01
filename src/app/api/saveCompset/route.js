@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
+import { getSessionFromRequest } from '@/lib/session';
+import { resolvePropertyId } from '@/lib/propertyScope';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -6,7 +8,16 @@ const supabase = createClient(
 );
 
 export async function POST(req) {
+  const session = await getSessionFromRequest(req);
+  if (!session) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const body = await req.json();
+  const propertyId = await resolvePropertyId(session, body.propertyId);
+  if (!propertyId) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from('compsets')
@@ -16,7 +27,7 @@ export async function POST(req) {
         competitors: body.competitors || [],
         lastSync: new Date().toISOString(),
       },
-      property_id: body.propertyId || null,
+      property_id: propertyId,
     })
     .select()
     .single();

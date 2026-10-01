@@ -4,7 +4,9 @@ import { getUserById, getUserPropertyId } from "@/lib/database";
 import { effectiveModules } from "@/lib/rights";
 
 /**
- * A 403 when the signed-in user may not use `moduleId`, else null.
+ * A 403 when the signed-in user may not use `moduleId`, else null. Given a
+ * list, any one of those pages is enough: a route several pages share must
+ * stay open to whoever holds any of them.
  *
  * Read from the database rather than the session cookie, which keeps the
  * rights from sign-in for a week: taking a page away must take effect now.
@@ -13,7 +15,8 @@ export async function moduleDeniedResponse(session, moduleId) {
   const user = await getUserById(session?.userId).catch(() => null);
   const own = user && !isSuperAdmin(user) ? await getUserPropertyId(user.id).catch(() => null) : null;
   const rights = await effectiveModules(user, own).catch(() => []);
-  if (rights.includes(moduleId)) return null;
+  const wanted = Array.isArray(moduleId) ? moduleId : [moduleId];
+  if (wanted.some((id) => rights.includes(id))) return null;
   return NextResponse.json(
     { error: "This feature is not enabled for your account." },
     { status: 403 }

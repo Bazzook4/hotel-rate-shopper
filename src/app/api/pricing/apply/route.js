@@ -8,6 +8,7 @@ import {
   decideRecommendations,
 } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 /**
  * Accept recommendations and put them into effect.
@@ -26,6 +27,8 @@ export async function POST(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "pricing");
+  if (denied) return denied;
 
   let body;
   try {

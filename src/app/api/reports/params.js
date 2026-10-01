@@ -16,8 +16,8 @@ function fail(message, status = 400) {
   return { error: NextResponse.json({ error: message }, { status }) };
 }
 
-async function base(req) {
-  const { error, session } = await pmsGuard(req);
+async function base(req, page) {
+  const { error, session } = await pmsGuard(req, [page]);
   if (error) return { error };
   const params = req.nextUrl.searchParams;
   const propertyId = await resolvePropertyId(session, params.get("propertyId"));
@@ -25,9 +25,9 @@ async function base(req) {
   return { params, propertyId, tz: normaliseTz(params.get("tz")) };
 }
 
-/** A start and end date, both inclusive, at most `maxDays` apart. */
-export async function periodRequest(req, maxDays) {
-  const ctx = await base(req);
+/** A start and end date, both inclusive, at most `maxDays` apart. `page` is the report's own. */
+export async function periodRequest(req, page, maxDays) {
+  const ctx = await base(req, page);
   if (ctx.error) return ctx;
   const start = ctx.params.get("start");
   const end = ctx.params.get("end");
@@ -38,9 +38,9 @@ export async function periodRequest(req, maxDays) {
   return { ...ctx, start, end };
 }
 
-/** One business date. */
-export async function dayRequest(req) {
-  const ctx = await base(req);
+/** One business date. `page` is the report's own. */
+export async function dayRequest(req, page) {
+  const ctx = await base(req, page);
   if (ctx.error) return ctx;
   const date = ctx.params.get("date");
   if (!ISO.test(date || "")) return fail("Choose a date");

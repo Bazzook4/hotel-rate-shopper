@@ -20,6 +20,7 @@ import {
   recommendRate,
 } from "@/lib/pricingSignals";
 import { addDays, clampToToday, formatDateISO, parseDateISO } from "@/lib/date";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 const DEFAULT_DAYS = 14;
 const MAX_DAYS = 60;
@@ -36,6 +37,8 @@ export async function POST(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "pricing");
+  if (denied) return denied;
 
   let body;
   try {

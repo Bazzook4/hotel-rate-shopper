@@ -19,7 +19,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_DAYS = 400;
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, ["performance"]);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;

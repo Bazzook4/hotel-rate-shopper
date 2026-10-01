@@ -18,6 +18,7 @@ import {
   roomRateResolver,
 } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 /**
  * The Channel Manager grid, assembled from the property's own setup rather
@@ -29,6 +30,8 @@ export async function GET(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "cm");
+  if (denied) return denied;
 
   const own =
     session.property_id ||

@@ -132,7 +132,7 @@ export async function getSessionFromRequest(req) {
   const session = await decodeSession(token);
   if (session) return session;
 
-  if (process.env.DISABLE_AUTH === "true") {
+  if (authDisabled()) {
     return {
       userId: "dev-user",
       email: "dev@example.com",
@@ -142,6 +142,15 @@ export async function getSessionFromRequest(req) {
   }
 
   return null;
+}
+
+/**
+ * The local-development switch that skips sign-in. Never honoured in
+ * production: if it leaked into Vercel's settings, every visitor would be an
+ * admin.
+ */
+export function authDisabled() {
+  return process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production";
 }
 
 export function getSessionCookieName() {

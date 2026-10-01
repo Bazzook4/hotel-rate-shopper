@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import {
   listReservations,
   createReservation,
@@ -111,7 +111,7 @@ async function roomClashResponse(fields, ignoreReservationId = null) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;
@@ -134,7 +134,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   let body;
@@ -210,7 +210,7 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   let body;
@@ -301,7 +301,7 @@ export async function PATCH(req) {
 }
 
 export async function DELETE(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");

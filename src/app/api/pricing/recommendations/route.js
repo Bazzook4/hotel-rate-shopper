@@ -3,6 +3,7 @@ import { getSessionFromRequest } from "@/lib/session";
 import { listRoomTypes, listPricingRecommendations, listPricingBounds } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { addDays, clampToToday, formatDateISO, parseDateISO } from "@/lib/date";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 const DEFAULT_DAYS = 14;
 
@@ -12,6 +13,8 @@ export async function GET(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "pricing");
+  if (denied) return denied;
 
   const { searchParams } = new URL(req.url);
   const propertyId = await resolvePropertyId(session, searchParams.get("propertyId"));

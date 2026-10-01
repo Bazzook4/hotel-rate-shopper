@@ -3,6 +3,7 @@ import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getUserPropertyId } from "@/lib/database";
 import { syncInventoryForward, FORWARD_DAYS } from "@/lib/inventorySync";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 /**
  * Resend availability from the PMS for a date range.
@@ -21,6 +22,8 @@ export async function POST(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "cm");
+  if (denied) return denied;
 
   let body = {};
   try {

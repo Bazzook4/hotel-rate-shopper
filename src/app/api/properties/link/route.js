@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
+import { isSuperAdmin } from "@/lib/permissions";
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -12,6 +13,11 @@ export async function POST(request) {
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  // Linking an account to a hotel hands it that hotel's data, so only a super
+  // admin may do it; hotels get their own property through onboarding links.
+  if (!isSuperAdmin(session)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = await request.json().catch(() => ({}));

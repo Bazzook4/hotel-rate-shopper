@@ -6,6 +6,7 @@ import {
   getUserPropertyId,
   recordSyncLog,
 } from "@/lib/database";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -15,6 +16,8 @@ export async function PUT(req) {
   if (!session?.userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const denied = await moduleDeniedResponse(session, "cm");
+  if (denied) return denied;
 
   let body;
   try {

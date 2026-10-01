@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { getReservationInvoice, getPropertyById } from "@/lib/database";
 
 /**
@@ -253,7 +253,7 @@ async function renderInvoice(invoice, fallbackProperty) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;
