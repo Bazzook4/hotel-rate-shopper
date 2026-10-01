@@ -311,15 +311,18 @@ export default function RatePlanSetup({
                     const overrides = Object.keys(a?.adult_overrides || {});
                     const base = resolver.baseAdultsOf(room.id);
                     const max = Math.max(base, Number(room.max_adults) || base);
-                                    // A manual room rate with no rate of its own for some
-                    // adult count sells at the room's base price, as the grid
-                    // does -- flagged, since that is rarely what was meant.
+                    // A manual room rate with nothing set for some adult count
+                    // sells at a fallback -- the room's base price, or the
+                    // base rate for adults above base -- so it is flagged.
+                    // A room still carrying an old extra-adult charge prices
+                    // its extra adults from it, so those are not missing.
                     const missing =
                       src.manual &&
-                      Array.from({ length: base }, (_, i) => i + 1).some(
+                      Array.from({ length: max }, (_, i) => i + 1).some(
                         (n) =>
                           !a?.occupancy_rules?.[n] &&
-                          blank(a?.adult_rates?.[n] ?? a?.adult_rates?.[String(n)])
+                          blank(a?.adult_rates?.[n] ?? a?.adult_rates?.[String(n)]) &&
+                          !(n > base && !blank(a?.extra_adult_rate))
                       );
 
                     return (
@@ -387,9 +390,6 @@ export default function RatePlanSetup({
                               {Object.entries(rates)
                                 .map(([n, v]) => `${n}A ${fmt(v)}`)
                                 .join(" · ")}
-                              {max > base && !blank(a?.extra_adult_rate) && (
-                                <span className="muted"> · +{fmt(a.extra_adult_rate)}/extra</span>
-                              )}
                             </span>
                           )}
                         </td>
@@ -1141,10 +1141,21 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
     derive_method: existing?.derive_method ?? "",
     derive_value: orBlank(existing?.derive_value),
     derive_value_2: orBlank(existing?.derive_value_2),
-    adult_rates: { ...(existing?.adult_rates || {}) },
     adult_overrides: { ...(existing?.adult_overrides || {}) },
     occupancy_rules: { ...(existing?.occupancy_rules || {}) },
-    extra_adult_rate: orBlank(existing?.extra_adult_rate),
+    adult_rates: (() => {
+      // A room priced before every adult count had its own rate carries an
+      // extra-adult charge instead. Its adult counts above base are filled in
+      // from it, so saving turns the charge into rates the page can show.
+      const rates = { ...(existing?.adult_rates || {}) };
+      const extra = numOrNull(existing?.extra_adult_rate);
+      const atBase = numOrNull(rates[base]);
+      for (let n = base + 1; n <= maxAdults; n++) {
+        if (!blank(rates[n]) || existing?.occupancy_rules?.[n]) continue;
+        if (extra !== null && atBase !== null) rates[n] = atBase + (n - base) * extra;
+      }
+      return rates;
+    })(),
     extra_child_rate: orBlank(existing?.extra_child_rate),
   }));
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
@@ -1230,7 +1241,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
       if (p) return p;
     }
     if (src.manual) {
-      for (let n = 1; n <= base; n++) {
+      for (let n = 1; n <= maxAdults; n++) {
         const rule = form.occupancy_rules[n];
         if (rule) {
           const p = ruleProblem(rule.method, rule.value, rule.value2);
@@ -1279,7 +1290,9 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
         // Rules from the single only mean something on a manual rate.
         occupancy_rules:
           src.manual && Object.keys(form.occupancy_rules).length ? form.occupancy_rules : null,
-        extra_adult_rate: numOrNull(form.extra_adult_rate),
+        // Every adult count is priced in its own right now, so the old
+        // extra-adult charge is retired on save.
+        extra_adult_rate: null,
         extra_child_rate: numOrNull(form.extra_child_rate),
       });
     } catch (err) {
@@ -1424,7 +1437,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
         </LockField>
 
         <AdultRates
-          base={base}
+          base={maxAdults}
           src={src}
           form={form}
           set={set}
@@ -1434,16 +1447,10 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
           sourceName={src.manual ? null : `${roomName(src.roomId)} / ${planName(src.planId)}`}
         />
 
-        <div>
-          <span className="label">Extra rates</span>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Extra adult" hint={maxAdults > base ? `Per adult beyond ${base}, up to ${maxAdults}. Not derived.` : "Max equals included occupancy."}>
-              <input type="number" min="0" className="input" disabled={maxAdults <= base} value={form.extra_adult_rate} onChange={(e) => set({ extra_adult_rate: e.target.value })} placeholder={maxAdults > base ? "0" : "n/a"} />
-            </Field>
-            <Field label="Extra child">
-              <input type="number" min="0" className="input" value={form.extra_child_rate} onChange={(e) => set({ extra_child_rate: e.target.value })} placeholder="0" />
-            </Field>
-          </div>
+        <div style={{ maxWidth: 280 }}>
+          <Field label="Extra child" hint="Per child, per night.">
+            <input type="number" min="0" className="input" value={form.extra_child_rate} onChange={(e) => set({ extra_child_rate: e.target.value })} placeholder="0" />
+          </Field>
         </div>
       </Section>
     </Drawer>
