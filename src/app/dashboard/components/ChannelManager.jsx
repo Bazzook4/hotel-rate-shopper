@@ -208,6 +208,85 @@ function derivedRowsFor(grid, edits) {
   return out;
 }
 
+/** Weekdays in the order a hotelier reads them, as getUTCDay numbers. */
+const WEEKDAYS = [
+  [1, "Mon"],
+  [2, "Tue"],
+  [3, "Wed"],
+  [4, "Thu"],
+  [5, "Fri"],
+  [6, "Sat"],
+  [0, "Sun"],
+];
+
+/** Every date from `from` to `to` that falls on one of `weekdays`. */
+function rangeDates(from, to, weekdays) {
+  const out = [];
+  for (
+    let d = new Date(`${from}T00:00:00Z`);
+    isoDate(d) <= to && out.length < 400;
+    d.setUTCDate(d.getUTCDate() + 1)
+  ) {
+    if (weekdays.includes(d.getUTCDay())) out.push(isoDate(d));
+  }
+  return out;
+}
+
+/** The longest range a bulk update covers, so one slip cannot fill years. */
+const BULK_MAX_DAYS = 366;
+
+/**
+ * The edits a bulk update makes, in the same shape as typing them into the
+ * grid: rate edits keyed "<plan>|<room>|<adults>|<date>" and restriction
+ * patches keyed "<plan>|<room>|<date>".
+ *
+ * Only cells that can be typed are filled. A derived room rate, or an adult
+ * count worked out from the single, follows its source on each date, so
+ * setting the source is what moves it -- exactly as in the grid. A blank
+ * value means "leave as it is".
+ */
+function bulkFill(rooms, b) {
+  const out = { rates: {}, restrictions: {} };
+  const dates = rangeDates(b.from, b.to, b.weekdays);
+  const restriction = {};
+  if (b.minStay !== "") restriction.min_stay = Number(b.minStay);
+  if (b.maxStay !== "") restriction.max_stay = Number(b.maxStay);
+  if (b.stopSell !== "") restriction.stop_sell = b.stopSell === "close";
+  const restricts = Object.keys(restriction).length > 0;
+
+  for (const room of rooms || []) {
+    if (b.rooms.length && !b.rooms.includes(room.id)) continue;
+    for (const plan of room.plans || []) {
+      if (b.plans.length && !b.plans.includes(plan.id)) continue;
+      for (const date of dates) {
+        if (restricts) out.restrictions[`${plan.id}|${room.id}|${date}`] = restriction;
+        if (plan.derived) continue;
+        for (const occ of plan.occupancies || []) {
+          if (occ.fromSingle) continue;
+          const v = b.rates[occ.occupancy];
+          if (v === undefined || v === "") continue;
+          out.rates[`${plan.id}|${room.id}|${occ.occupancy}|${date}`] = String(v);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function emptyBulk(from, to) {
+  return {
+    from,
+    to,
+    weekdays: [0, 1, 2, 3, 4, 5, 6],
+    rooms: [],
+    plans: [],
+    rates: {},
+    minStay: "",
+    maxStay: "",
+    stopSell: "",
+  };
+}
+
 function formatDay(iso) {
   const d = new Date(`${iso}T00:00:00Z`);
   return {
@@ -268,6 +347,18 @@ export default function ChannelManager({ session }) {
   const [resyncRooms, setResyncRooms] = useState([]);
   const [resyncPlans, setResyncPlans] = useState([]);
   const [resyncBusy, setResyncBusy] = useState(false);
+  // Bulk update: set a rate or restriction across a range of dates at once.
+  // It fills the same edits as typing into the cells, so nothing leaves
+  // until Publish.
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulk, setBulk] = useState(() => emptyBulk(isoDate(new Date()), isoDate(new Date())));
+  const [bulkBusy, setBulkBusy] = useState(false);
+  // Stored rates and restrictions for bulk-edited dates outside the window
+  // on screen. Publish merges a restriction patch over what is stored, and
+  // prices derived rates from stored ones, so it needs these for dates the
+  // grid has not loaded -- without them a min-nights change off screen would
+  // clear that date's stop sell.
+  const [rangeStored, setRangeStored] = useState({ dailyRates: {}, dailyRestrictions: {} });
 
   const dirtyRates = Object.keys(rates).length;
   // Re-priced on every keystroke, so derived rows follow the master live.
@@ -421,6 +512,54 @@ export default function ChannelManager({ session }) {
     return [...seen.values()];
   }, [grid]);
 
+  // The loaded grid with the stored rows fetched for a bulk update merged
+  // underneath, the window's own (fresher) rows winning.
+  const fullGrid = useMemo(
+    () =>
+      grid && {
+        ...grid,
+        dailyRates: { ...rangeStored.dailyRates, ...(grid.dailyRates || {}) },
+        dailyRestrictions: {
+          ...rangeStored.dailyRestrictions,
+          ...(grid.dailyRestrictions || {}),
+        },
+      },
+    [grid, rangeStored]
+  );
+
+  // The adult counts that can be typed for the rooms and plans picked, so
+  // the bulk panel asks only for rates it will actually use.
+  const bulkOccupancies = useMemo(() => {
+    const seen = new Set();
+    for (const room of grid?.rooms || []) {
+      if (bulk.rooms.length && !bulk.rooms.includes(room.id)) continue;
+      for (const plan of room.plans || []) {
+        if (plan.derived) continue;
+        if (bulk.plans.length && !bulk.plans.includes(plan.id)) continue;
+        for (const occ of plan.occupancies || []) {
+          if (!occ.fromSingle) seen.add(occ.occupancy);
+        }
+      }
+    }
+    return [...seen].sort((a, b) => a - b);
+  }, [grid, bulk.rooms, bulk.plans]);
+
+  // What the bulk update would fill, shown before it is applied.
+  const bulkPreview = useMemo(() => {
+    if (!bulkOpen || bulk.from > bulk.to) return null;
+    const fill = bulkFill(grid?.rooms, {
+      ...bulk,
+      rates: Object.fromEntries(
+        Object.entries(bulk.rates).filter(([occ]) => bulkOccupancies.includes(Number(occ)))
+      ),
+    });
+    return {
+      fill,
+      rates: Object.keys(fill.rates).length,
+      restrictions: Object.keys(fill.restrictions).length,
+    };
+  }, [bulkOpen, bulk, grid, bulkOccupancies]);
+
   /**
    * Set a channel's markup.
    *
@@ -496,7 +635,7 @@ export default function ChannelManager({ session }) {
 
     // A restriction patch holds only the fields touched, so it is merged over
     // whatever is already stored for that date before being sent.
-    const storedRestrictions = grid?.dailyRestrictions || {};
+    const storedRestrictions = fullGrid?.dailyRestrictions || {};
     const restrictionRows = Object.entries(restrictions).map(([key, patch]) => {
       const [rate_plan_id, room_type_id, stay_date] = key.split("|");
       const base = storedRestrictions[key] || {};
@@ -545,7 +684,8 @@ export default function ChannelManager({ session }) {
       // What the edits moved in plans derived from them goes out too, since
       // those rates are worked out here and the channel has no other way to
       // learn them. Computed before the reload replaces the stored rates.
-      const derivedRows = derivedRowsFor(grid, rates);
+      const derivedRows = derivedRowsFor(fullGrid, rates);
+      setRangeStored({ dailyRates: {}, dailyRestrictions: {} });
       const updates = ratesToUpdates([...rows, ...derivedRows]);
 
       let pushJson = null;
@@ -613,6 +753,97 @@ export default function ChannelManager({ session }) {
       setNotice(err.message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * Fill the grid's edits from the bulk panel. Nothing is saved or sent:
+   * the edits wait for Publish like typed ones, so derived rates and the
+   * per-room restriction merge go out exactly as they would from the cells.
+   */
+  async function applyBulk() {
+    if (bulk.from > bulk.to) {
+      setNotice("The start date is after the end date.");
+      return;
+    }
+    const span =
+      (new Date(`${bulk.to}T00:00:00Z`) - new Date(`${bulk.from}T00:00:00Z`)) / 86400000 + 1;
+    if (span > BULK_MAX_DAYS) {
+      setNotice(`A bulk update covers at most ${BULK_MAX_DAYS} days.`);
+      return;
+    }
+    const rateValues = bulkOccupancies.map((o) => bulk.rates[o]).filter((v) => v !== undefined && v !== "");
+    if (rateValues.some((v) => !(Number(v) > 0))) {
+      setNotice("A rate must be a number above zero.");
+      return;
+    }
+    for (const [field, label] of [["minStay", "Min nights"], ["maxStay", "Max nights"]]) {
+      const v = bulk[field];
+      if (v !== "" && !(Number.isInteger(Number(v)) && Number(v) >= 1)) {
+        setNotice(`${label} must be a whole number of at least 1.`);
+        return;
+      }
+    }
+    if (bulk.minStay !== "" && bulk.maxStay !== "" && Number(bulk.minStay) > Number(bulk.maxStay)) {
+      setNotice("Min nights is more than max nights.");
+      return;
+    }
+    if (!bulkPreview || bulkPreview.rates + bulkPreview.restrictions === 0) {
+      setNotice("Nothing to fill: enter a rate or restriction, and check the days, rooms and plans.");
+      return;
+    }
+
+    setBulkBusy(true);
+    setNotice("");
+    try {
+      // The range can reach past the window on screen, so what is stored
+      // there is fetched for Publish to merge over.
+      const res = await fetch(
+        `/api/cm/grid?start=${bulk.from}&end=${bulk.to}${scope ? `&${scope}` : ""}`
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Could not read stored rates");
+      setRangeStored((prev) => ({
+        dailyRates: { ...prev.dailyRates, ...(json.dailyRates || {}) },
+        dailyRestrictions: { ...prev.dailyRestrictions, ...(json.dailyRestrictions || {}) },
+      }));
+
+      const { fill } = bulkPreview;
+      setRates((prev) => ({ ...prev, ...fill.rates }));
+      setRestrictions((prev) => {
+        const next = { ...prev };
+        for (const [key, patch] of Object.entries(fill.restrictions)) {
+          next[key] = { ...next[key], ...patch };
+        }
+        return next;
+      });
+
+      // Show what was filled: jump to the range, and to the one metric set
+      // if only one was.
+      if (!dates.includes(bulk.from)) setAnchor(bulk.from);
+      const set = [
+        bulkPreview.rates > 0 && "rates",
+        bulk.minStay !== "" && "min_stay",
+        bulk.maxStay !== "" && "max_stay",
+        bulk.stopSell !== "" && "stop_sell",
+      ].filter(Boolean);
+      if (set.length === 1) setView(set[0]);
+
+      setBulkOpen(false);
+      const parts = [];
+      if (bulkPreview.rates) parts.push(`${bulkPreview.rates} rate${bulkPreview.rates === 1 ? "" : "s"}`);
+      if (bulkPreview.restrictions) {
+        parts.push(
+          `${bulkPreview.restrictions} restriction${bulkPreview.restrictions === 1 ? "" : "s"}`
+        );
+      }
+      setNotice(
+        `Filled ${parts.join(" and ")} for ${bulk.from} → ${bulk.to}. Nothing is sent until you Publish.`
+      );
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -859,11 +1090,30 @@ export default function ChannelManager({ session }) {
               setResyncFrom(dates[0]);
               setResyncTo(dates[dates.length - 1]);
               setResyncOpen((o) => !o);
+              setBulkOpen(false);
             }}
             disabled={busy || resyncBusy}
             className="btn btn-secondary"
           >
             Resync
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // Starts on the window on screen, keeping the rooms and plans
+              // picked last time, with every value blank.
+              setBulk((b) => ({
+                ...emptyBulk(dates[0], dates[dates.length - 1]),
+                rooms: b.rooms,
+                plans: b.plans,
+              }));
+              setBulkOpen((o) => !o);
+              setResyncOpen(false);
+            }}
+            disabled={busy || bulkBusy || !grid?.rooms?.length}
+            className="btn btn-secondary"
+          >
+            Bulk update
           </button>
           <button
             type="button"
@@ -942,59 +1192,14 @@ export default function ChannelManager({ session }) {
             </div>
           </div>
 
-          {/* Nothing ticked means every room and every plan, so the common
-              case needs no clicking. */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-xs muted">
-                Room types{" "}
-                {resyncRooms.length === 0 && <span className="faint">(all)</span>}
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
-                {(grid?.rooms || []).map((r) => (
-                  <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
-                    <input
-                      type="checkbox"
-                      checked={resyncRooms.includes(r.id)}
-                      onChange={(e) =>
-                        setResyncRooms((prev) =>
-                          e.target.checked
-                            ? [...prev, r.id]
-                            : prev.filter((x) => x !== r.id)
-                        )
-                      }
-                    />
-                    {r.name}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs muted">
-                Rate plans{" "}
-                {resyncPlans.length === 0 && <span className="faint">(all)</span>}
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
-                {allPlans.map((p) => (
-                  <label key={p.id} className="flex items-center gap-1.5 text-sm text-ink">
-                    <input
-                      type="checkbox"
-                      checked={resyncPlans.includes(p.id)}
-                      onChange={(e) =>
-                        setResyncPlans((prev) =>
-                          e.target.checked
-                            ? [...prev, p.id]
-                            : prev.filter((x) => x !== p.id)
-                        )
-                      }
-                    />
-                    {p.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
+          <RoomPlanPicker
+            rooms={grid?.rooms || []}
+            plans={allPlans}
+            pickedRooms={resyncRooms}
+            pickedPlans={resyncPlans}
+            onRooms={setResyncRooms}
+            onPlans={setResyncPlans}
+          />
 
           <div className="flex items-center gap-2">
             <button
@@ -1019,18 +1224,163 @@ export default function ChannelManager({ session }) {
                 {resyncEstimate === 1 ? "" : "s"}
               </span>
             )}
-            {(resyncRooms.length > 0 || resyncPlans.length > 0) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setResyncRooms([]);
-                  setResyncPlans([]);
-                }}
-                disabled={resyncBusy}
-                className="text-xs muted hover:text-ink"
+          </div>
+        </div>
+      )}
+
+      {/* Bulk update: one value across a range of dates, filled into the
+          grid's edits for Publish. */}
+      {bulkOpen && (
+        <div className="card card-pad space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-ink">Bulk update</h3>
+            <p className="mt-1 text-xs muted">
+              Sets a rate or restriction on every date in the range at once.
+              Blank fields are left as they are. The changes appear in the grid
+              for you to check — nothing is sent until you Publish. Derived
+              rates follow their source, as they do in the cells.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">From</span>
+              <input
+                type="date"
+                value={bulk.from}
+                onChange={(e) => setBulk((b) => ({ ...b, from: e.target.value }))}
+                className="input"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">To</span>
+              <input
+                type="date"
+                value={bulk.to}
+                onChange={(e) => setBulk((b) => ({ ...b, to: e.target.value }))}
+                className="input"
+              />
+            </label>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs muted">Days</span>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-1.5">
+                {WEEKDAYS.map(([n, label]) => (
+                  <label key={n} className="flex items-center gap-1 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={bulk.weekdays.includes(n)}
+                      onChange={(e) =>
+                        setBulk((b) => ({
+                          ...b,
+                          weekdays: e.target.checked
+                            ? [...b.weekdays, n]
+                            : b.weekdays.filter((x) => x !== n),
+                        }))
+                      }
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <RoomPlanPicker
+            rooms={grid?.rooms || []}
+            plans={allPlans}
+            pickedRooms={bulk.rooms}
+            pickedPlans={bulk.plans}
+            onRooms={(fn) => setBulk((b) => ({ ...b, rooms: typeof fn === "function" ? fn(b.rooms) : fn }))}
+            onPlans={(fn) => setBulk((b) => ({ ...b, plans: typeof fn === "function" ? fn(b.plans) : fn }))}
+          />
+
+          <div className="flex flex-wrap items-end gap-4">
+            {bulkOccupancies.map((occ) => (
+              <label key={occ} className="flex flex-col gap-1">
+                <span className="text-xs muted">
+                  Rate · {occ} adult{occ === 1 ? "" : "s"}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  value={bulk.rates[occ] ?? ""}
+                  onChange={(e) =>
+                    setBulk((b) => ({ ...b, rates: { ...b.rates, [occ]: e.target.value } }))
+                  }
+                  placeholder="Keep"
+                  className="input w-28"
+                />
+              </label>
+            ))}
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">Min nights</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={bulk.minStay}
+                onChange={(e) => setBulk((b) => ({ ...b, minStay: e.target.value }))}
+                placeholder="Keep"
+                className="input w-24"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">Max nights</span>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                value={bulk.maxStay}
+                onChange={(e) => setBulk((b) => ({ ...b, maxStay: e.target.value }))}
+                placeholder="Keep"
+                className="input w-24"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs muted">Stop sell</span>
+              <select
+                value={bulk.stopSell}
+                onChange={(e) => setBulk((b) => ({ ...b, stopSell: e.target.value }))}
+                className="input"
               >
-                Clear selection
-              </button>
+                <option value="">Keep</option>
+                <option value="close">Close</option>
+                <option value="open">Open</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={applyBulk}
+              disabled={bulkBusy || busy}
+              className="btn btn-primary"
+            >
+              {bulkBusy ? "Filling…" : "Apply to grid"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkOpen(false)}
+              disabled={bulkBusy}
+              className="btn btn-secondary"
+            >
+              Cancel
+            </button>
+            {bulkPreview && bulkPreview.rates + bulkPreview.restrictions > 0 && (
+              <span className="text-xs muted">
+                fills{" "}
+                {[
+                  bulkPreview.rates > 0 &&
+                    `${bulkPreview.rates.toLocaleString()} rate${bulkPreview.rates === 1 ? "" : "s"}`,
+                  bulkPreview.restrictions > 0 &&
+                    `${bulkPreview.restrictions.toLocaleString()} restriction${
+                      bulkPreview.restrictions === 1 ? "" : "s"
+                    }`,
+                ]
+                  .filter(Boolean)
+                  .join(" and ")}
+              </span>
             )}
           </div>
         </div>
@@ -1200,6 +1550,57 @@ export default function ChannelManager({ session }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Room-type and rate-plan checkboxes, shared by Resync and Bulk update.
+ * Nothing ticked means every room and every plan, so the common case needs
+ * no clicking.
+ */
+function RoomPlanPicker({ rooms, plans, pickedRooms, pickedPlans, onRooms, onPlans }) {
+  const toggle = (set) => (id, on) =>
+    set((prev) => (on ? [...prev, id] : prev.filter((x) => x !== id)));
+  const columns = [
+    ["Room types", rooms.map((r) => ({ id: r.id, label: r.name })), pickedRooms, toggle(onRooms)],
+    ["Rate plans", plans, pickedPlans, toggle(onPlans)],
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-4 sm:grid-cols-2">
+        {columns.map(([title, items, picked, onToggle]) => (
+          <div key={title}>
+            <p className="text-xs muted">
+              {title} {picked.length === 0 && <span className="faint">(all)</span>}
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+              {items.map((item) => (
+                <label key={item.id} className="flex items-center gap-1.5 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(item.id)}
+                    onChange={(e) => onToggle(item.id, e.target.checked)}
+                  />
+                  {item.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {(pickedRooms.length > 0 || pickedPlans.length > 0) && (
+        <button
+          type="button"
+          onClick={() => {
+            onRooms([]);
+            onPlans([]);
+          }}
+          className="text-xs muted hover:text-ink"
+        >
+          Clear selection
+        </button>
+      )}
     </div>
   );
 }
