@@ -531,7 +531,11 @@ export default function V2Dashboard() {
               </div>
             ) : (
               <>
-                {active === "cm" && <ChannelManager />}
+                {/* Keyed by property so a switch starts the grid afresh:
+                    an unsaved edit must never publish to another hotel. */}
+                {active === "cm" && (
+                  <ChannelManager key={scopedSession?.propertyId || ""} session={scopedSession} />
+                )}
 
                 {active === "integrations" && <Integrations session={scopedSession} />}
 

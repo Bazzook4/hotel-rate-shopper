@@ -218,7 +218,13 @@ function formatDay(iso) {
   };
 }
 
-export default function ChannelManager() {
+export default function ChannelManager({ session }) {
+  // The property chosen in the header. Every call names it, since the server
+  // otherwise falls back to the property the login was issued for -- which
+  // left a super admin's switch with no effect here. The page is remounted
+  // on a switch (see page.js), so no edit carries over to another hotel.
+  const propertyId = session?.propertyId || "";
+  const scope = propertyId ? `propertyId=${encodeURIComponent(propertyId)}` : "";
   const [property, setProperty] = useState(null);
   const [grid, setGrid] = useState(null);
   const [source, setSource] = useState(null);
@@ -304,13 +310,13 @@ export default function ChannelManager() {
   const loadProperty = useCallback(
     () =>
       track(async () => {
-        const chRes = await fetch("/api/cm/property");
+        const chRes = await fetch(`/api/cm/property${scope ? `?${scope}` : ""}`);
         const json = await chRes.json();
         if (!chRes.ok) throw new Error(json?.error || `Request failed (${chRes.status})`);
         setProperty(json.property);
         setSource(json.source);
       }),
-    [track]
+    [scope, track]
   );
 
   /** The grid for the dates on screen, from this property's own setup. */
@@ -318,7 +324,7 @@ export default function ChannelManager() {
     () =>
       track(async () => {
         const gridRes = await fetch(
-          `/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}`
+          `/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}${scope ? `&${scope}` : ""}`
         );
         const gridJson = gridRes.ok ? await gridRes.json() : null;
         setGrid(gridJson);
@@ -331,7 +337,7 @@ export default function ChannelManager() {
           return next;
         });
       }),
-    [dates, track]
+    [dates, scope, track]
   );
 
   useEffect(() => {
@@ -436,7 +442,7 @@ export default function ChannelManager() {
       const res = await fetch("/api/cm/multiplier", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ multiplier, channels: [channel] }),
+        body: JSON.stringify({ multiplier, channels: [channel], propertyId: propertyId || undefined }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Could not set the multiplier");
@@ -516,7 +522,7 @@ export default function ChannelManager() {
         const saveRes = await fetch("/api/cm/rates", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rates: rows }),
+          body: JSON.stringify({ rates: rows, propertyId: propertyId || undefined }),
         });
         const saveJson = await saveRes.json();
         if (!saveRes.ok) throw new Error(saveJson?.error || "Could not save rates");
@@ -526,7 +532,7 @@ export default function ChannelManager() {
         const res = await fetch("/api/cm/restrictions", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ restrictions: restrictionRows }),
+          body: JSON.stringify({ restrictions: restrictionRows, propertyId: propertyId || undefined }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || "Could not save restrictions");
@@ -547,7 +553,7 @@ export default function ChannelManager() {
         const pushRes = await fetch("/api/cm/push", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "rates", updates }),
+          body: JSON.stringify({ kind: "rates", updates, propertyId: propertyId || undefined }),
         });
         pushJson = await pushRes.json();
 
@@ -570,6 +576,7 @@ export default function ChannelManager() {
           body: JSON.stringify({
             kind: "restrictions",
             updates: restrictionUpdates,
+            propertyId: propertyId || undefined,
           }),
         });
         restrictionJson = await res.json();
@@ -638,7 +645,7 @@ export default function ChannelManager() {
       // The range can reach outside the window on screen, so the rows are
       // fetched for it rather than read from the loaded grid.
       const res = await fetch(
-        `/api/cm/grid?start=${resyncFrom}&end=${resyncTo}`
+        `/api/cm/grid?start=${resyncFrom}&end=${resyncTo}${scope ? `&${scope}` : ""}`
       );
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Could not read stored rates");
@@ -737,6 +744,7 @@ export default function ChannelManager() {
             start: resyncFrom,
             end: resyncTo,
             roomTypeIds: resyncRooms.length ? resyncRooms : null,
+            propertyId: propertyId || undefined,
           }),
         });
         const invJson = await invRes.json();
@@ -753,7 +761,7 @@ export default function ChannelManager() {
         const pushRes = await fetch("/api/cm/push", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "rates", updates }),
+          body: JSON.stringify({ kind: "rates", updates, propertyId: propertyId || undefined }),
         });
         const pushJson = await pushRes.json();
         if (!pushRes.ok) throw new Error(pushJson?.error || "Rate resync failed");
@@ -765,7 +773,7 @@ export default function ChannelManager() {
         const pushRes = await fetch("/api/cm/push", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "restrictions", updates }),
+          body: JSON.stringify({ kind: "restrictions", updates, propertyId: propertyId || undefined }),
         });
         const pushJson = await pushRes.json();
         if (!pushRes.ok) {
