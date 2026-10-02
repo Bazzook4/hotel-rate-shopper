@@ -11,6 +11,13 @@ import { MAX_COMPETITORS } from "@/lib/competitors";
 /** A refresh fills one week of the month; paging then refreshing walks across. */
 const REFRESH_DAYS = 7;
 
+/**
+ * What the toolbar refresh covers. A single day is six lookups instead of
+ * forty-two, so it is the quick way to check one night against Google before
+ * trusting the calendar.
+ */
+const SPANS = { week: REFRESH_DAYS, day: 1 };
+
 function ageLabel(iso) {
   if (!iso) return "Never checked";
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -125,6 +132,7 @@ export default function CompetitorShopper({ session }) {
   // Sent to the rate service, so it follows the service's today, not the
   // browser's -- east of UTC the two disagree for part of every evening.
   const [weekStart, setWeekStart] = useState(() => todayUTC());
+  const [span, setSpan] = useState("week");
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -174,7 +182,7 @@ export default function CompetitorShopper({ session }) {
   }, [data?.start, data?.end, weekStart]);
 
   /**
-   * Refresh the visible week, one batch per request.
+   * Refresh `days` nights from `start`, one batch per request.
    *
    * Six competitors across seven nights is well over a hundred page reads at
    * several seconds each, so the sweep cannot finish in one request. The
@@ -182,7 +190,7 @@ export default function CompetitorShopper({ session }) {
    * keeps calling from there. Each batch is saved as it completes, so an
    * interrupted refresh leaves real rates behind rather than nothing.
    */
-  async function refresh() {
+  async function refresh({ start = weekStart, days = SPANS[span] } = {}) {
     setRefreshing(true);
     setError("");
     setNotice("");
@@ -207,14 +215,14 @@ export default function CompetitorShopper({ session }) {
       // Bounded rather than `while (true)`: a server that kept returning the
       // same cursor would otherwise spin forever. One request per cell is far
       // more than batching should ever need.
-      for (let guard = 0; guard <= REFRESH_DAYS * MAX_COMPETITORS; guard += 1) {
+      for (let guard = 0; guard <= days * MAX_COMPETITORS; guard += 1) {
         const res = await fetch("/api/compshopper/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             propertyId,
-            start: weekStart,
-            days: REFRESH_DAYS,
+            start,
+            days,
             nights,
             guests,
             from: cursor,
@@ -258,14 +266,15 @@ export default function CompetitorShopper({ session }) {
           `Only ${done} of ${total} lookups completed before the refresh stopped. The rest still show their previous rates — refresh again to finish.`
         );
       } else if (last) {
+        const range = last.from === last.to ? last.from : `${last.from} to ${last.to}`;
         setNotice(
           failed > 0
-            ? `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}. ${failed} lookup${failed === 1 ? "" : "s"} failed and kept previous rates${
+            ? `Checked ${last.competitorsChecked} competitors for ${range}. ${failed} lookup${failed === 1 ? "" : "s"} failed and kept previous rates${
                 firstFailure
                   ? ` (${firstFailure.competitor} on ${firstFailure.date}: ${firstFailure.message})`
                   : ""
               }.`
-            : `Checked ${last.competitorsChecked} competitors for ${last.from} to ${last.to}.`
+            : `Checked ${last.competitorsChecked} competitors for ${range}.`
         );
       }
       await load();
@@ -292,6 +301,21 @@ export default function CompetitorShopper({ session }) {
   }, [data?.dates]);
 
   const today = formatDateISO(new Date());
+
+  // Shown in the calendar and in the day view alike, so a refresh started
+  // from either reports back where the hotelier is looking.
+  const messages = (
+    <>
+      {error && (
+        <div className="card card-pad" style={{ borderColor: "var(--danger)" }}>
+          <p className="text-sm" style={{ color: "var(--danger)" }}>
+            {error}
+          </p>
+        </div>
+      )}
+      {notice && <p className="sub">{notice}</p>}
+    </>
+  );
 
   if (managing) {
     return (
@@ -324,6 +348,8 @@ export default function CompetitorShopper({ session }) {
         setMonth(formatDateISO(new Date(parseDateISO(next).getFullYear(), parseDateISO(next).getMonth(), 1)));
       }
       setOpenDay(next);
+      setError("");
+      setNotice("");
     };
     return (
       <div className="space-y-4">
@@ -337,6 +363,12 @@ export default function CompetitorShopper({ session }) {
           onClose={() => setOpenDay(null)}
           onPrev={() => step(-1)}
           onNext={() => step(1)}
+          // The service refuses a check-in before its own today.
+          canRefresh={data.hasCompetitors && openDay >= todayUTC()}
+          refreshing={refreshing}
+          progress={progress}
+          onRefresh={() => refresh({ start: openDay, days: 1 })}
+          messages={messages}
         />
       </div>
     );
@@ -402,9 +434,22 @@ export default function CompetitorShopper({ session }) {
               onChange={setNights}
               options={[1, 2, 3, 7].map((n) => ({ value: n, label: `${n} night${n === 1 ? "" : "s"}` }))}
             />
+            <Dropdown
+              ariaLabel="Refresh span"
+              value={span}
+              onChange={setSpan}
+              options={[
+                { value: "week", label: "Refresh a week" },
+                { value: "day", label: "Refresh one day" },
+              ]}
+            />
             {/* A month is far too many lookups for one press, so the refresh
-                names the week it will cover rather than pretending otherwise. */}
-            <ToolbarField label="Refresh week from" htmlFor="comp-week" width={160}>
+                names the dates it will cover rather than pretending otherwise. */}
+            <ToolbarField
+              label={span === "day" ? "Refresh date" : "Refresh week from"}
+              htmlFor="comp-week"
+              width={160}
+            >
               <input
                 id="comp-week"
                 type="date"
@@ -421,26 +466,21 @@ export default function CompetitorShopper({ session }) {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={refresh}
+            onClick={() => refresh()}
             disabled={refreshing || !data?.hasCompetitors}
           >
             {refreshing
               ? progress
                 ? `Checking… ${progress.done} of ${progress.total}`
                 : "Checking competitors…"
+              : span === "day"
+              ? "Refresh day"
               : "Refresh week"}
           </button>
         }
       />
 
-      {error && (
-        <div className="card card-pad" style={{ borderColor: "var(--danger)" }}>
-          <p className="text-sm" style={{ color: "var(--danger)" }}>
-            {error}
-          </p>
-        </div>
-      )}
-      {notice && <p className="sub">{notice}</p>}
+      {messages}
 
       {/* Calendar */}
       {data?.hasCompetitors && (
@@ -494,7 +534,7 @@ export default function CompetitorShopper({ session }) {
       <p className="text-xs" style={{ color: "var(--text-faint)" }}>
         {ageLabel(data?.checkedAt)} · Choose any day to see it competitor by competitor. Your rate
         comes from Rate Parity; the median is across the competitors you track. A refresh covers
-        one week at a time.
+        one week, or one day — open a day to refresh just that night.
       </p>
     </div>
   );

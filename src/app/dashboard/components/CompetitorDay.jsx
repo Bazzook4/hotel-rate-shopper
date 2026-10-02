@@ -7,6 +7,17 @@ function money(value) {
   return Math.round(value).toLocaleString("en-IN");
 }
 
+/** When a lookup ran, so a fresh refresh can be told from an old one. */
+function checkedLabel(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 /**
  * One day, competitor by competitor.
  *
@@ -14,7 +25,18 @@ function money(value) {
  * belong to a PMS this product is not connected to, so they are absent rather
  * than guessed at -- a made-up number here would be acted on.
  */
-export default function CompetitorDay({ date, data, onClose, onPrev, onNext }) {
+export default function CompetitorDay({
+  date,
+  data,
+  onClose,
+  onPrev,
+  onNext,
+  canRefresh,
+  refreshing,
+  progress,
+  onRefresh,
+  messages,
+}) {
   const own = data.ownByDate?.[date] ?? null;
   const median = data.medianByDate?.[date] ?? null;
   const diff = data.diffByDate?.[date] ?? null;
@@ -59,10 +81,29 @@ export default function CompetitorDay({ date, data, onClose, onPrev, onNext }) {
             ›
           </button>
         </div>
-        <button type="button" className="btn" onClick={onClose}>
-          Close
-        </button>
+        <div className="flex items-center gap-2">
+          {/* One night is six lookups, quick enough to check a rate against
+              Google here rather than refreshing the whole week. */}
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={onRefresh}
+            disabled={!canRefresh || refreshing}
+            title={canRefresh ? undefined : "Past dates cannot be checked"}
+          >
+            {refreshing
+              ? progress
+                ? `Checking… ${progress.done} of ${progress.total}`
+                : "Checking competitors…"
+              : "Refresh this day"}
+          </button>
+          <button type="button" className="btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
       </div>
+
+      {messages}
 
       {/* Headline numbers */}
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
@@ -128,6 +169,7 @@ export default function CompetitorDay({ date, data, onClose, onPrev, onNext }) {
               <th className="text-right">Lowest rate</th>
               <th>Room</th>
               <th>Channel</th>
+              <th>Checked</th>
             </tr>
           </thead>
           <tbody>
@@ -165,6 +207,9 @@ export default function CompetitorDay({ date, data, onClose, onPrev, onNext }) {
                     )}
                   </td>
                   <td>{cell?.channel || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
+                  <td className="text-xs" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                    {checkedLabel(cell?.checkedAt)}
+                  </td>
                 </tr>
               );
             })}
@@ -174,7 +219,7 @@ export default function CompetitorDay({ date, data, onClose, onPrev, onNext }) {
                 <td className="text-right" style={{ fontWeight: 600 }}>
                   {money(own)}
                 </td>
-                <td colSpan={2} className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <td colSpan={3} className="text-xs" style={{ color: "var(--text-muted)" }}>
                   Your cheapest channel, from Rate Parity
                 </td>
               </tr>
@@ -186,7 +231,8 @@ export default function CompetitorDay({ date, data, onClose, onPrev, onNext }) {
       <p className="text-xs" style={{ color: "var(--text-faint)" }}>
         Rate: lowest across channels · {data.guests} guests · {data.nights} night
         {data.nights === 1 ? "" : "s"}. Google names the room only on some listings, so it can be
-        blank where a rate is shown.
+        blank where a rate is shown. Each rate links to the offer it came from, to check it
+        against Google.
       </p>
     </div>
   );
