@@ -125,7 +125,7 @@ Airtable Database ← Response ← Pricing Engine Calculation
 ## File Structure
 
 ```
-hotel-rate-shopper/
+onlinehotelier-hms/
 ├── src/
 │   ├── app/
 │   │   ├── api/
