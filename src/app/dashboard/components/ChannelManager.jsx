@@ -1608,7 +1608,7 @@ export default function ChannelManager({ session }) {
         }
         onClearAll={filter ? () => setFilter("") : undefined}
         filters={
-          <ToolbarField label="Room types & rate plans" htmlFor="cm-filter" width={280}>
+          <ToolbarField label="Room types & rate plans" htmlFor="cm-filter" width={240} hideLabel>
             <input
               id="cm-filter"
               value={filter}

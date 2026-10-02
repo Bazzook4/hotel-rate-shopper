@@ -5,7 +5,8 @@ import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingModal from "./BookingModal";
 import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
-import DateToolbar, { ToolbarField } from "./DateToolbar";
+import DateToolbar from "./DateToolbar";
+import Dropdown from "../../components/Dropdown";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { visibleModules } from "../modules";
 
@@ -759,21 +760,15 @@ export default function TapeChart({ session }) {
         onClearAll={typeFilter !== "all" ? () => setTypeFilter("all") : undefined}
         filters={
           chart?.roomTypes?.length > 1 && (
-            <ToolbarField label="Room types" htmlFor="tape-type">
-              <select
-                id="tape-type"
-                className="input"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-              >
-                <option value="all">All room types</option>
-                {chart.roomTypes.map((rt) => (
-                  <option key={rt.id} value={rt.id}>
-                    {rt.name}
-                  </option>
-                ))}
-              </select>
-            </ToolbarField>
+            <Dropdown
+              label="Room type"
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={[
+                { value: "all", label: "All" },
+                ...chart.roomTypes.map((rt) => ({ value: rt.id, label: rt.name })),
+              ]}
+            />
           )
         }
       />

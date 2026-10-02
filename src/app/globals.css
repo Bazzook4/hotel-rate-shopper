@@ -169,20 +169,25 @@ body {
   .input:focus { border-color: var(--accent); }
   .input::placeholder { color: var(--text-faint); }
 
-  /* The booking form sets selects, dates and text boxes side by side, and
-   * Safari draws a native select shorter than a text input -- so a row of
-   * them no longer lines up. Here every single-line control is one height,
-   * and the select draws its own chevron. */
-  .booking-form input.input,
-  .booking-form select.input { height: 2.375rem; }
-  .booking-form select.input {
+  /* Every select draws the app's chevron instead of the browser's own -- on
+   * a Mac that is a grey double-chevron box that matches nothing else here.
+   * With the native look off, a select takes its height from its padding as
+   * a text input does, so the two line up. Toolbars use the Dropdown
+   * component instead. */
+  select.input {
     -webkit-appearance: none;
     appearance: none;
     padding-right: 2rem;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23888' stroke-width='1.5'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.5l3 3 3-3'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.7rem center;
   }
+  select.input:hover:not(:disabled) { border-color: var(--text-faint); }
+  /* The booking form sets selects, dates and text boxes side by side; a
+   * date input still draws taller in Safari, so the row is held to one height. */
+  .booking-form input.input,
+  .booking-form select.input { height: 2.375rem; }
   .booking-form .input:disabled { opacity: 0.6; }
 
   /* Ruled data table.
@@ -374,6 +379,62 @@ body {
     opacity: 0;
     pointer-events: none;
   }
+
+  /* The toolbar dropdown (components/Dropdown.jsx): one outlined button the
+   * height of a .seg, its label muted inside it, and a list in app colours. */
+  .dd {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.65rem 0.45rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 8px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+  .dd:hover { background: var(--surface-2); }
+  .dd:focus-visible { outline: none; border-color: var(--accent); }
+  .dd[aria-expanded="true"] { border-color: var(--accent); }
+  .dd-label { color: var(--text-muted); }
+  .dd-label::after { content: ":"; }
+  .dd-value { font-weight: 500; margin-right: auto; }
+  .dd-chevron { color: var(--text-faint); transition: transform 0.15s; }
+  .dd[aria-expanded="true"] .dd-chevron { transform: rotate(180deg); }
+  .dd-list {
+    z-index: 70;
+    max-height: 18rem;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0.25rem;
+    list-style: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  }
+  .dd-option {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.875rem;
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .dd-active { background: var(--surface-2); }
+  .dd-option[aria-selected="true"] { color: var(--accent-text); font-weight: 500; }
+  .dd-check { width: 1rem; color: var(--accent); }
+
+  /* A toolbar field: its label inline before the control, not on a line of
+   * its own above it, so the whole toolbar fits on one row. */
+  .tb-field { display: inline-flex; align-items: center; gap: 0.5rem; }
+  .tb-field > .tb-field-label { font-size: 0.8125rem; color: var(--text-muted); white-space: nowrap; }
+  .tb-field .input { padding-top: 0.45rem; padding-bottom: 0.45rem; }
 
   .table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
   .table th {
@@ -578,6 +639,7 @@ body {
   /* The date button's fixed width is what pushed the stepper past a
    * phone's edge; its label is short enough to size itself. */
   .seg > .seg-date { min-width: 0; }
+  .dd, .dd-option { font-size: 16px; }
 
   .cm-name-col { min-width: 0; }
 
@@ -598,5 +660,6 @@ body {
 /* A finger needs a bigger target than a pointer, whatever the screen size. */
 @media (pointer: coarse) {
   .btn,
+  .dd,
   .seg > button { min-height: 2.5rem; }
 }

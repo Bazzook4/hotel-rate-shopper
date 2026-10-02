@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
+import Dropdown from "../../components/Dropdown";
 import ManageCompetitors from "./ManageCompetitors";
 import CompetitorDay from "./CompetitorDay";
 import { MAX_COMPETITORS } from "@/lib/competitors";
@@ -389,37 +390,21 @@ export default function CompetitorShopper({ session }) {
         }
         filters={
           <>
-            <ToolbarField label="Guests" htmlFor="comp-guests" width={140}>
-              <select
-                id="comp-guests"
-                className="input"
-                value={guests}
-                onChange={(e) => setGuests(Number(e.target.value))}
-              >
-                {[1, 2, 3, 4].map((n) => (
-                  <option key={n} value={n}>
-                    {n} guest{n === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </ToolbarField>
-            <ToolbarField label="Nights" htmlFor="comp-nights" width={140}>
-              <select
-                id="comp-nights"
-                className="input"
-                value={nights}
-                onChange={(e) => setNights(Number(e.target.value))}
-              >
-                {[1, 2, 3, 7].map((n) => (
-                  <option key={n} value={n}>
-                    {n} night{n === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
-            </ToolbarField>
+            <Dropdown
+              ariaLabel="Guests"
+              value={guests}
+              onChange={setGuests}
+              options={[1, 2, 3, 4].map((n) => ({ value: n, label: `${n} guest${n === 1 ? "" : "s"}` }))}
+            />
+            <Dropdown
+              ariaLabel="Nights"
+              value={nights}
+              onChange={setNights}
+              options={[1, 2, 3, 7].map((n) => ({ value: n, label: `${n} night${n === 1 ? "" : "s"}` }))}
+            />
             {/* A month is far too many lookups for one press, so the refresh
                 names the week it will cover rather than pretending otherwise. */}
-            <ToolbarField label="Refresh week starting" htmlFor="comp-week" width={180}>
+            <ToolbarField label="Refresh week from" htmlFor="comp-week" width={160}>
               <input
                 id="comp-week"
                 type="date"

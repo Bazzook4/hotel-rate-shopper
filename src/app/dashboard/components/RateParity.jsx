@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
-import DateToolbar, { ToolbarField } from "./DateToolbar";
+import DateToolbar from "./DateToolbar";
+import Dropdown from "../../components/Dropdown";
 import GoogleListingSetup from "./GoogleListingSetup";
 import ParityTrend from "./ParityTrend";
 
@@ -392,34 +393,18 @@ export default function RateParity({ session }) {
             }
             filters={
               <>
-                <ToolbarField label="Nights" htmlFor="parity-nights" width={140}>
-                  <select
-                    id="parity-nights"
-                    className="input"
-                    value={nights}
-                    onChange={(e) => setNights(Number(e.target.value))}
-                  >
-                    {[1, 2, 3, 7].map((n) => (
-                      <option key={n} value={n}>
-                        {n} night{n === 1 ? "" : "s"}
-                      </option>
-                    ))}
-                  </select>
-                </ToolbarField>
-                <ToolbarField label="Guests" htmlFor="parity-guests" width={140}>
-                  <select
-                    id="parity-guests"
-                    className="input"
-                    value={guests}
-                    onChange={(e) => setGuests(Number(e.target.value))}
-                  >
-                    {[1, 2, 3, 4].map((n) => (
-                      <option key={n} value={n}>
-                        {n} guest{n === 1 ? "" : "s"}
-                      </option>
-                    ))}
-                  </select>
-                </ToolbarField>
+                <Dropdown
+                  ariaLabel="Nights"
+                  value={nights}
+                  onChange={setNights}
+                  options={[1, 2, 3, 7].map((n) => ({ value: n, label: `${n} night${n === 1 ? "" : "s"}` }))}
+                />
+                <Dropdown
+                  ariaLabel="Guests"
+                  value={guests}
+                  onChange={setGuests}
+                  options={[1, 2, 3, 4].map((n) => ({ value: n, label: `${n} guest${n === 1 ? "" : "s"}` }))}
+                />
               </>
             }
             actions={

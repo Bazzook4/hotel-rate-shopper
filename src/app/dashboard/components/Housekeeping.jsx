@@ -432,7 +432,7 @@ export default function Housekeeping({ session }) {
                   <td>
                     <select
                       className="input"
-                      style={{ padding: "0.25rem 0.4rem", fontSize: "0.8rem" }}
+                      style={{ padding: "0.25rem 1.6rem 0.25rem 0.4rem", fontSize: "0.8rem", backgroundPosition: "right 0.45rem center" }}
                       value={room.housekeeping}
                       onChange={(e) => mark([room.id], e.target.value)}
                     >

@@ -9,10 +9,13 @@ import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
  *
  * Each grid page used to draw its own -- arrows here, a bare date input
  * there, a window toggle somewhere else -- so moving through dates felt
- * different on every screen. This is the one bar they all share:
+ * different on every screen. This is the one bar they all share, on one
+ * row so the grid starts as high up the screen as it can:
  *
- *   [ filter ] [ filter ] [ filter ]                         Clear all
- *   [« ‹ 📅 24 Sep 2026 › »] [Today] [14 days | 30 days]      actions
+ *   [« ‹ 📅 24 Sep 2026 › »] [Today] [14 | 30 days] [Room type: All ▾] Clear   actions
+ *
+ * It wraps on a narrow screen. Filters carry their label inside or beside
+ * the control (Dropdown, ToolbarField), never on a line above it.
  *
  * ‹ › move one day and « » a whole window, so a desk can nudge the grid a
  * night at a time or page through it. The date itself opens the native
@@ -72,18 +75,7 @@ export default function DateToolbar({
   const atMin = Boolean(min && value <= min);
 
   return (
-    <div className="card card-pad space-y-4">
-      {filters && (
-        <div className="flex flex-wrap items-end gap-3">
-          {filters}
-          {onClearAll && (
-            <button type="button" className="btn btn-ghost ml-auto text-sm" onClick={onClearAll}>
-              Clear all
-            </button>
-          )}
-        </div>
-      )}
-
+    <div className="card flex flex-wrap items-center gap-2" style={{ padding: "0.625rem 0.75rem" }}>
       <div className="flex flex-wrap items-center gap-2">
         <div className="seg">
           {unit === "day" && (
@@ -169,20 +161,40 @@ export default function DateToolbar({
           </div>
         )}
 
-        {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
+
+      {filters && (
+        <>
+          <span aria-hidden className="hidden h-6 sm:block" style={{ borderLeft: "1px solid var(--border)" }} />
+          <div className="flex flex-wrap items-center gap-2">
+            {filters}
+            {onClearAll && (
+              <button type="button" className="btn btn-ghost text-sm" onClick={onClearAll}>
+                Clear
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
 
-/** One labelled control in the filter row. */
-export function ToolbarField({ label, htmlFor, width = 200, children }) {
+/**
+ * One labelled control in the filter row, its label beside it. `hideLabel`
+ * keeps the label for screen readers only, for a control whose placeholder
+ * already says what it is (a search box). A choice from a list should be a
+ * Dropdown, which carries its label inside.
+ */
+export function ToolbarField({ label, htmlFor, width = 200, hideLabel = false, children }) {
   return (
-    <div style={{ width, maxWidth: "100%" }}>
-      <label className="label" htmlFor={htmlFor}>
+    <div className="tb-field">
+      <label className={hideLabel ? "sr-only" : "tb-field-label"} htmlFor={htmlFor}>
         {label}
       </label>
-      {children}
+      <div style={{ width, maxWidth: "100%" }}>{children}</div>
     </div>
   );
 }
