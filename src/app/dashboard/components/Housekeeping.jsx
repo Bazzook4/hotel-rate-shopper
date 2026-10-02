@@ -81,10 +81,16 @@ export default function Housekeeping({ session }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const [view, setView] = useState("all");
+  // Opens on the work still to do, most urgent first: that is what anyone
+  // opening this page has come to see. "All rooms" is one tap away.
+  const [view, setView] = useState("todo");
   const [floorFilter, setFloorFilter] = useState("");
-  const [byPriority, setByPriority] = useState(false);
+  const [byPriority, setByPriority] = useState(true);
   const [selected, setSelected] = useState(() => new Set());
+  // The last change, so a slip of the finger can be put back. In "To clean"
+  // a room marked clean leaves the list at once, so without this a wrong tap
+  // would mean finding the room again under "All rooms".
+  const [lastChange, setLastChange] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -148,10 +154,11 @@ export default function Housekeeping({ session }) {
     return byPriority ? [...list].sort((a, b) => priority(a) - priority(b)) : list;
   }, [rooms, view, floorFilter, byPriority]);
 
-  async function mark(ids, status) {
+  async function mark(ids, status, { undoable = true } = {}) {
     if (ids.length === 0) return;
     setError(null);
     const previous = rooms;
+    const before = rooms.filter((r) => ids.includes(r.id) && r.housekeeping !== status);
     setRooms((prev) =>
       prev.map((r) => (ids.includes(r.id) ? { ...r, housekeeping: status } : r))
     );
@@ -168,9 +175,32 @@ export default function Housekeeping({ session }) {
       const byId = Object.fromEntries((data.rooms || []).map((r) => [r.id, r]));
       setRooms((prev) => prev.map((r) => (byId[r.id] ? { ...r, ...byId[r.id] } : r)));
       setSelected(new Set());
+      setLastChange(
+        undoable && before.length
+          ? {
+              status,
+              rooms: before.map((r) => ({
+                id: r.id,
+                number: r.room_number,
+                housekeeping: r.housekeeping,
+              })),
+            }
+          : null
+      );
     } catch (err) {
       setRooms(previous);
       setError(err.message);
+    }
+  }
+
+  /** Put the last change back, room by room, as each was before. */
+  async function undo() {
+    if (!lastChange) return;
+    const byStatus = {};
+    for (const r of lastChange.rooms) (byStatus[r.housekeeping] ||= []).push(r.id);
+    setLastChange(null);
+    for (const [status, ids] of Object.entries(byStatus)) {
+      await mark(ids, status, { undoable: false });
     }
   }
 
@@ -282,6 +312,20 @@ export default function Housekeeping({ session }) {
         </label>
       </div>
 
+      {lastChange && (
+        <div className="card px-4 py-2 flex flex-wrap items-center gap-3 text-sm">
+          <span>
+            {lastChange.rooms.length === 1
+              ? `Room ${lastChange.rooms[0].number}`
+              : `${lastChange.rooms.length} rooms`}{" "}
+            marked {STATUS[lastChange.status]?.label.toLowerCase() || lastChange.status}.
+          </span>
+          <button className="btn btn-ghost text-sm" onClick={undo}>
+            Undo
+          </button>
+        </div>
+      )}
+
       {selected.size > 0 && (
         <div className="card card-pad flex flex-wrap items-center gap-2">
           <span className="text-sm" style={{ fontWeight: 600 }}>
@@ -306,21 +350,27 @@ export default function Housekeeping({ session }) {
         <table className="cm-grid">
           <thead>
             <tr>
-              <th style={{ width: 40 }}>
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleAll}
-                  title="Select all shown"
-                />
+              {/* The room stays in view on a phone, with its select box and
+                  the one-tap Clean beside it, so marking a room never needs
+                  a sideways scroll. */}
+              <th className="cm-sticky">
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAll}
+                    title="Select all shown"
+                    aria-label="Select all shown"
+                  />
+                  Room
+                </span>
               </th>
-              <th>Floor</th>
-              <th>Room</th>
-              <th>Type</th>
               <th>Code</th>
+              <th>Status</th>
               <th>Occupancy</th>
               <th>Guest</th>
-              <th>Status</th>
+              <th>Type</th>
+              <th>Floor</th>
               <th>Updated</th>
             </tr>
           </thead>
@@ -329,21 +379,21 @@ export default function Housekeeping({ session }) {
                 rooms on screen instead of blanking the table. */}
             {loading && rooms.length === 0 && (
               <tr>
-                <td colSpan={9} className="sub">
+                <td colSpan={8} className="sub">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && rooms.length === 0 && (
               <tr>
-                <td colSpan={9} className="sub">
+                <td colSpan={8} className="sub">
                   No rooms yet — add them under Setup → Room Number Setup.
                 </td>
               </tr>
             )}
             {rooms.length > 0 && visible.length === 0 && (
               <tr>
-                <td colSpan={9} className="sub">
+                <td colSpan={8} className="sub">
                   Nothing here for this view.
                 </td>
               </tr>
@@ -352,20 +402,46 @@ export default function Housekeeping({ session }) {
               const guest = room.occupied || room.arriving || room.departing;
               return (
                 <tr key={room.id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(room.id)}
-                      onChange={() => toggle(room.id)}
-                    />
+                  <td className="cm-sticky">
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(room.id)}
+                        onChange={() => toggle(room.id)}
+                        aria-label={`Select room ${room.room_number}`}
+                      />
+                      <span style={{ fontWeight: 600, minWidth: "2.5rem" }}>
+                        {room.room_number}
+                      </span>
+                      {room.housekeeping === "dirty" && (
+                        <button
+                          className="btn btn-secondary text-xs"
+                          style={{ padding: "0.2rem 0.6rem" }}
+                          onClick={() => mark([room.id], "clean")}
+                        >
+                          Clean
+                        </button>
+                      )}
+                    </span>
                   </td>
-                  <td>{room.floor || "—"}</td>
-                  <td style={{ fontWeight: 600 }}>{room.room_number}</td>
-                  <td>{room.room_types?.room_type_name || "—"}</td>
                   <td>
                     <span className={`chip ${STATUS[room.housekeeping]?.chip || "chip-off"}`}>
                       {roomCode(room)}
                     </span>
+                  </td>
+                  <td>
+                    <select
+                      className="input"
+                      style={{ padding: "0.25rem 0.4rem", fontSize: "0.8rem" }}
+                      value={room.housekeeping}
+                      onChange={(e) => mark([room.id], e.target.value)}
+                    >
+                      {STATUSES.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
                   <td>
                     {occupancyLabel(room)}
@@ -389,20 +465,8 @@ export default function Housekeeping({ session }) {
                       "—"
                     )}
                   </td>
-                  <td>
-                    <select
-                      className="input"
-                      style={{ padding: "0.25rem 0.4rem", fontSize: "0.8rem" }}
-                      value={room.housekeeping}
-                      onChange={(e) => mark([room.id], e.target.value)}
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
+                  <td>{room.room_types?.room_type_name || "—"}</td>
+                  <td>{room.floor || "—"}</td>
                   <td className="sub" style={{ fontSize: "0.75rem" }}>
                     {timeAgo(room.housekeeping_updated_at)}
                   </td>
