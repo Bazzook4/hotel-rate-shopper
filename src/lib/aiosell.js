@@ -150,6 +150,18 @@ export function createAiosellClient({ partner, hotelCode } = {}) {
     },
 
     /**
+     * Restrictions for one rate plan in one room, not the whole room type.
+     * updates: [{ startDate, endDate, rates: [{ roomCode, rateplanCode,
+     * restrictions: { stopSell, minimumStay, maximumStay, ... } }] }]
+     * toChannels names the channels it applies to; Aiosell requires it.
+     */
+    pushRateRestrictions(updates, { toChannels } = {}) {
+      const body = { hotelCode: hotel, updates };
+      if (toChannels?.length) body.toChannels = toChannels;
+      return request(withPms(ratesPath), { body });
+    },
+
+    /**
      * Property-wide rate multiplier for the given channels.
      * `multiplier` is a factor: 1.2 = +20%, 0.9 = -10%.
      */

@@ -60,7 +60,8 @@ Rate push — grain is (room, rateplan, date); date ranges expand per-day server
                             "rateplanCode": "executive-s-ep" }] }] }
 ```
 
-Restrictions (optional `toChannels` targets specific channels):
+Inventory restrictions — room-type level only (`POST /update/{pms}`).
+`toChannels` is **required** and names the channels the restriction applies to:
 ```json
 { "hotelCode": "sandbox-pms",
   "toChannels": ["agoda", "booking.com"],
@@ -72,6 +73,20 @@ Restrictions (optional `toChannels` targets specific channels):
                     "maximumStayArrival": null, "exactStayArrival": null,
                     "minimumAdvanceReservation": null,
                     "maximumAdvanceReservation": null } }] }] }
+```
+
+Rate restrictions — one (room, rate plan) pair (`POST /update-rates/{pms}`).
+Same restriction fields, `toChannels` **required**. This is what the Channel
+Manager sends, so closing one plan leaves the room's other plans selling, and
+a stop sell can be for a single channel:
+```json
+{ "hotelCode": "sandbox-pms",
+  "toChannels": ["agoda"],
+  "updates": [{ "startDate": "2023-02-22", "endDate": "2023-02-24",
+                "rates": [{ "roomCode": "executive", "rateplanCode": "executive-s-ep",
+                  "restrictions": { "stopSell": true, "minimumStay": 1,
+                    "maximumStay": null, "closeOnArrival": false,
+                    "closeOnDeparture": false } }] }] }
 ```
 
 Channel multiplier:

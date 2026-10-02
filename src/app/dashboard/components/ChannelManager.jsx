@@ -98,43 +98,43 @@ function ratesToUpdates(rows) {
 }
 
 /**
- * Group restriction rows into one update per date.
+ * Restriction pushes for a set of cells, grouped by the channels each goes to.
  *
- * Aiosell takes restrictions per room type, not per rate plan, so plans
- * sharing a room on the same date collapse into one entry. Where two plans
- * on that room disagree, the stricter value is sent: a stop sell anywhere
- * closes the room, the longest minimum and the shortest maximum win.
- * Pushing them separately would mean the last one written silently
- * overwrote the others.
+ * Aiosell takes restrictions per rate plan in a room (its rate restriction
+ * push) and names the channels they apply to, so closing one plan leaves the
+ * room's other plans selling. A cell's all-channels values go to every
+ * channel, except that a channel with its own stop sell is sent that stop
+ * sell instead, in a push of its own -- sending it the all-channels value
+ * too would undo its closure.
+ *
+ * A field with nothing stored for the date follows the room rate's own
+ * setting from Rate Plan Setup, as the grid shows it, so a min-nights edit
+ * never reopens a plan that was closed there.
+ *
+ * cells: [{ rate_plan_id, room_type_id, stay_date, stop_sell, min_stay,
+ * max_stay, channels: { <slug>: true | false } }]; channels: the slugs of
+ * every connected channel. Returns [{ toChannels, updates }], toChannels
+ * null when no channel list is known and the server is to name them all.
  */
-function restrictionsToUpdates(rows) {
-  const byDate = {};
-  for (const row of rows) {
-    if (!row.room_type_id) continue;
-    const byRoom = (byDate[row.stay_date] ||= {});
-    const prev = byRoom[row.room_type_id];
-    byRoom[row.room_type_id] = prev
-      ? {
-          stopSell: Boolean(prev.stopSell || row.stop_sell),
-          minStay: maxOf(prev.minStay, row.min_stay),
-          maxStay: minOf(prev.maxStay, row.max_stay),
-        }
-      : {
-          stopSell: Boolean(row.stop_sell),
-          minStay: row.min_stay ?? null,
-          maxStay: row.max_stay ?? null,
-        };
+function restrictionPushes(cells, rooms, channels) {
+  const setup = {};
+  for (const room of rooms || []) {
+    for (const plan of room.plans || []) {
+      setup[`${plan.id}|${room.id}`] = plan.restrictions || {};
+    }
   }
 
-  return Object.entries(byDate).map(([date, byRoom]) => ({
-    startDate: date,
-    endDate: date,
-    rooms: Object.entries(byRoom).map(([roomCode, r]) => ({
-      roomCode,
+  const buckets = new Map();
+  const add = (toChannels, cell, stopSell, minStay, maxStay) => {
+    const key = toChannels ? toChannels.join(",") : "*";
+    if (!buckets.has(key)) buckets.set(key, { toChannels, byDate: {} });
+    (buckets.get(key).byDate[cell.stay_date] ||= []).push({
+      roomCode: cell.room_type_id,
+      rateplanCode: cell.rate_plan_id,
       restrictions: {
-        stopSell: r.stopSell,
-        minimumStay: r.minStay,
-        maximumStay: r.maxStay,
+        stopSell,
+        minimumStay: minStay,
+        maximumStay: maxStay,
         closeOnArrival: false,
         closeOnDeparture: false,
         minimumStayArrival: null,
@@ -143,8 +143,90 @@ function restrictionsToUpdates(rows) {
         minimumAdvanceReservation: null,
         maximumAdvanceReservation: null,
       },
+    });
+  };
+
+  for (const cell of cells) {
+    if (!cell.room_type_id) continue;
+    const own = setup[`${cell.rate_plan_id}|${cell.room_type_id}`] || {};
+    const stopSell = Boolean(cell.stop_sell ?? own.stopSell);
+    const minStay = cell.min_stay ?? own.minStay ?? null;
+    const maxStay = cell.max_stay ?? own.maxStay ?? null;
+    const overrides = cell.channels || {};
+
+    if (!channels.length) {
+      if (Object.keys(overrides).length) {
+        throw new Error(
+          "The connected channels have not loaded, so a channel's own stop sell cannot be sent. Reload and publish again."
+        );
+      }
+      add(null, cell, stopSell, minStay, maxStay);
+      continue;
+    }
+
+    const closed = [];
+    const open = [];
+    for (const c of channels) ((overrides[c] ?? stopSell) ? closed : open).push(c);
+    if (closed.length) add(closed, cell, true, minStay, maxStay);
+    if (open.length) add(open, cell, false, minStay, maxStay);
+  }
+
+  return [...buckets.values()].map(({ toChannels, byDate }) => ({
+    toChannels,
+    updates: Object.entries(byDate).map(([date, rates]) => ({
+      startDate: date,
+      endDate: date,
+      rates,
     })),
   }));
+}
+
+/**
+ * The restriction cells to push for a set of keys "<plan>|<room>|<date>":
+ * the stored row with any edit patched over it, and each channel's own stop
+ * sell, edits winning and a null edit clearing the stored one.
+ */
+function restrictionCells(keys, { stored, edits, storedChannels, channelEdits }) {
+  return [...new Set(keys)].map((key) => {
+    const [rate_plan_id, room_type_id, stay_date] = key.split("|");
+    const base = stored[key] || {};
+    const patch = edits[key] || {};
+    const channels = { ...(storedChannels[key] || {}) };
+    for (const [c, v] of Object.entries(channelEdits[key] || {})) {
+      if (v === null) delete channels[c];
+      else channels[c] = v;
+    }
+    return {
+      rate_plan_id,
+      room_type_id,
+      stay_date,
+      stop_sell: "stop_sell" in patch ? patch.stop_sell : base.stopSell ?? null,
+      min_stay: "min_stay" in patch ? patch.min_stay : base.minStay ?? null,
+      max_stay: "max_stay" in patch ? patch.max_stay : base.maxStay ?? null,
+      channels,
+    };
+  });
+}
+
+/** Send restriction cells, one push per channel group. */
+async function sendRestrictions(cells, rooms, channels, propertyId) {
+  let last = null;
+  for (const { toChannels, updates } of restrictionPushes(cells, rooms, channels)) {
+    if (!updates.length) continue;
+    const res = await fetch("/api/cm/push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "restrictions",
+        updates,
+        toChannels: toChannels || undefined,
+        propertyId: propertyId || undefined,
+      }),
+    });
+    last = await res.json();
+    if (!res.ok) throw new Error(last?.error || "Restriction push failed");
+  }
+  return last;
 }
 
 /**
@@ -244,15 +326,26 @@ const BULK_MAX_DAYS = 366;
  * count worked out from the single, follows its source on each date, so
  * setting the source is what moves it -- exactly as in the grid. A blank
  * value means "leave as it is".
+ *
+ * With channels picked, stop sell is filled for those channels alone, keyed
+ * like a restriction with { <slug>: true | false | null } -- null putting the
+ * channel back on the all-channels value. Nights always apply to every
+ * channel.
  */
 function bulkFill(rooms, b) {
-  const out = { rates: {}, restrictions: {} };
+  const out = { rates: {}, restrictions: {}, channelStops: {} };
   const dates = rangeDates(b.from, b.to, b.weekdays);
+  const perChannel = b.channels.length > 0 && b.stopSell !== "";
   const restriction = {};
   if (b.minStay !== "") restriction.min_stay = Number(b.minStay);
   if (b.maxStay !== "") restriction.max_stay = Number(b.maxStay);
-  if (b.stopSell !== "") restriction.stop_sell = b.stopSell === "close";
+  if (b.stopSell !== "" && !perChannel) restriction.stop_sell = b.stopSell === "close";
   const restricts = Object.keys(restriction).length > 0;
+  const channelStop = perChannel
+    ? Object.fromEntries(
+        b.channels.map((c) => [c, b.stopSell === "follow" ? null : b.stopSell === "close"])
+      )
+    : null;
 
   for (const room of rooms || []) {
     if (b.rooms.length && !b.rooms.includes(room.id)) continue;
@@ -260,6 +353,7 @@ function bulkFill(rooms, b) {
       if (b.plans.length && !b.plans.includes(plan.id)) continue;
       for (const date of dates) {
         if (restricts) out.restrictions[`${plan.id}|${room.id}|${date}`] = restriction;
+        if (channelStop) out.channelStops[`${plan.id}|${room.id}|${date}`] = channelStop;
         if (plan.derived) continue;
         for (const occ of plan.occupancies || []) {
           if (occ.fromSingle) continue;
@@ -284,6 +378,8 @@ function emptyBulk(from, to) {
     minStay: "",
     maxStay: "",
     stopSell: "",
+    // Channel slugs the stop sell is for; empty means every channel.
+    channels: [],
   };
 }
 
@@ -331,6 +427,9 @@ export default function ChannelManager({ session }) {
   // patch -- only the fields actually touched -- merged over the stored row
   // when rendering and when saving.
   const [restrictions, setRestrictions] = useState({});
+  // Edited stop sell for single channels, keyed "<plan>|<room>|<date>" then
+  // by channel slug: true closed, false open, null back to all channels.
+  const [channelStops, setChannelStops] = useState({});
   // Which metric the grid is showing -- rates, min or max nights, or stop
   // sell -- for every rate plan at once. It was once chosen per plan, but a
   // desk setting min nights sets them across the plans, and a grid mixing
@@ -362,12 +461,19 @@ export default function ChannelManager({ session }) {
   // prices derived rates from stored ones, so it needs these for dates the
   // grid has not loaded -- without them a min-nights change off screen would
   // clear that date's stop sell.
-  const [rangeStored, setRangeStored] = useState({ dailyRates: {}, dailyRestrictions: {} });
+  const [rangeStored, setRangeStored] = useState({
+    dailyRates: {},
+    dailyRestrictions: {},
+    channelStopSell: {},
+  });
 
   const dirtyRates = Object.keys(rates).length;
   // Re-priced on every keystroke, so derived rows follow the master live.
   const pricer = useMemo(() => cellPricer(grid, rates), [grid, rates]);
-  const dirtyRestrictions = Object.keys(restrictions).length;
+  const dirtyRestrictions = new Set([
+    ...Object.keys(restrictions),
+    ...Object.keys(channelStops),
+  ]).size;
   const dirty = dirtyRates + dirtyRestrictions;
 
   const dates = useMemo(
@@ -536,9 +642,28 @@ export default function ChannelManager({ session }) {
           ...rangeStored.dailyRestrictions,
           ...(grid.dailyRestrictions || {}),
         },
+        channelStopSell: {
+          ...rangeStored.channelStopSell,
+          ...(grid.channelStopSell || {}),
+        },
       },
     [grid, rangeStored]
   );
+
+  // Each cell's channel-only stop sell as it will stand after Publish: what
+  // is stored, with edits over it and a null edit removing the override.
+  const channelStopView = useMemo(() => {
+    const out = { ...(grid?.channelStopSell || {}) };
+    for (const [key, byChannel] of Object.entries(channelStops)) {
+      const next = { ...(out[key] || {}) };
+      for (const [c, v] of Object.entries(byChannel)) {
+        if (v === null) delete next[c];
+        else next[c] = v;
+      }
+      out[key] = next;
+    }
+    return out;
+  }, [grid, channelStops]);
 
   // The adult counts that can be typed for the rooms and plans picked, so
   // the bulk panel asks only for rates it will actually use.
@@ -569,7 +694,10 @@ export default function ChannelManager({ session }) {
     return {
       fill,
       rates: Object.keys(fill.rates).length,
-      restrictions: Object.keys(fill.restrictions).length,
+      restrictions: new Set([
+        ...Object.keys(fill.restrictions),
+        ...Object.keys(fill.channelStops),
+      ]).size,
     };
   }, [bulkOpen, bulk, grid, bulkOccupancies]);
 
@@ -661,7 +789,31 @@ export default function ChannelManager({ session }) {
       return { rate_plan_id, room_type_id, stay_date, ...merged };
     });
 
-    if (rows.length === 0 && restrictionRows.length === 0) {
+    // Stop sell on single channels, one row per channel edited.
+    const channelRows = Object.entries(channelStops).flatMap(([key, byChannel]) => {
+      const [rate_plan_id, room_type_id, stay_date] = key.split("|");
+      return Object.entries(byChannel).map(([channel, stop_sell]) => ({
+        rate_plan_id,
+        room_type_id,
+        stay_date,
+        channel,
+        stop_sell,
+      }));
+    });
+
+    // What goes to the channels: every cell touched, with its channels' own
+    // stop sell, worked out before the reload replaces what is stored.
+    const cells = restrictionCells(
+      [...Object.keys(restrictions), ...Object.keys(channelStops)],
+      {
+        stored: storedRestrictions,
+        edits: restrictions,
+        storedChannels: fullGrid?.channelStopSell || {},
+        channelEdits: channelStops,
+      }
+    );
+
+    if (rows.length === 0 && restrictionRows.length === 0 && channelRows.length === 0) {
       setNotice("No changes to publish.");
       return;
     }
@@ -680,11 +832,15 @@ export default function ChannelManager({ session }) {
         if (!saveRes.ok) throw new Error(saveJson?.error || "Could not save rates");
       }
 
-      if (restrictionRows.length > 0) {
+      if (restrictionRows.length > 0 || channelRows.length > 0) {
         const res = await fetch("/api/cm/restrictions", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ restrictions: restrictionRows, propertyId: propertyId || undefined }),
+          body: JSON.stringify({
+            restrictions: restrictionRows,
+            channelRestrictions: channelRows,
+            propertyId: propertyId || undefined,
+          }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || "Could not save restrictions");
@@ -693,12 +849,13 @@ export default function ChannelManager({ session }) {
       // Saved, so the edits are safe from here on.
       setRates({});
       setRestrictions({});
+      setChannelStops({});
 
       // What the edits moved in plans derived from them goes out too, since
       // those rates are worked out here and the channel has no other way to
       // learn them. Computed before the reload replaces the stored rates.
       const derivedRows = derivedRowsFor(fullGrid, rates);
-      setRangeStored({ dailyRates: {}, dailyRestrictions: {} });
+      setRangeStored({ dailyRates: {}, dailyRestrictions: {}, channelStopSell: {} });
       const updates = ratesToUpdates([...rows, ...derivedRows]);
 
       let pushJson = null;
@@ -719,25 +876,19 @@ export default function ChannelManager({ session }) {
         }
       }
 
-      const restrictionUpdates = restrictionsToUpdates(restrictionRows);
-
       let restrictionJson = null;
-      if (restrictionUpdates.length > 0) {
-        const res = await fetch("/api/cm/push", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            kind: "restrictions",
-            updates: restrictionUpdates,
-            propertyId: propertyId || undefined,
-          }),
-        });
-        restrictionJson = await res.json();
-
-        if (!res.ok) {
+      if (cells.length > 0) {
+        try {
+          restrictionJson = await sendRestrictions(
+            cells,
+            fullGrid?.rooms,
+            rateChannels.map((c) => c.partner_id),
+            propertyId
+          );
+        } catch (err) {
           await load();
           throw new Error(
-            `${restrictionJson?.error || "Restriction push failed"} Your changes are saved and can be published again.`
+            `${err.message} Your changes are saved and can be published again.`
           );
         }
       }
@@ -750,12 +901,8 @@ export default function ChannelManager({ session }) {
       if (derivedRows.length > 0) {
         parts.push(`${derivedRows.length} rate${derivedRows.length === 1 ? "" : "s"} worked out from them`);
       }
-      if (restrictionRows.length > 0) {
-        parts.push(
-          `${restrictionRows.length} restriction${
-            restrictionRows.length === 1 ? "" : "s"
-          }`
-        );
+      if (cells.length > 0) {
+        parts.push(`${cells.length} restriction${cells.length === 1 ? "" : "s"}`);
       }
       setNotice(
         pushJson?.message ||
@@ -819,6 +966,7 @@ export default function ChannelManager({ session }) {
       setRangeStored((prev) => ({
         dailyRates: { ...prev.dailyRates, ...(json.dailyRates || {}) },
         dailyRestrictions: { ...prev.dailyRestrictions, ...(json.dailyRestrictions || {}) },
+        channelStopSell: { ...prev.channelStopSell, ...(json.channelStopSell || {}) },
       }));
 
       const { fill } = bulkPreview;
@@ -826,6 +974,13 @@ export default function ChannelManager({ session }) {
       setRestrictions((prev) => {
         const next = { ...prev };
         for (const [key, patch] of Object.entries(fill.restrictions)) {
+          next[key] = { ...next[key], ...patch };
+        }
+        return next;
+      });
+      setChannelStops((prev) => {
+        const next = { ...prev };
+        for (const [key, patch] of Object.entries(fill.channelStops)) {
           next[key] = { ...next[key], ...patch };
         }
         return next;
@@ -948,24 +1103,24 @@ export default function ChannelManager({ session }) {
         }
       }
 
-      const restrictionRows = [];
-      if (resyncWhat.restrictions) {
-        for (const [key, value] of Object.entries(
-          json.dailyRestrictions || {}
-        )) {
-          const [rate_plan_id, room_type_id, stay_date] = key.split("|");
-          if (!room_type_id) continue;
-          if (!roomWanted(room_type_id) || !planWanted(rate_plan_id)) continue;
-          restrictionRows.push({
-            rate_plan_id,
-            room_type_id,
-            stay_date,
-            stop_sell: value.stopSell ?? null,
-            min_stay: value.minStay ?? null,
-            max_stay: value.maxStay ?? null,
-          });
-        }
-      }
+      // Stored restrictions only, with each channel's own stop sell.
+      const restrictionRows = resyncWhat.restrictions
+        ? restrictionCells(
+            [
+              ...Object.keys(json.dailyRestrictions || {}),
+              ...Object.keys(json.channelStopSell || {}),
+            ].filter((key) => {
+              const [rate_plan_id, room_type_id] = key.split("|");
+              return room_type_id && roomWanted(room_type_id) && planWanted(rate_plan_id);
+            }),
+            {
+              stored: json.dailyRestrictions || {},
+              edits: {},
+              storedChannels: json.channelStopSell || {},
+              channelEdits: {},
+            }
+          )
+        : [];
 
       if (
         rateRows.length === 0 &&
@@ -1013,16 +1168,12 @@ export default function ChannelManager({ session }) {
       }
 
       if (restrictionRows.length > 0) {
-        const updates = restrictionsToUpdates(restrictionRows);
-        const pushRes = await fetch("/api/cm/push", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "restrictions", updates, propertyId: propertyId || undefined }),
-        });
-        const pushJson = await pushRes.json();
-        if (!pushRes.ok) {
-          throw new Error(pushJson?.error || "Restriction resync failed");
-        }
+        await sendRestrictions(
+          restrictionRows,
+          json.rooms,
+          rateChannels.map((c) => c.partner_id),
+          propertyId
+        );
         sent.push(
           `${restrictionRows.length} restriction${
             restrictionRows.length === 1 ? "" : "s"
@@ -1359,9 +1510,53 @@ export default function ChannelManager({ session }) {
                 <option value="">Keep</option>
                 <option value="close">Close</option>
                 <option value="open">Open</option>
+                {bulk.channels.length > 0 && (
+                  <option value="follow">Same as all channels</option>
+                )}
               </select>
             </label>
           </div>
+
+          {/* Stop sell can be for a few channels only; nights always apply
+              to every channel. */}
+          {rateChannels.length > 0 && (
+            <div>
+              <p className="text-xs muted">
+                Stop sell on{" "}
+                {bulk.channels.length === 0 && <span className="faint">(all channels)</span>}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1.5">
+                {rateChannels.map((c) => (
+                  <label key={c.partner_id} className="flex items-center gap-1.5 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={bulk.channels.includes(c.partner_id)}
+                      onChange={(e) =>
+                        setBulk((b) => {
+                          const channels = e.target.checked
+                            ? [...b.channels, c.partner_id]
+                            : b.channels.filter((x) => x !== c.partner_id);
+                          // "Same as all channels" only means something for
+                          // a channel picked out.
+                          const stopSell =
+                            channels.length === 0 && b.stopSell === "follow" ? "" : b.stopSell;
+                          return { ...b, channels, stopSell };
+                        })
+                      }
+                    />
+                    {CHANNEL_LABELS[c.partner_id] || c.partner_id}
+                  </label>
+                ))}
+              </div>
+              {bulk.channels.length > 0 && (
+                <p className="mt-1.5 text-xs muted">
+                  Closes or opens the picked channels only; the others keep
+                  selling as they are. Min and max nights still apply to every
+                  channel.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -1532,6 +1727,8 @@ export default function ChannelManager({ session }) {
                 }
                 restrictions={restrictions}
                 storedRestrictions={grid?.dailyRestrictions || {}}
+                channelStops={channelStopView}
+                editedChannelStops={channelStops}
                 availability={grid?.availability || {}}
                 view={view}
                 onRestrictionChange={(key, field, value) =>
@@ -1633,6 +1830,8 @@ function ExpandableRoom({
   availability,
   view,
   onRestrictionChange,
+  channelStops,
+  editedChannelStops,
   channels,
   openChannels,
   onToggleChannels,
@@ -1887,6 +2086,8 @@ function ExpandableRoom({
                           edits={restrictions}
                           stored={storedRestrictions}
                           onChange={onRestrictionChange}
+                          channelStops={channelStops}
+                          editedChannelStops={editedChannelStops}
                         />
                       ))}
                 </tr>
@@ -2017,13 +2218,61 @@ function ChannelRow({
 }
 
 /**
+ * Under a stop sell checkbox: the channels that differ from it on that date.
+ * The checkbox is the all-channels value; a channel closed or opened on its
+ * own (from Bulk update) is named here so the cell never reads as the whole
+ * story.
+ */
+function ChannelStopNote({ byChannel, edited }) {
+  const entries = Object.entries(byChannel || {});
+  if (entries.length === 0) return null;
+  const name = (c) => CHANNEL_LABELS[c] || c;
+  const closed = entries.filter(([, v]) => v).map(([c]) => name(c));
+  const open = entries.filter(([, v]) => !v).map(([c]) => name(c));
+  const title = [
+    closed.length && `Closed on ${closed.join(", ")}`,
+    open.length && `Open on ${open.join(", ")}`,
+  ]
+    .filter(Boolean)
+    .join("; ");
+  // One channel is named ("✕ Agoda"); more are counted, the title listing them.
+  const [[only, stop]] = entries;
+  const short =
+    entries.length === 1
+      ? `${stop ? "✕" : "✓"} ${name(only).split(" ")[0]}`
+      : `${entries.length} ch`;
+  return (
+    <span
+      className="mt-0.5 block truncate text-[10px] leading-tight"
+      style={{
+        color: closed.length ? "var(--warn)" : "var(--text-muted)",
+        fontWeight: edited ? 600 : 400,
+      }}
+      title={title}
+    >
+      {short}
+    </span>
+  );
+}
+
+/**
  * One date's cell for a restriction field on a rate plan.
  *
  * An empty cell means nothing is set for that date, so the rate plan's own
  * value from Property Setup still applies; that inherited value is shown as
  * the placeholder so it stays visible without being stored per date.
  */
-function RestrictionCell({ plan, roomId, date, field, edits, stored, onChange }) {
+function RestrictionCell({
+  plan,
+  roomId,
+  date,
+  field,
+  edits,
+  stored,
+  onChange,
+  channelStops = {},
+  editedChannelStops = {},
+}) {
   const key = `${plan.id}|${roomId}|${date}`;
   const patch = edits[key];
   const saved = stored[key];
@@ -2051,11 +2300,17 @@ function RestrictionCell({ plan, roomId, date, field, edits, stored, onChange })
       >
         <input
           type="checkbox"
-          checked={Boolean(value)}
+          // Nothing set for the date follows the room rate's own stop sell,
+          // which is also what Publish sends for it.
+          checked={Boolean(value ?? plan.restrictions?.stopSell)}
           onChange={(e) => onChange(key, field, e.target.checked)}
           className="h-4 w-4 cursor-pointer"
           style={{ accentColor: edited ? "var(--accent)" : undefined }}
-          aria-label={`${plan.label} stop sell on ${date}`}
+          aria-label={`${plan.label} stop sell on ${date}, all channels`}
+        />
+        <ChannelStopNote
+          byChannel={channelStops[key]}
+          edited={Boolean(editedChannelStops[key])}
         />
       </td>
     );

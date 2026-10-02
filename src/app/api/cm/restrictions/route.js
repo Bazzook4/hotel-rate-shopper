@@ -3,6 +3,7 @@ import { getSessionFromRequest } from "@/lib/session";
 import { isSuperAdmin } from "@/lib/permissions";
 import {
   saveDailyRestrictions,
+  saveChannelRestrictions,
   getUserPropertyId,
   recordSyncLog,
 } from "@/lib/database";
@@ -52,7 +53,12 @@ export async function PUT(req) {
 
   // room_type_id rides along on each row, as it does for rates.
   const rows = Array.isArray(body.restrictions) ? body.restrictions : [];
-  if (rows.length === 0) {
+  // Stop sell on single channels: { rate_plan_id, room_type_id, stay_date,
+  // channel, stop_sell }, where a null stop_sell clears the override.
+  const channelRows = Array.isArray(body.channelRestrictions)
+    ? body.channelRestrictions
+    : [];
+  if (rows.length === 0 && channelRows.length === 0) {
     return NextResponse.json(
       { error: "No restrictions supplied" },
       { status: 400 }
@@ -91,10 +97,28 @@ export async function PUT(req) {
     }
   }
 
-  const dates = rows.map((r) => r.stay_date).sort();
+  for (const r of channelRows) {
+    if (!ISO_DATE.test(r.stay_date || "") || !r.rate_plan_id || !r.room_type_id) {
+      return NextResponse.json(
+        { error: "Every channel restriction needs a rate plan, a room and a YYYY-MM-DD date" },
+        { status: 400 }
+      );
+    }
+    if (typeof r.channel !== "string" || !r.channel.trim()) {
+      return NextResponse.json(
+        { error: "Every channel restriction needs a channel" },
+        { status: 400 }
+      );
+    }
+  }
+
+  const dates = [...rows, ...channelRows].map((r) => r.stay_date).sort();
 
   try {
-    const saved = await saveDailyRestrictions(propertyId, rows);
+    const saved = [
+      ...(rows.length ? await saveDailyRestrictions(propertyId, rows) : []),
+      ...(channelRows.length ? await saveChannelRestrictions(propertyId, channelRows) : []),
+    ];
     await recordSyncLog({
       property_id: propertyId,
       kind: "restrictions",
@@ -107,7 +131,7 @@ export async function PUT(req) {
       date_to: dates[dates.length - 1],
       entry_count: saved.length,
       summary: `Saved ${saved.length} restriction${saved.length === 1 ? "" : "s"}`,
-      request: { restrictions: rows },
+      request: { restrictions: rows, channelRestrictions: channelRows },
     });
     return NextResponse.json({ saved: saved.length });
   } catch (err) {
@@ -121,10 +145,10 @@ export async function PUT(req) {
       user_email: session.email,
       date_from: dates[0],
       date_to: dates[dates.length - 1],
-      entry_count: rows.length,
+      entry_count: rows.length + channelRows.length,
       summary: "Saving restrictions failed",
       error: err.message,
-      request: { restrictions: rows },
+      request: { restrictions: rows, channelRestrictions: channelRows },
     });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

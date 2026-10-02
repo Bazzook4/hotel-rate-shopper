@@ -39,7 +39,9 @@ export async function POST(req) {
   }
 
   const { kind, updates, toChannels, propertyId } = body || {};
-  const key = kind === "rates" ? "rates" : "rooms";
+  // Restrictions are per rate plan and go in "rates" entries; only
+  // availability is sent per room type.
+  const key = kind === "inventory" ? "rooms" : "rates";
 
   if (!["rates", "inventory", "restrictions"].includes(kind)) {
     return NextResponse.json(

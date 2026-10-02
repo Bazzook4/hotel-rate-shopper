@@ -54,10 +54,11 @@ export async function resolveChannelManager(session, { propertyId } = {}) {
     allows(activity) {
       if (!connected) return false;
       switch (activity) {
+        // Restrictions are per rate plan and go out on the rates push.
         case "rates":
+        case "restrictions":
           return integration.rates_out === true && partner?.supports_rates_out !== false;
         case "inventory":
-        case "restrictions":
           return (
             integration.inventory_out === true &&
             partner?.supports_inventory_out !== false

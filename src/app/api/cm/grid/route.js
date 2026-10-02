@@ -8,6 +8,7 @@ import {
   getUserPropertyId,
   listDailyRates,
   listDailyRestrictions,
+  listChannelRestrictions,
   listRatePlanRooms,
   getAvailabilityGrid,
 } from "@/lib/database";
@@ -61,6 +62,7 @@ export async function GET(req) {
       integration,
       stored,
       storedRestrictions,
+      channelRows,
       assignments,
       availabilityGrid,
     ] = await Promise.all([
@@ -70,6 +72,9 @@ export async function GET(req) {
         start && end ? listDailyRates(propertyId, start, end).catch(() => []) : [],
         start && end
           ? listDailyRestrictions(propertyId, start, end).catch(() => [])
+          : [],
+        start && end
+          ? listChannelRestrictions(propertyId, start, end).catch(() => [])
           : [],
         // Additive: a property with no assignments yet still loads, and the
         // room_type_id fallback below keeps its grid working.
@@ -104,6 +109,16 @@ export async function GET(req) {
         maxStay: row.max_stay,
         pushed: Boolean(row.pushed_at),
       };
+    }
+
+    // Stop sell on single channels, keyed "<plan>|<room>|<date>" then by
+    // channel slug. Only overrides are listed; a NULL row follows the
+    // all-channels value, so it is left out.
+    const channelStopSell = {};
+    for (const row of channelRows) {
+      if (row.stop_sell === null || row.stop_sell === undefined) continue;
+      const key = `${row.rate_plan_id}|${row.room_type_id}|${row.stay_date}`;
+      (channelStopSell[key] ||= {})[row.channel] = row.stop_sell;
     }
 
     // Stored rates win over the plan's base price, keyed the same way the
@@ -225,6 +240,7 @@ export async function GET(req) {
       rooms,
       dailyRates,
       dailyRestrictions,
+      channelStopSell,
       availability,
       connected: Boolean(integration?.integration?.enabled),
       hotelCode: integration?.integration?.hotel_code || null,

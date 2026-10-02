@@ -1484,6 +1484,64 @@ export async function markRestrictionsPushed(propertyId, rows) {
   }
 }
 
+/**
+ * Per-channel stop sell across a date window (migration 036).
+ *
+ * A property that has not run the migration yet has no table; that reads as
+ * "no channel closures" so the grid keeps working on all-channel values.
+ */
+export async function listChannelRestrictions(propertyId, startDate, endDate) {
+  const { data, error } = await supabase
+    .from('daily_channel_restrictions')
+    .select('rate_plan_id, room_type_id, stay_date, channel, stop_sell, pushed_at')
+    .eq('property_id', propertyId)
+    .gte('stay_date', startDate)
+    .lte('stay_date', endDate);
+
+  if (error) {
+    if (/daily_channel_restrictions/.test(error.message)) return [];
+    throw new Error(`Failed to list channel restrictions: ${error.message}`);
+  }
+  return data || [];
+}
+
+/**
+ * Save per-channel stop sell. Each row is one (plan, room, date, channel);
+ * stop_sell NULL clears the override so the channel follows all channels.
+ */
+export async function saveChannelRestrictions(propertyId, rows) {
+  const clean = (rows || [])
+    .filter((r) => r.rate_plan_id && r.room_type_id && r.stay_date && r.channel)
+    .map((r) => ({
+      property_id: propertyId,
+      rate_plan_id: r.rate_plan_id,
+      room_type_id: r.room_type_id,
+      stay_date: r.stay_date,
+      channel: String(r.channel),
+      stop_sell:
+        r.stop_sell === null || r.stop_sell === undefined ? null : Boolean(r.stop_sell),
+      pushed_at: null,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (clean.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('daily_channel_restrictions')
+    .upsert(clean, { onConflict: 'rate_plan_id,room_type_id,stay_date,channel' })
+    .select();
+
+  if (error) {
+    if (/daily_channel_restrictions/.test(error.message)) {
+      throw new Error(
+        'Channel-specific stop sell needs migration 036_channel_stop_sell.sql to be run in Supabase first.'
+      );
+    }
+    throw new Error(`Failed to save channel restrictions: ${error.message}`);
+  }
+  return data || [];
+}
+
 // ============================================
 // RATE PLAN ROOM ASSIGNMENTS
 // ============================================

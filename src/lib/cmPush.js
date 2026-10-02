@@ -49,7 +49,9 @@ export async function pushToChannelManager({
   propertyId = null,
   toChannels = null,
 }) {
-  const key = kind === "rates" ? "rates" : "rooms";
+  // Restrictions are per rate plan, so they travel in "rates" entries on the
+  // rate restriction push; only availability is per room type.
+  const key = kind === "inventory" ? "rooms" : "rates";
 
   const cm = await resolveChannelManager(session, { propertyId });
   const { client, ready } = cm;
@@ -71,11 +73,19 @@ export async function pushToChannelManager({
   // Keying on the plan alone would let one room's code overwrite another's.
   const roomCodes = {};
   const planCodes = {};
+  // Every partner code a plan carries in a room, one per adult count. A
+  // restriction applies to the plan whatever the adults, so it goes to each.
+  const planCodesByRoom = {};
   for (const row of found?.codeMap || []) {
     if (row.rate_plan_id) {
       planCodes[
         `${row.room_type_id ?? ""}|${row.rate_plan_id}|${row.occupancy ?? 1}`
       ] = row.partner_rateplan_code;
+      if (row.partner_rateplan_code) {
+        (planCodesByRoom[`${row.room_type_id ?? ""}|${row.rate_plan_id}`] ||= []).push(
+          row.partner_rateplan_code
+        );
+      }
     } else if (row.room_type_id) {
       roomCodes[row.room_type_id] = row.partner_room_code;
     }
@@ -98,11 +108,20 @@ export async function pushToChannelManager({
 
   const missing = [];
   const translated = (updates || []).map((u) => {
-    const entries = (u[key] || []).map((entry) => {
+    const entries = (u[key] || []).flatMap((entry) => {
       const roomCode = roomCodes[entry.roomCode] || entry.roomCode;
       if (!roomCodes[entry.roomCode] && found) missing.push(entry.roomCode);
 
-      if (key === "rooms") return { ...entry, roomCode };
+      if (key === "rooms") return [{ ...entry, roomCode }];
+
+      if (kind === "restrictions") {
+        const codes = planCodesByRoom[`${entry.roomCode}|${entry.rateplanCode}`];
+        if (!codes?.length) {
+          if (found) missing.push(entry.rateplanCode);
+          return [{ ...entry, roomCode }];
+        }
+        return [...new Set(codes)].map((rateplanCode) => ({ ...entry, roomCode, rateplanCode }));
+      }
 
       const planKey = `${entry.roomCode}|${entry.rateplanCode}|${entry.occupancy ?? 1}`;
       const rateplanCode = planCodes[planKey] || entry.rateplanCode;
@@ -110,7 +129,7 @@ export async function pushToChannelManager({
 
       // occupancy is ours, not part of the partner payload.
       const { occupancy, ...rest } = entry;
-      return { ...rest, roomCode, rateplanCode };
+      return [{ ...rest, roomCode, rateplanCode }];
     });
     return { ...u, [key]: entries };
   });
@@ -137,7 +156,7 @@ export async function pushToChannelManager({
   // Each activity is enabled separately, so a connection that only sends
   // rates must not be able to push inventory.
   if (ready && !cm.allows(kind)) {
-    const label = kind === "rates" ? "Rates out" : "Inventory out";
+    const label = kind === "inventory" ? "Inventory out" : "Rates out";
     await recordSyncLog({
       ...logBase,
       status: "skipped",
@@ -173,7 +192,19 @@ export async function pushToChannelManager({
     } else if (kind === "inventory") {
       result = await client.pushInventory(translated);
     } else {
-      result = await client.pushInventoryRestrictions(translated, { toChannels });
+      // Aiosell requires the channel list. With none chosen the restriction
+      // is for every channel, so it names every channel that takes rates.
+      if (!toChannels?.length) {
+        const details = await client.getPropertyDetails();
+        toChannels = [
+          ...new Set(
+            (details?.connected_channels || [])
+              .filter((c) => c.operation === "rates" && c.partner_id)
+              .map((c) => c.partner_id)
+          ),
+        ];
+      }
+      result = await client.pushRateRestrictions(translated, { toChannels });
     }
 
     await recordSyncLog({
