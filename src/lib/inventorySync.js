@@ -23,6 +23,7 @@ import {
   nightsBetween,
 } from "@/lib/database";
 import { todayUTC } from "@/lib/date";
+import { runWorkflows } from "@/lib/workflow";
 
 /** How far ahead a capacity change or a full resync reaches. */
 export const FORWARD_DAYS = 365;
@@ -87,20 +88,44 @@ function toRanges(days) {
 }
 
 /**
- * Push the current availability for the nights some changes touched.
+ * Push the current availability for the nights some changes touched, then
+ * check the property's workflow rules over those nights -- a booking that
+ * fills a room type may be what closes it on a channel.
  *
  * `spans` is a list of `{ roomTypeId, from, to }` (both dates are nights, and
  * both are included). An edit passes the stay as it was and as it is now, so
  * the nights it gave up are reopened as well as the new ones closed.
  *
- * Returns `{ status, message }`, where status is one of:
+ * Returns `{ status, message, workflow }`, where status is one of:
  *   sent     the channel manager accepted it
  *   mock     worked out, but the connection is not live, so nothing went
  *   skipped  nothing to send -- past dates only, no mapped room, or the
  *            connection does not carry inventory
  *   failed   the channel manager refused it or could not be reached
+ * and workflow is what the rules did (see runWorkflows), present only when
+ * they changed something.
  */
-export async function syncInventory(propertyId, spans, { session = null, actor = null } = {}) {
+export async function syncInventory(propertyId, spans, options = {}) {
+  const result = await sendInventory(propertyId, spans, options);
+
+  // Every night touched, whatever the room type: a whole-hotel rule reads
+  // the night's total, and a rule on an unmapped room type has nothing to
+  // send but must still not be skipped by an early return above.
+  const nights = (spans || [])
+    .filter((s) => s?.from && s?.to)
+    .flatMap((s) => [s.from, s.to])
+    .sort();
+  if (nights.length) {
+    const workflow = await runWorkflows(propertyId, {
+      from: nights[0],
+      to: nights[nights.length - 1],
+    });
+    if (workflow.status !== "none") result.workflow = workflow;
+  }
+  return result;
+}
+
+async function sendInventory(propertyId, spans, { session = null, actor = null } = {}) {
   try {
     const today = todayUTC();
     const wanted = new Map(); // roomTypeId -> Set of nights

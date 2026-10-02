@@ -20,6 +20,7 @@ const TABS = [
   { id: "inventory", label: "Inventory", kinds: ["inventory"] },
   { id: "restrictions", label: "Restrictions", kinds: ["restrictions"] },
   { id: "reservation", label: "Reservations", kinds: ["reservation"] },
+  { id: "workflow", label: "Workflow", kinds: ["workflow"] },
 ];
 
 const KIND_LABELS = {
@@ -28,6 +29,7 @@ const KIND_LABELS = {
   restrictions: "Restrictions",
   multiplier: "Channel multiplier",
   reservation: "Reservation",
+  workflow: "Workflow rule",
 };
 
 const STATUS_CHIP = {

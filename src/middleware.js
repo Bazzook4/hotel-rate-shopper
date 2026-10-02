@@ -7,6 +7,8 @@ const PUBLIC_PATHS = new Set([
   "/onboard",
   "/api/auth/login",
   "/api/auth/logout",
+  // Vercel's daily cron has no session; the route checks CRON_SECRET itself.
+  "/api/workflow/cron",
 ]);
 
 export async function middleware(request) {

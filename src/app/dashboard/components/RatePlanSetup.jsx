@@ -521,7 +521,7 @@ function StayRules({ min, max, release, stopSell, own = {} }) {
  * viewport: inside the grid it would be clipped by the sideways scroll, and
  * the sticky name cells below it would paint over it.
  */
-function RowMenu({ title, items }) {
+export function RowMenu({ title, items }) {
   const [at, setAt] = useState(null);
   const [sub, setSub] = useState(null);
   const btn = useRef(null);
@@ -636,7 +636,7 @@ function RowMenu({ title, items }) {
 /* Drawer and its fields                                                */
 /* ------------------------------------------------------------------ */
 
-function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", busy, error, children }) {
+export function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", busy, error, children }) {
   useEffect(() => {
     const esc = (e) => e.key === "Escape" && onCancel();
     document.addEventListener("keydown", esc);
@@ -684,7 +684,7 @@ function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", busy, e
   );
 }
 
-function Section({ title, children }) {
+export function Section({ title, children }) {
   return (
     <section className="space-y-3" style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
       <h4 className="text-xs font-semibold uppercase tracking-wide muted">{title}</h4>
@@ -693,7 +693,7 @@ function Section({ title, children }) {
   );
 }
 
-function Field({ label, hint, children }) {
+export function Field({ label, hint, children }) {
   return (
     <label className="block">
       <span className="label">{label}</span>

@@ -138,7 +138,7 @@ const EVERYONE_PAGES = new Set(["today"]);
  * they are the agreed shape of the product -- but are marked so the UI can
  * label them rather than letting a user think the page is broken.
  */
-export const PLACEHOLDER_PAGES = new Set(["workflow"]);
+export const PLACEHOLDER_PAGES = new Set([]);
 
 /** Pages a right can be given for, in navigation order. */
 export const GRANTABLE_MODULES = MODULES.filter(

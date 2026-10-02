@@ -56,6 +56,10 @@ const ActivityLog = dynamic(() => import("./dashboard/components/ActivityLog"), 
   ssr: false,
   loading: PageLoading,
 });
+const Workflow = dynamic(() => import("./dashboard/components/Workflow"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const RateParity = dynamic(() => import("./dashboard/components/RateParity"), {
   ssr: false,
   loading: PageLoading,
@@ -112,34 +116,6 @@ const UserRights = dynamic(() => import("./dashboard/components/UserRights"), {
   ssr: false,
   loading: PageLoading,
 });
-
-/**
- * A page that is agreed but not yet built.
- *
- * Shown instead of leaving the nav item inert, so it is clear the page is
- * planned rather than broken.
- */
-function ComingSoon({ title, children }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="h1">{title}</h2>
-      </div>
-      <div className="card card-pad text-center" style={{ padding: "48px 24px" }}>
-        <span
-          className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full"
-          style={{ background: "var(--surface-2)", color: "var(--text-faint)" }}
-        >
-          <Icon name="info" />
-        </span>
-        <p className="text-sm font-medium" style={{ color: "var(--text)" }}>
-          Not built yet
-        </p>
-        <p className="sub mx-auto mt-1 max-w-[420px]">{children}</p>
-      </div>
-    </div>
-  );
-}
 
 // Where the header remembers the chosen property across a refresh.
 const PROPERTY_KEY = "hms.propertyId";
@@ -674,12 +650,7 @@ export default function V2Dashboard() {
 
                   {active === "housekeeping" && <Housekeeping session={scopedSession} />}
 
-                  {active === "workflow" && (
-                    <ComingSoon title="Workflow">
-                      Automations across distribution — rules that act on rates and
-                      inventory without manual steps.
-                    </ComingSoon>
-                  )}
+                  {active === "workflow" && <Workflow session={scopedSession} />}
 
                   {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
 

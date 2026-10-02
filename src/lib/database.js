@@ -1493,7 +1493,9 @@ export async function markRestrictionsPushed(propertyId, rows) {
 export async function listChannelRestrictions(propertyId, startDate, endDate) {
   const { data, error } = await supabase
     .from('daily_channel_restrictions')
-    .select('rate_plan_id, room_type_id, stay_date, channel, stop_sell, pushed_at')
+    // Every column, so set_by_rule_id (migration 037) comes back once it
+    // exists and its absence before then is no error.
+    .select('*')
     .eq('property_id', propertyId)
     .gte('stay_date', startDate)
     .lte('stay_date', endDate);
@@ -1508,6 +1510,9 @@ export async function listChannelRestrictions(propertyId, startDate, endDate) {
 /**
  * Save per-channel stop sell. Each row is one (plan, room, date, channel);
  * stop_sell NULL clears the override so the channel follows all channels.
+ *
+ * set_by_rule_id names the workflow rule that set the row. A person's edit
+ * passes none, which takes the row over: no rule changes it after that.
  */
 export async function saveChannelRestrictions(propertyId, rows) {
   const clean = (rows || [])
@@ -1520,16 +1525,29 @@ export async function saveChannelRestrictions(propertyId, rows) {
       channel: String(r.channel),
       stop_sell:
         r.stop_sell === null || r.stop_sell === undefined ? null : Boolean(r.stop_sell),
+      set_by_rule_id: r.set_by_rule_id || null,
       pushed_at: null,
       updated_at: new Date().toISOString(),
     }));
 
   if (clean.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from('daily_channel_restrictions')
-    .upsert(clean, { onConflict: 'rate_plan_id,room_type_id,stay_date,channel' })
-    .select();
+  const upsert = (list) =>
+    supabase
+      .from('daily_channel_restrictions')
+      .upsert(list, { onConflict: 'rate_plan_id,room_type_id,stay_date,channel' })
+      .select();
+
+  let { data, error } = await upsert(clean);
+
+  // Before migration 037 there is no rule column. A person's edit still
+  // saves; a rule's cannot, since it must be able to tell its rows apart.
+  if (error && /set_by_rule_id/.test(error.message)) {
+    if (clean.some((r) => r.set_by_rule_id)) {
+      throw new Error('Workflow rules need migration 037_workflow_rules.sql to be run in Supabase first.');
+    }
+    ({ data, error } = await upsert(clean.map(({ set_by_rule_id, ...rest }) => rest)));
+  }
 
   if (error) {
     if (/daily_channel_restrictions/.test(error.message)) {
@@ -1540,6 +1558,108 @@ export async function saveChannelRestrictions(propertyId, rows) {
     throw new Error(`Failed to save channel restrictions: ${error.message}`);
   }
   return data || [];
+}
+
+// ============================================
+// WORKFLOW RULES
+// ============================================
+
+const WORKFLOW_FIELDS = [
+  'name',
+  'enabled',
+  'room_type_id',
+  'metric',
+  'threshold',
+  'action',
+  'channels',
+  'rate_plan_ids',
+  'within_days',
+];
+
+function missingWorkflowTable(error) {
+  return /workflow_rules/.test(error?.message || '');
+}
+
+/**
+ * A property's workflow rules, oldest first -- the order in which they claim
+ * a channel when two want the same night closed.
+ *
+ * Before migration 037 there is no table, which reads as "no rules", so
+ * nothing that checks rules on every booking breaks.
+ */
+export async function listWorkflowRules(propertyId) {
+  const { data, error } = await supabase
+    .from('workflow_rules')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    if (missingWorkflowTable(error)) return [];
+    throw new Error(`Failed to list workflow rules: ${error.message}`);
+  }
+  return data || [];
+}
+
+/** Every property with at least one rule switched on, for the daily run. */
+export async function listPropertiesWithWorkflows() {
+  const { data, error } = await supabase
+    .from('workflow_rules')
+    .select('property_id')
+    .eq('enabled', true);
+
+  if (error) {
+    if (missingWorkflowTable(error)) return [];
+    throw new Error(`Failed to list workflow properties: ${error.message}`);
+  }
+  return [...new Set((data || []).map((r) => r.property_id))];
+}
+
+export async function getWorkflowRule(id) {
+  const { data, error } = await supabase
+    .from('workflow_rules')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw new Error(`Failed to read workflow rule: ${error.message}`);
+  return data;
+}
+
+/** Create a rule, or update one when `rule.id` is given. */
+export async function saveWorkflowRule(propertyId, rule, userId = null) {
+  const row = {};
+  for (const f of WORKFLOW_FIELDS) if (f in rule) row[f] = rule[f];
+  row.updated_at = new Date().toISOString();
+
+  const query = rule.id
+    ? supabase
+        .from('workflow_rules')
+        .update(row)
+        .eq('id', rule.id)
+        .eq('property_id', propertyId)
+    : supabase
+        .from('workflow_rules')
+        .insert({ ...row, property_id: propertyId, created_by: UUID_RE.test(userId || '') ? userId : null });
+
+  const { data, error } = await query.select().single();
+  if (error) {
+    if (missingWorkflowTable(error)) {
+      throw new Error('Workflow rules need migration 037_workflow_rules.sql to be run in Supabase first.');
+    }
+    throw new Error(`Failed to save workflow rule: ${error.message}`);
+  }
+  return data;
+}
+
+export async function deleteWorkflowRule(propertyId, id) {
+  const { error } = await supabase
+    .from('workflow_rules')
+    .delete()
+    .eq('id', id)
+    .eq('property_id', propertyId);
+
+  if (error) throw new Error(`Failed to delete workflow rule: ${error.message}`);
 }
 
 // ============================================
