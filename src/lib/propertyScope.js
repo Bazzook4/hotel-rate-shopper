@@ -12,15 +12,24 @@ import { effectiveModules } from "@/lib/rights";
  * rights from sign-in for a week: taking a page away must take effect now.
  */
 export async function moduleDeniedResponse(session, moduleId) {
-  const user = await getUserById(session?.userId).catch(() => null);
-  const own = user && !isSuperAdmin(user) ? await getUserPropertyId(user.id).catch(() => null) : null;
-  const rights = await effectiveModules(user, own).catch(() => []);
+  const { rights } = await sessionRights(session);
   const wanted = Array.isArray(moduleId) ? moduleId : [moduleId];
   if (wanted.some((id) => rights.includes(id))) return null;
   return NextResponse.json(
     { error: "This feature is not enabled for your account." },
     { status: 403 }
   );
+}
+
+/**
+ * The signed-in user and the pages they may use right now, for a route that
+ * shows several pages' worth of data and must leave out what is switched off.
+ */
+export async function sessionRights(session) {
+  const user = await getUserById(session?.userId).catch(() => null);
+  const own = user && !isSuperAdmin(user) ? await getUserPropertyId(user.id).catch(() => null) : null;
+  const rights = await effectiveModules(user, own).catch(() => []);
+  return { user, rights };
 }
 
 /**

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { useToast } from "../../components/Toast";
 import {
   TAX_BASES,
   TAX_SCOPES,
@@ -90,6 +91,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);
+  const toast = useToast();
 
   const today = todayUTC();
   const roomService = services.find((s) => s.is_room) || null;
@@ -169,22 +171,27 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
     });
   }
 
-  /** Stop a rule after last night: it keeps covering the nights before today. */
-  function end(tax) {
+  /**
+   * Stop a rule after last night: it keeps covering the nights before today.
+   * Done at once with an Undo, which puts back the end date it had.
+   */
+  async function end(tax) {
     const lastNight = shift(today, -1);
-    if (
-      !window.confirm(
-        `End “${tax.name}”? It stays on nights up to ${lastNight} and stops from ${today}.`
-      )
-    ) {
-      return;
-    }
-    immediate(() =>
-      sendJSON("/api/pms/taxes", "POST", {
+    let ok = false;
+    await immediate(async () => {
+      await sendJSON("/api/pms/taxes", "POST", {
         rules: [{ ...tax, valid_to: lastNight }],
         property_id: propertyId,
-      })
-    );
+      });
+      ok = true;
+    });
+    if (!ok) return;
+    toast(`“${tax.name}” ended: charged up to ${lastNight}, not from ${today}`, {
+      undo: async () => {
+        await sendJSON("/api/pms/taxes", "POST", { rules: [tax], property_id: propertyId });
+        await onChanged();
+      },
+    });
   }
 
   function addGst() {

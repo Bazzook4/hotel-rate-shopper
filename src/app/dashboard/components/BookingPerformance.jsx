@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import Icon from "../../components/Icon";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { Change } from "./reportKit";
 
 /**
  * Booking performance: what the reservations in the PMS add up to.
@@ -170,31 +171,6 @@ function kpiDefs(money) {
     { key: "cancellationRate", label: "Cancellation rate", fmt: (v) => (v == null ? "–" : `${one.format(v)}%`), better: "down", points: true },
     { key: "lostRevenue", label: "Revenue lost to cancellations", fmt: money, better: "down" },
   ];
-}
-
-function Change({ now, before, better, points }) {
-  if (now == null || before == null) return <span className="chip chip-off">no comparison</span>;
-  const diff = now - before;
-  let text;
-  if (points) {
-    text = `${diff >= 0 ? "+" : ""}${one.format(diff)} pts`;
-  } else if (before === 0) {
-    if (now === 0) return <span className="chip chip-off">no change</span>;
-    return <span className="chip chip-off">new</span>;
-  } else {
-    const pct = (diff / Math.abs(before)) * 100;
-    text = `${pct >= 0 ? "+" : ""}${one.format(pct)}%`;
-  }
-  if (Math.abs(diff) < 1e-9) return <span className="chip chip-off">no change</span>;
-  const up = diff > 0;
-  const good = better === null ? null : (better === "up") === up;
-  const tone = good === null ? "chip-off" : good ? "chip-ok" : "chip-warn";
-  // The arrow carries the direction, so the tint is never the only signal.
-  return (
-    <span className={`chip ${tone}`}>
-      {up ? "↑" : "↓"} {text}
-    </span>
-  );
 }
 
 function KpiGrid({ report, money }) {

@@ -14,6 +14,11 @@
 
 export const AREAS = [
   {
+    id: "home",
+    label: "Home",
+    pages: [{ id: "today", label: "Today", icon: "home" }],
+  },
+  {
     id: "frontoffice",
     label: "Front Office",
     pages: [
@@ -39,9 +44,17 @@ export const AREAS = [
       { id: "parity", label: "Rate Parity", icon: "compass" },
       { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
       { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
+    ],
+  },
+  {
+    // Looking back at what happened, apart from Insights, which looks at the
+    // market to decide what to charge next.
+    id: "reports",
+    label: "Reports",
+    pages: [
       { id: "performance", label: "Booking Performance", icon: "trend" },
       { id: "nightaudit", label: "Night Audit", icon: "moon" },
-      { id: "invoicing", label: "Invoicing", icon: "list" },
+      { id: "invoicing", label: "Invoicing", icon: "file" },
       { id: "payments", label: "Payments", icon: "money" },
     ],
   },
@@ -114,6 +127,13 @@ export const SETUP_PAGES = new Set([
 const ADMIN_PAGES = new Set(["users"]);
 
 /**
+ * Pages everyone with any access has. The home page is a summary of the other
+ * pages, each part shown only to whoever holds the page it summarises, so it
+ * grants nothing of its own and is never ticked.
+ */
+const EVERYONE_PAGES = new Set(["today"]);
+
+/**
  * Pages with no implementation yet. They stay in the navigation on purpose --
  * they are the agreed shape of the product -- but are marked so the UI can
  * label them rather than letting a user think the page is broken.
@@ -122,7 +142,7 @@ export const PLACEHOLDER_PAGES = new Set(["workflow"]);
 
 /** Pages a right can be given for, in navigation order. */
 export const GRANTABLE_MODULES = MODULES.filter(
-  (m) => !ADMIN_PAGES.has(m.id) && !PLACEHOLDER_PAGES.has(m.id)
+  (m) => !ADMIN_PAGES.has(m.id) && !PLACEHOLDER_PAGES.has(m.id) && !EVERYONE_PAGES.has(m.id)
 );
 
 /**
@@ -138,8 +158,9 @@ export function visibleAreas(session) {
   const canUsers = session?.canManageUsers === true;
   const effective = new Set(normaliseGrants(session?.modules));
 
-  return AREAS.map((area) => {
+  const areas = AREAS.map((area) => {
     const pages = area.pages.filter((p) => {
+      if (EVERYONE_PAGES.has(p.id)) return true;
       if (ADMIN_PAGES.has(p.id)) return canUsers;
       if (SETUP_PAGES.has(p.id) && !canSetup) return false;
       if (PLACEHOLDER_PAGES.has(p.id)) return true;
@@ -147,6 +168,16 @@ export function visibleAreas(session) {
     });
     return { ...area, pages };
   }).filter((a) => a.pages.some((p) => !PLACEHOLDER_PAGES.has(p.id)));
+
+  // A home page with nothing behind it would summarise nothing, so someone
+  // given no pages still sees the "ask your admin" message instead.
+  const real = areas.some((a) => a.pages.some((p) => !EVERYONE_PAGES.has(p.id) && !PLACEHOLDER_PAGES.has(p.id)));
+  return real ? areas : [];
+}
+
+/** Whether a page is in the visible areas, so a link to it can be offered. */
+export function canOpenPage(areas, pageId) {
+  return areas.some((a) => a.pages.some((p) => p.id === pageId));
 }
 
 /** The area containing a page id, for restoring the top bar from `active`. */

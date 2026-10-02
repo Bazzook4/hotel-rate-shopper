@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { visibleAreas, areaForPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
+import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
 import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
 import Icon from "./components/Icon";
+import { ToastProvider } from "./components/Toast";
+import CommandPalette from "./dashboard/components/CommandPalette";
 
 /**
  * Each page is fetched the first time it is opened, not with the dashboard.
@@ -17,16 +19,27 @@ import Icon from "./components/Icon";
  * fetched a page is cached, so returning to it is immediate.
  */
 function PageLoading() {
+  // The outline of a page -- a title, then a card -- rather than a spinner,
+  // so the page settles into place instead of jumping in.
   return (
-    <div className="flex items-center justify-center py-20">
-      <div
-        className="inline-block h-7 w-7 animate-spin rounded-full border-2"
-        style={{ borderColor: "var(--border)", borderTopColor: "var(--accent)" }}
-      />
+    <div className="space-y-4" aria-busy="true" aria-label="Loading">
+      <div className="space-y-2">
+        <div className="skeleton" style={{ height: 24, width: 220 }} />
+        <div className="skeleton" style={{ height: 14, width: 320, maxWidth: "80%" }} />
+      </div>
+      <div className="card card-pad space-y-3">
+        {[90, 75, 85, 60].map((w, i) => (
+          <div key={i} className="skeleton" style={{ height: 16, width: `${w}%` }} />
+        ))}
+      </div>
     </div>
   );
 }
 
+const TodayPage = dynamic(() => import("./dashboard/components/TodayPage"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const ChannelManager = dynamic(() => import("./dashboard/components/ChannelManager"), {
   ssr: false,
   loading: PageLoading,
@@ -145,6 +158,13 @@ export default function V2Dashboard() {
   // a page. Separate from `railOpen`, so collapsing the rail on a desktop is
   // not undone by visiting on a phone, nor the other way round.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  // The shortcut as this keyboard writes it. Read after mounting: the page is
+  // prerendered, and the server cannot know what the visitor types on.
+  const [shortcut, setShortcut] = useState("Ctrl K");
+  useEffect(() => {
+    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "")) setShortcut("⌘K");
+  }, []);
   // The property every page works against. A super admin switches it here in
   // the header rather than inside each page, so there is one answer to "which
   // property am I changing" wherever they are.
@@ -281,10 +301,26 @@ export default function V2Dashboard() {
     return () => wide.removeEventListener("change", onChange);
   }, []);
 
+  // Ctrl+K (⌘K on a Mac) opens the palette from anywhere, even from inside a
+  // field -- it is the browser's own shortcut for its search bar otherwise,
+  // which is no use inside the app.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function openPage(id) {
     setActive(id);
     setDrawerOpen(false);
   }
+
+  const canOpen = (id) => canOpenPage(areas, id);
 
   // The drawer lists every area's pages, so a phone reaches any page in two
   // taps rather than choosing an area first and then opening the drawer. The
@@ -295,320 +331,356 @@ export default function V2Dashboard() {
   const pageLabel = currentArea?.pages.find((p) => p.id === active)?.label || "";
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--page)" }}>
-      {/* Row 1 — brand, property, account */}
-      <header
-        className="sticky top-0 z-30 flex h-[46px] items-center justify-between gap-2 px-3 md:px-4"
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <div className="flex flex-shrink-0 items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open menu"
-            className="-ml-1 flex h-9 w-9 items-center justify-center rounded md:hidden"
-            style={{ color: "var(--text)" }}
-          >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-              <path d="M3 5h12M3 9h12M3 13h12" />
-            </svg>
-          </button>
-          <span
-            className="flex h-[22px] w-[22px] items-center justify-center rounded text-[10px] font-bold"
-            style={{ background: "var(--accent)", color: "#fff" }}
-          >
-            OH
-          </span>
-          <span className="hidden text-sm font-semibold sm:inline" style={{ color: "var(--text)" }}>
-            HMS<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> · Online Hotelier</span>
-          </span>
-        </div>
-
-        <div className="flex min-w-0 items-center gap-1">
-          {/* A super admin picks the property; everyone else sees theirs named.
-              Either way this is the one place it is set. */}
-          {session?.canSwitchProperties && properties.length > 1 ? (
-            <select
-              value={propertyId}
-              onChange={(e) => setPropertyId(e.target.value)}
-              aria-label="Property"
-              className="mr-2 min-w-0 max-w-[38vw] truncate rounded px-2 py-1 text-sm md:max-w-none"
-              style={{
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            >
-              {properties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            scopedSession?.propertyName && (
-              <span className="mr-2 min-w-0 truncate text-sm" style={{ color: "var(--text-muted)" }}>
-                {scopedSession.propertyName}
-              </span>
-            )
-          )}
-          <Link
-            href="/admin"
-            className="flex-shrink-0 rounded px-2 py-1 text-xs transition hover:opacity-70"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Admin
-          </Link>
-          <ThemeToggle />
-          <LogoutButton className="whitespace-nowrap" />
-        </div>
-      </header>
-
-      {/* Row 2 — areas */}
-      <nav
-        className="no-scrollbar sticky top-[46px] z-20 flex items-center gap-1 overflow-x-auto whitespace-nowrap px-2 md:px-4"
-        style={{
-          background: "var(--surface)",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        {areas.map((area) => {
-          const on = currentArea?.id === area.id;
-          return (
-            <button
-              key={area.id}
-              type="button"
-              // Entering an area opens its first page, so a tab click always
-              // lands somewhere rather than leaving the content blank.
-              onClick={() => openPage(area.pages[0].id)}
-              className="relative flex-shrink-0 px-3 py-2.5 text-[13px] transition"
-              style={{
-                color: on ? "var(--accent-text)" : "var(--text-muted)",
-                fontWeight: on ? 600 : 500,
-              }}
-            >
-              {area.label}
-              {on && (
-                <span
-                  className="absolute inset-x-2 bottom-0 h-[2px] rounded-t"
-                  style={{ background: "var(--accent)" }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className="flex">
-        {/* Backdrop behind the drawer on a phone; a tap outside closes it. */}
-        {drawerOpen && (
-          <div
-            className="fixed inset-0 z-40 md:hidden"
-            style={{ background: "rgba(0, 0, 0, 0.4)" }}
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden
-          />
-        )}
-
-        {/* Sidebar — the pages of the open area. A rail beside the page from
-            tablet width up; below that, a drawer that slides in over it. */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 overflow-y-auto transition-all md:sticky md:top-[84px] md:z-auto md:h-[calc(100vh-84px)] md:translate-x-0 ${
-            drawerOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+    <ToastProvider>
+      <main className="min-h-screen" style={{ background: "var(--page)" }}>
+        {/* Row 1 — brand, property, account */}
+        <header
+          className="sticky top-0 z-30 flex h-[46px] items-center justify-between gap-2 px-3 md:px-4"
           style={{
-            width: expanded ? (drawerOpen ? 256 : 208) : 44,
             background: "var(--surface)",
-            borderRight: "1px solid var(--border)",
+            borderBottom: "1px solid var(--border)",
           }}
-          aria-label="Pages"
         >
-          <div className="flex items-center justify-between px-2 py-2">
-            {/* The drawer's own close button, where the rail has its collapse. */}
-            <span className="px-2 text-sm font-semibold md:hidden" style={{ color: "var(--text)" }}>
-              Menu
-            </span>
+          <div className="flex flex-shrink-0 items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close menu"
-              className="flex h-9 w-9 items-center justify-center rounded text-lg md:hidden"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open menu"
+              className="-ml-1 flex h-9 w-9 items-center justify-center rounded md:hidden"
+              style={{ color: "var(--text)" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                <path d="M3 5h12M3 9h12M3 13h12" />
+              </svg>
+            </button>
+            <span
+              className="flex h-[22px] w-[22px] items-center justify-center rounded text-[10px] font-bold"
+              style={{ background: "var(--accent)", color: "#fff" }}
+            >
+              OH
+            </span>
+            <span className="hidden text-sm font-semibold sm:inline" style={{ color: "var(--text)" }}>
+              HMS<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> · Online Hotelier</span>
+            </span>
+          </div>
+
+          <div className="flex min-w-0 items-center gap-1">
+            {/* The palette's visible door, so the shortcut can be found by
+                looking rather than only by knowing it. */}
+            {areas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPaletteOpen(true)}
+                className="mr-2 flex flex-shrink-0 items-center gap-2 rounded px-2 py-1 text-sm transition hover:opacity-80"
+                style={{
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-muted)",
+                }}
+                aria-label="Search pages and bookings"
+                title={`Search pages and bookings (${shortcut})`}
+              >
+                <Icon name="search" size={16} />
+                <span className="hidden lg:inline">Search</span>
+                <span className="kbd hidden md:inline-block">{shortcut}</span>
+              </button>
+            )}
+            {/* A super admin picks the property; everyone else sees theirs named.
+                Either way this is the one place it is set. */}
+            {session?.canSwitchProperties && properties.length > 1 ? (
+              <select
+                value={propertyId}
+                onChange={(e) => setPropertyId(e.target.value)}
+                aria-label="Property"
+                className="mr-2 min-w-0 max-w-[38vw] truncate rounded px-2 py-1 text-sm md:max-w-none md:flex-shrink-0"
+                style={{
+                  background: "var(--surface-2)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                }}
+              >
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              scopedSession?.propertyName && (
+                <span className="mr-2 min-w-0 truncate text-sm" style={{ color: "var(--text-muted)" }}>
+                  {scopedSession.propertyName}
+                </span>
+              )
+            )}
+            <Link
+              href="/admin"
+              className="flex-shrink-0 rounded px-2 py-1 text-xs transition hover:opacity-70"
               style={{ color: "var(--text-muted)" }}
             >
-              ×
-            </button>
-            <button
-              type="button"
-              onClick={() => setRailOpen((v) => !v)}
-              aria-label={railOpen ? "Collapse menu" : "Expand menu"}
-              title={railOpen ? "Collapse menu" : "Expand menu"}
-              className="ml-auto hidden rounded px-1.5 py-1 text-xs transition hover:opacity-70 md:block"
-              style={{ color: "var(--text-faint)" }}
-            >
-              {railOpen ? "«" : "»"}
-            </button>
+              Admin
+            </Link>
+            <ThemeToggle />
+            <LogoutButton className="whitespace-nowrap" />
           </div>
+        </header>
 
-          <nav className="flex flex-col gap-0.5 px-2 pb-4">
-            {railAreas.map((area, i) => (
-              <div key={area.id} className={`flex flex-col gap-0.5 ${i > 0 ? "mt-3" : ""}`}>
-                {expanded && (
-                  <p
-                    className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--text-faint)" }}
-                  >
-                    {area.label}
-                  </p>
-                )}
-
-                {area.pages.map((page) => {
-                  const on = active === page.id;
-                  const soon = PLACEHOLDER_PAGES.has(page.id);
-                  return (
-                    <button
-                      key={page.id}
-                      type="button"
-                      onClick={() => openPage(page.id)}
-                      title={expanded ? undefined : page.label}
-                      className={`flex items-center gap-2.5 rounded px-2 text-left text-[13px] transition ${
-                        drawerOpen ? "py-2.5" : "py-[7px]"
-                      }`}
-                      style={{
-                        background: on ? "var(--accent-soft)" : "transparent",
-                        color: on ? "var(--accent-text)" : "var(--text-muted)",
-                        fontWeight: on ? 600 : 500,
-                      }}
-                    >
-                      <span className="flex-shrink-0">
-                        <Icon name={page.icon} />
-                      </span>
-                      {expanded && (
-                        <>
-                          <span className="flex-1 truncate">{page.label}</span>
-                          {soon && (
-                            <span
-                              className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
-                              style={{
-                                background: "var(--surface-2)",
-                                color: "var(--text-faint)",
-                              }}
-                            >
-                              Soon
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Content */}
-        <section className="min-w-0 flex-1">
-          <div className="mx-auto max-w-[1400px] p-3 sm:p-4 md:p-6">
-            {sessionLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="space-y-3 text-center">
-                  <div
-                    className="inline-block h-7 w-7 animate-spin rounded-full border-2"
-                    style={{
-                      borderColor: "var(--border)",
-                      borderTopColor: "var(--accent)",
-                    }}
+        {/* Row 2 — areas */}
+        <nav
+          className="no-scrollbar sticky top-[46px] z-20 flex items-center gap-1 overflow-x-auto whitespace-nowrap px-2 md:px-4"
+          style={{
+            background: "var(--surface)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          {areas.map((area) => {
+            const on = currentArea?.id === area.id;
+            return (
+              <button
+                key={area.id}
+                type="button"
+                // Entering an area opens its first page, so a tab click always
+                // lands somewhere rather than leaving the content blank.
+                onClick={() => openPage(area.pages[0].id)}
+                className="relative flex-shrink-0 px-3 py-2.5 text-[13px] transition"
+                style={{
+                  color: on ? "var(--accent-text)" : "var(--text-muted)",
+                  fontWeight: on ? 600 : 500,
+                }}
+              >
+                {area.label}
+                {on && (
+                  <span
+                    className="absolute inset-x-2 bottom-0 h-[2px] rounded-t"
+                    style={{ background: "var(--accent)" }}
                   />
-                  <p className="sub">Loading dashboard…</p>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex">
+          {/* Backdrop behind the drawer on a phone; a tap outside closes it. */}
+          {drawerOpen && (
+            <div
+              className="fixed inset-0 z-40 md:hidden"
+              style={{ background: "rgba(0, 0, 0, 0.4)" }}
+              onClick={() => setDrawerOpen(false)}
+              aria-hidden
+            />
+          )}
+
+          {/* Sidebar — the pages of the open area. A rail beside the page from
+              tablet width up; below that, a drawer that slides in over it. */}
+          <aside
+            className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 overflow-y-auto transition-all md:sticky md:top-[84px] md:z-auto md:h-[calc(100vh-84px)] md:translate-x-0 ${
+              drawerOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+            style={{
+              width: expanded ? (drawerOpen ? 256 : 208) : 44,
+              background: "var(--surface)",
+              borderRight: "1px solid var(--border)",
+            }}
+            aria-label="Pages"
+          >
+            <div className="flex items-center justify-between px-2 py-2">
+              {/* The drawer's own close button, where the rail has its collapse. */}
+              <span className="px-2 text-sm font-semibold md:hidden" style={{ color: "var(--text)" }}>
+                Menu
+              </span>
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                aria-label="Close menu"
+                className="flex h-9 w-9 items-center justify-center rounded text-lg md:hidden"
+                style={{ color: "var(--text-muted)" }}
+              >
+                ×
+              </button>
+              <button
+                type="button"
+                onClick={() => setRailOpen((v) => !v)}
+                aria-label={railOpen ? "Collapse menu" : "Expand menu"}
+                title={railOpen ? "Collapse menu" : "Expand menu"}
+                className="ml-auto hidden rounded px-1.5 py-1 text-xs transition hover:opacity-70 md:block"
+                style={{ color: "var(--text-faint)" }}
+              >
+                {railOpen ? "«" : "»"}
+              </button>
+            </div>
+
+            <nav className="flex flex-col gap-0.5 px-2 pb-4">
+              {railAreas.map((area, i) => (
+                <div key={area.id} className={`flex flex-col gap-0.5 ${i > 0 ? "mt-3" : ""}`}>
+                  {expanded && (
+                    <p
+                      className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider"
+                      style={{ color: "var(--text-faint)" }}
+                    >
+                      {area.label}
+                    </p>
+                  )}
+
+                  {area.pages.map((page) => {
+                    const on = active === page.id;
+                    const soon = PLACEHOLDER_PAGES.has(page.id);
+                    return (
+                      <button
+                        key={page.id}
+                        type="button"
+                        onClick={() => openPage(page.id)}
+                        title={expanded ? undefined : page.label}
+                        className={`flex items-center gap-2.5 rounded px-2 text-left text-[13px] transition ${
+                          drawerOpen ? "py-2.5" : "py-[7px]"
+                        }`}
+                        style={{
+                          background: on ? "var(--accent-soft)" : "transparent",
+                          color: on ? "var(--accent-text)" : "var(--text-muted)",
+                          fontWeight: on ? 600 : 500,
+                        }}
+                      >
+                        <span className="flex-shrink-0">
+                          <Icon name={page.icon} />
+                        </span>
+                        {expanded && (
+                          <>
+                            <span className="flex-1 truncate">{page.label}</span>
+                            {soon && (
+                              <span
+                                className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
+                                style={{
+                                  background: "var(--surface-2)",
+                                  color: "var(--text-faint)",
+                                }}
+                              >
+                                Soon
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-            ) : !areas.length ? (
-              <div className="card card-pad sub">
-                No pages have been given to your account yet. Ask your property admin for access.
-              </div>
-            ) : (
-              <>
-                {/* Keyed by property so a switch starts the grid afresh:
-                    an unsaved edit must never publish to another hotel. */}
-                {active === "cm" && (
-                  <ChannelManager key={scopedSession?.propertyId || ""} session={scopedSession} />
-                )}
+              ))}
+            </nav>
+          </aside>
 
-                {active === "integrations" && <Integrations session={scopedSession} />}
-
-                {active === "logs" && <ActivityLog session={scopedSession} />}
-
-                {active === "parity" && <RateParity session={scopedSession} />}
-
-                {active === "pricing" && <DynamicPricingGrid session={scopedSession} />}
-
-                {active === "performance" && <BookingPerformance session={scopedSession} />}
-
-                {active === "nightaudit" && <NightAudit session={scopedSession} />}
-
-                {active === "invoicing" && <InvoicingReport session={scopedSession} />}
-
-                {active === "payments" && <PaymentsReport session={scopedSession} />}
-
-                {/* Rooms and rate plans are separate pages; the component
-                    renders one panel or the other. */}
-                {active === "rooms" && (
-                  <PropertySetup session={scopedSession} only="rooms" />
-                )}
-
-                {active === "pmssetup" && <RoomInventory session={scopedSession} />}
-
-                {active === "servicesetup" && (
-                  <BillingSetup session={scopedSession} only="services" />
-                )}
-
-                {active === "taxsetup" && <BillingSetup session={scopedSession} only="taxes" />}
-
-                {active === "rateplans" && (
-                  <PropertySetup session={scopedSession} only="plans" />
-                )}
-
-                {active === "setup" && (
-                  <div className="space-y-4">
-                    <div>
-                      <h2 className="h1">Property Setup</h2>
-                      <p className="sub">
-                        Property details — address, contact, policies and amenities — will
-                        be fed from the PMS rather than entered here. The Google listing is
-                        set here because only the hotelier knows which listing is theirs.
-                      </p>
-                    </div>
-                    <GoogleListingSetup propertyId={scopedSession?.propertyId} />
+          {/* Content */}
+          <section className="min-w-0 flex-1">
+            <div className="mx-auto max-w-[1400px] p-3 sm:p-4 md:p-6">
+              {sessionLoading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="space-y-3 text-center">
+                    <div
+                      className="inline-block h-7 w-7 animate-spin rounded-full border-2"
+                      style={{
+                        borderColor: "var(--border)",
+                        borderTopColor: "var(--accent)",
+                      }}
+                    />
+                    <p className="sub">Loading dashboard…</p>
                   </div>
-                )}
+                </div>
+              ) : !areas.length ? (
+                <div className="card card-pad sub">
+                  No pages have been given to your account yet. Ask your property admin for access.
+                </div>
+              ) : (
+                <>
+                  {active === "today" && (
+                    <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} />
+                  )}
 
-                {active === "users" && session?.canManageUsers && (
-                  <UserRights session={scopedSession} propertyId={scopedSession?.propertyId} />
-                )}
+                  {/* Keyed by property so a switch starts the grid afresh:
+                      an unsaved edit must never publish to another hotel. */}
+                  {active === "cm" && (
+                    <ChannelManager key={scopedSession?.propertyId || ""} session={scopedSession} />
+                  )}
 
-                {active === "calendar" && <TapeChart session={scopedSession} />}
+                  {active === "integrations" && <Integrations session={scopedSession} />}
 
-                {active === "reservations" && <Reservations session={scopedSession} />}
+                  {active === "logs" && <ActivityLog session={scopedSession} />}
 
-                {active === "housekeeping" && <Housekeeping session={scopedSession} />}
+                  {active === "parity" && <RateParity session={scopedSession} />}
 
-                {active === "workflow" && (
-                  <ComingSoon title="Workflow">
-                    Automations across distribution — rules that act on rates and
-                    inventory without manual steps.
-                  </ComingSoon>
-                )}
+                  {active === "pricing" && <DynamicPricingGrid session={scopedSession} />}
 
-                {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
+                  {active === "performance" && <BookingPerformance session={scopedSession} />}
 
-              </>
-            )}
-          </div>
-        </section>
-      </div>
-    </main>
+                  {active === "nightaudit" && <NightAudit session={scopedSession} />}
+
+                  {active === "invoicing" && <InvoicingReport session={scopedSession} />}
+
+                  {active === "payments" && <PaymentsReport session={scopedSession} />}
+
+                  {/* Rooms and rate plans are separate pages; the component
+                      renders one panel or the other. */}
+                  {active === "rooms" && (
+                    <PropertySetup session={scopedSession} only="rooms" />
+                  )}
+
+                  {active === "pmssetup" && <RoomInventory session={scopedSession} />}
+
+                  {active === "servicesetup" && (
+                    <BillingSetup session={scopedSession} only="services" />
+                  )}
+
+                  {active === "taxsetup" && <BillingSetup session={scopedSession} only="taxes" />}
+
+                  {active === "rateplans" && (
+                    <PropertySetup session={scopedSession} only="plans" />
+                  )}
+
+                  {active === "setup" && (
+                    <div className="space-y-4">
+                      <div>
+                        <h2 className="h1">Property Setup</h2>
+                        <p className="sub">
+                          Property details — address, contact, policies and amenities — will
+                          be fed from the PMS rather than entered here. The Google listing is
+                          set here because only the hotelier knows which listing is theirs.
+                        </p>
+                      </div>
+                      <GoogleListingSetup propertyId={scopedSession?.propertyId} />
+                    </div>
+                  )}
+
+                  {active === "users" && session?.canManageUsers && (
+                    <UserRights session={scopedSession} propertyId={scopedSession?.propertyId} />
+                  )}
+
+                  {active === "calendar" && <TapeChart session={scopedSession} />}
+
+                  {active === "reservations" && <Reservations session={scopedSession} />}
+
+                  {active === "housekeeping" && <Housekeeping session={scopedSession} />}
+
+                  {active === "workflow" && (
+                    <ComingSoon title="Workflow">
+                      Automations across distribution — rules that act on rates and
+                      inventory without manual steps.
+                    </ComingSoon>
+                  )}
+
+                  {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
+
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {areas.length > 0 && (
+          <CommandPalette
+            open={paletteOpen}
+            onClose={() => setPaletteOpen(false)}
+            areas={areas}
+            session={scopedSession}
+            onOpenPage={openPage}
+          />
+        )}
+      </main>
+    </ToastProvider>
   );
 }

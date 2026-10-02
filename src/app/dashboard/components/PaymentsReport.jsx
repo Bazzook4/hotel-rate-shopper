@@ -20,6 +20,7 @@ import {
   useReport,
   whole,
 } from "./reportKit";
+import { SortTh, useSort } from "./useSort";
 
 /**
  * Payments: the money taken over a period, for the cash-up and the bank.
@@ -164,9 +165,25 @@ function ByUser({ report, money }) {
   );
 }
 
+/** How each sortable column of the payment list reads a payment. */
+const PAYMENT_SORT = {
+  date: "paidAt",
+  booking: "reference",
+  guest: "guest",
+  method: "methodLabel",
+  transaction: "transaction",
+  recordedBy: "recordedBy",
+  amount: "amount",
+};
+
 function PaymentList({ report, money, onOpen, methods }) {
   const [method, setMethod] = useState("all");
-  const rows = report.payments.filter((p) => !p.voidedAt && (method === "all" || p.method === method));
+  const filtered = useMemo(
+    () => report.payments.filter((p) => !p.voidedAt && (method === "all" || p.method === method)),
+    [report.payments, method]
+  );
+  const sorter = useSort(filtered, PAYMENT_SORT);
+  const rows = sorter.rows;
   return (
     <Section
       title="Every payment"
@@ -189,14 +206,14 @@ function PaymentList({ report, money, onOpen, methods }) {
           <table className="grid-table">
             <thead>
               <tr>
-                <th>Date</th>
+                <SortTh sorter={sorter} col="date">Date</SortTh>
                 <th>Time</th>
-                <th>Booking</th>
-                <th>Guest</th>
-                <th>Method</th>
-                <th>Reference</th>
-                <th>Recorded by</th>
-                <th className="text-right">Amount</th>
+                <SortTh sorter={sorter} col="booking">Booking</SortTh>
+                <SortTh sorter={sorter} col="guest">Guest</SortTh>
+                <SortTh sorter={sorter} col="method">Method</SortTh>
+                <SortTh sorter={sorter} col="transaction">Reference</SortTh>
+                <SortTh sorter={sorter} col="recordedBy">Recorded by</SortTh>
+                <SortTh sorter={sorter} col="amount" className="text-right">Amount</SortTh>
               </tr>
             </thead>
             <tbody>

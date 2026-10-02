@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingForm from "./BookingForm";
 import { inventoryWarning } from "@/lib/inventoryNotice";
+import { SortTh, useSort } from "./useSort";
+import { useToast } from "../../components/Toast";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -74,6 +76,17 @@ const VIEWS = [
   { id: "all", label: "All" },
 ];
 
+/** How each sortable column reads a booking. */
+const SORT_COLUMNS = {
+  reference: "reference",
+  guest: (r) => r.guest_name?.toLowerCase(),
+  room: (r) => r.rooms?.room_number ?? null,
+  stay: "check_in",
+  amount: (r) => (r.total_amount == null ? null : Number(r.total_amount)),
+  source: "source",
+  status: (r) => STATUS_LABELS[r.status] || r.status,
+};
+
 export default function Reservations({ session }) {
   const propertyId = session?.propertyId || null;
 
@@ -99,6 +112,7 @@ export default function Reservations({ session }) {
   const [editing, setEditing] = useState(null);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const toast = useToast();
 
   // OTA bookings received but not in the PMS -- normally none.
   const [pending, setPending] = useState([]);
@@ -208,6 +222,8 @@ export default function Reservations({ session }) {
     }
   }, [reservations, view, today]);
 
+  const sorter = useSort(visible, SORT_COLUMNS);
+
   const counts = useMemo(
     () => ({
       arrivals: reservations.filter(
@@ -242,11 +258,41 @@ export default function Reservations({ session }) {
       );
       const warning = inventoryWarning(data);
       if (warning) setError(warning);
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setBusyId(null);
     }
+  }
+
+  /**
+   * Cancelling a confirmed booking happens at once, with an Undo, since
+   * reinstating it gives the nights straight back. An inquiry asks first:
+   * a cancelled booking can only come back as confirmed, so an inquiry
+   * cancelled by mistake could not be put back as it was.
+   */
+  async function cancel(r) {
+    if (r.status === "inquiry") {
+      if (window.confirm(`Cancel ${r.guest_name}'s inquiry ${r.reference}?`)) changeStatus(r, "cancelled");
+      return;
+    }
+    if (!(await changeStatus(r, "cancelled"))) return;
+    toast(`${r.guest_name}'s booking ${r.reference} cancelled`, {
+      undo: async () => {
+        const res = await fetch("/api/pms/reservations/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.id, status: "confirmed" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not reinstate the booking");
+        setReservations((prev) => prev.map((x) => (x.id === r.id ? data.reservation : x)));
+        const warning = inventoryWarning(data);
+        if (warning) setError(warning);
+      },
+    });
   }
 
   /**
@@ -569,18 +615,18 @@ export default function Reservations({ session }) {
             <table className="grid-table w-full text-sm">
               <thead>
                 <tr>
-                  <th className="text-left">Reference</th>
-                  <th className="text-left">Guest</th>
-                  <th className="text-left">Room</th>
-                  <th className="text-left">Stay</th>
-                  <th className="text-right">Amount</th>
-                  <th className="text-left">Source</th>
-                  <th className="text-left">Status</th>
+                  <SortTh sorter={sorter} col="reference" className="text-left">Reference</SortTh>
+                  <SortTh sorter={sorter} col="guest" className="text-left">Guest</SortTh>
+                  <SortTh sorter={sorter} col="room" className="text-left">Room</SortTh>
+                  <SortTh sorter={sorter} col="stay" className="text-left">Stay</SortTh>
+                  <SortTh sorter={sorter} col="amount" className="text-right">Amount</SortTh>
+                  <SortTh sorter={sorter} col="source" className="text-left">Source</SortTh>
+                  <SortTh sorter={sorter} col="status" className="text-left">Status</SortTh>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((r) => {
+                {sorter.rows.map((r) => {
                   const nights = nightCount(r.check_in, r.check_out);
                   const busy = busyId === r.id;
                   return (
@@ -659,15 +705,7 @@ export default function Reservations({ session }) {
                           <button
                             className="btn btn-ghost text-xs ml-1"
                             disabled={busy}
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Cancel ${r.guest_name}'s ${r.status === "inquiry" ? "inquiry" : "booking"} ${r.reference}?`
-                                )
-                              ) {
-                                changeStatus(r, "cancelled");
-                              }
-                            }}
+                            onClick={() => cancel(r)}
                           >
                             Cancel
                           </button>

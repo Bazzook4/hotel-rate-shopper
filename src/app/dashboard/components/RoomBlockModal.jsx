@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { inventoryWarning } from "@/lib/inventoryNotice";
+import { useToast } from "../../components/Toast";
 
 /**
  * Taking one room out of order for some nights, or changing and ending that.
@@ -19,6 +20,7 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const toast = useToast();
 
   useEffect(() => {
     function onKey(e) {
@@ -50,8 +52,10 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
       if (!res.ok) throw new Error(data.error || "Could not save the block");
       onChanged?.(inventoryWarning(data));
       onClose();
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -66,9 +70,31 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
     send(block ? "PATCH" : "POST", block ? { ...body, id: block.id } : body);
   }
 
-  function remove() {
-    if (!window.confirm(`Put room ${room.room_number} back in service for these nights?`)) return;
-    send("DELETE");
+  /**
+   * Back in service at once, with an Undo that takes the room out again for
+   * the same nights. The undo is refused, and says why, if the room has been
+   * booked into those nights in the meantime.
+   */
+  async function remove() {
+    if (!(await send("DELETE"))) return;
+    toast(`Room ${room.room_number} back in service`, {
+      undo: async () => {
+        const res = await fetch("/api/pms/blocks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            start_date: block.start_date,
+            end_date: block.end_date,
+            reason: block.reason || "",
+            room_id: room.id,
+            property_id: session?.propertyId || null,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not take the room out of order again");
+        onChanged?.(inventoryWarning(data));
+      },
+    });
   }
 
   return (

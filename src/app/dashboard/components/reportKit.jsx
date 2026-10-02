@@ -322,6 +322,52 @@ export function Stats({ items }) {
   );
 }
 
+/**
+ * How a figure moved against its comparison. `better` says which way is good
+ * news, so the change can be tinted: more revenue is good, more cancellations
+ * are not. `points` marks a figure that is already a percentage, whose change
+ * is shown in points -- occupancy going from 60% to 66% is +6 pts, not +10%.
+ */
+export function Change({ now, before, better, points }) {
+  if (now == null || before == null) return <span className="chip chip-off">no comparison</span>;
+  const diff = now - before;
+  let text;
+  if (points) {
+    text = `${diff >= 0 ? "+" : ""}${one.format(diff)} pts`;
+  } else if (before === 0) {
+    if (now === 0) return <span className="chip chip-off">no change</span>;
+    return <span className="chip chip-off">new</span>;
+  } else {
+    const pct = (diff / Math.abs(before)) * 100;
+    text = `${pct >= 0 ? "+" : ""}${one.format(pct)}%`;
+  }
+  if (Math.abs(diff) < 1e-9) return <span className="chip chip-off">no change</span>;
+  const up = diff > 0;
+  const good = better === null ? null : (better === "up") === up;
+  const tone = good === null ? "chip-off" : good ? "chip-ok" : "chip-warn";
+  // The arrow carries the direction, so the tint is never the only signal.
+  return (
+    <span className={`chip ${tone}`}>
+      {up ? "↑" : "↓"} {text}
+    </span>
+  );
+}
+
+/** The night audit's exception tones, as chip colours. */
+export const TONE = {
+  danger: { background: "var(--danger-soft)", color: "var(--danger)" },
+  warn: { background: "var(--warn-soft)", color: "var(--warn)" },
+  info: { background: "var(--surface-2)", color: "var(--text-muted)" },
+};
+
+/** Which folio tab each kind of night audit exception is fixed in. */
+export const FIX_TAB = {
+  balance: "payments",
+  invoice: "invoices",
+  voidedPayments: "payments",
+  voidedInvoices: "invoices",
+};
+
 export function Section({ title, sub, actions, children }) {
   return (
     <div className="card card-pad space-y-4">
@@ -355,7 +401,7 @@ export function Empty({ children }) {
 export function TableFrame({ children, tall = false }) {
   return (
     <div
-      className={`${tall ? "max-h-[32rem] " : ""}overflow-auto rounded-lg`}
+      className={`table-frame ${tall ? "max-h-[32rem] " : ""}overflow-auto rounded-lg`}
       style={{ border: "1px solid var(--border)" }}
     >
       {children}

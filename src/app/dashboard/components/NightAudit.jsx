@@ -6,6 +6,8 @@ import { addDays, formatDateISO } from "@/lib/date";
 import {
   BookingLink,
   Empty,
+  FIX_TAB,
+  TONE,
   PageHeader,
   Section,
   Stats,
@@ -32,19 +34,6 @@ import {
  * through it.
  */
 
-/** Which folio tab each kind of exception is fixed in. */
-const FIX_TAB = {
-  balance: "payments",
-  invoice: "invoices",
-  voidedPayments: "payments",
-  voidedInvoices: "invoices",
-};
-
-const TONE = {
-  danger: { background: "var(--danger-soft)", color: "var(--danger)" },
-  warn: { background: "var(--warn-soft)", color: "var(--warn)" },
-  info: { background: "var(--surface-2)", color: "var(--text-muted)" },
-};
 
 function Exceptions({ report, money, onOpen }) {
   const toFix = report.exceptions.filter((e) => e.tone !== "info");

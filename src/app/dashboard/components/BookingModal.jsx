@@ -5,6 +5,7 @@ import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
 import { todayUTC } from "@/lib/date";
 import { inventoryWarning } from "@/lib/inventoryNotice";
+import { useToast } from "../../components/Toast";
 
 /**
  * One booking, opened from the tape chart.
@@ -65,6 +66,7 @@ export default function BookingModal({
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   const [roomTypes, setRoomTypes] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -166,22 +168,42 @@ export default function BookingModal({
       if (!res.ok) throw new Error(data.error || "Could not update the booking");
       await loadFolio();
       onChanged?.(inventoryWarning(data));
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
+  /**
+   * A confirmed booking cancels at once, with an Undo that reinstates it.
+   * An inquiry asks first: a cancelled booking can only come back as
+   * confirmed, so an inquiry could not be put back as it was.
+   */
   async function cancelBooking() {
-    if (
-      !window.confirm(
-        `Cancel ${reservation.guest_name}'s ${reservation.status === "inquiry" ? "inquiry" : "booking"} ${reservation.reference}?`
-      )
-    ) {
+    const { guest_name: guest, reference, status } = reservation;
+    if (status === "inquiry") {
+      if (window.confirm(`Cancel ${guest}'s inquiry ${reference}?`)) await changeStatus("cancelled");
       return;
     }
-    await changeStatus("cancelled");
+    if (!(await changeStatus("cancelled"))) return;
+    // The undo may run after this modal has closed, so it does its own
+    // request rather than leaning on the modal's state.
+    toast(`${guest}'s booking ${reference} cancelled`, {
+      undo: async () => {
+        const res = await fetch("/api/pms/reservations/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: reservationId, status: "confirmed" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not reinstate the booking");
+        loadFolio();
+        onChanged?.(inventoryWarning(data));
+      },
+    });
   }
 
   const actions = reservation ? NEXT_ACTIONS[reservation.status] || [] : [];

@@ -19,6 +19,7 @@ import {
   useReport,
   whole,
 } from "./reportKit";
+import { SortTh, useSort } from "./useSort";
 
 /**
  * Invoicing: the register an accountant files from, what is still owed, and
@@ -41,12 +42,39 @@ const TABS = [
 
 const STATUS_LABEL = { in_house: "In house", checked_out: "Checked out" };
 
+/** How each sortable column reads a register row. */
+const REGISTER_SORT = {
+  number: "number",
+  issued: "day",
+  guest: "guest",
+  booking: "reference",
+  stay: "checkIn",
+  taxable: "taxable",
+  total: "total",
+};
+
+/** How each sortable column reads a balance row. */
+const BALANCE_SORT = {
+  booking: "reference",
+  guest: "guest",
+  stay: "checkIn",
+  status: (r) => STATUS_LABEL[r.status] || r.status,
+  age: "age",
+  bill: "total",
+  paid: "paid",
+  balance: (r) => Math.abs(r.balance),
+  lastPayment: "lastPayment",
+  invoice: "invoice",
+};
+
 // ------------------------------------------------------------------
 // Register
 // ------------------------------------------------------------------
 
 function Register({ report, money, onOpen }) {
-  const { rows, taxNames, totals, taxSummary, gaps } = report.register;
+  const { taxNames, totals, taxSummary, gaps } = report.register;
+  const sorter = useSort(report.register.rows, REGISTER_SORT);
+  const rows = sorter.rows;
   return (
     <div className="space-y-5">
       <div className="card card-pad">
@@ -130,18 +158,18 @@ function Register({ report, money, onOpen }) {
             <table className="grid-table">
               <thead>
                 <tr>
-                  <th>Invoice</th>
-                  <th>Issued</th>
-                  <th>Guest</th>
-                  <th>Booking</th>
-                  <th>Stay</th>
-                  <th className="text-right">Taxable</th>
+                  <SortTh sorter={sorter} col="number">Invoice</SortTh>
+                  <SortTh sorter={sorter} col="issued">Issued</SortTh>
+                  <SortTh sorter={sorter} col="guest">Guest</SortTh>
+                  <SortTh sorter={sorter} col="booking">Booking</SortTh>
+                  <SortTh sorter={sorter} col="stay">Stay</SortTh>
+                  <SortTh sorter={sorter} col="taxable" className="text-right">Taxable</SortTh>
                   {taxNames.map((n) => (
                     <th key={n} className="text-right">
                       {n}
                     </th>
                   ))}
-                  <th className="text-right">Total</th>
+                  <SortTh sorter={sorter} col="total" className="text-right">Total</SortTh>
                 </tr>
               </thead>
               <tbody>
@@ -210,22 +238,28 @@ function Register({ report, money, onOpen }) {
 // Outstanding
 // ------------------------------------------------------------------
 
-function BalanceTable({ rows, money, onOpen, credit = false }) {
+function BalanceTable({ rows: unsorted, money, onOpen, credit = false }) {
+  const sorter = useSort(unsorted, BALANCE_SORT);
+  const rows = sorter.rows;
   return (
     <TableFrame tall>
       <table className="grid-table">
         <thead>
           <tr>
-            <th>Booking</th>
-            <th>Guest</th>
-            <th>Stay</th>
-            <th>Status</th>
-            {!credit && <th className="text-right">Days owed</th>}
-            <th className="text-right">Bill</th>
-            <th className="text-right">Paid</th>
-            <th className="text-right">{credit ? "To refund" : "Balance"}</th>
-            <th>Last payment</th>
-            <th>Invoice</th>
+            <SortTh sorter={sorter} col="booking">Booking</SortTh>
+            <SortTh sorter={sorter} col="guest">Guest</SortTh>
+            <SortTh sorter={sorter} col="stay">Stay</SortTh>
+            <SortTh sorter={sorter} col="status">Status</SortTh>
+            {!credit && (
+              <SortTh sorter={sorter} col="age" className="text-right">
+                Days owed
+              </SortTh>
+            )}
+            <SortTh sorter={sorter} col="bill" className="text-right">Bill</SortTh>
+            <SortTh sorter={sorter} col="paid" className="text-right">Paid</SortTh>
+            <SortTh sorter={sorter} col="balance" className="text-right">{credit ? "To refund" : "Balance"}</SortTh>
+            <SortTh sorter={sorter} col="lastPayment">Last payment</SortTh>
+            <SortTh sorter={sorter} col="invoice">Invoice</SortTh>
           </tr>
         </thead>
         <tbody>

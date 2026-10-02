@@ -414,6 +414,138 @@ body {
    * the width back to the dates and lets them stack. */
   .cm-name-col { min-width: 200px; }
   .cm-date-col { min-width: 74px; }
+
+  /* A report table in its scrolling frame keeps its header in view. Only
+   * inside the frame: against the page, a sticky header would slide under
+   * the dashboard's own sticky bars. */
+  .table-frame .grid-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  /* A column header that sorts its table. The arrow shows the order in
+   * force; a column not sorted on shows a faint one, so it reads as
+   * clickable before it is clicked. */
+  .sort-th {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font: inherit;
+    color: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+  }
+  .sort-th:hover { color: var(--text); }
+  .sort-th .sort-arrow { color: var(--text-faint); }
+  .sort-th[data-on="true"] { color: var(--text); }
+  .sort-th[data-on="true"] .sort-arrow { color: var(--accent); }
+
+  /* The shape of something still loading, in place of a spinner, so the
+   * page does not jump when it arrives. */
+  .skeleton {
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton { animation: none; }
+  }
+
+  /* A headline figure that opens the page behind it. */
+  .today-tile {
+    border-radius: 8px;
+    border: 1px solid transparent;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+  .today-tile:hover { background: var(--surface-2); border-color: var(--border); }
+  .today-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* Confirmations and undo, bottom-centre, above everything but the palette. */
+  .toast-stack {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    transform: translateX(-50%);
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: max-content;
+    max-width: calc(100vw - 2rem);
+  }
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+    border-radius: 10px;
+    background: var(--text);
+    color: var(--surface);
+    font-size: 0.875rem;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  }
+  .toast-error { background: var(--danger); color: #fff; }
+  .toast button {
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    color: inherit;
+  }
+  .toast button:hover { background: rgba(127, 127, 127, 0.25); }
+
+  /* The Ctrl+K command palette. */
+  .palette-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 12vh 1rem 1rem;
+  }
+  .palette {
+    width: 100%;
+    max-width: 560px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 12px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+  }
+  .palette-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.9rem;
+    text-align: left;
+    font-size: 0.875rem;
+    color: var(--text);
+  }
+  .palette-item[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); }
+  .kbd {
+    display: inline-block;
+    padding: 0 0.35rem;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    color: var(--text-muted);
+    background: var(--surface-2);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 /*
