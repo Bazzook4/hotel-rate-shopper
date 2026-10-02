@@ -194,7 +194,9 @@ export async function GET(req) {
             maxStay: assignmentFor[`${p.id}|${room.id}`]?.max_stay ?? p.max_stay ?? null,
           },
           resolvedRate: resolver.rate(p.id, room.id, baseAdults),
-          occupancies: Array.from({ length: maxAdults }, (_, i) => i + 1).map(
+          // Rows stop at base adults: every adult beyond it is an extra
+          // adult, priced by the room rate's extra-adult rate, not a cell.
+          occupancies: Array.from({ length: baseAdults }, (_, i) => i + 1).map(
             (occ) => ({
               occupancy: occ,
               // The rate a cell falls back to, which now varies by how many

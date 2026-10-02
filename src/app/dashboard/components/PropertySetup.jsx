@@ -239,7 +239,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
             <th style={{ width: 100 }} title="Adults the room is priced for">
               Base adults
             </th>
-            <th style={{ width: 100 }} title="The most adults the room takes; each adult count gets its own rate in Rate Plan Setup">
+            <th style={{ width: 100 }} title="Adults beyond base pay the extra adult rate">
               Max adults
             </th>
             <th style={{ width: 50 }} />

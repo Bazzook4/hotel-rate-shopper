@@ -177,11 +177,13 @@ export function rateSourceOf(plan, assignment) {
  * property still renders, a booking quote refuses to launder one -- so that
  * choice stays with them.
  *
- * Every adult count up to the room's maximum is priced the same way: typed,
- * worked out from the single, or derived from the source's same adult count.
- * There is no separate extra-adult charge any more; a stored one is used
- * only for an adult count above base that has nothing else, so rooms set up
- * before per-adult pricing keep their prices until they are next saved.
+ * Up to the room's base adults each adult count is typed, worked out from
+ * the single, or derived from the source's same adult count. Every adult
+ * beyond base is an extra adult: the base-occupancy rate plus the room
+ * rate's own extra-adult rate for each. A derived room rate with no
+ * extra-adult rate of its own follows its source's price for that many
+ * adults; a manual one with none falls back to a rate typed for that count
+ * while every adult count had its own (Oct 2026), then to the base rate.
  *
  * Rates can be asked for on a date. `dailyAt(planId, roomId, occupancy,
  * date)` is the rate set in the CM grid for that date -- an unsaved edit or a
@@ -221,10 +223,10 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
   /**
    * The rule that works an adult count out from the single rate within a
    * manually priced room rate ("2 adults = 1 adult + 500"), or null. Adult 1
-   * is always typed.
+   * is always typed, and above base adults the extra-adult rate applies.
    */
   const occupancyRuleOf = (planId, roomId, occupancy) => {
-    if (occupancy <= 1) return null;
+    if (occupancy <= 1 || occupancy > baseAdultsOf(roomId)) return null;
     const rules = assignmentFor[key(planId, roomId)]?.occupancy_rules;
     const r = rules?.[occupancy] ?? rules?.[String(occupancy)];
     return r?.method ? r : null;
@@ -242,11 +244,14 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
     const src = sourceOf(planId, roomId);
     const occRule = src.manual ? occupancyRuleOf(planId, roomId, occupancy) : null;
     // A worked-out adult count is not typed, so a stored daily value for it
-    // is ignored -- it follows the single on that date instead.
+    // is ignored -- it follows the single on that date instead. Extra adults
+    // have no cell of their own either.
     const daily =
-      src.manual && !occRule && date && dailyAt
+      src.manual && !occRule && occupancy <= base && date && dailyAt
         ? num(dailyAt(planId, roomId, occupancy, date))
         : NaN;
+    const a = assignmentFor[node];
+    const extra = occupancy > base ? num(a?.extra_adult_rate) : NaN;
 
     let rate;
     if (occRule) {
@@ -254,21 +259,16 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
       rate = applyRule(single, occRule.method, occRule.value, occRule.value2);
     } else if (Number.isFinite(daily)) {
       rate = daily;
+    } else if (Number.isFinite(extra)) {
+      // An extra adult: the base-occupancy rate on this date, plus the room
+      // rate's extra-adult rate for each adult beyond base.
+      const atBase = resolve(planId, roomId, base, date, trail);
+      rate = atBase === null ? null : atBase + (occupancy - base) * extra;
     } else if (src.manual && occupancy > base) {
-      const a = assignmentFor[node];
+      // No extra-adult rate: a rate typed for this count while every adult
+      // count had its own, until the room rate is next saved; else the base.
       const typed = num(a?.adult_rates?.[occupancy] ?? a?.adult_rates?.[String(occupancy)]);
-      if (Number.isFinite(typed)) {
-        rate = typed;
-      } else {
-        // Nothing set for this adult count: the base rate, plus the old
-        // extra-adult charge where a room still carries one.
-        const atBase = resolve(planId, roomId, base, date, trail);
-        const extra = num(a?.extra_adult_rate);
-        rate =
-          atBase === null
-            ? null
-            : atBase + (Number.isFinite(extra) ? (occupancy - base) * extra : 0);
-      }
+      rate = Number.isFinite(typed) ? typed : resolve(planId, roomId, base, date, trail);
     } else if (src.manual) {
       const own = ownRateAt(planId, roomId, occupancy);
       rate = own === null || own === undefined || !Number.isFinite(Number(own)) ? null : Number(own);
@@ -303,7 +303,7 @@ export function roomRateResolver({ ratePlans, assignments, roomTypes, ownRateAt,
         return null;
       }
     },
-    /** Rates for every adult count the room takes: { 1: 3500, 2: 4000, 3: 4800 }. */
+    /** Rates for every adult count the room takes, extra adults included: { 1: 3500, 2: 4000, 3: 4800 }. */
     adultRates(planId, roomId) {
       const out = {};
       for (let n = 1; n <= maxAdultsOf(roomId); n++) out[n] = this.rate(planId, roomId, n);
