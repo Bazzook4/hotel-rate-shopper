@@ -1,21 +1,10 @@
 "use client";
 
-/**
- * Aiosell's channel slugs are not what a hotelier calls them.
- */
-const CHANNEL_LABELS = {
-  gommt: "MakeMyTrip / Goibibo",
-  agoda: "Agoda",
-  airbnb: "Airbnb",
-  google: "Google",
-  "booking.com": "Booking.com",
-  expedia: "Expedia",
-};
-
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
 import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
+import { CHANNEL_LABELS } from "@/lib/channels";
 
 
 

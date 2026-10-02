@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { plansForRoom, planAppliesToRoom } from "@/lib/ratePlanPricing";
 import { SetupHeader } from "./SetupGrid";
+import { channelLabel } from "@/lib/channels";
 
 const inputClass =
   "input";
@@ -22,6 +23,10 @@ const CATALOGUE = [
 ];
 
 export default function Integrations({ session }) {
+  // The property chosen in the header. Every call names it, since the server
+  // otherwise falls back to the property the login was issued for.
+  const propertyId = session?.propertyId || "";
+  const scope = propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : "";
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,7 +47,7 @@ export default function Integrations({ session }) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/integrations");
+      const res = await fetch(`/api/integrations${scope}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Could not load integrations");
       setData(json);
@@ -72,7 +77,7 @@ export default function Integrations({ session }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     load();
@@ -114,7 +119,13 @@ export default function Integrations({ session }) {
       const res = await fetch("/api/integrations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hotelCode, enabled, ...acts, codeMap }),
+        body: JSON.stringify({
+          hotelCode,
+          enabled,
+          ...acts,
+          codeMap,
+          propertyId: propertyId || undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Save failed");
@@ -322,6 +333,8 @@ export default function Integrations({ session }) {
             )}
           </div>
 
+          {connected && <ConnectedChannels scope={scope} />}
+
           {(data?.roomTypes?.length > 0 || data?.ratePlans?.length > 0) && (
             <div className="mt-4">
               <p className="text-xs muted">
@@ -456,6 +469,149 @@ export default function Integrations({ session }) {
               Close
             </button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What each operation in Aiosell's connected_channels means to a hotel. */
+const OPERATIONS = [
+  ["inventory", "Availability"],
+  ["rates", "Rates"],
+  ["reservation", "Bookings"],
+];
+
+/**
+ * The channels Aiosell has this hotel connected to, read live from its
+ * property details. Aiosell lists a channel once per operation, so the rows
+ * are folded into one per channel showing what it carries. Read-only:
+ * channels are connected in Aiosell, not here.
+ */
+function ConnectedChannels({ scope }) {
+  const [channels, setChannels] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/cm/property${scope}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`);
+      if (!json.property) {
+        setChannels([]);
+        setError("Aiosell is not set up for this property yet, so there is nothing to read.");
+        return;
+      }
+      const bySlug = new Map();
+      for (const c of json.property.connected_channels || []) {
+        if (!c.partner_id) continue;
+        const row = bySlug.get(c.partner_id) || {
+          slug: c.partner_id,
+          hotelCode: c.hotel_code || null,
+          operations: new Set(),
+          multiplier: null,
+        };
+        row.operations.add(c.operation);
+        row.hotelCode ||= c.hotel_code || null;
+        if (c.operation === "rates" && c.rate_multiplier != null) {
+          row.multiplier = Number(c.rate_multiplier);
+        }
+        bySlug.set(c.partner_id, row);
+      }
+      setChannels(
+        [...bySlug.values()].sort((a, b) =>
+          channelLabel(a.slug).localeCompare(channelLabel(b.slug))
+        )
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [scope]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] uppercase tracking-wide faint">
+            Connected channels
+          </p>
+          <p className="text-xs muted">
+            As Aiosell has them for this hotel. Channels are added or removed in
+            Aiosell; only channels taking rates can be sent rates or a stop sell.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          className="btn btn-secondary shrink-0 text-xs"
+        >
+          {loading ? "Checking…" : "Refresh"}
+        </button>
+      </div>
+
+      {error && <p className="mt-2 text-xs text-[var(--warn)]">{error}</p>}
+
+      {channels === null && loading && (
+        <p className="mt-2 text-xs faint">Asking Aiosell…</p>
+      )}
+
+      {channels?.length === 0 && !error && (
+        <p className="mt-2 text-xs faint">
+          Aiosell reports no channels connected to this hotel.
+        </p>
+      )}
+
+      {channels?.length > 0 && (
+        <div className="mt-2 overflow-x-auto card" style={{ padding: 0 }}>
+          <table className="cm-grid">
+            <thead>
+              <tr>
+                <th className="cm-sticky" style={{ minWidth: 160 }}>Channel</th>
+                <th style={{ minWidth: 140 }}>Hotel ID on channel</th>
+                <th style={{ minWidth: 220 }}>Carries</th>
+                <th style={{ width: 100 }}>Markup</th>
+              </tr>
+            </thead>
+            <tbody>
+              {channels.map((c) => (
+                <tr key={c.slug}>
+                  <td className="cm-sticky">
+                    <span className="block text-ink">{channelLabel(c.slug)}</span>
+                    {channelLabel(c.slug) !== c.slug && (
+                      <span className="block font-mono text-xs faint">{c.slug}</span>
+                    )}
+                  </td>
+                  <td className="font-mono text-xs text-ink">{c.hotelCode || "—"}</td>
+                  <td>
+                    <span className="flex flex-wrap gap-1">
+                      {OPERATIONS.map(([op, label]) => (
+                        <span
+                          key={op}
+                          className={`chip ${c.operations.has(op) ? "chip-ok" : "chip-off"}`}
+                          title={c.operations.has(op) ? `${label}: connected` : `${label}: not connected`}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </span>
+                  </td>
+                  <td className="text-xs muted tabular-nums">
+                    {c.multiplier == null ? "—" : `${c.multiplier}×`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

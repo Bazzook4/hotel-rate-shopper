@@ -20,19 +20,7 @@ const DEFAULT_BASE_URL = "https://live.aiosell.com/api/v2/cm";
  */
 const REQUEST_TIMEOUT_MS = 15000;
 
-/** Aiosell channel slug -> display name shown in the UI. */
-export const CHANNEL_LABELS = {
-  "booking.com": "Booking.com",
-  gommt: "MakeMyTrip",
-  agoda: "Agoda",
-  airbnb: "Airbnb",
-  google: "Google",
-  expedia: "Expedia",
-};
-
-export function channelLabel(slug) {
-  return CHANNEL_LABELS[slug] || slug;
-}
+export { CHANNEL_LABELS, channelLabel } from "./channels";
 
 /**
  * Build a client bound to one partner's credentials and one hotel code.
