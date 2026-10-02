@@ -7,6 +7,7 @@ import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
 import { inventoryWarning } from "@/lib/inventoryNotice";
+import { visibleModules } from "../modules";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -543,6 +544,47 @@ export default function TapeChart({ session }) {
     }
   }
 
+  // Whether this user may change a room's clean/dirty status. The status is
+  // shown to everyone; only the Housekeeping right makes it a button, the
+  // same right the housekeeping route checks.
+  const canHousekeep = useMemo(
+    () => visibleModules(session).some((p) => p.id === "housekeeping"),
+    [session]
+  );
+
+  /**
+   * Flip a room between clean and dirty from its row, so the desk need not
+   * open Housekeeping to say a room is ready. Shown at once and put back if
+   * the save fails; tapping again is the undo.
+   */
+  async function toggleHousekeeping(room) {
+    const next = room.housekeeping === "dirty" ? "clean" : "dirty";
+    const setRoom = (status) =>
+      setChart((prev) =>
+        prev && {
+          ...prev,
+          roomTypes: prev.roomTypes.map((rt) => ({
+            ...rt,
+            rooms: rt.rooms.map((x) => (x.id === room.id ? { ...x, housekeeping: status } : x)),
+          })),
+        }
+      );
+    setError(null);
+    setRoom(next);
+    try {
+      const res = await fetch("/api/pms/housekeeping", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: propertyId, ids: [room.id], status: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not update housekeeping");
+    } catch (err) {
+      setRoom(room.housekeeping);
+      setError(err.message);
+    }
+  }
+
   /**
    * Move a booking on from the chart: check a guest in, or confirm an
    * inquiry. The route refuses an early arrival or a stay with no room, and
@@ -1041,12 +1083,17 @@ export default function TapeChart({ session }) {
                         {/* The type sits on the group header now, so the row
                             shows only what the header cannot say about this
                             one room. */}
-                        {!room.is_active && (
+                        {!room.is_active ? (
                           <div
                             style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}
                           >
                             out of order
                           </div>
+                        ) : (
+                          <HousekeepingTag
+                            status={room.housekeeping}
+                            onToggle={canHousekeep ? () => toggleHousekeeping(room) : null}
+                          />
                         )}
                       </div>
 
@@ -1487,6 +1534,35 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
  * in a hue no status uses, so it stands out on a light bar and a solid one
  * alike.
  */
+/**
+ * A room's clean/dirty status under its number. A button for anyone with the
+ * Housekeeping right -- one tap flips clean and dirty -- and plain text for
+ * everyone else. Out of order is set on the Housekeeping page, not here.
+ */
+function HousekeepingTag({ status, onToggle }) {
+  const dirty = status === "dirty";
+  const label =
+    status === "out_of_order" ? "OOO" : dirty ? "Dirty" : status === "inspected" ? "Inspected" : "Clean";
+  const style = {
+    fontSize: "0.65rem",
+    lineHeight: 1.2,
+    color: dirty ? "var(--warn)" : "var(--text-faint)",
+    fontWeight: dirty ? 600 : 400,
+  };
+  if (!onToggle || status === "out_of_order") return <div style={style}>{label}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      title={dirty ? "Mark clean" : "Mark dirty"}
+      aria-label={`${label} — tap to mark ${dirty ? "clean" : "dirty"}`}
+      style={{ ...style, display: "block", padding: 0, background: "none", border: "none", cursor: "pointer", textDecoration: "underline dotted" }}
+    >
+      {label}
+    </button>
+  );
+}
+
 function BarTag({ children, title, legend = false }) {
   return (
     <span
