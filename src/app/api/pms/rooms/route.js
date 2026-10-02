@@ -3,6 +3,7 @@ import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   canManageSetup,
   listRooms,
+  listRoomTypes,
   listTakenRoomIds,
   createRoom,
   createRoomRange,
@@ -11,6 +12,7 @@ import {
   reorderRooms,
 } from "@/lib/database";
 import { syncInventoryForward } from "@/lib/inventorySync";
+import { AUTO_NUMBER_MAX_ROOMS, planAutoNumbering } from "@/lib/roomNumbering";
 
 /**
  * The physical rooms a property owns.
@@ -100,6 +102,41 @@ export async function POST(req) {
   if (!propertyId) {
     return NextResponse.json({ error: "No property selected" }, { status: 400 });
   }
+  // Every room type at once, numbered by the scheme in roomNumbering.js. The
+  // plan is worked out again here, not taken from the client, so the size
+  // limit cannot be stepped around.
+  if (body.auto) {
+    try {
+      const [roomTypes, current] = await Promise.all([
+        listRoomTypes(propertyId),
+        listRooms(propertyId),
+      ]);
+      const { total, allowed, plan, skipped } = planAutoNumbering(roomTypes, current);
+      if (!allowed) {
+        return NextResponse.json(
+          {
+            error: `Auto-numbering is only for properties under ${AUTO_NUMBER_MAX_ROOMS} rooms; this one has ${total}. Add a range per room type instead.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      let created = 0;
+      for (const step of plan) {
+        const rooms = await createRoomRange({ property_id: propertyId, ...step });
+        created += rooms.length;
+      }
+      const inventory = await pushCapacity(
+        propertyId,
+        plan.map((s) => s.room_type_id),
+        session
+      );
+      return NextResponse.json({ created, skipped, inventory });
+    } catch (err) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+  }
+
   if (!body.room_type_id) {
     return NextResponse.json({ error: "Choose a room type" }, { status: 400 });
   }

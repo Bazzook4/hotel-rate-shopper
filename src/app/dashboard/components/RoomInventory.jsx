@@ -11,6 +11,7 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
+import { AUTO_NUMBER_MAX_ROOMS, planAutoNumbering } from "@/lib/roomNumbering";
 
 /**
  * Room Number Setup: the physical rooms, one row each.
@@ -237,6 +238,31 @@ export default function RoomInventory({ session }) {
     }
   }
 
+  const auto = planAutoNumbering(roomTypes, rooms);
+
+  async function autoNumber() {
+    const lines = auto.plan.map(
+      (s) => `${s.name}: ${s.prefix}${s.from} – ${s.prefix}${s.to}`
+    );
+    if (!window.confirm(`Create these rooms now?\n\n${lines.join("\n")}`)) return;
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const data = await sendJSON("/api/pms/rooms", "POST", {
+        property_id: propertyId,
+        auto: true,
+      });
+      const skipped = data.skipped?.length ? ` Not numbered: ${data.skipped.join(", ")}.` : "";
+      setNotice(`Added ${data.created} room${data.created === 1 ? "" : "s"}.${skipped}`);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function removeRoom(room) {
     if (isDraft(room.id)) {
       grid.removeDraft(room.id);
@@ -312,6 +338,21 @@ export default function RoomInventory({ session }) {
         >
           {showRange ? "Hide range" : "+ Add a range"}
         </button>
+        {auto.plan.length > 0 && (
+          <button
+            type="button"
+            className="btn btn-secondary text-sm"
+            onClick={autoNumber}
+            disabled={busy || !auto.allowed}
+            title={
+              auto.allowed
+                ? "Number every room type that has no rooms yet: the first letters of its name, then 101… for the first type, 201… for the next"
+                : `Only for properties under ${AUTO_NUMBER_MAX_ROOMS} rooms — this one has ${auto.total}`
+            }
+          >
+            Auto-number rooms
+          </button>
+        )}
         <button
           type="button"
           className="btn btn-secondary text-sm"
