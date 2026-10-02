@@ -130,7 +130,7 @@ export default function TapeChart({ session }) {
   // and returns "" for anything else, which would leave the chart with no
   // window to ask for.
   const [anchor, setAnchor] = useState(() => todayUTC());
-  const [windowDays, setWindowDays] = useState(30);
+  const [windowDays, setWindowDays] = useState(14);
   const [chart, setChart] = useState(null);
   const [extras, setExtras] = useState([]);
   const [loading, setLoading] = useState(false);
