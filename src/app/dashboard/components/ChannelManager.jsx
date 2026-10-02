@@ -297,6 +297,10 @@ function formatDay(iso) {
   };
 }
 
+// How long the grid load may take before the page gives up and offers a
+// retry, rather than spinning for as long as the request stays open.
+const GRID_TIMEOUT_MS = 30000;
+
 export default function ChannelManager({ session }) {
   // The property chosen in the header. Every call names it, since the server
   // otherwise falls back to the property the login was issued for -- which
@@ -414,9 +418,18 @@ export default function ChannelManager({ session }) {
   const load = useCallback(
     () =>
       track(async () => {
-        const gridRes = await fetch(
-          `/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}${scope ? `&${scope}` : ""}`
-        );
+        let gridRes;
+        try {
+          gridRes = await fetch(
+            `/api/cm/grid?start=${dates[0]}&end=${dates[dates.length - 1]}${scope ? `&${scope}` : ""}`,
+            { signal: AbortSignal.timeout(GRID_TIMEOUT_MS) }
+          );
+        } catch (err) {
+          if (err.name === "TimeoutError") {
+            throw new Error("The rate grid took too long to load. Try again.");
+          }
+          throw err;
+        }
         const gridJson = gridRes.ok ? await gridRes.json() : null;
         setGrid(gridJson);
         setGridLoaded(true);

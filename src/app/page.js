@@ -141,6 +141,9 @@ function ComingSoon({ title, children }) {
   );
 }
 
+// Where the header remembers the chosen property across a refresh.
+const PROPERTY_KEY = "hms.propertyId";
+
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -202,7 +205,17 @@ export default function V2Dashboard() {
       .then((j) => {
         if (cancelled || !j?.properties) return;
         setProperties(j.properties);
-        setPropertyId((cur) => cur || session.propertyId || j.properties[0]?.id || "");
+        // A refresh keeps the property the super admin last chose, rather
+        // than falling back to the one their login was issued for. Ignored
+        // if it is no longer in the list this session may see.
+        let remembered = "";
+        try {
+          remembered = localStorage.getItem(PROPERTY_KEY) || "";
+        } catch {}
+        if (!j.properties.some((p) => p.id === remembered)) remembered = "";
+        setPropertyId(
+          (cur) => cur || remembered || session.propertyId || j.properties[0]?.id || ""
+        );
       })
       .catch(() => {});
     return () => {
@@ -390,7 +403,12 @@ export default function V2Dashboard() {
             {session?.canSwitchProperties && properties.length > 1 ? (
               <select
                 value={propertyId}
-                onChange={(e) => setPropertyId(e.target.value)}
+                onChange={(e) => {
+                  setPropertyId(e.target.value);
+                  try {
+                    localStorage.setItem(PROPERTY_KEY, e.target.value);
+                  } catch {}
+                }}
                 aria-label="Property"
                 className="mr-2 min-w-0 max-w-[38vw] truncate rounded px-2 py-1 text-sm md:max-w-none md:flex-shrink-0"
                 style={{
