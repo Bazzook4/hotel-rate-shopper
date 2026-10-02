@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
@@ -581,7 +581,11 @@ export default function V2Dashboard() {
                   No pages have been given to your account yet. Ask your property admin for access.
                 </div>
               ) : (
-                <>
+                /* Keyed by property, so switching hotels starts the open page
+                   afresh: it shows its loading state instead of the last
+                   hotel's figures until the new ones arrive, and an unsaved
+                   edit can never carry over to the other hotel. */
+                <Fragment key={scopedSession?.propertyId || ""}>
                   {active === "today" && (
                     <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} />
                   )}
@@ -654,7 +658,7 @@ export default function V2Dashboard() {
 
                   {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
 
-                </>
+                </Fragment>
               )}
             </div>
           </section>
