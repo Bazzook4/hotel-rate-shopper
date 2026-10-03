@@ -31,14 +31,28 @@ import { visibleModules } from "../modules";
  * Bars are positioned in multiples of the width actually used.
  */
 const MIN_DAY_WIDTH = 44;
-/** Width of the fixed room-name column on the left. */
-const ROOM_COL = 150;
+/**
+ * Width of the fixed room column on the left. A row holds only the number
+ * and its clean/dirty dot, so the rest of the width goes to the nights; a
+ * long type name on a group header wraps instead.
+ */
+const ROOM_COL = 100;
 /**
  * The same column on a phone. A room row shows only its number, so on a
  * narrow screen the full width goes to the nights instead.
  */
 const ROOM_COL_NARROW = 72;
 const NARROW_GRID = 640;
+
+/**
+ * Row heights. Compact fits more rooms on screen for a large hotel; the bar
+ * keeps the same inset either way so it still reads as sitting in its row.
+ */
+const DENSITY = {
+  normal: { row: 40, barTop: 5, bar: 30, font: "0.7rem" },
+  compact: { row: 28, barTop: 3, bar: 22, font: "0.65rem" },
+};
+const DENSITY_KEY = "tapeChart.density";
 
 const WINDOWS = [
   { days: 14, label: "14 days" },
@@ -180,6 +194,21 @@ export default function TapeChart({ session }) {
    */
   const [typeFilter, setTypeFilter] = useState("all");
   const [collapsed, setCollapsed] = useState({});
+  // How tall the rows are: a per-viewer preference, so it is remembered in
+  // this browser only. Storage can be missing or blocked; normal stands in.
+  const [density, setDensityState] = useState("normal");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(DENSITY_KEY) === "compact") setDensityState("compact");
+    } catch {}
+  }, []);
+  function setDensity(next) {
+    setDensityState(next);
+    try {
+      localStorage.setItem(DENSITY_KEY, next);
+    } catch {}
+  }
+  const rowSize = DENSITY[density];
 
   /**
    * The drag in progress.
@@ -759,17 +788,32 @@ export default function TapeChart({ session }) {
         onWindowChange={setWindowDays}
         onClearAll={typeFilter !== "all" ? () => setTypeFilter("all") : undefined}
         filters={
-          chart?.roomTypes?.length > 1 && (
-            <Dropdown
-              label="Room type"
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={[
-                { value: "all", label: "All" },
-                ...chart.roomTypes.map((rt) => ({ value: rt.id, label: rt.name })),
-              ]}
-            />
-          )
+          <>
+            {chart?.roomTypes?.length > 1 && (
+              <Dropdown
+                label="Room type"
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={[
+                  { value: "all", label: "All" },
+                  ...chart.roomTypes.map((rt) => ({ value: rt.id, label: rt.name })),
+                ]}
+              />
+            )}
+            <div className="seg" role="group" aria-label="Row height">
+              {Object.keys(DENSITY).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={density === d ? "seg-on" : ""}
+                  aria-pressed={density === d}
+                  onClick={() => setDensity(d)}
+                >
+                  {d === "normal" ? "Normal" : "Compact"}
+                </button>
+              ))}
+            </div>
+          </>
         }
       />
 
@@ -982,22 +1026,29 @@ export default function TapeChart({ session }) {
                         left: 0,
                         zIndex: 2,
                         overflow: "hidden",
-                        whiteSpace: "nowrap",
                       }}
+                      title={`${group.name} · ${group.rooms.length} room${group.rooms.length === 1 ? "" : "s"}`}
                     >
-                      <span style={{ width: 10, color: "var(--text-faint)" }}>
+                      <span style={{ width: 10, flexShrink: 0, color: "var(--text-faint)" }}>
                         {collapsed[group.id] ? "▸" : "▾"}
                       </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {/* The column is narrow, so a long name wraps to a
+                          second line -- the day cells beside it are two
+                          lines already -- and past that is cut short. The
+                          room count is in the tooltip and the sold/total
+                          figures. */}
+                      <span
+                        style={{
+                          lineHeight: 1.2,
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
                         {group.name}
                       </span>
-                      {/* The count gives way on a phone, where the column
-                          is only wide enough for the type's name. */}
-                      {!narrow && (
-                        <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
-                          {group.rooms.length} room{group.rooms.length === 1 ? "" : "s"}
-                        </span>
-                      )}
                     </div>
                     {dates.map((d) => {
                       const sold = soldByType[group.id]?.[d] || 0;
@@ -1063,7 +1114,7 @@ export default function TapeChart({ session }) {
                       style={{
                         display: "flex",
                         position: "relative",
-                        height: 40,
+                        height: rowSize.row,
                         borderBottom: "1px solid var(--border)",
                       }}
                     >
@@ -1142,14 +1193,14 @@ export default function TapeChart({ session }) {
                                 position: "absolute",
                                 left: geo.left,
                                 width: geo.width,
-                                top: 5,
-                                height: 30,
+                                top: rowSize.barTop,
+                                height: rowSize.bar,
                                 ...BLOCK_STYLE,
                                 borderRadius: 4,
                                 display: "flex",
                                 alignItems: "center",
                                 padding: "0 0.4rem",
-                                fontSize: "0.7rem",
+                                fontSize: rowSize.font,
                                 fontWeight: 600,
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
@@ -1180,8 +1231,8 @@ export default function TapeChart({ session }) {
                                   position: "absolute",
                                   left: geo.left,
                                   width: geo.width,
-                                  top: 5,
-                                  height: 30,
+                                  top: rowSize.barTop,
+                                  height: rowSize.bar,
                                   border: `2px dashed ${tone}`,
                                   background: conflict ? "var(--danger-soft)" : "var(--accent-soft)",
                                   color: conflict ? "var(--danger)" : "var(--accent-text)",
@@ -1189,7 +1240,7 @@ export default function TapeChart({ session }) {
                                   display: "flex",
                                   alignItems: "center",
                                   padding: "0 0.4rem",
-                                  fontSize: "0.7rem",
+                                  fontSize: rowSize.font,
                                   fontWeight: 600,
                                   whiteSpace: "nowrap",
                                   overflow: "hidden",
@@ -1219,8 +1270,8 @@ export default function TapeChart({ session }) {
                                     position: "absolute",
                                     left: geo.left,
                                     width: geo.width,
-                                    top: 5,
-                                    height: 30,
+                                    top: rowSize.barTop,
+                                    height: rowSize.bar,
                                     boxSizing: "border-box",
                                     ...style,
                                     borderRadius: 4,
@@ -1231,7 +1282,7 @@ export default function TapeChart({ session }) {
                                     display: "flex",
                                     alignItems: "center",
                                     padding: "0 0.4rem",
-                                    fontSize: "0.7rem",
+                                    fontSize: rowSize.font,
                                     fontWeight: 600,
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
@@ -1729,8 +1780,14 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
       {arriving && (
         <MenuItem
           label="Check in"
-          disabled={!room}
-          title={room ? undefined : "Assign a room first"}
+          disabled={!room || room.housekeeping === "dirty"}
+          title={
+            !room
+              ? "Assign a room first"
+              : room.housekeeping === "dirty"
+                ? `Room ${room.room_number} is dirty — mark it clean first`
+                : undefined
+          }
           onClick={() => onChoose("checkin")}
         />
       )}
