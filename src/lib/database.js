@@ -2492,6 +2492,18 @@ export async function listRooms(propertyId, { includeInactive = true } = {}) {
   return data || [];
 }
 
+/** One room of a property, or null if it is not that property's. */
+export async function getRoom(propertyId, id) {
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('*')
+    .eq('id', id)
+    .eq('property_id', propertyId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load room: ${error.message}`);
+  return data;
+}
+
 /** The position after the last room, so a new room lands at the end. */
 async function nextRoomSortOrder(propertyId) {
   const { data, error } = await supabase

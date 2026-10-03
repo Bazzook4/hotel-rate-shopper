@@ -216,6 +216,14 @@ export default function BookingModal({
       ? `Arrives ${reservation.check_in} — check-in opens that day`
       : null;
 
+  // Nor can a guest go into a room still waiting to be cleaned. The server
+  // refuses it too; this says why before the desk tries.
+  const assignedRoom = reservation && rooms.find((r) => r.id === reservation.room_id);
+  const roomDirty =
+    reservation?.status === "confirmed" && assignedRoom?.housekeeping === "dirty"
+      ? `Room ${assignedRoom.room_number} is dirty — mark it clean first`
+      : null;
+
   return (
     <div
       onClick={onClose}
@@ -422,7 +430,7 @@ export default function BookingModal({
               </button>
             )}
             {actions.map((a) => {
-              const blocked = a.status === "in_house" && tooEarly;
+              const blocked = a.status === "in_house" && (tooEarly || roomDirty);
               return (
                 <button
                   key={a.status}

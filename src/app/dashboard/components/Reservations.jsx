@@ -299,6 +299,11 @@ export default function Reservations({ session }) {
    * Checking a guest in needs a room. When none is assigned the desk is asked
    * for one here rather than being sent to the edit form and back.
    */
+  /** Whether a booking's assigned room is waiting to be cleaned. */
+  function roomIsDirty(reservation) {
+    return rooms.find((r) => r.id === reservation.room_id)?.housekeeping === "dirty";
+  }
+
   async function checkIn(reservation) {
     // The API refuses this too. Stopping here as well means the desk gets the
     // reason without a round trip, and the button that led here is already
@@ -311,6 +316,12 @@ export default function Reservations({ session }) {
     }
 
     let roomId = reservation.room_id;
+
+    const assigned = roomId && rooms.find((r) => r.id === roomId);
+    if (assigned?.housekeeping === "dirty") {
+      setError(`Room ${assigned.room_number} is dirty — mark it clean before checking ${reservation.guest_name} in.`);
+      return;
+    }
 
     if (!roomId) {
       const ofType = rooms.filter(
@@ -348,6 +359,15 @@ export default function Reservations({ session }) {
         );
         return;
       }
+      // A dirty room is free but not ready, so it is not offered.
+      const ready = free.filter((r) => r.housekeeping !== "dirty");
+      if (ready.length === 0) {
+        setError(
+          `Every free room of that type is dirty (${free.map((r) => r.room_number).join(", ")}) — mark one clean first.`
+        );
+        return;
+      }
+      free = ready;
       const answer = window.prompt(
         `Which room for ${reservation.guest_name}?\n\nAvailable: ${free
           .map((r) => r.room_number)
@@ -675,11 +695,13 @@ export default function Reservations({ session }) {
                         {r.status === "confirmed" && (
                           <button
                             className="btn btn-primary text-xs"
-                            disabled={busy || r.check_in > today}
+                            disabled={busy || r.check_in > today || roomIsDirty(r)}
                             title={
                               r.check_in > today
                                 ? `Arrives ${shortDate(r.check_in)} — check-in opens that day`
-                                : undefined
+                                : roomIsDirty(r)
+                                  ? "Room is dirty — mark it clean first"
+                                  : undefined
                             }
                             onClick={() => checkIn(r)}
                           >

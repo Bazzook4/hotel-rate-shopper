@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
-import { findRoomClash, getReservation, setReservationStatus } from "@/lib/database";
+import { findRoomClash, getReservation, getRoom, setReservationStatus } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { todayUTC } from "@/lib/date";
 
@@ -104,6 +104,19 @@ export async function POST(req) {
         { error: "Assign a room before checking this guest in." },
         { status: 409 }
       );
+    }
+
+    // A guest is not checked into a room housekeeping has not turned round.
+    // Only a fresh check-in is held to this: undoing a check-out puts the
+    // guest back into the room their own check-out just marked dirty.
+    if (status === "in_house" && current.status === "confirmed") {
+      const room = await getRoom(propertyId, room_id || current.room_id);
+      if (room?.housekeeping === "dirty") {
+        return NextResponse.json(
+          { error: `Room ${room.room_number} is dirty. Mark it clean before checking this guest in.` },
+          { status: 409 }
+        );
+      }
     }
 
     // A room named here is being assigned at the desk, and must be free for
