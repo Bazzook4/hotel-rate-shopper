@@ -850,6 +850,12 @@ export default function TapeChart({ session }) {
           Out of order
         </span>
         <span>
+          <HousekeepingDot status="clean" /> Clean
+        </span>
+        <span>
+          <HousekeepingDot status="dirty" /> Dirty
+        </span>
+        <span>
           <BarTag legend>COMP</BarTag> Complimentary
         </span>
         <span>
@@ -1065,25 +1071,28 @@ export default function TapeChart({ session }) {
                         style={{
                           width: roomCol,
                           flexShrink: 0,
-                          padding: "0.35rem 0.5rem",
+                          padding: "0 0.5rem",
                           fontSize: "0.8rem",
                           borderRight: "1px solid var(--border-strong)",
                           background: "var(--surface)",
                           position: "sticky",
                           left: 0,
                           zIndex: 2,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                       >
-                        <div style={{ fontWeight: 600 }}>{room.room_number}</div>
-                        {/* The type sits on the group header now, so the row
-                            shows only what the header cannot say about this
-                            one room. */}
+                        {/* Number and clean/dirty on one line. The type sits
+                            on the group header, so the row shows only what
+                            the header cannot say about this one room. */}
+                        <span style={{ fontWeight: 600 }}>{room.room_number}</span>
                         {!room.is_active ? (
-                          <div
+                          <span
                             style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}
                           >
-                            out of order
-                          </div>
+                            OOO
+                          </span>
                         ) : (
                           <HousekeepingTag
                             status={room.housekeeping}
@@ -1530,30 +1539,52 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
  * alike.
  */
 /**
- * A room's clean/dirty status under its number. A button for anyone with the
- * Housekeeping right -- one tap flips clean and dirty -- and plain text for
- * everyone else. Out of order is set on the Housekeeping page, not here.
+ * A room's clean/dirty status as a dot beside its number: green clean, amber
+ * dirty, and a ring once inspected. A button for anyone with the Housekeeping
+ * right -- one tap flips clean and dirty -- with a hit area larger than the
+ * dot; a plain dot for everyone else. Out of order is set on the Housekeeping
+ * page, not here.
  */
+const HK_LABEL = { dirty: "Dirty", inspected: "Inspected", out_of_order: "Out of order" };
+
+function HousekeepingDot({ status }) {
+  const dirty = status === "dirty";
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: status === "out_of_order" ? "var(--text-faint)" : dirty ? "var(--warn)" : "var(--status-in)",
+        boxShadow: status === "inspected" ? "0 0 0 2px var(--surface), 0 0 0 3px var(--status-in)" : undefined,
+        verticalAlign: "middle",
+      }}
+    />
+  );
+}
+
 function HousekeepingTag({ status, onToggle }) {
   const dirty = status === "dirty";
-  const label =
-    status === "out_of_order" ? "OOO" : dirty ? "Dirty" : status === "inspected" ? "Inspected" : "Clean";
-  const style = {
-    fontSize: "0.65rem",
-    lineHeight: 1.2,
-    color: dirty ? "var(--warn)" : "var(--text-faint)",
-    fontWeight: dirty ? 600 : 400,
-  };
-  if (!onToggle || status === "out_of_order") return <div style={style}>{label}</div>;
+  const label = HK_LABEL[status] || "Clean";
+  const box = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20 };
+  if (!onToggle || status === "out_of_order") {
+    return (
+      <span title={label} aria-label={label} role="img" style={box}>
+        <HousekeepingDot status={status} />
+      </span>
+    );
+  }
   return (
     <button
       type="button"
       onClick={onToggle}
-      title={dirty ? "Mark clean" : "Mark dirty"}
-      aria-label={`${label} — tap to mark ${dirty ? "clean" : "dirty"}`}
-      style={{ ...style, display: "block", padding: 0, background: "none", border: "none", cursor: "pointer", textDecoration: "underline dotted" }}
+      title={`${label} — click to mark ${dirty ? "clean" : "dirty"}`}
+      aria-label={`${label} — mark ${dirty ? "clean" : "dirty"}`}
+      style={{ ...box, padding: 0, background: "none", border: "none", borderRadius: 4, cursor: "pointer" }}
     >
-      {label}
+      <HousekeepingDot status={status} />
     </button>
   );
 }
