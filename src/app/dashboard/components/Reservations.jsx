@@ -32,7 +32,7 @@ const STATUS_LABELS = {
  */
 const STATUS_CHIP = {
   inquiry: "chip-warn",
-  confirmed: "chip-ok",
+  confirmed: "chip-booked",
   in_house: "chip-in",
   checked_out: "chip-out",
   cancelled: "chip-off",

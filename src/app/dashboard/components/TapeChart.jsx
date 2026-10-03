@@ -57,9 +57,9 @@ const BAR_STYLE = {
     border: "1px dashed var(--warn)",
   },
   confirmed: {
-    background: "var(--accent-soft)",
-    color: "var(--accent-text)",
-    border: "1px solid var(--accent)",
+    background: "var(--status-booked-soft)",
+    color: "var(--status-booked-text)",
+    border: "1px solid var(--status-booked)",
   },
   in_house: { background: "var(--status-in)", color: "#fff" },
   checked_out: { background: "var(--status-out)", color: "#fff" },

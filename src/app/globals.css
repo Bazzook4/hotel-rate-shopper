@@ -28,12 +28,17 @@
   --warn-soft: #fef3c7;
 
   /* Stay status on the tape chart. A booking that is only promised is light;
-   * one where the guest has actually come or gone is solid. Comp and group
-   * are tags on top of any status, so they take hues no status uses. */
+   * one where the guest has actually come or gone is solid. Each status has
+   * a hue of its own -- blue booked, green in house, slate gone -- so
+   * confirmed never reads as checked in. Comp and group are tags on top of
+   * any status, so they take hues no status uses. */
+  --status-booked: #2563eb;
+  --status-booked-soft: #dbeafe;
+  --status-booked-text: #1e40af;
   --status-in: #15803d;
   --status-out: #64748b;
   --tag-comp: #7c3aed;
-  --tag-group: #1d4ed8;
+  --tag-group: #db2777;
 
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
 
@@ -71,10 +76,13 @@
   --warn: #fbbf24;
   --warn-soft: #3a2c10;
 
+  --status-booked: #60a5fa;
+  --status-booked-soft: #172a46;
+  --status-booked-text: #93c5fd;
   --status-in: #15803d;
   --status-out: #475569;
   --tag-comp: #7c3aed;
-  --tag-group: #2563eb;
+  --tag-group: #db2777;
 
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 
@@ -335,6 +343,7 @@ body {
   .chip-ok { background: var(--accent-soft); color: var(--accent-text); }
   .chip-warn { background: var(--warn-soft); color: var(--warn); }
   .chip-off { background: var(--surface-2); color: var(--text-muted); }
+  .chip-booked { background: var(--status-booked-soft); color: var(--status-booked-text); }
   .chip-in { background: var(--status-in); color: #fff; }
   .chip-out { background: var(--status-out); color: #fff; }
 
