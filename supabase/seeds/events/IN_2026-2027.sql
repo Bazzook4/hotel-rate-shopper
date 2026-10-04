@@ -13,6 +13,11 @@
 --   * national (gazetted) holidays reach every hotel in India, as Info only:
 --     shown on every date grid, no effect on price
 --
+-- One occasion can be several rows -- Holi is a national holiday, a leisure
+-- long weekend and a festival week in Mathura -- and a hotel sees only the
+-- strongest of them on any night. Rows of one occasion share a name, or an
+-- `occasion` set at the end of this file where the names differ.
+--
 -- Dates were checked against the Government of India gazetted holiday lists
 -- for 2026 and 2027 and the organisers' published dates. Festivals that
 -- follow the lunar calendar can shift by a day locally, and Eid depends on
@@ -22,7 +27,7 @@
 -- Safe to run more than once: a row is skipped when a public event with the
 -- same name, start date and place already exists.
 --
--- Needs 039_events.sql and 040_event_impact_none.sql first.
+-- Needs migrations 039, 040 and 041 first.
 
 -- Id-ul-Fitr went in as Low in the first version of this file; a national
 -- holiday is Info only.
@@ -49,8 +54,8 @@ seed (name, category, start_date, end_date, impact, state, city, property_types,
   ('Guru Nanak Jayanti', 'festival', '2026-11-24', '2026-11-24', 'medium', 'Punjab', 'Amritsar', '{}', null),
   ('Hornbill Festival', 'festival', '2026-12-01', '2026-12-10', 'high', 'Nagaland', 'Kohima', '{}', 'Held 1-10 December every year at Kisama.'),
   ('Konark Dance Festival', 'festival', '2026-12-01', '2026-12-05', 'medium', 'Odisha', 'Konark', '{}', 'Held 1-5 December every year.'),
-  ('Christmas & New Year in Goa', 'festival', '2026-12-20', '2027-01-02', 'high', 'Goa', null, '{}', 'Goa''s peak fortnight.'),
-  ('Winter school holidays', 'school_holiday', '2026-12-24', '2027-01-01', 'medium', null, null, (select kinds from leisure), 'Most school boards break for Christmas and New Year.'),
+  ('Christmas & New Year in Goa', 'festival', '2026-12-20', '2027-01-03', 'high', 'Goa', null, '{}', 'Goa''s peak fortnight.'),
+  ('Winter school holidays', 'school_holiday', '2026-12-24', '2026-12-30', 'medium', null, null, (select kinds from leisure), 'Most school boards break for Christmas and New Year; the New Year''s Eve weekend takes over from 31 Dec.'),
   ('Christmas long weekend', 'long_weekend', '2026-12-25', '2026-12-27', 'medium', null, null, (select kinds from leisure), 'Christmas Fri 25 Dec.'),
   ('New Year''s Eve weekend', 'long_weekend', '2026-12-31', '2027-01-03', 'high', null, null, (select kinds from leisure), 'New Year''s Eve Thu 31 Dec; Fri 1 Jan off for many.'),
 
@@ -94,7 +99,7 @@ seed (name, category, start_date, end_date, impact, state, city, property_types,
   ('Hornbill Festival', 'festival', '2027-12-01', '2027-12-10', 'high', 'Nagaland', 'Kohima', '{}', 'Held 1-10 December every year at Kisama.'),
   ('Konark Dance Festival', 'festival', '2027-12-01', '2027-12-05', 'medium', 'Odisha', 'Konark', '{}', 'Held 1-5 December every year.'),
   ('Christmas & New Year in Goa', 'festival', '2027-12-20', '2028-01-02', 'high', 'Goa', null, '{}', 'Goa''s peak fortnight.'),
-  ('Winter school holidays', 'school_holiday', '2027-12-24', '2028-01-01', 'medium', null, null, (select kinds from leisure), 'Most school boards break for Christmas and New Year.'),
+  ('Winter school holidays', 'school_holiday', '2027-12-24', '2027-12-30', 'medium', null, null, (select kinds from leisure), 'Most school boards break for Christmas and New Year; the New Year''s Eve weekend takes over from 31 Dec.'),
   ('Christmas long weekend', 'long_weekend', '2027-12-24', '2027-12-26', 'medium', null, null, (select kinds from leisure), 'Christmas Sat 25 Dec.'),
   ('New Year''s Eve weekend', 'long_weekend', '2027-12-31', '2028-01-02', 'high', null, null, (select kinds from leisure), 'New Year''s Eve Fri 31 Dec.'),
 
@@ -134,3 +139,37 @@ where not exists (
     and e.state is not distinct from s.state
     and e.city is not distinct from s.city
 );
+
+-- Goa's year-end went in ending 2 Jan; it runs to the end of the New Year
+-- weekend, so the weekend falls inside it rather than beside it.
+update events set end_date = '2027-01-03'
+where property_id is null and country_code = 'IN'
+  and name = 'Christmas & New Year in Goa' and start_date = '2026-12-20' and end_date = '2027-01-02';
+
+-- Winter school holidays went in running to 1 Jan, over the New Year's Eve
+-- weekend: two events for the same nights. They now hand over on 31 Dec.
+update events
+set end_date = (extract(year from start_date)::int || '-12-30')::date,
+    notes = 'Most school boards break for Christmas and New Year; the New Year''s Eve weekend takes over from 31 Dec.'
+where property_id is null and country_code = 'IN'
+  and name = 'Winter school holidays' and start_date in ('2026-12-24', '2027-12-24')
+  and end_date > (extract(year from start_date)::int || '-12-30')::date;
+
+-- Occasions whose rows have different names. Rows sharing a name need none.
+update events e
+set occasion = m.occasion
+from (values
+  ('Navratri & Garba', 'dussehra'), ('Mysuru Dasara', 'dussehra'), ('Durga Puja', 'dussehra'),
+  ('Dussehra long weekend', 'dussehra'), ('Dussehra', 'dussehra'),
+  ('Christmas & New Year in Goa', 'year-end'), ('Winter school holidays', 'year-end'),
+  ('Christmas long weekend', 'year-end'), ('Christmas Day', 'year-end'),
+  ('New Year''s Eve weekend', 'year-end'),
+  ('Republic Day long weekend', 'republic-day'), ('Republic Day', 'republic-day'),
+  ('Holi in Braj', 'holi'), ('Holi long weekend', 'holi'), ('Holi', 'holi'),
+  ('Easter long weekend', 'easter'), ('Good Friday', 'easter'),
+  ('Mahavir Jayanti long weekend', 'mahavir-jayanti'), ('Mahavir Jayanti', 'mahavir-jayanti'),
+  ('Bakrid long weekend', 'bakrid'), ('Id-ul-Zuha (Bakrid)', 'bakrid'),
+  ('Summer holidays in the hills', 'summer-holidays'), ('Summer school holidays', 'summer-holidays')
+) as m(name, occasion)
+where e.property_id is null and e.country_code = 'IN' and e.name = m.name
+  and e.occasion is distinct from m.occasion;

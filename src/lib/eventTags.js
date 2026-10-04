@@ -107,3 +107,60 @@ export function describeScope(event, countryName = (c) => c) {
   const types = event.property_types || [];
   return types.length ? `${where} · ${types.map(propertyTypeLabel).join(", ")}` : where;
 }
+
+// ---------------------------------------------------------------------------
+// One event per occasion
+// ---------------------------------------------------------------------------
+
+/**
+ * Which occasion an event is. Rows that are the same occasion seen by
+ * different hotels -- Diwali as a High festival for resorts and as an Info
+ * only holiday for everyone -- carry the same `occasion`; without one, the
+ * name is the occasion, so two rows both called "Diwali" are one.
+ */
+export function occasionOf(event) {
+  return String(event.occasion || event.name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+const IMPACT_RANK = { none: 0, low: 1, medium: 2, high: 3 };
+
+/** How specific an event is about where: a city beats a state beats a country. */
+const specificity = (e) => (e.property_id ? 4 : e.city ? 3 : e.state ? 2 : 1);
+
+/**
+ * The events a hotel sees, with each occasion shown once.
+ *
+ * An event is dropped when another of the same occasion covers all of its
+ * dates and says at least as much: Christmas Day inside the Christmas long
+ * weekend, the Diwali holiday inside the Diwali festival week. One that adds
+ * nights of its own stays -- the New Year's Eve weekend runs past the
+ * school holidays.
+ *
+ * The hotel's own event always wins over a shared one for the same
+ * occasion, even a smaller one: it is that hotel's judgement of its own
+ * town.
+ */
+export function oneEventPerOccasion(events) {
+  const preferred = [...events].sort(
+    (a, b) =>
+      Boolean(b.property_id) - Boolean(a.property_id) ||
+      (IMPACT_RANK[b.impact] ?? 2) - (IMPACT_RANK[a.impact] ?? 2) ||
+      specificity(b) - specificity(a) ||
+      (b.end_date.localeCompare(a.end_date) || a.start_date.localeCompare(b.start_date))
+  );
+  const kept = [];
+  for (const e of preferred) {
+    const key = occasionOf(e);
+    const covered = kept.some(
+      (k) =>
+        occasionOf(k) === key &&
+        k.start_date <= e.start_date &&
+        k.end_date >= e.end_date &&
+        (Boolean(k.property_id) || (IMPACT_RANK[k.impact] ?? 2) >= (IMPACT_RANK[e.impact] ?? 2))
+    );
+    if (!covered) kept.push(e);
+  }
+  return kept;
+}

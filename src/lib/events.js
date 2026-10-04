@@ -5,6 +5,7 @@ import {
   cleanPropertyTypes,
   eventMatchesProfile,
   impactOf,
+  oneEventPerOccasion,
 } from "@/lib/eventTags";
 import { normaliseCity, normaliseState } from "@/lib/places";
 import { toCountryCode } from "@/lib/countries";
@@ -78,7 +79,8 @@ export async function savePropertyProfile(propertyId, profile) {
 
 /**
  * Every event a property should see that overlaps the dates: its own
- * private events, and the public events its profile matches.
+ * private events, and the public events its profile matches, each occasion
+ * once (see oneEventPerOccasion).
  *
  * Public events are narrowed by country and date in the database, and by
  * state, city and type here -- places are compared through their normalised
@@ -104,7 +106,8 @@ export async function eventsForProperty(propertyId, startDate, endDate, profile 
     }
   }
 
-  return [...(own.data || []), ...(pub.data || []).filter((e) => eventMatchesProfile(e, tags))].sort(
+  const matched = [...(own.data || []), ...(pub.data || []).filter((e) => eventMatchesProfile(e, tags))];
+  return oneEventPerOccasion(matched).sort(
     (a, b) => a.start_date.localeCompare(b.start_date) || a.name.localeCompare(b.name)
   );
 }
