@@ -51,7 +51,7 @@ function formatRange(start, end) {
   return `${fmt(start, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
-const IMPACT_CHIP = { low: "chip chip-off", medium: "chip chip-ok", high: "chip chip-warn" };
+const IMPACT_CHIP = { none: "chip chip-off", low: "chip chip-off", medium: "chip chip-ok", high: "chip chip-warn" };
 
 export default function Events({ session }) {
   const propertyId = session?.propertyId || "";
@@ -242,7 +242,8 @@ export default function Events({ session }) {
       <p className="text-xs faint">
         Impact sets how far Dynamic Pricing leans on the night: low +{impactOf("low").liftPct}%, medium +
         {impactOf("medium").liftPct}%, high +{impactOf("high").liftPct}%, before its other signals and your floor and
-        ceiling. When events overlap, the biggest one counts.
+        ceiling. When events overlap, the biggest one counts. Info only — used for public holidays — shows the
+        night on every grid without moving a price.
       </p>
 
       {drawer && (

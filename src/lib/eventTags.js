@@ -56,13 +56,18 @@ export const categoryLabel = (id) => EVENT_CATEGORIES.find((c) => c.id === id)?.
  * it. A word rather than a number at entry, because a hotelier can say
  * "big" with confidence but not "17%", and three steps are enough for a
  * signal that is one vote among several.
+ *
+ * "Info only" is shown everywhere but moves no price: a bank holiday on a
+ * Wednesday fills a resort and empties a business hotel, so a shared
+ * holiday says that it is a holiday and leaves the direction to each hotel.
  */
 export const IMPACTS = [
+  { id: "none", label: "Info only", liftPct: 0 },
   { id: "low", label: "Low", liftPct: 5 },
   { id: "medium", label: "Medium", liftPct: 12 },
   { id: "high", label: "High", liftPct: 25 },
 ];
-export const impactOf = (id) => IMPACTS.find((i) => i.id === id) || IMPACTS[1];
+export const impactOf = (id) => IMPACTS.find((i) => i.id === id) || IMPACTS.find((i) => i.id === "medium");
 
 // ---------------------------------------------------------------------------
 // Matching

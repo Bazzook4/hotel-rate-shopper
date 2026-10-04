@@ -10,6 +10,8 @@
 --   * city events name the city (Durga Puja in Kolkata, Pushkar fair,
 --     Nashik Kumbh bathing days, Ooty flower show)
 --   * wedding seasons name only Wedding / Banquet properties
+--   * national (gazetted) holidays reach every hotel in India, as Info only:
+--     shown on every date grid, no effect on price
 --
 -- Dates were checked against the Government of India gazetted holiday lists
 -- for 2026 and 2027 and the organisers' published dates. Festivals that
@@ -20,7 +22,14 @@
 -- Safe to run more than once: a row is skipped when a public event with the
 -- same name, start date and place already exists.
 --
--- Needs 039_events.sql first.
+-- Needs 039_events.sql and 040_event_impact_none.sql first.
+
+-- Id-ul-Fitr went in as Low in the first version of this file; a national
+-- holiday is Info only.
+update events
+set impact = 'none', notes = 'National holiday. Wed 10 Mar, subject to the moon.'
+where property_id is null and country_code = 'IN'
+  and name = 'Id-ul-Fitr' and start_date = '2027-03-10' and impact = 'low';
 
 with leisure as (
   select '{leisure,resort,hill,beach,heritage,homestay}'::text[] as kinds
@@ -53,7 +62,7 @@ seed (name, category, start_date, end_date, impact, state, city, property_types,
   ('Republic Day long weekend', 'long_weekend', '2027-01-23', '2027-01-26', 'medium', null, null, (select kinds from leisure), 'Republic Day Tue 26 Jan; a Monday off makes four days.'),
   ('Goa Carnival', 'festival', '2027-02-06', '2027-02-09', 'high', 'Goa', null, '{}', 'The four days before Ash Wednesday (10 Feb).'),
   ('Maha Shivaratri', 'festival', '2027-03-06', '2027-03-06', 'medium', null, null, '{pilgrimage}', 'Sat 6 Mar.'),
-  ('Id-ul-Fitr', 'holiday', '2027-03-10', '2027-03-10', 'low', null, null, '{}', 'Wed 10 Mar, subject to the moon.'),
+  ('Id-ul-Fitr', 'holiday', '2027-03-10', '2027-03-10', 'none', null, null, '{}', 'National holiday. Wed 10 Mar, subject to the moon.'),
   ('Holi in Braj', 'festival', '2027-03-16', '2027-03-23', 'high', 'Uttar Pradesh', 'Mathura', '{}', 'The week of Lathmar and temple Holi before Holi on Tue 23 Mar.'),
   ('Holi in Braj', 'festival', '2027-03-16', '2027-03-23', 'high', 'Uttar Pradesh', 'Vrindavan', '{}', 'The week of temple Holi before Holi on Tue 23 Mar.'),
   ('Holi long weekend', 'long_weekend', '2027-03-20', '2027-03-23', 'medium', null, null, (select kinds from leisure), 'Holi Tue 23 Mar; a Monday off makes four days.'),
@@ -87,7 +96,31 @@ seed (name, category, start_date, end_date, impact, state, city, property_types,
   ('Christmas & New Year in Goa', 'festival', '2027-12-20', '2028-01-02', 'high', 'Goa', null, '{}', 'Goa''s peak fortnight.'),
   ('Winter school holidays', 'school_holiday', '2027-12-24', '2028-01-01', 'medium', null, null, (select kinds from leisure), 'Most school boards break for Christmas and New Year.'),
   ('Christmas long weekend', 'long_weekend', '2027-12-24', '2027-12-26', 'medium', null, null, (select kinds from leisure), 'Christmas Sat 25 Dec.'),
-  ('New Year''s Eve weekend', 'long_weekend', '2027-12-31', '2028-01-02', 'high', null, null, (select kinds from leisure), 'New Year''s Eve Fri 31 Dec.')
+  ('New Year''s Eve weekend', 'long_weekend', '2027-12-31', '2028-01-02', 'high', null, null, (select kinds from leisure), 'New Year''s Eve Fri 31 Dec.'),
+
+  -- ------------------------------------------- national (gazetted) holidays
+  -- Every hotel in India, every kind, Info only: they show on every grid and
+  -- move no price, since a bank holiday fills some hotels and empties others.
+  ('Dussehra', 'holiday', '2026-10-20', '2026-10-20', 'none', null, null, '{}', 'National holiday. Tue 20 Oct.'),
+  ('Diwali', 'holiday', '2026-11-08', '2026-11-08', 'none', null, null, '{}', 'National holiday. Sun 8 Nov.'),
+  ('Guru Nanak Jayanti', 'holiday', '2026-11-24', '2026-11-24', 'none', null, null, '{}', 'National holiday. Tue 24 Nov.'),
+  ('Christmas Day', 'holiday', '2026-12-25', '2026-12-25', 'none', null, null, '{}', 'National holiday. Fri 25 Dec.'),
+  ('Republic Day', 'holiday', '2027-01-26', '2027-01-26', 'none', null, null, '{}', 'National holiday. Tue 26 Jan.'),
+  ('Holi', 'holiday', '2027-03-23', '2027-03-23', 'none', null, null, '{}', 'National holiday. Tue 23 Mar.'),
+  ('Good Friday', 'holiday', '2027-03-26', '2027-03-26', 'none', null, null, '{}', 'National holiday. Fri 26 Mar.'),
+  ('Ram Navami', 'holiday', '2027-04-15', '2027-04-15', 'none', null, null, '{}', 'National holiday. Thu 15 Apr.'),
+  ('Mahavir Jayanti', 'holiday', '2027-04-19', '2027-04-19', 'none', null, null, '{}', 'National holiday. Mon 19 Apr.'),
+  ('Id-ul-Zuha (Bakrid)', 'holiday', '2027-05-17', '2027-05-17', 'none', null, null, '{}', 'National holiday. Mon 17 May, subject to the moon.'),
+  ('Buddha Purnima', 'holiday', '2027-05-20', '2027-05-20', 'none', null, null, '{}', 'National holiday. Thu 20 May.'),
+  ('Muharram', 'holiday', '2027-06-16', '2027-06-16', 'none', null, null, '{}', 'National holiday. Wed 16 Jun, subject to the moon.'),
+  ('Independence Day', 'holiday', '2027-08-15', '2027-08-15', 'none', null, null, '{}', 'National holiday. Sun 15 Aug.'),
+  ('Milad-un-Nabi', 'holiday', '2027-08-15', '2027-08-15', 'none', null, null, '{}', 'National holiday. Sun 15 Aug, subject to the moon.'),
+  ('Janmashtami', 'holiday', '2027-08-25', '2027-08-25', 'none', null, null, '{}', 'National holiday. Wed 25 Aug.'),
+  ('Gandhi Jayanti', 'holiday', '2027-10-02', '2027-10-02', 'none', null, null, '{}', 'National holiday. Sat 2 Oct.'),
+  ('Dussehra', 'holiday', '2027-10-09', '2027-10-09', 'none', null, null, '{}', 'National holiday. Sat 9 Oct.'),
+  ('Diwali', 'holiday', '2027-10-29', '2027-10-29', 'none', null, null, '{}', 'National holiday. Fri 29 Oct.'),
+  ('Guru Nanak Jayanti', 'holiday', '2027-11-14', '2027-11-14', 'none', null, null, '{}', 'National holiday. Sun 14 Nov.'),
+  ('Christmas Day', 'holiday', '2027-12-25', '2027-12-25', 'none', null, null, '{}', 'National holiday. Sat 25 Dec.')
 )
 insert into events (name, category, start_date, end_date, impact, notes, country_code, state, city, property_types)
 select s.name, s.category, s.start_date, s.end_date, s.impact, s.notes, 'IN', s.state, s.city, s.property_types

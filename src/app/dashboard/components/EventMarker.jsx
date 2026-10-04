@@ -16,13 +16,14 @@ import { categoryLabel, impactOf } from "@/lib/eventTags";
  * user without the rights simply shows no markers.
  */
 
-const RANK = { high: 3, medium: 2, low: 1 };
+const RANK = { high: 3, medium: 2, low: 1, none: 0 };
 
 /** Colours per impact, from the theme's tokens. */
 const TONE = {
   high: { background: "var(--warn-soft)", color: "var(--warn)", border: "var(--warn)" },
   medium: { background: "var(--accent-soft)", color: "var(--accent-text)", border: "var(--accent)" },
   low: { background: "var(--surface-2)", color: "var(--text-muted)", border: "var(--border-strong)" },
+  none: { background: "var(--surface)", color: "var(--text-muted)", border: "var(--border-strong)" },
 };
 
 /**
