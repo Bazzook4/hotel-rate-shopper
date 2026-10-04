@@ -17,6 +17,10 @@ export const RELEASE_NOTES = [
     title: "A tidier menu, and help with tonight's price",
     points: [
       {
+        page: "pricing",
+        text: "Dynamic Pricing now shows the whole coming year as small squares, one per day. Darker means busier, worked out from your own bookings and last year. Tap a day to price that week.",
+      },
+      {
         text: "The menu now has four groups: Front desk, Rates, Reports and Setup. Every page is still there; the search at the top finds any of them.",
       },
       {

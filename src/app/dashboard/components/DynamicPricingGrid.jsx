@@ -6,6 +6,7 @@ import DateToolbar from "./DateToolbar";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import PricingSettings from "./PricingSettings";
 import { usePageState } from "./usePageState";
+import YearDemand from "./YearDemand";
 
 const WINDOW_DAYS = 14;
 
@@ -326,6 +327,8 @@ export default function DynamicPricingGrid({ session }) {
           Settings
         </button>
       </div>
+
+      <YearDemand propertyId={data?.propertyId || propertyId} onPick={setAnchor} />
 
       {/* Controls */}
       <DateToolbar
