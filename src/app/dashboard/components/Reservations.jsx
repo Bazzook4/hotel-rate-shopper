@@ -8,6 +8,7 @@ import { SortTh, useSort } from "./useSort";
 import { useToast } from "../../components/Toast";
 import { useFrontDesk } from "./frontDesk";
 import { useDialog } from "../../components/Dialog";
+import { usePageState } from "./usePageState";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -98,11 +99,13 @@ export default function Reservations({ session, initialView = null }) {
   const [rooms, setRooms] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
 
-  // Opened from the home page's Arrivals or Departures, it starts on that list.
-  const [view, setView] = useState(() =>
-    VIEWS.some((v) => v.id === initialView) ? initialView : "current"
-  );
-  const [search, setSearch] = useState("");
+  // Opened from the home page's Arrivals or Departures, it starts on that
+  // list; otherwise on the list it was last left on.
+  const [view, setView] = usePageState("reservations.view", "current");
+  useEffect(() => {
+    if (VIEWS.some((v) => v.id === initialView)) setView(initialView);
+  }, [initialView, setView]);
+  const [search, setSearch] = usePageState("reservations.search", "");
   // What the list is actually filtered by: the box, once typing pauses.
   // Searching on every keystroke sent a request per letter, and the answers
   // could land out of order and leave the list showing an older search.

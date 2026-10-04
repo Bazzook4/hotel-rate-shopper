@@ -22,6 +22,7 @@ import {
   useReport,
   whole,
 } from "./reportKit";
+import { usePageState } from "./usePageState";
 
 /**
  * The night audit: the close of one business day.
@@ -339,7 +340,7 @@ function exportCsv(report) {
 export default function NightAudit({ session }) {
   const propertyId = session?.propertyId || null;
   const todayIso = formatDateISO(new Date());
-  const [date, setDate] = useState(todayIso);
+  const [date, setDate] = usePageState("nightaudit.date", todayIso);
 
   const { report, loading, error, reload } = useReport("/api/reports/nightaudit", date ? { date } : null, propertyId);
   const { openBooking, modal } = useBookingOpener(session, reload);

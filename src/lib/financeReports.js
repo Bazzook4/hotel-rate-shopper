@@ -450,6 +450,36 @@ function sequenceGaps(rows) {
   return gaps;
 }
 
+/** How far back the home page keeps reminding the desk of a guest who left owing. */
+const STILL_OWING_DAYS = 30;
+
+/**
+ * Guests who checked out before today and still owe, from the last month.
+ * The night audit names only the day's own departures, so a balance missed
+ * yesterday dropped off the home page; this keeps it there until settled.
+ */
+export async function getStillOwing(propertyId, { today }) {
+  const supabase = getSupabaseAdmin();
+  const departed = await readAll(
+    () =>
+      supabase
+        .from('reservations')
+        .select(STAY_SELECT)
+        .eq('property_id', propertyId)
+        .eq('status', 'checked_out')
+        .gte('check_out', shiftDay(today, -STILL_OWING_DAYS))
+        .lt('check_out', today)
+        .order('id'),
+    'departed stays'
+  );
+  if (!departed.length) return [];
+  const { folios } = await loadFolios(propertyId, departed);
+  return departed
+    .filter((r) => (folios.get(r.id)?.totals.balance ?? 0) > PENNY)
+    .map((r) => ({ ...stayRow(r), amount: folios.get(r.id).totals.balance }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
 /** How long a departed guest has owed, in the buckets a debtor list uses. */
 const AGE_BUCKETS = [
   { id: 'inHouse', label: 'In house' },
@@ -798,7 +828,7 @@ export async function getNightAudit(propertyId, { date, tz = 0 }) {
       id: 'invoice',
       tone: 'warn',
       title: 'Checked out without an invoice',
-      hint: 'Issue the invoice from the stay’s Invoices tab.',
+      hint: 'Issue the invoice from the stay’s Bill.',
       rows: departedToday
         .filter((r) => folios.get(r.id).invoices.length === 0 && folios.get(r.id).totals.total > PENNY)
         .map((r) => ({ ...stayRow(r), amount: folios.get(r.id).totals.total })),
@@ -807,7 +837,7 @@ export async function getNightAudit(propertyId, { date, tz = 0 }) {
       id: 'zero',
       tone: 'warn',
       title: 'Nights charged at nothing',
-      hint: 'A night with no rate that is not a complimentary stay. Set the rate on the stay’s Nights tab, or mark the stay complimentary.',
+      hint: 'A night with no rate that is not a complimentary stay. Set the rate in the stay’s Bill, or mark the stay complimentary.',
       rows: zeroNights,
     },
     {

@@ -6,6 +6,7 @@ import DateToolbar from "./DateToolbar";
 import Dropdown from "../../components/Dropdown";
 import GoogleListingSetup from "./GoogleListingSetup";
 import ParityTrend from "./ParityTrend";
+import { usePageState } from "./usePageState";
 
 /**
  * How many nights the grid shows and a refresh scrapes.
@@ -108,7 +109,7 @@ export default function RateParity({ session }) {
 
   // Sent to the rate service, so it uses the service's idea of today rather
   // than the browser's: east of UTC they disagree for part of every evening.
-  const [anchor, setAnchor] = useState(() => todayUTC());
+  const [anchor, setAnchor] = usePageState("parity.anchor", () => todayUTC());
   const [nights, setNights] = useState(1);
   const [guests, setGuests] = useState(2);
 

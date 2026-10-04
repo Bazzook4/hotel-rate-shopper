@@ -89,6 +89,24 @@ const PATHS = {
     </>
   ),
   check: <path d="m4 12 5 5L20 6" />,
+  // Room states on the housekeeping board: a broom for dirty, a double tick
+  // for inspected, a barred circle for out of order.
+  broom: (
+    <>
+      <path d="m19 3-7.5 7.5" />
+      <path d="M11.5 10.5 8 9l-4.5 4.5c2 3.5 3.5 5 7 7L15 16l-1.5-3.5" />
+      <path d="M6 16.5 8 15M9 19l2-2" />
+    </>
+  ),
+  checks: <path d="m2 12 4.5 4.5L15 8M10 15.5l1 1L22 6" />,
+  blocked: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m5.6 5.6 12.8 12.8" />
+    </>
+  ),
+  arrive: <path d="M15 4h4v16h-4M10 8l4 4-4 4M14 12H3" />,
+  depart: <path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9" />,
   warn: (
     <>
       <path d="M12 3 2 20h20L12 3Z" />

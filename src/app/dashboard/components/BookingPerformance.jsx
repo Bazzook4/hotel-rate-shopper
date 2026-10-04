@@ -14,6 +14,7 @@ import {
 import Icon from "../../components/Icon";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { Change } from "./reportKit";
+import { usePageState } from "./usePageState";
 
 /**
  * Booking performance: what the reservations in the PMS add up to.
@@ -722,9 +723,13 @@ export default function BookingPerformance({ session }) {
   const propertyId = session?.propertyId || null;
   const todayIso = formatDateISO(new Date());
 
-  const [basis, setBasis] = useState("stay");
-  const [preset, setPreset] = useState("mtd");
-  const [range, setRange] = useState(() => presetRange("mtd", todayIso));
+  const [basis, setBasis] = usePageState("performance.basis", "stay");
+  // The period is shared by every report, so moving between them keeps it.
+  const [savedPreset, setPreset] = usePageState("reports.preset", "mtd");
+  // A period picked on another report that this one has no name for (Today,
+  // Yesterday) still applies, shown as custom dates.
+  const preset = PRESETS.some((p) => p.id === savedPreset) ? savedPreset : "custom";
+  const [range, setRange] = usePageState("reports.range", () => presetRange("mtd", todayIso));
   const [compare, setCompare] = useState("yoy");
   const [compareRange, setCompareRange] = useState({ start: "", end: "" });
   const [report, setReport] = useState(null);

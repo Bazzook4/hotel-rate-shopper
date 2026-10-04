@@ -194,3 +194,44 @@ export function useFrontDesk(propertyId) {
 
   return { checkIn, checkOut, settleDialog };
 }
+
+/**
+ * A WhatsApp link that opens a chat with the guest, the confirmation already
+ * written. Guests in India expect it there, and the desk was copying it out
+ * by hand. A ten-digit number with no country code is taken as the hotel's
+ * own country's (only India's code is known here; elsewhere the number must
+ * be stored with its +code). Null when there is no usable number.
+ */
+export function whatsappLink(r, { propertyName, countryCode, balance } = {}) {
+  const raw = String(r?.guest_phone || "").trim();
+  let digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (!raw.startsWith("+") && digits.length === 10 && (!countryCode || countryCode === "IN")) {
+    digits = `91${digits}`;
+  }
+  if (digits.length < 8) return null;
+
+  const day = (iso) =>
+    new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "UTC",
+    });
+  const nights = Math.round((new Date(`${r.check_out}T00:00:00Z`) - new Date(`${r.check_in}T00:00:00Z`)) / 86400000);
+  const lines = [
+    `Dear ${r.guest_name},`,
+    "",
+    `Your booking at ${propertyName || "our hotel"} is confirmed.`,
+    `Booking: ${r.reference}`,
+    `Check-in: ${day(r.check_in)}`,
+    `Check-out: ${day(r.check_out)} (${nights} night${nights === 1 ? "" : "s"})`,
+    r.room_types?.room_type_name ? `Room: ${r.room_types.room_type_name}` : null,
+    `Guests: ${r.adults} adult${r.adults === 1 ? "" : "s"}${r.children ? `, ${r.children} child${r.children === 1 ? "" : "ren"}` : ""}`,
+    r.total_amount != null ? `Total: ${money(r.total_amount, r.currency)}` : null,
+    balance > 0 ? `To pay: ${money(balance, r.currency)}` : null,
+    "",
+    "We look forward to welcoming you.",
+  ].filter((l) => l !== null);
+  return `https://wa.me/${digits}?text=${encodeURIComponent(lines.join("\n"))}`;
+}

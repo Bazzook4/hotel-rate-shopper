@@ -3,7 +3,7 @@ import { getSessionFromRequest } from "@/lib/session";
 import { canManageSetup } from "@/lib/permissions";
 import { resolvePropertyId, sessionRights } from "@/lib/propertyScope";
 import { BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
-import { getNightAudit, localToday, normaliseTz } from "@/lib/financeReports";
+import { getNightAudit, getStillOwing, localToday, normaliseTz } from "@/lib/financeReports";
 import { getBookingPerformance } from "@/lib/reports";
 import {
   getPropertyById,
@@ -47,9 +47,10 @@ async function part(build) {
 /** Tonight, against the same night a week ago: the weekday is what makes nights alike. */
 async function todayPart(propertyId, today, tz, { money, exceptions }) {
   const lastWeek = shiftIso(today, -7);
-  const [now, then] = await Promise.all([
+  const [now, then, owing] = await Promise.all([
     getNightAudit(propertyId, { date: today, tz }),
     getNightAudit(propertyId, { date: lastWeek, tz }),
+    exceptions ? getStillOwing(propertyId, { today }) : [],
   ]);
   const roomsOf = (a) => ({
     occupancy: a.rooms.occupancy,
@@ -68,7 +69,20 @@ async function todayPart(propertyId, today, tz, { money, exceptions }) {
     movement: now.movement,
     housekeeping: now.housekeeping,
     // Voided payments and invoices are for the auditor, not today's to-do list.
-    exceptions: exceptions ? now.exceptions.filter((e) => e.tone !== "info") : [],
+    // Plus earlier guests who left owing, so a missed balance stays on the
+    // list until it is settled rather than vanishing the next morning.
+    exceptions: exceptions
+      ? [
+          ...now.exceptions.filter((e) => e.tone !== "info"),
+          {
+            id: "owing",
+            tone: "danger",
+            title: "Left earlier still owing",
+            hint: "Checked out in the last 30 days with money still due. Collect it, or record why not.",
+            rows: owing,
+          },
+        ].filter((e) => e.rows.length > 0)
+      : [],
   };
 }
 

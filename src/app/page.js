@@ -130,8 +130,22 @@ const UserRights = dynamic(() => import("./dashboard/components/UserRights"), {
 const PROPERTY_KEY = "hms.propertyId";
 // Where the area tabs remember the page last used in each area.
 const LAST_PAGE_KEY = "hms.lastPageInArea";
+// Where each user's chosen start page is kept, per browser.
+const START_KEY = "hms.startPage";
 // Page ids that moved, so an old bookmark still lands on the right page.
 const MOVED_PAGES = { pmssetup: "rooms" };
+
+/**
+ * Where someone opens when they have not chosen: the owner or manager on
+ * Today (it carries the front desk too), the desk on the Calendar, and
+ * housekeeping on Housekeeping.
+ */
+function defaultStartPage(canSee) {
+  if (canSee("performance") || canSee("nightaudit")) return "today";
+  if (canSee("calendar")) return "calendar";
+  if (canSee("housekeeping")) return "housekeeping";
+  return "";
+}
 
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
@@ -257,7 +271,7 @@ export default function V2Dashboard() {
   );
 
   // Settle on a page: the hash if it names one this session may see,
-  // otherwise the first page available.
+  // otherwise this person's start page.
   //
   // Waits for the session, because `areas` without one is not yet the real
   // answer -- it omits Setup, so judging a #rateplans hash against it would
@@ -272,8 +286,18 @@ export default function V2Dashboard() {
 
     const raw = window.location.hash.slice(1);
     const hashed = MOVED_PAGES[raw] || raw;
-    setActive(canSee(hashed) ? hashed : areas[0].pages[0].id);
-  }, [areas, active, sessionLoading]);
+    if (canSee(hashed)) {
+      setActive(hashed);
+      return;
+    }
+    // No page in the address: open where this person works. Their own
+    // choice if they pinned one, else what their rights say they do.
+    let pinned = "";
+    try {
+      pinned = localStorage.getItem(`${START_KEY}.${session?.id || ""}`) || "";
+    } catch {}
+    setActive(canSee(pinned) ? pinned : defaultStartPage(canSee) || areas[0].pages[0].id);
+  }, [areas, active, sessionLoading, session?.id]);
 
   // Write the open page back to the hash. replaceState rather than assigning
   // to location.hash, so moving around the dashboard does not fill the back
@@ -334,6 +358,23 @@ export default function V2Dashboard() {
    * -- the home page's Arrivals tile opens Reservations on today's arrivals.
    * It is used once, by the page as it opens.
    */
+  // The page this person opens on; see the landing effect above.
+  const [startPage, setStartPage] = useState("");
+  useEffect(() => {
+    if (!session?.id) return;
+    try {
+      setStartPage(localStorage.getItem(`${START_KEY}.${session.id}`) || "");
+    } catch {}
+  }, [session?.id]);
+  function toggleStartPage(id) {
+    const next = startPage === id ? "" : id;
+    setStartPage(next);
+    try {
+      if (next) localStorage.setItem(`${START_KEY}.${session.id}`, next);
+      else localStorage.removeItem(`${START_KEY}.${session.id}`);
+    } catch {}
+  }
+
   function openPage(id, view = null) {
     setPageView(view);
     setActive(id);
@@ -567,13 +608,14 @@ export default function V2Dashboard() {
                   {area.pages.map((page) => {
                     const on = active === page.id;
                     const soon = PLACEHOLDER_PAGES.has(page.id);
+                    const isStart = (startPage || defaultStartPage(canOpen)) === page.id;
                     return (
+                      <div key={page.id} className="group flex items-center">
                       <button
-                        key={page.id}
                         type="button"
                         onClick={() => openPage(page.id)}
                         title={expanded ? undefined : page.label}
-                        className={`flex items-center gap-2.5 rounded px-2 text-left text-[13px] transition ${
+                        className={`flex min-w-0 flex-1 items-center gap-2.5 rounded px-2 text-left text-[13px] transition ${
                           drawerOpen ? "py-2.5" : "py-[7px]"
                         }`}
                         style={{
@@ -602,6 +644,22 @@ export default function V2Dashboard() {
                           </>
                         )}
                       </button>
+                      {/* The start page shows a house; the open page offers to
+                          become it. */}
+                      {expanded && (on || isStart) && (
+                        <button
+                          type="button"
+                          onClick={() => toggleStartPage(page.id)}
+                          className="ml-1 flex-shrink-0 rounded p-1"
+                          style={{ color: isStart ? "var(--accent)" : "var(--text-faint)" }}
+                          title={isStart ? "Your start page" : "Open on this page each time"}
+                          aria-label={isStart ? `${page.label} is your start page` : `Make ${page.label} your start page`}
+                          aria-pressed={isStart}
+                        >
+                          <Icon name="home" size={14} strokeWidth={isStart ? 2.2 : 1.6} />
+                        </button>
+                      )}
+                      </div>
                     );
                   })}
                 </div>

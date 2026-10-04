@@ -1,31 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
 import { todayUTC } from "@/lib/date";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
 import { useDialog } from "../../components/Dialog";
-import { useFrontDesk } from "./frontDesk";
+import { useFrontDesk, whatsappLink } from "./frontDesk";
+import { toCountryCode } from "@/lib/countries";
 
 /**
- * One booking, opened from the tape chart.
+ * One booking, opened from the tape chart or any list.
  *
- * Tabbed because a stay carries more than fits on one screen -- the booking
- * itself, who is staying, what they added, what they paid -- and the desk
- * moves between those rather than reading them together. A new booking shows
- * only Details: there is nothing to add guests or payments to until the stay
- * exists.
+ * Three tabs, split by what is needed at the same moment: the booking itself,
+ * who is staying, and the bill. Charges, payments and invoices are one Bill
+ * because they answer one question -- what does this guest owe -- and are
+ * read together at check-out. The status, room, balance and the next desk
+ * action sit above the tabs, so they are in view whichever tab is open. A
+ * new booking shows only Details: there is nothing to bill until it exists.
  */
 
 const TABS = [
   { id: "details", label: "Details" },
   { id: "guests", label: "Guests" },
-  { id: "inclusions", label: "Inclusions" },
-  { id: "payments", label: "Payments" },
-  { id: "invoices", label: "Invoices" },
+  { id: "bill", label: "Bill" },
 ];
+
+/** The Bill's parts, top to bottom, and the old tab ids that now open them. */
+const BILL_SECTIONS = [
+  { id: "inclusions", label: "Charges", jump: "+ Add service" },
+  { id: "payments", label: "Payments", jump: "Collect payment" },
+  { id: "invoices", label: "Invoices", jump: "Invoice" },
+];
+const BILL_IDS = new Set(BILL_SECTIONS.map((x) => x.id));
 
 const STATUS_LABELS = {
   inquiry: "Inquiry",
@@ -62,8 +70,11 @@ export default function BookingModal({
 
   // Opened from the tape chart's menu, a booking starts on the tab for the job
   // it was opened for; the add form there is ready until the desk moves away.
-  const [tab, setTab] = useState(isNew ? "details" : initialTab);
+  // Callers still ask for "payments" or "invoices"; those open the Bill at
+  // that part.
+  const [tab, setTab] = useState(isNew ? "details" : BILL_IDS.has(initialTab) ? "bill" : initialTab);
   const [intent, setIntent] = useState(isNew ? null : initialTab);
+  const sectionRefs = useRef({});
   const [folio, setFolio] = useState(null);
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
@@ -77,6 +88,12 @@ export default function BookingModal({
 
   const propertyId = session?.propertyId || null;
   const desk = useFrontDesk(propertyId);
+
+  // Bring the part of the Bill the desk asked for into view.
+  useEffect(() => {
+    if (tab !== "bill" || !BILL_IDS.has(intent)) return;
+    sectionRefs.current[intent]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [tab, intent, folio]);
 
   const loadFolio = useCallback(async () => {
     if (isNew) return;
@@ -239,6 +256,19 @@ export default function BookingModal({
 
   const actions = reservation ? NEXT_ACTIONS[reservation.status] || [] : [];
 
+  const whatsapp = reservation
+    ? whatsappLink(reservation, {
+        propertyName: session?.propertyName,
+        countryCode: toCountryCode(session?.propertyCountry),
+        balance: folio?.totals?.balance,
+      })
+    : null;
+
+  async function folioChanged() {
+    await loadFolio();
+    onChanged?.();
+  }
+
   // A stay that has not started yet cannot be checked in. The action stays
   // visible -- hiding it would leave the desk wondering where check-in went --
   // but it is disabled and says why.
@@ -314,6 +344,110 @@ export default function BookingModal({
           </button>
         </div>
 
+        {/* Always in view: where the stay stands, what is owed, and the
+            next desk action. */}
+        {!isNew && reservation && (
+          <div
+            className="flex flex-wrap items-center gap-2 text-sm"
+            style={{ padding: "0.6rem 1.1rem", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}
+          >
+            <span className="chip chip-off">
+              {STATUS_LABELS[reservation.status] || reservation.status}
+            </span>
+            {reservation.rooms?.room_number && (
+              <span className="chip chip-ok">Room {reservation.rooms.room_number}</span>
+            )}
+            {reservation.booking_type === "complimentary" && (
+              <span className="chip chip-off">Complimentary</span>
+            )}
+            {group && (
+              <span
+                className="chip chip-off"
+                title={group.reservations
+                  .map(
+                    (m) =>
+                      `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name} · ${m.guest_name} · ${m.reference}`
+                  )
+                  .join("\n")}
+              >
+                Group: {group.name} · {group.reservations.length} room
+                {group.reservations.length === 1 ? "" : "s"}
+              </span>
+            )}
+            {folio?.totals && (
+              <button
+                type="button"
+                className="chip"
+                title="Open the bill"
+                onClick={() => {
+                  setTab("bill");
+                  setIntent("payments");
+                }}
+                style={{
+                  background: folio.totals.balance > 0 ? "var(--warn-soft)" : "var(--surface)",
+                  color: folio.totals.balance > 0 ? "var(--warn)" : "var(--text-muted)",
+                  fontWeight: 600,
+                }}
+              >
+                {folio.totals.balance > 0
+                  ? `Owes ₹${folio.totals.balance.toLocaleString("en-IN")}`
+                  : folio.totals.balance < 0
+                    ? `Refund due ₹${(-folio.totals.balance).toLocaleString("en-IN")}`
+                    : "Paid in full"}
+              </button>
+            )}
+
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {whatsapp ? (
+                <a className="btn btn-secondary text-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">
+                  Send on WhatsApp
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-secondary text-sm"
+                  disabled
+                  title="Add the guest's phone number to send on WhatsApp"
+                >
+                  Send on WhatsApp
+                </button>
+              )}
+              {(reservation.status === "confirmed" || reservation.status === "inquiry") && (
+                <button
+                  className="btn btn-ghost text-sm"
+                  style={{ color: "var(--danger)" }}
+                  onClick={cancelBooking}
+                  disabled={busy}
+                >
+                  Cancel {reservation.status === "inquiry" ? "inquiry" : "booking"}
+                </button>
+              )}
+              {actions.map((a) => {
+                const blocked = a.status === "in_house" && (tooEarly || roomDirty);
+                return (
+                  <button
+                    key={a.status}
+                    className={`btn ${a.kind} text-sm`}
+                    disabled={busy || Boolean(blocked)}
+                    title={blocked || undefined}
+                    onClick={() =>
+                      a.status === "in_house"
+                        ? deskAction(desk.checkIn)
+                        : a.status === "checked_out"
+                          ? deskAction(desk.checkOut)
+                          : changeStatus(a.status)
+                    }
+                  >
+                    {a.status === "checked_out" && folio?.totals?.balance > 0
+                      ? `Collect ₹${folio.totals.balance.toLocaleString("en-IN")} & check out`
+                      : a.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Tabs */}
         {!isNew && (
           <div
@@ -361,50 +495,6 @@ export default function BookingModal({
 
           {!firstLoad && (tab === "details" || isNew) && (
             <>
-              {reservation && (
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="chip chip-off">
-                    {STATUS_LABELS[reservation.status] || reservation.status}
-                  </span>
-                  {reservation.rooms?.room_number && (
-                    <span className="chip chip-ok">
-                      Room {reservation.rooms.room_number}
-                    </span>
-                  )}
-                  {reservation.booking_type === "complimentary" && (
-                    <span className="chip chip-off">Complimentary</span>
-                  )}
-                  {group && (
-                    <span
-                      className="chip chip-off"
-                      title={group.reservations
-                        .map(
-                          (m) =>
-                            `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name} · ${m.guest_name} · ${m.reference}`
-                        )
-                        .join("\n")}
-                    >
-                      Group: {group.name} · {group.reservations.length} room
-                      {group.reservations.length === 1 ? "" : "s"}
-                      {group.contact_name ? ` · contact ${group.contact_name}` : ""}
-                    </span>
-                  )}
-                  {folio?.totals && (
-                    <span
-                      className="chip"
-                      style={{
-                        background:
-                          folio.totals.balance > 0 ? "var(--warn-soft)" : "var(--surface-2)",
-                        color:
-                          folio.totals.balance > 0 ? "var(--warn)" : "var(--text-muted)",
-                      }}
-                    >
-                      Balance ₹{folio.totals.balance.toLocaleString("en-IN")}
-                    </span>
-                  )}
-                </div>
-              )}
-
               <BookingForm
                 session={session}
                 reservation={reservation}
@@ -423,70 +513,68 @@ export default function BookingModal({
             </>
           )}
 
-          {!firstLoad && !isNew && tab !== "details" && folio && (
+          {!firstLoad && !isNew && tab === "guests" && folio && (
             <FolioTabs
-              tab={tab}
+              tab="guests"
               folio={folio}
               extras={extras}
               reservationId={reservationId}
-              intent={intent === tab ? intent : null}
-              onChanged={async () => {
-                await loadFolio();
-                onChanged?.();
-              }}
+              intent={null}
+              onChanged={folioChanged}
             />
+          )}
+
+          {!firstLoad && !isNew && tab === "bill" && folio && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-2">
+                {BILL_SECTIONS.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    className={`btn text-sm ${x.id === "payments" && folio.totals?.balance > 0 ? "btn-primary" : "btn-secondary"}`}
+                    onClick={() => setIntent(x.id)}
+                  >
+                    {x.jump}
+                  </button>
+                ))}
+              </div>
+              {BILL_SECTIONS.map((x) => (
+                <section
+                  key={x.id}
+                  ref={(el) => {
+                    sectionRefs.current[x.id] = el;
+                  }}
+                  className="space-y-2"
+                  style={{ scrollMarginTop: 12 }}
+                >
+                  <h4
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      color: "var(--text-muted)",
+                    }}
+                  >
+                    {x.label}
+                  </h4>
+                  {/* Keyed by whether it was jumped to, so its form starts
+                      focused (and a payment starts at what is owed). */}
+                  <FolioTabs
+                    key={`${x.id}-${intent === x.id}`}
+                    tab={x.id}
+                    folio={folio}
+                    extras={extras}
+                    reservationId={reservationId}
+                    intent={intent === x.id ? x.id : null}
+                    onChanged={folioChanged}
+                  />
+                </section>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Footer: the desk actions */}
-        {!isNew && reservation && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              gap: "0.5rem",
-              padding: "0.75rem 1.1rem",
-              borderTop: "1px solid var(--border)",
-            }}
-          >
-            {(reservation.status === "confirmed" || reservation.status === "inquiry") && (
-              <button
-                className="btn btn-ghost text-sm"
-                style={{ color: "var(--danger)", marginRight: "auto" }}
-                onClick={cancelBooking}
-                disabled={busy}
-              >
-                ✕ Cancel {reservation.status === "inquiry" ? "inquiry" : "booking"}
-              </button>
-            )}
-            {actions.map((a) => {
-              const blocked = a.status === "in_house" && (tooEarly || roomDirty);
-              return (
-                <button
-                  key={a.status}
-                  className={`btn ${a.kind} text-sm`}
-                  disabled={busy || Boolean(blocked)}
-                  title={blocked || undefined}
-                  onClick={() =>
-                    a.status === "in_house"
-                      ? deskAction(desk.checkIn)
-                      : a.status === "checked_out"
-                        ? deskAction(desk.checkOut)
-                        : changeStatus(a.status)
-                  }
-                >
-                  {a.status === "checked_out" && folio?.totals?.balance > 0
-                    ? `Collect ₹${folio.totals.balance.toLocaleString("en-IN")} & check out`
-                    : a.label}
-                </button>
-              );
-            })}
-            <button className="btn btn-secondary text-sm" onClick={onClose}>
-              Close
-            </button>
-          </div>
-        )}
       </div>
       {desk.settleDialog}
     </div>

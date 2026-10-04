@@ -5,6 +5,7 @@ import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import DateToolbar from "./DateToolbar";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import PricingSettings from "./PricingSettings";
+import { usePageState } from "./usePageState";
 
 const WINDOW_DAYS = 14;
 
@@ -147,7 +148,7 @@ function Explain({ cell, onClose }) {
 export default function DynamicPricingGrid({ session }) {
   const propertyId = session?.propertyId || session?.property_id || null;
 
-  const [anchor, setAnchor] = useState(() => todayUTC());
+  const [anchor, setAnchor] = usePageState("pricing.anchor", () => todayUTC());
   const [data, setData] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const [explain, setExplain] = useState(null);

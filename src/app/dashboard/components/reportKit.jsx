@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import BookingModal from "./BookingModal";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { usePageState } from "./usePageState";
 
 /**
  * The pieces the Insights reports share: the period picker and its presets,
@@ -278,8 +279,10 @@ export function PeriodPicker({ id, label = "Dates", preset, range, onPreset, onR
 /** Period state: a preset, or dates typed in (which turns the preset to Custom). */
 export function usePeriod(initial = "mtd") {
   const todayIso = formatDateISO(new Date());
-  const [preset, setPreset] = useState(initial);
-  const [range, setRange] = useState(() => presetRange(initial, todayIso));
+  // Shared by every report (and Booking Performance), so the period chosen on
+  // one is the period on the next.
+  const [preset, setPreset] = usePageState("reports.preset", initial);
+  const [range, setRange] = usePageState("reports.range", () => presetRange(initial, todayIso));
   return {
     preset,
     range,
@@ -363,6 +366,7 @@ export const TONE = {
 /** Which folio tab each kind of night audit exception is fixed in. */
 export const FIX_TAB = {
   balance: "payments",
+  owing: "payments",
   invoice: "invoices",
   voidedPayments: "payments",
   voidedInvoices: "invoices",

@@ -6,6 +6,7 @@ import DateToolbar, { ToolbarField } from "./DateToolbar";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
 import { CHANNEL_LABELS } from "@/lib/channels";
+import { usePageState } from "./usePageState";
 
 
 
@@ -399,10 +400,10 @@ export default function ChannelManager({ session }) {
   const [source, setSource] = useState(null);
   const [error, setError] = useState("");
   // Two weeks or a month, the same windows as the tape chart.
-  const [days, setDays] = useState(14);
-  const [anchor, setAnchor] = useState(() => isoDate(new Date()));
+  const [days, setDays] = usePageState("rates.days", 14);
+  const [anchor, setAnchor] = usePageState("rates.anchor", () => isoDate(new Date()));
   const [expanded, setExpanded] = useState({});
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = usePageState("rates.filter", "");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   // Bumped when a multiplier update is rejected, to remount the input so it
@@ -425,7 +426,7 @@ export default function ChannelManager({ session }) {
   // desk setting min nights sets them across the plans, and a grid mixing
   // rates in one row with nights in the next read as one set of numbers.
   // Swapping the cells in place keeps one line per rate plan.
-  const [view, setView] = useState("rates");
+  const [view, setView] = usePageState("rates.view", "rates");
   // Resync: resend what is already stored, without editing anything. Open
   // state, the range it covers, what to send, and which rooms/plans to
   // include. An empty room or plan set means every one of them.

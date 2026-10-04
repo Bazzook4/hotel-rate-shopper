@@ -20,6 +20,7 @@ import {
   whole,
 } from "./reportKit";
 import { SortTh, useSort } from "./useSort";
+import { usePageState } from "./usePageState";
 
 /**
  * Invoicing: the register an accountant files from, what is still owed, and
@@ -477,7 +478,7 @@ function exportCsv(report, tab) {
 export default function InvoicingReport({ session }) {
   const propertyId = session?.propertyId || null;
   const period = usePeriod("mtd");
-  const [tab, setTab] = useState("register");
+  const [tab, setTab] = usePageState("invoicing.tab", "register");
   const { report, loading, error, reload } = useReport(
     "/api/reports/invoicing",
     period.valid ? period.range : null,

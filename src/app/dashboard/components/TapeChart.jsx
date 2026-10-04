@@ -12,6 +12,7 @@ import EventMarker, { useEventsByDate } from "./EventMarker";
 import Dropdown from "../../components/Dropdown";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { visibleModules } from "../modules";
+import { usePageState } from "./usePageState";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -148,8 +149,10 @@ export default function TapeChart({ session }) {
   // todayUTC() already gives a YYYY-MM-DD string; formatDateISO takes a Date
   // and returns "" for anything else, which would leave the chart with no
   // window to ask for.
-  const [anchor, setAnchor] = useState(() => todayUTC());
-  const [windowDays, setWindowDays] = useState(14);
+  // Remembered for the day, so coming back to the calendar finds it where
+  // it was left (see usePageState).
+  const [anchor, setAnchor] = usePageState("calendar.anchor", () => todayUTC());
+  const [windowDays, setWindowDays] = usePageState("calendar.days", 14);
   const [chart, setChart] = useState(null);
   const [extras, setExtras] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -196,7 +199,7 @@ export default function TapeChart({ session }) {
    * noise. Both are view state and deliberately not persisted -- the chart
    * should open showing everything.
    */
-  const [typeFilter, setTypeFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = usePageState("calendar.type", "all");
   const [collapsed, setCollapsed] = useState({});
   // How tall the rows are: a per-viewer preference, so it is remembered in
   // this browser only. Storage can be missing or blocked; normal stands in.
