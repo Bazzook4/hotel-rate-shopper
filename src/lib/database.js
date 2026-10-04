@@ -2277,14 +2277,20 @@ const DEFAULT_PRICING_STRATEGY = {
   weight_adr_90: 0.5,
   weight_adr_ly: 0.5,
   weight_events: 1.0,
+  weight_pace: 1.0,
   max_change_pct: 20.0,
   weights_mode: 'auto',
   floor_pct: 70,
   ceiling_pct: 250,
+  // Null means "the defaults in pricingScales.js", so they can improve
+  // without rewriting every property's row.
+  scales: null,
+  adjustments: null,
 };
 
-/** Columns added by migration 038, which a push can reach before the SQL is run. */
+/** Columns added by migrations 038 and 043, which a push can reach before the SQL is run. */
 const PRICING_STRATEGY_038 = ['weights_mode', 'floor_pct', 'ceiling_pct'];
+const PRICING_STRATEGY_043 = ['weight_pace', 'scales', 'adjustments'];
 
 /**
  * The property's strategy, or the defaults it has not overridden yet.
@@ -2323,15 +2329,24 @@ export async function savePricingStrategy(propertyId, updates) {
     .select()
     .single();
 
-  // Before migration 038 the new columns do not exist; save what can be.
-  if (error && (notMigrated(error) || error.code === 'PGRST204')) {
+  // Before migrations 043 and 038 the new columns do not exist; save what
+  // can be, newest columns dropped first.
+  for (const missing of [PRICING_STRATEGY_043, PRICING_STRATEGY_038]) {
+    if (!error || !(notMigrated(error) || error.code === 'PGRST204')) break;
+    if (missing === PRICING_STRATEGY_038) {
+      for (const key of PRICING_STRATEGY_043) delete row[key];
+    }
     const legacy = { ...row };
-    for (const key of PRICING_STRATEGY_038) delete legacy[key];
+    for (const key of missing) delete legacy[key];
     ({ data, error } = await supabase
       .from('pricing_strategy')
       .upsert(legacy, { onConflict: 'property_id' })
       .select()
       .single());
+  }
+  if (!error && (updates.scales || updates.adjustments) && data && !('scales' in data)) {
+    // Saved, but without the scales and rules: say so rather than pretend.
+    throw new Error('Scales and rules need database update 043 before they can be saved.');
   }
 
   if (error) throw new Error(`Failed to save pricing strategy: ${error.message}`);
@@ -2370,18 +2385,45 @@ export async function savePricingRecommendations(propertyId, rows) {
     recommended_rate: r.recommended_rate,
     reasons: r.reasons || null,
     bounded_by: r.bounded_by || null,
+    // How much of each rate is the hotelier's rules, so the next run can
+    // take it out before applying them again (migration 043).
+    rule_pct: r.rule_pct ?? 0,
+    carried_pct: r.carried_pct ?? 0,
     status: 'pending',
     decided_by: null,
     decided_at: null,
     updated_at: now,
   }));
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from('pricing_recommendations')
     .upsert(payload, { onConflict: 'property_id,room_type_id,stay_date' });
 
+  if (error && (notMigrated(error) || error.code === 'PGRST204')) {
+    const legacy = payload.map(({ rule_pct, carried_pct, ...rest }) => rest);
+    ({ error } = await supabase
+      .from('pricing_recommendations')
+      .upsert(legacy, { onConflict: 'property_id,room_type_id,stay_date' }));
+  }
+
   if (error) throw new Error(`Failed to save recommendations: ${error.message}`);
   return payload.length;
+}
+
+/**
+ * Record the rate a hotelier actually applied after adjusting a suggestion,
+ * so the recommendation shows what went live -- and the next run can tell
+ * that the live rate still carries the rules it was built with.
+ */
+export async function recordAdjustedRecommendations(propertyId, overrides) {
+  for (const [id, rate] of Object.entries(overrides || {})) {
+    const { error } = await supabase
+      .from('pricing_recommendations')
+      .update({ recommended_rate: rate, updated_at: new Date().toISOString() })
+      .eq('property_id', propertyId)
+      .eq('id', id);
+    if (error) throw new Error(`Failed to record adjusted rate: ${error.message}`);
+  }
 }
 
 /** Mark recommendations decided, by a person or by automation. */

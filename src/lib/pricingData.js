@@ -30,13 +30,19 @@ const COMPSET_MIN_HOTELS = 3;
 
 const PAGE = 1000;
 
-export async function gatherPricingInputs(propertyId, startDate, endDate) {
+export async function gatherPricingInputs(propertyId, startDate, endDate, { gapReach = 0 } = {}) {
   const supabase = getSupabaseAdmin();
 
-  const [grid, pickup, history, competitorRates, events] = await Promise.all([
-    getAvailabilityGrid(propertyId, startDate, endDate),
+  // Short-gap rules need to see past the window's edges: a free night on the
+  // window's last day is only a gap if the night after it is full.
+  const gridStart = gapReach ? formatDateISO(addDays(parseDateISO(startDate), -gapReach)) : startDate;
+  const gridEnd = gapReach ? formatDateISO(addDays(parseDateISO(endDate), gapReach)) : endDate;
+
+  const [grid, pickup, history, pace, competitorRates, events] = await Promise.all([
+    getAvailabilityGrid(propertyId, gridStart, gridEnd),
     recentPickup(supabase, propertyId, startDate, endDate),
     nightlyHistory(supabase, propertyId, startDate, endDate),
+    lastYearPace(supabase, propertyId, startDate, endDate),
 
     // Only the like-for-like search (one night, two guests) and only what was
     // checked recently -- a partial or week-old scrape must not vote.
@@ -63,9 +69,11 @@ export async function gatherPricingInputs(propertyId, startDate, endDate) {
   // rooms: a room that cannot be sold is not a room left to sell.
   const occupancyByCell = {};
   const hotelByDate = {};
+  const freeByCell = {};
   for (const rt of grid.roomTypes) {
     for (const day of rt.days) {
       const sellable = rt.capacity - day.blocked;
+      freeByCell[`${rt.id}|${day.date}`] = Math.max(0, sellable - day.sold);
       if (sellable > 0) occupancyByCell[`${rt.id}|${day.date}`] = { sold: day.sold, sellable };
       const h = (hotelByDate[day.date] ||= { sold: 0, sellable: 0 });
       h.sold += day.sold;
@@ -96,6 +104,8 @@ export async function gatherPricingInputs(propertyId, startDate, endDate) {
   return {
     occupancyByCell,
     hotelByDate,
+    freeByCell,
+    pace,
     pickup,
     competitorMedianByDate,
     eventsByDate,
@@ -124,6 +134,86 @@ export function occupancyPctFor(roomTypeId, date, inputs) {
   const typePct = (cell.sold / cell.sellable) * 100;
   const hotelPct = (hotel.sold / hotel.sellable) * 100;
   return (typePct + hotelPct) / 2;
+}
+
+/**
+ * How many nights in a row a room type has free around this one, when full
+ * nights close the run on both sides -- the gap only a short stay can fill.
+ *
+ * Null when the night is not free, or the run reaches past what was loaded
+ * (it may be open-ended, and an open run is not a gap). Nights before today
+ * count as closed, since they can no longer be sold.
+ */
+export function gapNightsFor(roomTypeId, date, inputs, today) {
+  const free = (d) => inputs.freeByCell[`${roomTypeId}|${d}`];
+  if (!(free(date) > 0)) return null;
+
+  let length = 1;
+  for (let d = formatDateISO(addDays(parseDateISO(date), -1)); ; d = formatDateISO(addDays(parseDateISO(d), -1))) {
+    if (d < today) break;
+    const f = free(d);
+    if (f === undefined) return null;
+    if (f <= 0) break;
+    length += 1;
+  }
+  for (let d = formatDateISO(addDays(parseDateISO(date), 1)); ; d = formatDateISO(addDays(parseDateISO(d), 1))) {
+    const f = free(d);
+    if (f === undefined) return null;
+    if (f <= 0) break;
+    length += 1;
+  }
+  return length;
+}
+
+/** Room-nights on the books for a night, now and at this point last year. */
+export function paceFor(date, inputs) {
+  const ly = formatDateISO(addDays(parseDateISO(date), -364));
+  return {
+    onBooksNow: inputs.hotelByDate[date]?.sold ?? null,
+    onBooksLastYear: inputs.pace.onBooksByDate[ly] || 0,
+    finalLastYear: inputs.pace.finalByDate[ly] || 0,
+  };
+}
+
+/**
+ * Last year's bookings for the window's nights (364 days back): all of them,
+ * and those already made by this point a year ago.
+ *
+ * Only bookings that stayed sold are seen -- one cancelled since was on the
+ * books then but is not counted -- so last year reads a little low, which
+ * errs towards "ahead of pace" rather than discounting.
+ */
+async function lastYearPace(supabase, propertyId, startDate, endDate) {
+  const lyStart = formatDateISO(addDays(parseDateISO(startDate), -364));
+  const lyEnd = formatDateISO(addDays(parseDateISO(endDate), -364));
+  const asOf = Date.now() - 364 * 24 * 3600 * 1000;
+  const onBooksByDate = {};
+  const finalByDate = {};
+
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from("reservation_nights")
+      .select("reservation_id, stay_date, reservations!inner(property_id, status, created_at)")
+      .eq("reservations.property_id", propertyId)
+      .in("reservations.status", SOLD_STATUSES)
+      .gte("stay_date", lyStart)
+      .lte("stay_date", lyEnd)
+      .order("reservation_id")
+      .order("stay_date")
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`Failed to load last year's pace: ${error.message}`);
+
+    for (const row of data || []) {
+      finalByDate[row.stay_date] = (finalByDate[row.stay_date] || 0) + 1;
+      const made = Date.parse(row.reservations?.created_at || "");
+      if (Number.isFinite(made) && made <= asOf) {
+        onBooksByDate[row.stay_date] = (onBooksByDate[row.stay_date] || 0) + 1;
+      }
+    }
+    if (!data || data.length < PAGE) break;
+  }
+
+  return { onBooksByDate, finalByDate };
 }
 
 /**

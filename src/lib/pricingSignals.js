@@ -13,6 +13,8 @@
  * signals would damp the one that knows something.
  */
 
+import { DEFAULT_SCALES, WEEKDAY_NAMES, bandFor, columnFor, columnLabels } from "./pricingScales";
+
 /** A signal that has nothing to say. Kept explicit so callers read clearly. */
 const SILENT = null;
 
@@ -43,22 +45,53 @@ export function compsetSignal({ currentRate, competitorMedian }) {
 }
 
 /**
- * How full we already are for that night.
+ * How full we already are for that night, read against how far away it is.
  *
  * The strongest honest signal a hotel has: rooms already sold are demand
  * that has revealed itself, unlike a forecast. Steep at the top, because the
- * last few rooms are worth far more than the first few.
+ * last few rooms are worth far more than the first few. The scale is the
+ * hotelier's occupancy-by-days-out table, since 30% sold means something
+ * different three days out than three months out.
  */
-export function occupancySignal({ occupancyPct }) {
+export function occupancySignal({ occupancyPct, daysOut = 0, scale = DEFAULT_SCALES.occupancy }) {
   if (occupancyPct == null || Number.isNaN(occupancyPct)) return SILENT;
 
   const pct = occupancyPct;
-  if (pct >= 90) return { pct: 20, note: `${pct.toFixed(0)}% sold — very little left` };
-  if (pct >= 75) return { pct: 12, note: `${pct.toFixed(0)}% sold — filling fast` };
-  if (pct >= 60) return { pct: 6, note: `${pct.toFixed(0)}% sold — ahead of pace` };
-  if (pct >= 40) return { pct: 0, note: `${pct.toFixed(0)}% sold — on track` };
-  if (pct >= 20) return { pct: -5, note: `${pct.toFixed(0)}% sold — behind pace` };
-  return { pct: -10, note: `${pct.toFixed(0)}% sold — well behind` };
+  const col = columnFor(scale.cols, daysOut);
+  const row = bandFor(scale.rows, pct);
+  const move = Number(row?.pcts?.[col] ?? 0);
+  const out = columnLabels(scale.cols)[col];
+  return { pct: move, note: `${pct.toFixed(0)}% sold, ${out} days out — ${describe(move)}` };
+}
+
+/** Plain words for a move, so a reason reads as a sentence. */
+function describe(move) {
+  if (move >= 15) return "very little left";
+  if (move > 0) return "filling well";
+  if (move === 0) return "on track";
+  if (move > -8) return "behind";
+  return "well behind";
+}
+
+/**
+ * Rooms on the books now against this many days out last year.
+ *
+ * Occupancy says how full; pace says whether that is good for this distance
+ * out. Silent until last year's bookings exist for the date, because a new
+ * hotel has nothing to be ahead or behind of.
+ */
+export function paceSignal({ onBooksNow, onBooksLastYear, finalLastYear, scale = DEFAULT_SCALES.pace }) {
+  if (onBooksNow == null || !finalLastYear || finalLastYear < 2) return SILENT;
+  // Both empty this far out is normal; empty last year but selling now is ahead.
+  let ratio;
+  if (!onBooksLastYear) ratio = onBooksNow > 0 ? 200 : 100;
+  else ratio = (onBooksNow / onBooksLastYear) * 100;
+
+  const band = bandFor(scale.rows, ratio);
+  return {
+    pct: Number(band?.pct ?? 0),
+    note: `${onBooksNow} room-night${onBooksNow === 1 ? "" : "s"} booked vs ${onBooksLastYear || 0} at this point last year`,
+  };
 }
 
 /**
@@ -68,13 +101,10 @@ export function occupancySignal({ occupancyPct }) {
  * is usually dearer than Tuesday, nothing more. Weighted low by default for
  * that reason, and it should stay low where occupancy is informative.
  */
-export function weekdaySignal({ stayDate }) {
+export function weekdaySignal({ stayDate, scale = DEFAULT_SCALES.weekday }) {
   if (!stayDate) return SILENT;
   const day = new Date(`${stayDate}T00:00:00`).getDay();
-  // Friday and Saturday nights.
-  if (day === 5 || day === 6) return { pct: 8, note: "Weekend night" };
-  if (day === 0) return { pct: -3, note: "Sunday night" };
-  return { pct: 0, note: "Midweek" };
+  return { pct: Number(scale.pcts?.[day] ?? 0), note: `${WEEKDAY_NAMES[day]} night` };
 }
 
 /**
@@ -85,15 +115,15 @@ export function weekdaySignal({ stayDate }) {
  * building before the room count reflects it. Needs booking history, so it
  * stays silent until reservations have accumulated.
  */
-export function pickupSignal({ recentBookings, expectedBookings }) {
+export function pickupSignal({ recentBookings, expectedBookings, scale = DEFAULT_SCALES.pickup }) {
   if (recentBookings == null || !expectedBookings || expectedBookings <= 0) return SILENT;
 
-  const ratio = recentBookings / expectedBookings;
-  if (ratio >= 2) return { pct: 15, note: "Booking at twice the usual pace" };
-  if (ratio >= 1.3) return { pct: 8, note: "Booking faster than usual" };
-  if (ratio >= 0.7) return { pct: 0, note: "Booking at the usual pace" };
-  if (ratio >= 0.3) return { pct: -6, note: "Booking slower than usual" };
-  return { pct: -12, note: "Very little pickup" };
+  const ratio = (recentBookings / expectedBookings) * 100;
+  const band = bandFor(scale.rows, ratio);
+  return {
+    pct: Number(band?.pct ?? 0),
+    note: `Booked this week at ${ratio.toFixed(0)}% of the usual pace`,
+  };
 }
 
 /**
@@ -102,14 +132,15 @@ export function pickupSignal({ recentBookings, expectedBookings }) {
  * An anchor rather than a target: it stops the other signals drifting the
  * rate far from what this property demonstrably sells at.
  */
-export function adr90Signal({ currentRate, adr90 }) {
+export function adr90Signal({ currentRate, adr90, scale = DEFAULT_SCALES.adr_90 }) {
   if (!currentRate || !adr90 || adr90 <= 0) return SILENT;
 
   const gapPct = ((adr90 - currentRate) / currentRate) * 100;
-  if (Math.abs(gapPct) < 8) return { pct: 0, note: "In line with recent ADR" };
-  // A third of the gap: recent trading informs, it does not overrule.
+  if (Math.abs(gapPct) < Number(scale.ignore)) return { pct: 0, note: "In line with recent ADR" };
+  // A share of the gap (a third by default): recent trading informs, it
+  // does not overrule.
   return {
-    pct: gapPct / 3,
+    pct: (gapPct * Number(scale.share)) / 100,
     note: `90-day ADR is ${Math.abs(gapPct).toFixed(0)}% ${gapPct > 0 ? "above" : "below"} this rate`,
   };
 }
@@ -121,13 +152,13 @@ export function adr90Signal({ currentRate, adr90 }) {
  * holiday, an off-season trough -- so it is compared against recent trading
  * rather than against the current rate.
  */
-export function adrLastYearSignal({ adr90, adrLastYearSameDate }) {
+export function adrLastYearSignal({ adr90, adrLastYearSameDate, scale = DEFAULT_SCALES.adr_ly }) {
   if (!adr90 || adr90 <= 0 || !adrLastYearSameDate || adrLastYearSameDate <= 0) return SILENT;
 
   const gapPct = ((adrLastYearSameDate - adr90) / adr90) * 100;
-  if (Math.abs(gapPct) < 10) return { pct: 0, note: "Typical for this date" };
+  if (Math.abs(gapPct) < Number(scale.ignore)) return { pct: 0, note: "Typical for this date" };
   return {
-    pct: gapPct / 3,
+    pct: (gapPct * Number(scale.share)) / 100,
     note: `This date ran ${Math.abs(gapPct).toFixed(0)}% ${gapPct > 0 ? "above" : "below"} average last year`,
   };
 }
@@ -164,6 +195,7 @@ export const SIGNAL_KEYS = [
   "occupancy",
   "weekday",
   "pickup",
+  "pace",
   "adr_90",
   "adr_ly",
   "events",
@@ -179,18 +211,23 @@ export const SIGNAL_KEYS = [
 export const SHARE_CAPS = { compset: 0.2 };
 
 /**
- * Combine the signals that spoke into one recommended rate.
+ * Combine the signals that spoke into one recommended rate, then apply the
+ * hotelier's own rules.
  *
  * Weights are normalised across the signals that had data, so switching a
  * signal off, or one simply having nothing to say, changes the balance
  * between the rest rather than diluting them towards no change.
  *
+ * Rules come after the boldness cap: the cap guards against the arithmetic
+ * over-reacting, while a rule is a decision the hotelier made on purpose.
+ * Floor and ceiling come last and stand above both.
+ *
  * Returns the rate plus why: the reasons are what make a recommendation
  * arguable, and an unarguable rate does not get accepted twice.
  */
-export function recommendRate({ currentRate, signals, weights, maxChangePct = 25, bounds }) {
+export function recommendRate({ currentRate, signals, weights, maxChangePct = 25, bounds, rules = [] }) {
   if (!currentRate || currentRate <= 0) {
-    return { rate: null, reasons: [], bounded_by: null };
+    return { rate: null, reasons: [], bounded_by: null, rule_pct: 0 };
   }
 
   const contributions = [];
@@ -222,29 +259,44 @@ export function recommendRate({ currentRate, signals, weights, maxChangePct = 25
     totalWeight += c.weight;
   }
 
-  if (totalWeight === 0) {
-    return {
-      rate: Math.round(currentRate),
-      reasons: [{ signal: null, note: "No signals had data for this night" }],
-      bounded_by: null,
-    };
-  }
+  const reasons = contributions.map((c) => ({
+    signal: c.signal,
+    note: c.note,
+    pct: Number(c.pct.toFixed(1)),
+    weight: Number(c.weight.toFixed(2)),
+  }));
 
   // Normalising by the weight that actually voted is what keeps a lone
   // informed signal at full strength instead of being averaged into silence.
-  let movePct = weightedPct / totalWeight;
+  let movePct = totalWeight > 0 ? weightedPct / totalWeight : 0;
+  if (totalWeight === 0) reasons.push({ signal: null, note: "No signals had data for this night" });
 
   // One noisy signal should not be able to produce a rate nobody would
   // sanction, however confident the arithmetic.
   const capped = Math.max(-maxChangePct, Math.min(maxChangePct, movePct));
   const wasCapped = capped !== movePct;
   movePct = capped;
+  if (wasCapped) {
+    reasons.push({ signal: null, note: `Change capped at ${maxChangePct}%` });
+  }
 
   let rate = currentRate * (1 + movePct / 100);
+
+  // Rules add together; a total below -90% would give the room away, so it
+  // stops there (the floor normally stops it long before).
+  const rulePct = Math.max(-90, rules.reduce((sum, r) => sum + Number(r.pct || 0), 0));
+  const beforeRules = rate;
+  if (rules.length) {
+    rate *= 1 + rulePct / 100;
+    for (const r of rules) {
+      reasons.push({ signal: "rule", kind: r.kind, note: r.note, pct: Number(Number(r.pct).toFixed(1)) });
+    }
+  }
+
   let boundedBy = null;
 
-  // Bounds are applied last, so they are absolute: no signal, however
-  // strong, can price below the floor or above the ceiling.
+  // Bounds are applied last, so they are absolute: no signal or rule,
+  // however strong, can price below the floor or above the ceiling.
   if (bounds?.floor_rate != null && rate < Number(bounds.floor_rate)) {
     rate = Number(bounds.floor_rate);
     boundedBy = "floor";
@@ -253,16 +305,6 @@ export function recommendRate({ currentRate, signals, weights, maxChangePct = 25
     boundedBy = "ceiling";
   }
 
-  const reasons = contributions.map((c) => ({
-    signal: c.signal,
-    note: c.note,
-    pct: Number(c.pct.toFixed(1)),
-    weight: Number(c.weight.toFixed(2)),
-  }));
-
-  if (wasCapped) {
-    reasons.push({ signal: null, note: `Change capped at ${maxChangePct}%` });
-  }
   if (boundedBy) {
     reasons.push({
       signal: null,
@@ -270,5 +312,20 @@ export function recommendRate({ currentRate, signals, weights, maxChangePct = 25
     });
   }
 
-  return { rate: Math.round(rate), reasons, bounded_by: boundedBy };
+  // The part of the final rate the rules account for, after any bound has
+  // undone some of it. The next run takes exactly this back out, so a rule
+  // the floor absorbed is not later "removed" from a rate it never moved.
+  let appliedRulePct = 0;
+  if (rules.length && beforeRules > 0) {
+    const effective = (Math.round(rate) / beforeRules - 1) * 100;
+    appliedRulePct =
+      rulePct < 0 ? Math.min(0, Math.max(rulePct, effective)) : Math.max(0, Math.min(rulePct, effective));
+  }
+
+  return {
+    rate: Math.round(rate),
+    reasons,
+    bounded_by: boundedBy,
+    rule_pct: Number(appliedRulePct.toFixed(2)),
+  };
 }

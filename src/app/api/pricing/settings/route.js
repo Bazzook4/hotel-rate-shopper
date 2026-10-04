@@ -10,6 +10,17 @@ import {
 } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
+import {
+  cleanScales,
+  cleanAdjustments,
+  DEFAULT_SCALES,
+  DEFAULT_ADJUSTMENTS,
+} from "@/lib/pricingScales";
+
+/** Defaults are stored as null, so a property on them follows any improvement. */
+function orNull(value, defaults) {
+  return value == null || JSON.stringify(value) === JSON.stringify(defaults) ? null : value;
+}
 
 /** Floor and ceiling per room, plus how the algorithm is weighted. */
 export async function GET(req) {
@@ -108,6 +119,11 @@ export async function PUT(req) {
     }
   }
 
+  const scales = s ? cleanScales(s.scales) : { value: null };
+  if (scales.error) return NextResponse.json({ error: scales.error }, { status: 400 });
+  const adjustments = s ? cleanAdjustments(s.adjustments) : { value: null };
+  if (adjustments.error) return NextResponse.json({ error: adjustments.error }, { status: 400 });
+
   try {
     const saved = {};
     if (Array.isArray(body?.bounds)) {
@@ -125,12 +141,23 @@ export async function PUT(req) {
         weight_adr_90: Number(s.weight_adr_90 ?? 0.5),
         weight_adr_ly: Number(s.weight_adr_ly ?? 0.5),
         weight_events: Number(s.weight_events ?? 1),
+        weight_pace: Number(s.weight_pace ?? 1),
         max_change_pct: Number(s.max_change_pct ?? 20),
+        scales: orNull(scales.value, DEFAULT_SCALES),
+        adjustments: orNull(adjustments.value, DEFAULT_ADJUSTMENTS),
       });
     }
     return NextResponse.json(saved);
   } catch (err) {
     console.error("Saving pricing settings failed:", err.message);
-    return NextResponse.json({ error: "Could not save your pricing settings." }, { status: 500 });
+    const pending = /update 043/.test(err.message);
+    return NextResponse.json(
+      {
+        error: pending
+          ? "Your other settings are saved, but scales and rules need a database update first. Ask your administrator to run update 043."
+          : "Could not save your pricing settings.",
+      },
+      { status: 500 }
+    );
   }
 }

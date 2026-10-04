@@ -66,6 +66,7 @@ export const BASE_WEIGHTS = {
   occupancy: 1.0,
   weekday: 0.5,
   pickup: 1.0,
+  pace: 1.0,
   adr_90: 0.5,
   adr_ly: 0.5,
   events: 1.0,
@@ -85,6 +86,8 @@ export function autoWeights({ pickupBookings, nights90, nightsLastYear }) {
     occupancy: BASE_WEIGHTS.occupancy,
     weekday: BASE_WEIGHTS.weekday,
     pickup: BASE_WEIGHTS.pickup * confidence(pickupBookings, 10),
+    // Pace compares with last year's bookings, so it grows with them too.
+    pace: BASE_WEIGHTS.pace * confidence(nightsLastYear, 30),
     adr_90: BASE_WEIGHTS.adr_90 * confidence(nights90, 30),
     adr_ly: BASE_WEIGHTS.adr_ly * confidence(nightsLastYear, 30),
     events: BASE_WEIGHTS.events,
@@ -95,7 +98,12 @@ export function autoWeights({ pickupBookings, nights90, nightsLastYear }) {
 export function resolveWeights(strategy, maturity) {
   if (strategy?.weights_mode === "custom") {
     return Object.fromEntries(
-      Object.keys(BASE_WEIGHTS).map((key) => [key, Number(strategy[`weight_${key}`] ?? 0)])
+      // A weight saved before pace existed has no column for it; pace then
+      // keeps its base weight rather than being silently switched off.
+      Object.keys(BASE_WEIGHTS).map((key) => [
+        key,
+        Number(strategy[`weight_${key}`] ?? BASE_WEIGHTS[key]),
+      ])
     );
   }
   return autoWeights(maturity);

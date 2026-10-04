@@ -6,6 +6,7 @@ import {
   listRatePlanRooms,
   saveDailyRates,
   decideRecommendations,
+  recordAdjustedRecommendations,
 } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
@@ -168,6 +169,12 @@ export async function POST(req) {
   const applied = chosen.filter((r) => !unmapped.includes(r.id)).map((r) => r.id);
   await decideRecommendations(propertyId, applied, "applied", body?.decidedBy || "manual").catch(
     (err) => console.error("Marking recommendations applied failed:", err.message)
+  );
+  const appliedOverrides = Object.fromEntries(
+    Object.entries(overrides).filter(([id]) => applied.includes(id))
+  );
+  await recordAdjustedRecommendations(propertyId, appliedOverrides).catch((err) =>
+    console.error("Recording adjusted rates failed:", err.message)
   );
 
   // Push through the Channel Manager's own route, so this feature can never

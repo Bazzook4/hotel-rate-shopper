@@ -13,6 +13,24 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-05",
+    title: "Set your own discounts and premiums",
+    points: [
+      {
+        page: "pricing",
+        text: "Dynamic Pricing settings have a new Scales & rules tab. Add your own rules, such as 10% off within 3 days of arrival, more for bookings made over 90 days ahead, or a discount on short gaps between bookings.",
+      },
+      {
+        page: "pricing",
+        text: "You can now see and change how pricing reacts to how full you are, with a table by days before arrival. It also compares this year's bookings with the same point last year. Every table starts with the numbers pricing already used, so nothing changes unless you change it.",
+      },
+      {
+        page: "pricing",
+        text: "A Try it line shows what a room would cost on any date as you change the tables, before you save.",
+      },
+    ],
+  },
+  {
     date: "2026-10-04",
     title: "A tidier menu, and help with tonight's price",
     points: [
