@@ -294,7 +294,7 @@ export default function DynamicPricingGrid({ session }) {
     return (
       <div className="space-y-4">
         <div>
-          <h2 className="h1">Dynamic pricing</h2>
+          <h2 className="h1">Dynamic Pricing</h2>
           <p className="sub">Settings</p>
         </div>
         <PricingSettings
@@ -315,7 +315,7 @@ export default function DynamicPricingGrid({ session }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="h1">Dynamic pricing</h2>
+          <h2 className="h1">Dynamic Pricing</h2>
           <p className="sub">
             Rate recommendations from your comp set, occupancy and trading history. Accepting one
             sends it to your channels.
@@ -438,7 +438,7 @@ export default function DynamicPricingGrid({ session }) {
         )
       ) : (
         <div className="card card-pad">
-          <p className="sub">Add your room types in Room Setup before running dynamic pricing.</p>
+          <p className="sub">Add your room types under Setup → Rooms before running dynamic pricing.</p>
         </div>
       )}
 

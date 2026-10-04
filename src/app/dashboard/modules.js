@@ -63,13 +63,11 @@ export const AREAS = [
     id: "setup",
     label: "Setup",
     pages: [
-      { id: "users", label: "Users", icon: "users" },
+      { id: "users", label: "Users & rights", icon: "users" },
       { id: "setup", label: "Property Setup", icon: "building" },
-      { id: "rooms", label: "Room Setup", icon: "bed" },
+      // Room types and room numbers, one above the other.
+      { id: "rooms", label: "Rooms", icon: "bed" },
       { id: "rateplans", label: "Rate Plan Setup", icon: "money" },
-      // Ids are what user grants are stored against, so a page keeps its id
-      // when its label changes: "pmssetup" is the room number page.
-      { id: "pmssetup", label: "Room Number Setup", icon: "bed" },
       { id: "servicesetup", label: "Services Setup", icon: "list" },
       { id: "taxsetup", label: "Tax Setup", icon: "money" },
     ],
@@ -90,6 +88,8 @@ const LEGACY_ALIASES = {
   // nearby hotels from the property's own listing. A user still holding the
   // old grant keeps access to what it was for.
   location: "compshopper",
+  // Room numbers were their own page until they joined room types on Rooms.
+  pmssetup: "rooms",
 };
 
 /** Grants as current page ids: legacy ids translated, duplicates dropped. */
@@ -115,7 +115,6 @@ export const SETUP_PAGES = new Set([
   "setup",
   "rooms",
   "rateplans",
-  "pmssetup",
   "servicesetup",
   "taxsetup",
   "integrations",

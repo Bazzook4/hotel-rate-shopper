@@ -12,6 +12,7 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * Services, grouped by category, each with the taxes it carries.
@@ -44,6 +45,7 @@ const KINDS = [
 const byId = (list) => Object.fromEntries(list.map((x) => [x.id, x]));
 
 export default function ServicesSetup({ propertyId, data, onChanged, title, sub }) {
+  const dialog = useDialog();
   const { categories, taxes } = data;
 
   // tax_ids is compared as text by the grid, so it is kept sorted.
@@ -169,7 +171,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
   }
 
   async function immediate(method, qs, confirmText) {
-    if (!window.confirm(confirmText)) return;
+    if (!(await dialog.confirm({ title: confirmText, confirmLabel: "Delete", danger: true }))) return;
     setBusy(true);
     setError(null);
     try {

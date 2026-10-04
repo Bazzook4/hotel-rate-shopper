@@ -13,6 +13,7 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * Room types and rate plans for one property.
@@ -22,7 +23,8 @@ import {
  * the dashboard passes down, which follows the switcher in the header, so
  * there is no picker here.
  */
-export default function PropertySetup({ session, only = "rooms" }) {
+export default function PropertySetup({ session, only = "rooms", onSaved }) {
+  const dialog = useDialog();
   const propertyId = session?.propertyId || "";
 
   const [roomTypes, setRoomTypes] = useState([]);
@@ -80,6 +82,12 @@ export default function PropertySetup({ session, only = "rooms" }) {
     load();
   }, [load]);
 
+  /** Reload after a save, and tell the page so anything listing room types follows. */
+  async function reload() {
+    await load();
+    onSaved?.();
+  }
+
   async function send(url, method, payload) {
     setNotice("");
     try {
@@ -90,7 +98,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || `Request failed (${res.status})`);
-      await load();
+      await reload();
       return json;
     } catch (err) {
       setNotice(err.message);
@@ -99,7 +107,13 @@ export default function PropertySetup({ session, only = "rooms" }) {
   }
 
   async function removeRoom(id, name) {
-    if (!window.confirm(`Delete room type "${name}"? This cannot be undone.`)) return;
+    const yes = await dialog.confirm({
+      title: `Delete room type "${name}"?`,
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!yes) return;
     await send(`/api/setup/roomTypes?id=${encodeURIComponent(id)}`, "DELETE");
   }
 
@@ -120,7 +134,7 @@ export default function PropertySetup({ session, only = "rooms" }) {
     <RoomTypesPanel
       propertyId={propertyId}
       roomTypes={roomTypes}
-      onReload={load}
+      onReload={reload}
       onDelete={removeRoom}
       notice={notice}
     />
@@ -202,9 +216,9 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
   return (
     <div className="space-y-4">
       <SetupHeader
-        title="Room Setup"
+        title="Rooms"
         count={roomTypes.length}
-        sub="The rooms you sell, how many of each, and what they cost as a base."
+        sub="The room types you sell, how many of each, and their base price. Room numbers are below."
       >
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
       </SetupHeader>

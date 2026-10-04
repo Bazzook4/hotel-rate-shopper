@@ -12,6 +12,7 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { AUTO_NUMBER_MAX_ROOMS, planAutoNumbering } from "@/lib/roomNumbering";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * Room Number Setup: the physical rooms, one row each.
@@ -39,7 +40,8 @@ function naturalCompare(a, b) {
   });
 }
 
-export default function RoomInventory({ session }) {
+export default function RoomInventory({ session, section = false }) {
+  const dialog = useDialog();
   const propertyId = session?.propertyId || null;
 
   const [rooms, setRooms] = useState([]);
@@ -244,7 +246,7 @@ export default function RoomInventory({ session }) {
     const lines = auto.plan.map(
       (s) => `${s.name}: ${s.prefix}${s.from} – ${s.prefix}${s.to}`
     );
-    if (!window.confirm(`Create these rooms now?\n\n${lines.join("\n")}`)) return;
+    if (!(await dialog.confirm({ title: "Create these rooms now?", message: lines.join("\n"), confirmLabel: "Create rooms" }))) return;
     setError(null);
     setNotice(null);
     setBusy(true);
@@ -269,9 +271,12 @@ export default function RoomInventory({ session }) {
       return;
     }
     if (
-      !window.confirm(
-        `Delete room ${room.room_number}? Bookings assigned to it become unassigned. To take it out of sale for a while, untick Sellable instead.`
-      )
+      !(await dialog.confirm({
+        title: `Delete room ${room.room_number}?`,
+        message: "Bookings in it lose their room. To take it out of sale for a while, untick Sellable instead.",
+        confirmLabel: "Delete",
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -291,9 +296,10 @@ export default function RoomInventory({ session }) {
   return (
     <div className="space-y-4">
       <SetupHeader
-        title="Room Number Setup"
+        title="Room numbers"
+        section={section}
         count={rooms.length}
-        sub="Every room the property owns — its floor, number and type — in the order the calendar and room lists show them."
+        sub="Each room's floor, number and type, in calendar order."
       >
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={discard} />
       </SetupHeader>
@@ -316,7 +322,7 @@ export default function RoomInventory({ session }) {
                 title={
                   ok
                     ? undefined
-                    : `Room Setup says ${declared}; ${have} sellable room${have === 1 ? " is" : "s are"} numbered here.`
+                    : `Room types above say ${declared}; ${have} sellable room${have === 1 ? " is" : "s are"} numbered here.`
                 }
               >
                 {rt.room_type_name}: {have}

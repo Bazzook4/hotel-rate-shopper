@@ -14,7 +14,7 @@ const SIGNALS = [
   { key: "weight_occupancy", label: "Occupancy", hint: "How full you already are for that night" },
   { key: "weight_weekday", label: "Weekday / weekend", hint: "The usual shape of the week" },
   { key: "weight_pickup", label: "Pickup", hint: "Bookings taken lately, against your usual pace" },
-  { key: "weight_adr_90", label: "Last 90 days ADR", hint: "What you have achieved recently" },
+  { key: "weight_adr_90", label: "Avg room rate, last 90 days", hint: "What you have achieved recently" },
   { key: "weight_adr_ly", label: "Last year, same date", hint: "Annual shape a 90-day window misses" },
   { key: "weight_events", label: "Events", hint: "Events near you on that date" },
 ];

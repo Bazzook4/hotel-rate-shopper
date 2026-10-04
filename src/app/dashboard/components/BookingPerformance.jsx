@@ -160,9 +160,9 @@ function kpiDefs(money) {
       fmt: money,
       better: "up",
     },
-    { key: "adr", label: "Avg. daily rate (ADR)", hint: "Room revenue per paid room night; complimentary nights are left out", fmt: money, better: "up" },
+    { key: "adr", label: "Avg room rate (ADR)", hint: "Room revenue per paid room night; complimentary nights are left out", fmt: money, better: "up" },
     { key: "occupancy", label: "Occupancy", fmt: (v) => (v == null ? "–" : `${one.format(v)}%`), better: "up", points: true, stayOnly: true },
-    { key: "revpar", label: "RevPAR", hint: "Room revenue per room available", fmt: money, better: "up", stayOnly: true },
+    { key: "revpar", label: "Revenue per room (RevPAR)", hint: "Room revenue per room available", fmt: money, better: "up", stayOnly: true },
     { key: "roomNights", label: "Room nights", fmt: (v) => whole.format(v ?? 0), better: "up" },
     { key: "reservations", label: "Reservations", hint: "After cancellations", fmt: (v) => whole.format(v ?? 0), better: "up" },
     { key: "alos", label: "Avg. length of stay", fmt: (v) => (v == null ? "–" : `${one.format(v)} nights`), better: "up" },
@@ -338,7 +338,7 @@ function MixSection({ report, money }) {
                   <th className="text-right">Room nights</th>
                   <th className="text-right">Room revenue</th>
                   <th>Share of revenue</th>
-                  <th className="text-right">ADR</th>
+                  <th className="text-right" title="Average room rate (ADR)">Avg rate</th>
                   <th className="text-right">ALOS</th>
                   <th className="text-right">Lead time</th>
                   <th className="text-right">Cancelled</th>
@@ -567,8 +567,8 @@ function SeasonalitySection({ report, money }) {
     ...(stay ? [["occupancy", "Occupancy"]] : []),
     ["roomNights", "Room nights"],
     ["roomRevenue", "Room revenue"],
-    ["adr", "ADR"],
-    ...(stay ? [["revpar", "RevPAR"]] : []),
+    ["adr", "Avg room rate"],
+    ...(stay ? [["revpar", "Revenue per room"]] : []),
   ];
   const formats = {
     occupancy: (v) => (v == null ? "–" : `${one.format(v)}%`),
@@ -641,8 +641,8 @@ function SeasonalitySection({ report, money }) {
                   {stay && <th className="text-right">Occupancy</th>}
                   <th className="text-right">Room nights</th>
                   <th className="text-right">Room revenue</th>
-                  <th className="text-right">ADR</th>
-                  {stay && <th className="text-right">RevPAR</th>}
+                  <th className="text-right" title="Average room rate (ADR)">Avg rate</th>
+                  {stay && <th className="text-right" title="Revenue per available room (RevPAR)">Per room</th>}
                   {view === "month" && <th className="text-right">Arrivals</th>}
                 </tr>
               </thead>
@@ -785,11 +785,9 @@ export default function BookingPerformance({ session }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold" style={{ color: "var(--text)" }}>
-            Booking performance
-          </h2>
+          <h2 className="h1">Booking Performance</h2>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Revenue, ADR, length of stay, lead time and cancellations from your reservations, by
+            Revenue, average rate, length of stay, lead time and cancellations from your reservations, by
             channel, source country, room type and rate plan.
           </p>
         </div>

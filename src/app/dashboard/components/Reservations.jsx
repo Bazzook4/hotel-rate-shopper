@@ -6,6 +6,8 @@ import BookingForm from "./BookingForm";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { SortTh, useSort } from "./useSort";
 import { useToast } from "../../components/Toast";
+import { useFrontDesk } from "./frontDesk";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -87,7 +89,8 @@ const SORT_COLUMNS = {
   status: (r) => STATUS_LABELS[r.status] || r.status,
 };
 
-export default function Reservations({ session }) {
+export default function Reservations({ session, initialView = null }) {
+  const dialog = useDialog();
   const propertyId = session?.propertyId || null;
 
   const [reservations, setReservations] = useState([]);
@@ -95,7 +98,10 @@ export default function Reservations({ session }) {
   const [rooms, setRooms] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
 
-  const [view, setView] = useState("current");
+  // Opened from the home page's Arrivals or Departures, it starts on that list.
+  const [view, setView] = useState(() =>
+    VIEWS.some((v) => v.id === initialView) ? initialView : "current"
+  );
   const [search, setSearch] = useState("");
   // What the list is actually filtered by: the box, once typing pauses.
   // Searching on every keystroke sent a request per letter, and the answers
@@ -113,6 +119,7 @@ export default function Reservations({ session }) {
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const toast = useToast();
+  const desk = useFrontDesk(propertyId);
 
   // OTA bookings received but not in the PMS -- normally none.
   const [pending, setPending] = useState([]);
@@ -275,7 +282,14 @@ export default function Reservations({ session }) {
    */
   async function cancel(r) {
     if (r.status === "inquiry") {
-      if (window.confirm(`Cancel ${r.guest_name}'s inquiry ${r.reference}?`)) changeStatus(r, "cancelled");
+      const yes = await dialog.confirm({
+        title: `Cancel ${r.guest_name}'s inquiry ${r.reference}?`,
+        message: "A cancelled inquiry cannot be put back as an inquiry.",
+        confirmLabel: "Cancel inquiry",
+        cancelLabel: "Keep it",
+        danger: true,
+      });
+      if (yes) changeStatus(r, "cancelled");
       return;
     }
     if (!(await changeStatus(r, "cancelled"))) return;
@@ -295,15 +309,15 @@ export default function Reservations({ session }) {
     });
   }
 
-  /**
-   * Checking a guest in needs a room. When none is assigned the desk is asked
-   * for one here rather than being sent to the edit form and back.
-   */
   /** Whether a booking's assigned room is waiting to be cleaned. */
   function roomIsDirty(reservation) {
     return rooms.find((r) => r.id === reservation.room_id)?.housekeeping === "dirty";
   }
 
+  /**
+   * Checking a guest in needs a room. When none is assigned the desk picks
+   * one of the free, clean rooms in a list, the first already chosen.
+   */
   async function checkIn(reservation) {
     // The API refuses this too. Stopping here as well means the desk gets the
     // reason without a round trip, and the button that led here is already
@@ -315,83 +329,36 @@ export default function Reservations({ session }) {
       return;
     }
 
-    let roomId = reservation.room_id;
-
-    const assigned = roomId && rooms.find((r) => r.id === roomId);
+    const assigned = reservation.room_id && rooms.find((r) => r.id === reservation.room_id);
     if (assigned?.housekeeping === "dirty") {
       setError(`Room ${assigned.room_number} is dirty — mark it clean before checking ${reservation.guest_name} in.`);
       return;
     }
 
-    if (!roomId) {
-      const ofType = rooms.filter(
-        (r) => r.room_type_id === reservation.room_type_id && r.is_active
-      );
-      if (ofType.length === 0) {
-        setError(
-          "No rooms of that type have been set up yet — add them in Room Setup first."
-        );
-        return;
-      }
+    await runDesk(reservation, () => desk.checkIn(reservation));
+  }
 
-      // Only the rooms free for the whole stay are offered: one with a guest
-      // in it, or out of order, would be refused by the server anyway.
-      let free = ofType;
-      try {
-        const qs = new URLSearchParams({
-          checkIn: reservation.check_in,
-          checkOut: reservation.check_out,
-          ignoreReservationId: reservation.id,
-        });
-        if (propertyId) qs.set("propertyId", propertyId);
-        const res = await fetch(`/api/pms/rooms?${qs}`);
-        const data = await res.json();
-        if (res.ok) {
-          const taken = new Set((data.rooms || []).filter((r) => r.taken).map((r) => r.id));
-          free = ofType.filter((r) => !taken.has(r.id));
-        }
-      } catch {
-        // Offer every room of the type; the server still refuses a taken one.
-      }
-      if (free.length === 0) {
-        setError(
-          `Every room of that type is taken or out of order for ${reservation.guest_name}'s stay.`
-        );
-        return;
-      }
-      // A dirty room is free but not ready, so it is not offered.
-      const ready = free.filter((r) => r.housekeeping !== "dirty");
-      if (ready.length === 0) {
-        setError(
-          `Every free room of that type is dirty (${free.map((r) => r.room_number).join(", ")}) — mark one clean first.`
-        );
-        return;
-      }
-      free = ready;
-      const answer = window.prompt(
-        `Which room for ${reservation.guest_name}?\n\nAvailable: ${free
-          .map((r) => r.room_number)
-          .join(", ")}`
-      );
-      if (!answer) return;
-      const match = free.find(
-        (r) => r.room_number.toLowerCase() === answer.trim().toLowerCase()
-      );
-      if (!match) {
-        const exists = ofType.some(
-          (r) => r.room_number.toLowerCase() === answer.trim().toLowerCase()
-        );
-        setError(
-          exists
-            ? `Room ${answer.trim()} is not free for this stay.`
-            : `There is no room ${answer.trim()} of that type.`
-        );
-        return;
-      }
-      roomId = match.id;
+  /** Check-out, taking any balance still owed in the same step. */
+  async function checkOut(reservation) {
+    await runDesk(reservation, () => desk.checkOut(reservation));
+  }
+
+  /** Run a front-desk action on one row: busy while it runs, the row updated after. */
+  async function runDesk(reservation, action) {
+    setBusyId(reservation.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const data = await action();
+      if (!data) return;
+      setReservations((prev) => prev.map((r) => (r.id === reservation.id ? data.reservation : r)));
+      const warning = inventoryWarning(data);
+      if (warning) setError(warning);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
     }
-
-    await changeStatus(reservation, "in_house", roomId);
   }
 
   async function adoptOta() {
@@ -587,6 +554,8 @@ export default function Reservations({ session }) {
         </div>
       )}
 
+      {desk.settleDialog}
+
       {formOpen && (
         <BookingForm
           session={session}
@@ -712,7 +681,7 @@ export default function Reservations({ session }) {
                           <button
                             className="btn btn-primary text-xs"
                             disabled={busy}
-                            onClick={() => changeStatus(r, "checked_out")}
+                            onClick={() => checkOut(r)}
                           >
                             Check out
                           </button>

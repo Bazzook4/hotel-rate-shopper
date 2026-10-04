@@ -321,7 +321,7 @@ export default function CompetitorShopper({ session }) {
     return (
       <div className="space-y-4">
         <div>
-          <h2 className="h1">Competitor rates</h2>
+          <h2 className="h1">Competitor Shopper</h2>
           <p className="sub">Choose the hotels you compete with.</p>
         </div>
         <ManageCompetitors
@@ -354,7 +354,7 @@ export default function CompetitorShopper({ session }) {
     return (
       <div className="space-y-4">
         <div>
-          <h2 className="h1">Competitor rates</h2>
+          <h2 className="h1">Competitor Shopper</h2>
           <p className="sub">{data.propertyName}</p>
         </div>
         <CompetitorDay
@@ -378,10 +378,9 @@ export default function CompetitorShopper({ session }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="h1">Competitor rates</h2>
+          <h2 className="h1">Competitor Shopper</h2>
           <p className="sub">
-            Monitor your competitors&apos; rates to confidently price your rooms and convert more
-            bookings.
+            What the hotels you compete with charge, night by night.
           </p>
         </div>
         <button type="button" className="btn" onClick={() => setManaging(true)}>

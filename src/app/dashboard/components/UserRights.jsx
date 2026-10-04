@@ -14,6 +14,7 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * Users and what each may open, as one grid: a row per page, grouped by
@@ -50,6 +51,7 @@ function toRow(user) {
 const modulesOf = (row) => PAGE_IDS.filter((id) => row[field(id)]);
 
 export default function UserRights({ session, propertyId: fixedPropertyId = null, pickProperty = false }) {
+  const dialog = useDialog();
   const superAdmin = isSuperAdmin(session);
   const [properties, setProperties] = useState([]);
   const [propertyId, setPropertyId] = useState(fixedPropertyId);
@@ -274,10 +276,16 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
           <select
             className="input w-auto text-sm"
             value={propertyId || ""}
-            onChange={(e) => {
-              if (grid.count && !window.confirm("Discard unsaved changes?")) return;
+            onChange={async (e) => {
+              const next = e.target.value;
+              if (
+                grid.count &&
+                !(await dialog.confirm({ title: "Discard unsaved changes?", confirmLabel: "Discard", danger: true }))
+              ) {
+                return;
+              }
               grid.discard();
-              setPropertyId(e.target.value);
+              setPropertyId(next);
             }}
           >
             {properties.map((p) => (

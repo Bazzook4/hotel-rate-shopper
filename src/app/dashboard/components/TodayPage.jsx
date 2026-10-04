@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Icon from "../../components/Icon";
+import { useFrontDesk } from "./frontDesk";
+import { inventoryWarning } from "@/lib/inventoryNotice";
 import {
   BookingLink,
   Change,
@@ -90,7 +92,7 @@ function CardHead({ title, sub, page, linkLabel, onOpenPage, canOpen }) {
  * One headline figure. The whole tile opens its page, so the number is the
  * link -- there is no separate "details" control to find.
  */
-function Tile({ label, value, sub, change, page, onOpenPage, canOpen }) {
+function Tile({ label, value, sub, change, page, view, onOpenPage, canOpen }) {
   const body = (
     <>
       <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
@@ -113,7 +115,7 @@ function Tile({ label, value, sub, change, page, onOpenPage, canOpen }) {
   );
   if (!page || !canOpen(page)) return <div className="p-2">{body}</div>;
   return (
-    <button type="button" className="today-tile p-2 text-left" onClick={() => onOpenPage(page)}>
+    <button type="button" className="today-tile p-2 text-left" onClick={() => onOpenPage(page, view)}>
       {body}
     </button>
   );
@@ -356,6 +358,159 @@ function NeedsAttention({ today, distribution, onOpenPage, canOpen, openBooking 
 }
 
 // ------------------------------------------------------------------
+// Front desk: today's arrivals and departures, actionable in place
+// ------------------------------------------------------------------
+
+/** How many of each list are shown before "See all". */
+const DESK_ROWS = 8;
+
+function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking, empty }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+          {title} <span className="font-normal tabular-nums" style={{ color: "var(--text-muted)" }}>({rows.length})</span>
+        </h4>
+        {rows.length > DESK_ROWS && onSeeAll && (
+          <button type="button" className="btn btn-ghost text-xs" onClick={onSeeAll}>
+            See all →
+          </button>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>{empty}</p>
+      ) : (
+        <ul>
+          {rows.slice(0, DESK_ROWS).map((r) => (
+            <li
+              key={r.id}
+              className="flex items-center gap-3 py-2"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <button
+                type="button"
+                className="min-w-0 flex-1 text-left"
+                onClick={() => openBooking(r.id, "details")}
+                title="Open booking"
+              >
+                <span className="block truncate text-sm font-medium" style={{ color: "var(--text)" }}>
+                  {r.guest_name}
+                </span>
+                <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
+                  {[r.rooms?.room_number ? `Room ${r.rooms.room_number}` : "No room yet", r.room_types?.room_type_name]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary text-xs"
+                disabled={busyId !== null}
+                onClick={() => onAction(r)}
+              >
+                {busyId === r.id ? "…" : action}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Who is arriving and leaving today, each with its Check in or Check out
+ * right here: the desk's commonest jobs without leaving the home page.
+ */
+function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, onChanged }) {
+  const desk = useFrontDesk(propertyId);
+  const [arrivals, setArrivals] = useState([]);
+  const [departures, setDepartures] = useState([]);
+  const [busyId, setBusyId] = useState(null);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const ask = async (params) => {
+      const qs = new URLSearchParams(params);
+      if (propertyId) qs.set("propertyId", propertyId);
+      const res = await fetch(`/api/pms/reservations?${qs}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Could not load today's bookings");
+      return body.reservations || [];
+    };
+    try {
+      const [a, d] = await Promise.all([
+        ask({ status: "confirmed", arrivingOn: date }),
+        ask({ status: "in_house", leavingOn: date }),
+      ]);
+      setArrivals(a);
+      setDepartures(d);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [date, propertyId]);
+
+  // `stamp` is the page's report: when it reloads (a booking changed in its
+  // window), these lists follow.
+  useEffect(() => {
+    load();
+  }, [load, stamp]);
+
+  async function run(r, action) {
+    setBusyId(r.id);
+    setError("");
+    try {
+      const data = await action(r);
+      if (!data) return;
+      const warning = inventoryWarning(data);
+      if (warning) setError(warning);
+      await load();
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const seeAll = (view) => (canOpen("reservations") ? () => onOpenPage("reservations", view) : null);
+
+  return (
+    <div className="card card-pad">
+      <CardHead title="Front desk" page="calendar" linkLabel="Calendar" onOpenPage={onOpenPage} canOpen={canOpen} />
+      {error && (
+        <p className="mb-3 text-sm" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+      <div className="grid gap-6 md:grid-cols-2">
+        <DeskList
+          title="Arriving today"
+          rows={arrivals}
+          action="Check in"
+          busyId={busyId}
+          onAction={(r) => run(r, desk.checkIn)}
+          onSeeAll={seeAll("arrivals")}
+          openBooking={openBooking}
+          empty="No one left to arrive."
+        />
+        <DeskList
+          title="Leaving today"
+          rows={departures}
+          action="Check out"
+          busyId={busyId}
+          onAction={(r) => run(r, desk.checkOut)}
+          onSeeAll={seeAll("departures")}
+          openBooking={openBooking}
+          empty="No one left to check out."
+        />
+      </div>
+      {desk.settleDialog}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------
 // Tonight and the month
 // ------------------------------------------------------------------
 
@@ -387,6 +542,7 @@ function Tonight({ today, onOpenPage, canOpen }) {
           value={whole.format(m.arrivals.expected)}
           sub={`${whole.format(m.arrivals.arrived)} in · ${whole.format(m.arrivals.pending)} to come`}
           page="reservations"
+          view="arrivals"
           {...tile}
         />
         <Tile
@@ -394,6 +550,7 @@ function Tonight({ today, onOpenPage, canOpen }) {
           value={whole.format(m.departures.expected)}
           sub={`${whole.format(m.departures.departed)} out · ${whole.format(m.departures.pending)} to go`}
           page="reservations"
+          view="departures"
           {...tile}
         />
         <Tile
@@ -412,7 +569,7 @@ function Tonight({ today, onOpenPage, canOpen }) {
               page="nightaudit"
               {...tile}
             />
-            <Tile label="ADR" value={money(c.adr)} change={vs(c.adr, p.adr)} page="nightaudit" {...tile} />
+            <Tile label="Avg room rate (ADR)" value={money(c.adr)} change={vs(c.adr, p.adr)} page="nightaudit" {...tile} />
           </>
         )}
       </div>
@@ -437,8 +594,8 @@ function MonthToDate({ month, onOpenPage, canOpen }) {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
         <Tile label="Room revenue" value={money(c.roomRevenue)} change={<Change now={c.roomRevenue} before={p.roomRevenue} better="up" />} sub={`was ${money(p.roomRevenue)}`} {...tile} />
         <Tile label="Occupancy" value={pct(c.occupancy)} change={<Change now={c.occupancy} before={p.occupancy} better="up" points />} sub={`was ${pct(p.occupancy)}`} {...tile} />
-        <Tile label="ADR" value={money(c.adr)} change={<Change now={c.adr} before={p.adr} better="up" />} sub={`was ${money(p.adr)}`} {...tile} />
-        <Tile label="RevPAR" value={money(c.revpar)} change={<Change now={c.revpar} before={p.revpar} better="up" />} sub={`was ${money(p.revpar)}`} {...tile} />
+        <Tile label="Avg room rate (ADR)" value={money(c.adr)} change={<Change now={c.adr} before={p.adr} better="up" />} sub={`was ${money(p.adr)}`} {...tile} />
+        <Tile label="Revenue per room (RevPAR)" value={money(c.revpar)} change={<Change now={c.revpar} before={p.revpar} better="up" />} sub={`was ${money(p.revpar)}`} {...tile} />
         <Tile
           label="Reservations"
           value={whole.format(c.reservations ?? 0)}
@@ -501,6 +658,18 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
         />
       )}
       {report?.distribution?.error && <PartError title="Channel status" error={report.distribution.error} />}
+
+      {today && (
+        <FrontDesk
+          date={today.date}
+          propertyId={propertyId}
+          stamp={report}
+          onOpenPage={onOpenPage}
+          canOpen={canOpen}
+          openBooking={openBooking}
+          onChanged={reload}
+        />
+      )}
 
       {today && <Tonight today={today} onOpenPage={onOpenPage} canOpen={canOpen} />}
       {report?.today?.error && <PartError title="Tonight" error={report.today.error} />}

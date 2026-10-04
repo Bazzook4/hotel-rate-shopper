@@ -8,6 +8,7 @@ import LogoutButton from "./components/LogoutButton";
 import ThemeToggle from "./components/ThemeToggle";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
+import { DialogProvider } from "./components/Dialog";
 import CommandPalette from "./dashboard/components/CommandPalette";
 
 /**
@@ -127,6 +128,10 @@ const UserRights = dynamic(() => import("./dashboard/components/UserRights"), {
 
 // Where the header remembers the chosen property across a refresh.
 const PROPERTY_KEY = "hms.propertyId";
+// Where the area tabs remember the page last used in each area.
+const LAST_PAGE_KEY = "hms.lastPageInArea";
+// Page ids that moved, so an old bookmark still lands on the right page.
+const MOVED_PAGES = { pmssetup: "rooms" };
 
 export default function V2Dashboard() {
   const [session, setSession] = useState(null);
@@ -137,6 +142,17 @@ export default function V2Dashboard() {
   // from one would not match what it rendered. Empty until then, which the
   // loading spinner already covers.
   const [active, setActive] = useState("");
+  // The starting filter the open page was asked for, if any (see openPage).
+  const [pageView, setPageView] = useState(null);
+  // The page last opened in each area, so an area tab goes back to it.
+  const [lastInArea, setLastInArea] = useState({});
+  useEffect(() => {
+    try {
+      setLastInArea(JSON.parse(localStorage.getItem(LAST_PAGE_KEY) || "{}") || {});
+    } catch {}
+  }, []);
+  // Bumped when room types are saved on the Rooms page; see that page.
+  const [roomTypesVersion, setRoomTypesVersion] = useState(0);
   // The sidebar collapses to give the grid its full width, which matters most
   // on the Channel Manager's 30-day view.
   const [railOpen, setRailOpen] = useState(true);
@@ -254,7 +270,8 @@ export default function V2Dashboard() {
     const canSee = (id) => areas.some((a) => a.pages.some((p) => p.id === id));
     if (canSee(active)) return;
 
-    const hashed = window.location.hash.slice(1);
+    const raw = window.location.hash.slice(1);
+    const hashed = MOVED_PAGES[raw] || raw;
     setActive(canSee(hashed) ? hashed : areas[0].pages[0].id);
   }, [areas, active, sessionLoading]);
 
@@ -275,7 +292,7 @@ export default function V2Dashboard() {
   useEffect(() => {
     function onHashChange() {
       const id = window.location.hash.slice(1);
-      if (id) setActive(id);
+      if (id) setActive(MOVED_PAGES[id] || id);
     }
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
@@ -312,9 +329,31 @@ export default function V2Dashboard() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function openPage(id) {
+  /**
+   * Open a page. `view` is an optional starting filter the page understands
+   * -- the home page's Arrivals tile opens Reservations on today's arrivals.
+   * It is used once, by the page as it opens.
+   */
+  function openPage(id, view = null) {
+    setPageView(view);
     setActive(id);
     setDrawerOpen(false);
+    const area = areaForPage(areas, id);
+    if (area) {
+      setLastInArea((prev) => {
+        const next = { ...prev, [area.id]: id };
+        try {
+          localStorage.setItem(LAST_PAGE_KEY, JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  }
+
+  /** An area tab returns to the page last used there, else its first page. */
+  function openArea(area) {
+    const last = lastInArea[area.id];
+    openPage(area.pages.some((p) => p.id === last) ? last : area.pages[0].id);
   }
 
   const canOpen = (id) => canOpenPage(areas, id);
@@ -329,6 +368,7 @@ export default function V2Dashboard() {
 
   return (
     <ToastProvider>
+      <DialogProvider>
       <main className="min-h-screen" style={{ background: "var(--page)" }}>
         {/* Row 1 — brand, property, account */}
         <header
@@ -440,9 +480,10 @@ export default function V2Dashboard() {
               <button
                 key={area.id}
                 type="button"
-                // Entering an area opens its first page, so a tab click always
-                // lands somewhere rather than leaving the content blank.
-                onClick={() => openPage(area.pages[0].id)}
+                // Entering an area returns to the page last used there (its
+                // first page the first time), so a tab click always lands
+                // somewhere useful rather than on the same first page.
+                onClick={() => openArea(area)}
                 className="relative flex-shrink-0 px-3 py-2.5 text-[13px] transition"
                 style={{
                   color: on ? "var(--accent-text)" : "var(--text-muted)",
@@ -624,11 +665,18 @@ export default function V2Dashboard() {
 
                   {/* Rooms and rate plans are separate pages; the component
                       renders one panel or the other. */}
+                  {/* Room types, then the numbered rooms of each. Saving a
+                      type remounts the room list so its type choices follow. */}
                   {active === "rooms" && (
-                    <PropertySetup session={scopedSession} only="rooms" />
+                    <div className="space-y-4">
+                      <PropertySetup
+                        session={scopedSession}
+                        only="rooms"
+                        onSaved={() => setRoomTypesVersion((v) => v + 1)}
+                      />
+                      <RoomInventory key={roomTypesVersion} session={scopedSession} section />
+                    </div>
                   )}
-
-                  {active === "pmssetup" && <RoomInventory session={scopedSession} />}
 
                   {active === "servicesetup" && (
                     <BillingSetup session={scopedSession} only="services" />
@@ -644,11 +692,7 @@ export default function V2Dashboard() {
                     <div className="space-y-4">
                       <div>
                         <h2 className="h1">Property Setup</h2>
-                        <p className="sub">
-                          Property details — address, contact, policies and amenities — will
-                          be fed from the PMS rather than entered here. The profile and the
-                          Google listing are set here because only the hotelier knows them.
-                        </p>
+                        <p className="sub">Your hotel&apos;s profile and its Google listing.</p>
                       </div>
                       <PropertyProfile propertyId={scopedSession?.propertyId} />
                       <GoogleListingSetup propertyId={scopedSession?.propertyId} />
@@ -661,7 +705,7 @@ export default function V2Dashboard() {
 
                   {active === "calendar" && <TapeChart session={scopedSession} />}
 
-                  {active === "reservations" && <Reservations session={scopedSession} />}
+                  {active === "reservations" && <Reservations session={scopedSession} initialView={pageView} />}
 
                   {active === "housekeeping" && <Housekeeping session={scopedSession} />}
 
@@ -685,6 +729,7 @@ export default function V2Dashboard() {
           />
         )}
       </main>
+      </DialogProvider>
     </ToastProvider>
   );
 }

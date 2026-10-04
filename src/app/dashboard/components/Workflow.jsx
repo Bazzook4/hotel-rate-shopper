@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Grid, Loading, Messages, SetupHeader, sendJSON } from "./SetupGrid";
 import { Drawer, Field, RowMenu, Section } from "./RatePlanSetup";
+import { useDialog } from "../../components/Dialog";
+import Hint from "../../components/Hint";
 
 /**
  * Workflow: rules that stop sell on chosen channels when a night fills up.
@@ -40,6 +42,7 @@ function resultNote(result) {
 }
 
 export default function Workflow({ session }) {
+  const dialog = useDialog();
   const propertyId = session?.propertyId || "";
   const scope = propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : "";
 
@@ -108,9 +111,12 @@ export default function Workflow({ session }) {
 
   async function remove(rule) {
     if (
-      !window.confirm(
-        `Delete rule "${rule.name}"?\n\nEvery channel it closed is reopened first.`
-      )
+      !(await dialog.confirm({
+        title: `Delete rule "${rule.name}"?`,
+        message: "Every channel it closed is reopened first.",
+        confirmLabel: "Delete",
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -135,7 +141,7 @@ export default function Workflow({ session }) {
         area="Distribution"
         title="Workflow"
         count={rules.length}
-        sub="Rules that stop sell on chosen channels when a night fills up. Checked on every booking, cancellation and room block, and each morning. A rule reopens only what it closed."
+        sub="Close chosen channels automatically when a night fills up. A rule reopens only what it closed."
       >
         <button type="button" className="btn btn-secondary" onClick={runNow} disabled={busy || !rules.length}>
           {busy ? "Working…" : "Run now"}
@@ -144,6 +150,10 @@ export default function Workflow({ session }) {
           + Add rule
         </button>
       </SetupHeader>
+
+      <Hint id="workflow">
+        Rules are checked on every booking, cancellation and room block, and again each morning.
+      </Hint>
 
       <Messages error={error} notice={notice} />
 

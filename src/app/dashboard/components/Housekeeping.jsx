@@ -387,7 +387,7 @@ export default function Housekeeping({ session }) {
             {!loading && rooms.length === 0 && (
               <tr>
                 <td colSpan={8} className="sub">
-                  No rooms yet — add them under Setup → Room Number Setup.
+                  No rooms yet — add them under Setup → Rooms.
                 </td>
               </tr>
             )}

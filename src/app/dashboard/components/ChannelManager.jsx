@@ -444,6 +444,8 @@ export default function ChannelManager({ session }) {
   // It fills the same edits as typing into the cells, so nothing leaves
   // until Publish.
   const [bulkOpen, setBulkOpen] = useState(false);
+  // Set by "Apply & publish": publish once the filled edits are in state.
+  const [publishAfterFill, setPublishAfterFill] = useState(false);
   const [bulk, setBulk] = useState(() => emptyBulk(isoDate(new Date()), isoDate(new Date())));
   const [bulkBusy, setBulkBusy] = useState(false);
   // Stored rates and restrictions for bulk-edited dates outside the window
@@ -912,7 +914,15 @@ export default function ChannelManager({ session }) {
    * the edits wait for Publish like typed ones, so derived rates and the
    * per-room restriction merge go out exactly as they would from the cells.
    */
-  async function applyBulk() {
+  useEffect(() => {
+    if (!publishAfterFill) return;
+    setPublishAfterFill(false);
+    publish();
+    // publish is redefined each render; this runs on the render after the fill.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publishAfterFill]);
+
+  async function applyBulk({ andPublish = false } = {}) {
     if (bulk.from > bulk.to) {
       setNotice("The start date is after the end date.");
       return;
@@ -996,9 +1006,15 @@ export default function ChannelManager({ session }) {
           `${bulkPreview.restrictions} restriction${bulkPreview.restrictions === 1 ? "" : "s"}`
         );
       }
-      setNotice(
-        `Filled ${parts.join(" and ")} for ${bulk.from} → ${bulk.to}. Nothing is sent until you Publish.`
-      );
+      if (andPublish) {
+        // Publish reads the edits from state, so it waits for the render
+        // that carries the fill (see the effect below).
+        setPublishAfterFill(true);
+      } else {
+        setNotice(
+          `Filled ${parts.join(" and ")} for ${bulk.from} → ${bulk.to}. Nothing is sent until you Publish.`
+        );
+      }
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -1225,10 +1241,10 @@ export default function ChannelManager({ session }) {
           <p className="text-xs uppercase tracking-[0.2em] muted">
             Hotel Operations / Distribution
           </p>
-          <h2 className="h1">Channel Manager</h2>
+          <h2 className="h1">Rates &amp; Inventory</h2>
           <p className="sub">
-            Inventory is shared per room type. Rate multipliers apply per channel,
-            property-wide.
+            Rooms left and prices for every channel. Each channel&apos;s markup applies to
+            all your rooms.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1552,11 +1568,20 @@ export default function ChannelManager({ session }) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={applyBulk}
+              onClick={() => applyBulk({ andPublish: true })}
               disabled={bulkBusy || busy}
               className="btn btn-primary"
             >
-              {bulkBusy ? "Filling…" : "Apply to grid"}
+              {bulkBusy ? "Filling…" : "Apply & publish"}
+            </button>
+            <button
+              type="button"
+              onClick={() => applyBulk()}
+              disabled={bulkBusy || busy}
+              className="btn btn-secondary"
+              title="Fill the grid so you can check it, then Publish"
+            >
+              Apply to grid only
             </button>
             <button
               type="button"
@@ -1626,8 +1651,8 @@ export default function ChannelManager({ session }) {
         <div className="card card-pad text-center">
           <p className="sub">No room types set up yet.</p>
           <p className="mt-1 text-xs muted">
-            Add room types and rate plans under Property Setup, then map them
-            to partner codes under Integrations.
+            Add room types under Setup → Rooms and plans under Rate Plan Setup, then
+            give each its channel manager code under Integrations.
           </p>
         </div>
       )}

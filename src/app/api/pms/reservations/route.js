@@ -125,6 +125,8 @@ export async function GET(req) {
       status: params.get("status"),
       from: params.get("from"),
       to: params.get("to"),
+      arrivingOn: isDate(params.get("arrivingOn")) ? params.get("arrivingOn") : null,
+      leavingOn: isDate(params.get("leavingOn")) ? params.get("leavingOn") : null,
       search: params.get("search"),
     });
     return NextResponse.json({ reservations });

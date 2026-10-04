@@ -135,8 +135,8 @@ function RoomsAndMovement({ report, money }) {
       <Stats
         items={[
           { label: "Occupancy", value: rooms.occupancy == null ? "–" : `${one.format(rooms.occupancy)}%`, sub: `${whole.format(rooms.occupied)} of ${whole.format(rooms.available)} rooms` },
-          { label: "ADR", value: money(rooms.adr), hint: "Room revenue per paid room tonight; complimentary rooms are left out" },
-          { label: "RevPAR", value: money(rooms.revpar), hint: "Room revenue per room available tonight" },
+          { label: "Avg room rate (ADR)", value: money(rooms.adr), hint: "Room revenue per paid room tonight; complimentary rooms are left out" },
+          { label: "Revenue per room (RevPAR)", value: money(rooms.revpar), hint: "Room revenue per room available tonight" },
           { label: "Guests in house", value: whole.format(movement.guests), sub: `${whole.format(movement.inHouse)} stays` },
           { label: "Vacant rooms", value: whole.format(rooms.vacant) },
           { label: "Out of order", value: whole.format(rooms.outOfOrder), hint: "Rooms blocked on the tape chart for this night, taken off what is available" },
@@ -350,7 +350,7 @@ export default function NightAudit({ session }) {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Night audit"
+        title="Night Audit"
         blurb="The close of a business day: what to put right, who arrived and left, what the day earned and what was collected."
         actions={
           <button type="button" className="btn btn-secondary text-sm" onClick={() => report && exportCsv(report)} disabled={!report || loading}>

@@ -14,6 +14,7 @@ import {
   ruleProblem,
 } from "@/lib/ratePlanPricing";
 import { Grid, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * Rate Plan Setup, laid out the way SiteMinder lays it out.
@@ -45,6 +46,7 @@ export default function RatePlanSetup({
   assignments,
   onReload,
 }) {
+  const dialog = useDialog();
   const [roomFilter, setRoomFilter] = useState("");
   const [planFilter, setPlanFilter] = useState("");
   // Absent means open, so a newly added plan shows its rooms at once.
@@ -131,9 +133,15 @@ export default function RatePlanSetup({
       (a) => a.rate_plan_id !== plan.id && a.derive_from_plan_id === plan.id && a.rate_mode === "derived"
     );
     const lines = [];
-    if (plans.length) lines.push(`${plans.length} plan(s) derive from it and will become manual.`);
-    if (rooms.length) lines.push(`${rooms.length} room rate(s) derive from it and will follow their own plan again.`);
-    if (!window.confirm(`Delete rate plan "${plan.plan_name}"?${lines.length ? `\n\n${lines.join("\n")}` : ""}`)) return;
+    if (plans.length) lines.push(`${plans.length} plan(s) are based on it and will need their own prices.`);
+    if (rooms.length) lines.push(`${rooms.length} room rate(s) are based on it and will follow their own plan again.`);
+    const yes = await dialog.confirm({
+      title: `Delete rate plan "${plan.plan_name}"?`,
+      message: lines.join("\n") || null,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!yes) return;
     await run(
       () => sendJSON(`/api/setup/ratePlans?id=${encodeURIComponent(plan.id)}`, "DELETE"),
       `Deleted ${plan.plan_name}.`
@@ -143,11 +151,17 @@ export default function RatePlanSetup({
   async function deleteRoomRate(planId, roomId) {
     const followers = followersOf(planId, roomId);
     const warning = followers.length
-      ? `\n\n${followers.length} room rate(s) derive from it: ${followers
+      ? `${followers.length} room rate(s) are based on it: ${followers
           .map((a) => roomRateName(a.rate_plan_id, a.room_type_id))
           .join(", ")}. They will fall back to the room's base price.`
       : "";
-    if (!window.confirm(`Remove ${roomRateName(planId, roomId)}?${warning}`)) return;
+    const yes = await dialog.confirm({
+      title: `Remove ${roomRateName(planId, roomId)}?`,
+      message: warning || null,
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!yes) return;
     const qs = new URLSearchParams({ ratePlanId: planId, roomTypeId: roomId });
     if (propertyId) qs.set("propertyId", propertyId);
     await run(
@@ -163,7 +177,7 @@ export default function RatePlanSetup({
       <SetupHeader
         title="Rate Plan Setup"
         count={ratePlans.length}
-        sub="A plan sets the defaults; each room rate under it inherits them until you unlock a field. Rates can be derived plan by plan, room by room, or adult by adult."
+        sub="A plan sets the defaults; its room rates follow them until you unlock a field."
       >
         <button type="button" className="btn btn-primary" onClick={() => setDrawer({ kind: "plan" })}>
           + Add rate plan
@@ -1004,7 +1018,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
       </Section>
 
       <Section title="Pricing details">
-        <Field label="Minimum rate" hint="A derived rate never resolves below this. Leave blank for none.">
+        <Field label="Minimum rate" hint="A rate based on another plan never goes below this. Leave blank for none.">
           <input type="number" min="0" className="input" value={form.min_rate} onChange={(e) => set({ min_rate: e.target.value })} placeholder="None" style={{ maxWidth: 220 }} />
         </Field>
 
@@ -1021,13 +1035,13 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
               checked={derived}
               onChange={() => set({ derive_from_id: masters[0]?.id || "", is_master: false })}
             />
-            Derive daily rates from an existing rate plan
+            Base the rates on another rate plan
           </label>
-          {masters.length === 0 && <p className="pl-6 text-xs faint">Needs another rate plan to derive from.</p>}
+          {masters.length === 0 && <p className="pl-6 text-xs faint">Needs another rate plan to base it on.</p>}
 
           {derived ? (
             <div className="space-y-3 pl-6">
-              <Field label="Derived from *">
+              <Field label="Based on *">
                 <select className="input" value={form.derive_from_id} onChange={(e) => set({ derive_from_id: e.target.value })}>
                   {masters.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1043,13 +1057,13 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
                 onChange={(r) => set({ derive_method: r.method, derive_value: r.value, derive_value_2: r.value2 })}
               />
               <p className="text-xs faint">
-                Each room follows the master in the same room, adult by adult — a single follows the single, a double the double. Individual room rates can follow something else, or set their own rule per adult.
+                Each room follows the same room on the main plan, adult by adult: single follows single, double follows double. A room rate can still follow something else or set its own rule.
               </p>
             </div>
           ) : (
             <label className="flex items-center gap-2 pl-6 text-sm muted">
               <input type="checkbox" checked={form.is_master} onChange={(e) => set({ is_master: e.target.checked })} />
-              This is a master plan
+              Main plan (other plans can be based on it)
             </label>
           )}
         </div>
@@ -1228,7 +1242,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
   const show = (v, none = "None") => (blank(v) ? none : String(v));
 
   const planSetupText = plan.derive_from_id
-    ? `Derive from ${roomName(room.id)} / ${planName(plan.derive_from_id)} · ${describeRule(plan.derive_method, plan.derive_value, plan.derive_value_2)}`
+    ? `Based on ${roomName(room.id)} / ${planName(plan.derive_from_id)} · ${describeRule(plan.derive_method, plan.derive_value, plan.derive_value_2)}`
     : "Manually input daily rates";
 
   function problem() {
@@ -1343,10 +1357,10 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
 
       <Section title="Occupancy">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Included occupancy" hint="Adults priced individually. Set in Room Setup.">
+          <Field label="Included occupancy" hint="Adults priced individually. Set under Setup → Rooms.">
             <div className="input" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>{base}</div>
           </Field>
-          <Field label="Maximum occupancy" hint="Set in Room Setup.">
+          <Field label="Maximum occupancy" hint="Set under Setup → Rooms.">
             <div className="input" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>{maxAdults}</div>
           </Field>
         </div>
@@ -1421,11 +1435,11 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
                   });
                 }}
               />
-              Derive daily rates
+              Base the rates on another room rate
             </label>
             {form.rate_mode === "derived" && (
               <div className="space-y-3 pl-6">
-                <Field label="Derived from *">
+                <Field label="Based on *">
                   <select
                     className="input"
                     value={form.derive_from_plan_id ? `${form.derive_from_plan_id}|${form.derive_from_room_id}` : ""}
@@ -1575,7 +1589,7 @@ function AdultRates({ base, src, form, set, resolver, plan, room, sourceName }) 
 
   return (
     <div>
-      <span className="label">Derived rate per adult</span>
+      <span className="label">Rate per adult, from the one it is based on</span>
       <p className="mb-2 text-xs faint">
         Each adult count follows {sourceName} for the same number of adults. Give one its own rule — a single guest discount, say — and the others keep the main rule.
       </p>

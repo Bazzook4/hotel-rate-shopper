@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * The tabs hanging off a booking: guests, inclusions, payments, invoices.
@@ -50,6 +51,7 @@ const METHODS = [
  * cursor in that form, with a payment starting at what is still owed.
  */
 export default function FolioTabs({ tab, folio, extras, reservationId, intent, onChanged }) {
+  const dialog = useDialog();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -686,8 +688,14 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                         <button
                           className="btn btn-ghost text-xs"
                           disabled={busy}
-                          onClick={() => {
-                            const reason = window.prompt("Why is this payment being voided?");
+                          onClick={async () => {
+                            const reason = await dialog.prompt({
+                              title: `Void this ${money(p.amount, currency)} payment?`,
+                              message: "It stays on the record, marked void, and stops counting as paid.",
+                              label: "Reason",
+                              confirmLabel: "Void payment",
+                              danger: true,
+                            });
                             if (reason !== null) remove("payment", p.id, reason);
                           }}
                         >
@@ -797,8 +805,14 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     <button
                       className="btn btn-ghost text-xs"
                       disabled={busy}
-                      onClick={() => {
-                        const reason = window.prompt("Why is this invoice being voided?");
+                      onClick={async () => {
+                        const reason = await dialog.prompt({
+                          title: "Void this invoice?",
+                          message: "It stays on the record, marked void.",
+                          label: "Reason",
+                          confirmLabel: "Void invoice",
+                          danger: true,
+                        });
                         if (reason !== null) remove("invoice", inv.id, reason);
                       }}
                     >

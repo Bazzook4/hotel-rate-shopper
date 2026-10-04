@@ -3222,7 +3222,7 @@ export async function deleteReservationGroup(id) {
 /** Reservations for a property, newest arrival first, with the joins the list needs. */
 export async function listReservations(
   propertyId,
-  { status = null, from = null, to = null, search = null, limit = 200 } = {}
+  { status = null, from = null, to = null, arrivingOn = null, leavingOn = null, search = null, limit = 200 } = {}
 ) {
   let query = supabase
     .from('reservations')
@@ -3237,6 +3237,9 @@ export async function listReservations(
   // which would hide guests already in house on the first day.
   if (to) query = query.lt('check_in', to);
   if (from) query = query.gt('check_out', from);
+  // The day's arrivals or departures exactly, for the home page's lists.
+  if (arrivingOn) query = query.eq('check_in', arrivingOn);
+  if (leavingOn) query = query.eq('check_out', leavingOn);
   if (search) {
     const term = `%${search}%`;
     query = query.or(

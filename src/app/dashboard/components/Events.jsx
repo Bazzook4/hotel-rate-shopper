@@ -15,6 +15,8 @@ import {
   impactOf,
   profileGaps,
 } from "@/lib/eventTags";
+import { useDialog } from "../../components/Dialog";
+import Hint from "../../components/Hint";
 
 /**
  * Events: festivals, holidays, conferences and seasons that move demand.
@@ -54,6 +56,7 @@ function formatRange(start, end) {
 const IMPACT_CHIP = { none: "chip chip-off", low: "chip chip-off", medium: "chip chip-ok", high: "chip chip-warn" };
 
 export default function Events({ session }) {
+  const dialog = useDialog();
   const propertyId = session?.propertyId || "";
   const [months, setMonths] = useState(6);
   const [view, setView] = useState("hotel");
@@ -92,9 +95,12 @@ export default function Events({ session }) {
   async function remove(event) {
     const shared = !event.property_id;
     if (
-      !window.confirm(
-        `Delete "${event.name}"?${shared ? "\n\nIt is shared, so it disappears for every hotel it reaches." : ""}`
-      )
+      !(await dialog.confirm({
+        title: `Delete "${event.name}"?`,
+        message: shared ? "It is shared, so it disappears for every hotel it reaches." : null,
+        confirmLabel: "Delete",
+        danger: true,
+      }))
     ) {
       return;
     }
@@ -122,7 +128,7 @@ export default function Events({ session }) {
         area="Insights"
         title="Events"
         count={events.length}
-        sub="Festivals, holidays, conferences and seasons that bring guests to town. Shared events reach every hotel they match by place and kind; your own events reach only you. Both feed Dynamic Pricing."
+        sub="Festivals, holidays and seasons that bring guests to town. They feed Dynamic Pricing."
       >
         {data.canEdit && (
           <button type="button" className="btn btn-primary" onClick={() => setDrawer({ event: null })}>
@@ -130,6 +136,11 @@ export default function Events({ session }) {
           </button>
         )}
       </SetupHeader>
+
+      <Hint id="events">
+        Shared events reach every hotel they match by place and kind. Events you add reach only
+        your hotel.
+      </Hint>
 
       <Messages error={error} notice={notice} />
 

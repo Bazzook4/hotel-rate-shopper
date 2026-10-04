@@ -355,7 +355,7 @@ export default function RateParity({ session }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="h1">Rate parity</h2>
+          <h2 className="h1">Rate Parity</h2>
           <p className="sub">
             Compare what each channel is charging for the same night, and spot where your rates
             have drifted apart.

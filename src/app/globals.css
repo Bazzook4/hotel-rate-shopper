@@ -566,6 +566,24 @@ body {
   }
   .toast button:hover { background: rgba(127, 127, 127, 0.25); }
 
+  /* The app's own confirm / prompt / pick-one dialog (Dialog.jsx). */
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 18vh 1rem 1rem;
+  }
+  .dialog {
+    width: 100%;
+    max-width: 420px;
+    padding: 1.1rem 1.2rem;
+    background: var(--surface);
+  }
+
   /* The Ctrl+K command palette. */
   .palette-backdrop {
     position: fixed;

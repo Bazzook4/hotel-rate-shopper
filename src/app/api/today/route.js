@@ -145,7 +145,7 @@ async function setupPart(propertyId) {
     },
     {
       id: "rooms",
-      page: "pmssetup",
+      page: "rooms",
       label: "Number your rooms",
       hint: "The physical rooms, so bookings can be put in one.",
       done: rooms.length > 0,

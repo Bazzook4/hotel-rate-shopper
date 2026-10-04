@@ -6,6 +6,8 @@ import FolioTabs from "./FolioTabs";
 import { todayUTC } from "@/lib/date";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
+import { useDialog } from "../../components/Dialog";
+import { useFrontDesk } from "./frontDesk";
 
 /**
  * One booking, opened from the tape chart.
@@ -67,12 +69,14 @@ export default function BookingModal({
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
+  const dialog = useDialog();
 
   const [roomTypes, setRoomTypes] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
 
   const propertyId = session?.propertyId || null;
+  const desk = useFrontDesk(propertyId);
 
   const loadFolio = useCallback(async () => {
     if (isNew) return;
@@ -155,6 +159,26 @@ export default function BookingModal({
     };
   }, [groupId]);
 
+  /**
+   * Check-in and check-out go through the shared front-desk step: a room
+   * picked from a list when none is assigned, and any balance taken on the
+   * way out.
+   */
+  async function deskAction(action) {
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await action(reservation);
+      if (!data) return;
+      await loadFolio();
+      onChanged?.(inventoryWarning(data));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function changeStatus(status) {
     setBusy(true);
     setError(null);
@@ -185,7 +209,14 @@ export default function BookingModal({
   async function cancelBooking() {
     const { guest_name: guest, reference, status } = reservation;
     if (status === "inquiry") {
-      if (window.confirm(`Cancel ${guest}'s inquiry ${reference}?`)) await changeStatus("cancelled");
+      const yes = await dialog.confirm({
+        title: `Cancel ${guest}'s inquiry ${reference}?`,
+        message: "A cancelled inquiry cannot be put back as an inquiry.",
+        confirmLabel: "Cancel inquiry",
+        cancelLabel: "Keep it",
+        danger: true,
+      });
+      if (yes) await changeStatus("cancelled");
       return;
     }
     if (!(await changeStatus("cancelled"))) return;
@@ -437,9 +468,17 @@ export default function BookingModal({
                   className={`btn ${a.kind} text-sm`}
                   disabled={busy || Boolean(blocked)}
                   title={blocked || undefined}
-                  onClick={() => changeStatus(a.status)}
+                  onClick={() =>
+                    a.status === "in_house"
+                      ? deskAction(desk.checkIn)
+                      : a.status === "checked_out"
+                        ? deskAction(desk.checkOut)
+                        : changeStatus(a.status)
+                  }
                 >
-                  {a.label}
+                  {a.status === "checked_out" && folio?.totals?.balance > 0
+                    ? `Collect ₹${folio.totals.balance.toLocaleString("en-IN")} & check out`
+                    : a.label}
                 </button>
               );
             })}
@@ -449,6 +488,7 @@ export default function BookingModal({
           </div>
         )}
       </div>
+      {desk.settleDialog}
     </div>
   );
 }

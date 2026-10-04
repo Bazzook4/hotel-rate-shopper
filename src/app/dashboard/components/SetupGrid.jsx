@@ -14,12 +14,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
  * pattern a hotelier already knows from the rate grid.
  */
 
-export function SetupHeader({ area = "Setup", title, count, sub, children }) {
+export function SetupHeader({ area = "Setup", title, count, sub, section = false, children }) {
+  // A section is a second table further down the same page: no breadcrumb,
+  // and a smaller title, so the page still reads as one page.
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className={`flex flex-wrap items-start justify-between gap-3 ${section ? "pt-4" : ""}`}>
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] muted">Hotel Operations / {area}</p>
-        <h2 className="h1">
+        {!section && <p className="text-xs uppercase tracking-[0.2em] muted">Hotel Operations / {area}</p>}
+        <h2 className={section ? "text-lg font-semibold" : "h1"}>
           {title}
           {count !== undefined && (
             <span className="ml-2 text-base font-normal muted">({count})</span>

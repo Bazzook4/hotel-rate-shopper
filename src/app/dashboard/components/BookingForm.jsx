@@ -235,6 +235,18 @@ export default function BookingForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // More details starts open only when something in it is already filled
+  // in beyond the usual -- an emailed guest, a note, a comp or an inquiry
+  // started from the calendar -- so nothing set is ever hidden.
+  const [more, setMore] = useState(
+    () =>
+      Boolean(form.guest_email || form.notes) ||
+      Number(form.children) > 0 ||
+      form.booking_type !== "standard" ||
+      form.status === "inquiry" ||
+      form.guest_residency !== "domestic"
+  );
+
   /**
    * The quoted price, and whether the desk has taken it over.
    *
@@ -512,13 +524,16 @@ export default function BookingForm({
 
       {roomTypes.length === 0 && (
         <p className="sub" style={{ color: "var(--warn)" }}>
-          This property has no room types yet — add one in Room Setup before
+          This property has no room types yet — add one under Setup → Rooms before
           taking bookings.
         </p>
       )}
 
-      <Section title="Guest">
-        <Field label="Guest name">
+      {/* What every booking needs, up front. The rest -- contact details,
+          tax residency, children, how it was booked -- waits under More
+          details, already filled with the usual answers. */}
+      <Section title="Guest and stay">
+        <Field label="Guest name" wide>
           <input
             className="input"
             value={form.guest_name}
@@ -534,43 +549,15 @@ export default function BookingForm({
             onChange={(e) => set("guest_phone", e.target.value)}
           />
         </Field>
-        <Field label="Email">
+        <Field label="Adults">
           <input
             className="input"
-            type="email"
-            value={form.guest_email}
-            onChange={(e) => set("guest_email", e.target.value)}
+            type="number"
+            min="1"
+            value={form.adults}
+            onChange={(e) => set("adults", e.target.value)}
           />
         </Field>
-        <Field label="Country">
-          <select
-            className="input"
-            value={form.guest_country}
-            onChange={(e) => set("guest_country", e.target.value)}
-          >
-            <option value="">Not recorded</option>
-            {countries.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {/* Decides which taxes apply -- some levies are for foreign
-            guests only, and some exemptions are too. */}
-        <Field label="Guest is">
-          <select
-            className="input"
-            value={form.guest_residency}
-            onChange={(e) => set("guest_residency", e.target.value)}
-          >
-            <option value="domestic">Domestic</option>
-            <option value="international">International</option>
-          </select>
-        </Field>
-      </Section>
-
-      <Section title="Stay">
         <Field label="Check in">
           <input
             className="input"
@@ -591,27 +578,6 @@ export default function BookingForm({
             onChange={(e) => set("check_out", e.target.value)}
           />
         </Field>
-        <Field label="Adults">
-          <input
-            className="input"
-            type="number"
-            min="1"
-            value={form.adults}
-            onChange={(e) => set("adults", e.target.value)}
-          />
-        </Field>
-        <Field label="Children">
-          <input
-            className="input"
-            type="number"
-            min="0"
-            value={form.children}
-            onChange={(e) => set("children", e.target.value)}
-          />
-        </Field>
-      </Section>
-
-      <Section title="Room">
         <Field label="Room type">
           <select
             className="input"
@@ -641,6 +607,9 @@ export default function BookingForm({
             ))}
           </select>
         </Field>
+      </Section>
+
+      <Section title="Price">
         <Field label="Rate plan" wide>
           <select
             className="input"
@@ -658,48 +627,6 @@ export default function BookingForm({
             ))}
           </select>
         </Field>
-      </Section>
-
-      <Section title="Billing">
-        <Field label="Booking method">
-          <select
-            className="input"
-            value={form.source}
-            onChange={(e) => set("source", e.target.value)}
-          >
-            {sourceOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {/* Complimentary stays occupy a room like any other but are owed
-            nothing; revenue reports leave them out of ADR. */}
-        <Field label="Booking type">
-          <select
-            className="input"
-            value={form.booking_type}
-            onChange={(e) => set("booking_type", e.target.value)}
-          >
-            <option value="standard">Standard</option>
-            <option value="complimentary">Complimentary</option>
-          </select>
-        </Field>
-        {/* An inquiry holds the room like a confirmed booking, but is left
-            out of revenue until it is confirmed. */}
-        {!reservation && (
-          <Field label="Status">
-            <select
-              className="input"
-              value={form.status}
-              onChange={(e) => set("status", e.target.value)}
-            >
-              <option value="confirmed">Confirmed</option>
-              <option value="inquiry">Inquiry</option>
-            </select>
-          </Field>
-        )}
         <Field label="Total amount (whole stay)" wide>
           <input
             className="input"
@@ -729,16 +656,116 @@ export default function BookingForm({
         </Field>
       </Section>
 
-      <Field label="Notes">
-        <textarea
-          className="input"
-          rows={2}
-          style={{ resize: "vertical" }}
-          value={form.notes}
-          onChange={(e) => set("notes", e.target.value)}
-          placeholder="Late arrival, dietary needs, anything the desk should know"
-        />
-      </Field>
+      <button
+        type="button"
+        className="btn btn-ghost text-sm"
+        onClick={() => setMore((v) => !v)}
+        aria-expanded={more}
+      >
+        {more ? "▾" : "▸"} More details
+        {!more && (
+          <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            email, country, children, booking method{reservation ? "" : ", inquiry"}, notes
+          </span>
+        )}
+      </button>
+
+      {more && (
+        <Section title="More details">
+          <Field label="Email">
+            <input
+              className="input"
+              type="email"
+              value={form.guest_email}
+              onChange={(e) => set("guest_email", e.target.value)}
+            />
+          </Field>
+          <Field label="Country">
+            <select
+              className="input"
+              value={form.guest_country}
+              onChange={(e) => set("guest_country", e.target.value)}
+            >
+              <option value="">Not recorded</option>
+              {countries.map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {/* Decides which taxes apply -- some levies are for foreign
+              guests only, and some exemptions are too. */}
+          <Field label="Guest is">
+            <select
+              className="input"
+              value={form.guest_residency}
+              onChange={(e) => set("guest_residency", e.target.value)}
+            >
+              <option value="domestic">Domestic</option>
+              <option value="international">International</option>
+            </select>
+          </Field>
+          <Field label="Children">
+            <input
+              className="input"
+              type="number"
+              min="0"
+              value={form.children}
+              onChange={(e) => set("children", e.target.value)}
+            />
+          </Field>
+          <Field label="Booking method">
+            <select
+              className="input"
+              value={form.source}
+              onChange={(e) => set("source", e.target.value)}
+            >
+              {sourceOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {/* Complimentary stays occupy a room like any other but are owed
+              nothing; revenue reports leave them out of ADR. */}
+          <Field label="Booking type">
+            <select
+              className="input"
+              value={form.booking_type}
+              onChange={(e) => set("booking_type", e.target.value)}
+            >
+              <option value="standard">Standard</option>
+              <option value="complimentary">Complimentary</option>
+            </select>
+          </Field>
+          {/* An inquiry holds the room like a confirmed booking, but is left
+              out of revenue until it is confirmed. */}
+          {!reservation && (
+            <Field label="Status">
+              <select
+                className="input"
+                value={form.status}
+                onChange={(e) => set("status", e.target.value)}
+              >
+                <option value="confirmed">Confirmed</option>
+                <option value="inquiry">Inquiry</option>
+              </select>
+            </Field>
+          )}
+        <Field label="Notes" wide>
+          <textarea
+            className="input"
+            rows={2}
+            style={{ resize: "vertical" }}
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Late arrival, dietary needs, anything the desk should know"
+          />
+        </Field>
+        </Section>
+      )}
 
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>

@@ -83,7 +83,7 @@ export async function POST(req) {
 
   if (roomTypes.length === 0) {
     return NextResponse.json(
-      { error: "Add your room types in Room Setup before running pricing.", needsSetup: true },
+      { error: "Add your room types under Setup → Rooms before running pricing.", needsSetup: true },
       { status: 409 }
     );
   }

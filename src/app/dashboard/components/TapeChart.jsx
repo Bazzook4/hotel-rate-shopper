@@ -6,6 +6,8 @@ import BookingModal from "./BookingModal";
 import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
 import DateToolbar from "./DateToolbar";
+import { useFrontDesk } from "./frontDesk";
+import Hint from "../../components/Hint";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import Dropdown from "../../components/Dropdown";
 import { inventoryWarning } from "@/lib/inventoryNotice";
@@ -141,6 +143,7 @@ function shiftDate(date, days) {
 
 export default function TapeChart({ session }) {
   const propertyId = session?.propertyId || null;
+  const desk = useFrontDesk(propertyId);
 
   // todayUTC() already gives a YYYY-MM-DD string; formatDateISO takes a Date
   // and returns "" for anything else, which would leave the chart with no
@@ -617,11 +620,7 @@ export default function TapeChart({ session }) {
     }
   }
 
-  /**
-   * Move a booking on from the chart: check a guest in, or confirm an
-   * inquiry. The route refuses an early arrival or a stay with no room, and
-   * the menu only offers check-in when neither applies.
-   */
+  /** Confirm an inquiry from the chart. */
   async function setStatus(r, status) {
     setError(null);
     try {
@@ -639,12 +638,27 @@ export default function TapeChart({ session }) {
     await load();
   }
 
+  /** Check-in or check-out through the shared front-desk step, then redraw. */
+  async function runDesk(r, action) {
+    setError(null);
+    try {
+      const data = await action(r);
+      if (!data) return;
+      setSyncWarning(inventoryWarning(data));
+    } catch (err) {
+      setError(err.message);
+    }
+    await load();
+  }
+
   function chooseBookingAction(action) {
     const r = bookingMenu?.reservation;
     setBookingMenu(null);
     if (!r) return;
     if (action === "checkin") {
-      setStatus(r, "in_house");
+      runDesk(r, desk.checkIn);
+    } else if (action === "checkout") {
+      runDesk(r, desk.checkOut);
     } else if (action === "confirm") {
       setStatus(r, "confirmed");
     } else if (action === "upgrade") {
@@ -774,12 +788,14 @@ export default function TapeChart({ session }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="h1">Calendar</h2>
-          <p className="sub">
-            Every room, night by night. Drag across empty nights to book or block
-            them; click a booking to open it, or drag it to move or resize the stay.
-          </p>
+          <p className="sub">Every room, night by night.</p>
         </div>
       </div>
+
+      <Hint id="calendar">
+        Drag across empty nights to book or block them. Click a booking to open it, or drag it
+        to move or resize the stay.
+      </Hint>
 
       <DateToolbar
         value={anchor}
@@ -921,14 +937,14 @@ export default function TapeChart({ session }) {
 
         {!firstLoad && allRooms.length === 0 && (
           <p className="sub card-pad">
-            No rooms set up yet. Add them in Room Setup — the chart needs actual
+            No rooms set up yet. Add them under Setup → Rooms — the chart needs actual
             rooms to lay bookings out against.
           </p>
         )}
 
         {!firstLoad && allRooms.length > 0 && visibleRooms.length === 0 && (
           <p className="sub card-pad">
-            That room type has no rooms yet. Add them in Room Setup, or pick
+            That room type has no rooms yet. Add them under Setup → Rooms, or pick
             another type above.
           </p>
         )}
@@ -1352,6 +1368,8 @@ export default function TapeChart({ session }) {
         />
       )}
 
+      {desk.settleDialog}
+
       {menu && selection && (
         <SelectionMenu
           x={menu.x}
@@ -1753,6 +1771,8 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
   // Offered from the arrival day on -- a late arrival still checks in -- and
   // never before it, which the route would refuse anyway.
   const arriving = r.status === "confirmed" && r.check_in <= today;
+  // Likewise check-out, from the departure day on.
+  const leaving = r.status === "in_house" && r.check_out <= today;
 
   useEffect(() => {
     function onKey(e) {
@@ -1783,17 +1803,17 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
       {arriving && (
         <MenuItem
           label="Check in"
-          disabled={!room || room.housekeeping === "dirty"}
+          // With no room yet, check-in offers the free clean rooms to pick from.
+          disabled={room?.housekeeping === "dirty"}
           title={
-            !room
-              ? "Assign a room first"
-              : room.housekeeping === "dirty"
-                ? `Room ${room.room_number} is dirty — mark it clean first`
-                : undefined
+            room?.housekeeping === "dirty"
+              ? `Room ${room.room_number} is dirty — mark it clean first`
+              : undefined
           }
           onClick={() => onChoose("checkin")}
         />
       )}
+      {leaving && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
       {BOOKING_ACTIONS.map((a) => {
         const locked = a.id === "upgrade" && settled;
         return (

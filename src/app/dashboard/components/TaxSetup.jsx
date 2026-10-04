@@ -20,6 +20,7 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
+import { useDialog } from "../../components/Dialog";
 
 /**
  * Taxes and fees: the rules services are taxed by.
@@ -86,6 +87,7 @@ function numeric(t) {
 }
 
 export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
+  const dialog = useDialog();
   const { taxes: storedTaxes, services, categories } = data;
 
   const [busy, setBusy] = useState(false);
@@ -155,12 +157,15 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
     }
   }
 
-  function remove(tax) {
+  async function remove(tax) {
     if (isDraft(tax.id)) return grid.removeDraft(tax.id);
     if (
-      !window.confirm(
-        `Delete “${tax.name}”? It disappears from every booking not yet invoiced, including past ones. To stop charging it from now on, use End instead.`
-      )
+      !(await dialog.confirm({
+        title: `Delete “${tax.name}”?`,
+        message: "It disappears from every booking not yet invoiced, past ones too. To stop charging it from now on, use End instead.",
+        confirmLabel: "Delete",
+        danger: true,
+      }))
     ) {
       return undefined;
     }
@@ -194,15 +199,18 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
     });
   }
 
-  function addGst() {
+  async function addGst() {
     if (
-      !window.confirm(
-        "Add Indian GST for hotel rooms, in force from 22 Sep 2025, charged on the room?\n\n" +
+      !(await dialog.confirm({
+        title: "Add Indian GST on rooms?",
+        message:
+          "In force from 22 Sep 2025:\n" +
           "Nights up to ₹1,000: nil\n" +
-          "Above ₹1,000 up to ₹7,500: CGST 2.5% + SGST 2.5%\n" +
+          "₹1,001 – ₹7,500: CGST 2.5% + SGST 2.5%\n" +
           "Above ₹7,500: CGST 9% + SGST 9%\n\n" +
-          "Please confirm the rates with your accountant."
-      )
+          "Please confirm the rates with your accountant.",
+        confirmLabel: "Add GST",
+      }))
     ) {
       return;
     }
