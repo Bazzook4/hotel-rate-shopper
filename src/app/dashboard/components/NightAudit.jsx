@@ -23,6 +23,7 @@ import {
   whole,
 } from "./reportKit";
 import { usePageState } from "./usePageState";
+import { useFrontDesk } from "./frontDesk";
 
 /**
  * The night audit: the close of one business day.
@@ -36,83 +37,228 @@ import { usePageState } from "./usePageState";
  */
 
 
-function Exceptions({ report, money, onOpen }) {
-  const toFix = report.exceptions.filter((e) => e.tone !== "info");
-  const count = toFix.reduce((s, e) => s + e.rows.length, 0);
+/**
+ * The checks a day must pass before it is closed, in the order a night
+ * auditor works. A check that passes is a tick; one that fails lists its
+ * bookings, each with the fix as a button on the row -- check in, check
+ * out, collect, mark clean -- so the list empties as the desk works down it.
+ * Only the checks with something to do take up room.
+ */
+const CHECKS = [
+  { id: "arrivals", ok: "Every arrival checked in or marked no-show" },
+  { id: "departures", ok: "Every departure checked out" },
+  { id: "balance", ok: "Every departed guest settled" },
+  { id: "invoice", ok: "Every departed guest invoiced" },
+  { id: "zero", ok: "Every night has a rate" },
+  { id: "noroom", ok: "Every guest in house has a room" },
+  { id: "inquiry", ok: "No inquiry still holding a room today" },
+  { id: "dirty", ok: "Every arriving guest's room is clean" },
+];
+
+/** The fix for each kind of row, as the buttons on it. */
+const FIXES = {
+  arrivals: [
+    { label: "Check in", desk: "checkIn", primary: true },
+    { label: "No show", status: "no_show" },
+  ],
+  departures: [{ label: "Check out", desk: "checkOut", primary: true }],
+  balance: [{ label: "Collect", open: "payments", primary: true }],
+  invoice: [{ label: "Issue invoice", open: "invoices", primary: true }],
+  zero: [{ label: "Set the rate", open: "inclusions", primary: true }],
+  noroom: [{ label: "Assign a room", open: "details", primary: true }],
+  inquiry: [
+    { label: "Confirm", status: "confirmed", primary: true },
+    { label: "Open", open: "details" },
+  ],
+  dirty: [{ label: "Mark clean", clean: true, primary: true }],
+};
+
+/** An audit row as the shared front-desk actions expect a booking. */
+const asBooking = (r, currency) => ({
+  id: r.reservationId,
+  reference: r.reference,
+  guest_name: r.guest,
+  check_in: r.checkIn,
+  check_out: r.checkOut,
+  room_id: r.roomId,
+  room_type_id: r.roomTypeId,
+  currency: r.currency || currency,
+});
+
+function Exceptions({ report, money, onOpen, propertyId, onChanged }) {
+  const desk = useFrontDesk(propertyId);
+  const [busy, setBusy] = useState(null);
+  const [error, setError] = useState("");
+
+  const failing = report.exceptions.filter((e) => e.tone !== "info");
+  const failingIds = new Set(failing.map((e) => e.id));
+  const passed = CHECKS.filter((c) => !failingIds.has(c.id));
+  const info = report.exceptions.filter((e) => e.tone === "info");
+
+  async function fix(e, r, f) {
+    if (f.open) {
+      onOpen(r.reservationId, f.open);
+      return;
+    }
+    const key = `${e.id}-${r.reservationId}-${f.label}`;
+    setBusy(key);
+    setError("");
+    try {
+      if (f.desk) {
+        const done = await desk[f.desk](asBooking(r, report.currency));
+        if (!done) return;
+      } else if (f.status) {
+        const res = await fetch("/api/pms/reservations/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: r.reservationId, status: f.status }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not update the booking");
+      } else if (f.clean) {
+        const res = await fetch("/api/pms/housekeeping", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ property_id: propertyId, ids: [r.roomId], status: "clean" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not mark the room clean");
+      }
+      onChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <Section
       title="Before closing the day"
       sub={
-        count === 0
-          ? "Nothing to put right."
-          : `${whole.format(count)} item${count === 1 ? "" : "s"} to put right. Open a booking to fix it; this list updates as you do.`
+        failing.length === 0
+          ? `All ${CHECKS.length} checks pass.`
+          : `${passed.length} of ${CHECKS.length} checks pass. Fix each row here; the list updates as you go.`
       }
     >
-      {report.exceptions.length === 0 ? (
-        <p className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-          <Icon name="check" size={16} /> Every arrival and departure is accounted for, every departed guest is
-          settled and invoiced, and every night carries a rate.
-        </p>
-      ) : (
-        <div className="space-y-5">
-          {report.exceptions.map((e) => (
-            <div key={e.id} className="space-y-2">
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="chip" style={TONE[e.tone]}>
-                  {whole.format(e.rows.length)}
-                </span>
-                <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                  {e.title}
-                </span>
-                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  {e.hint}
-                </span>
-              </div>
-              <TableFrame>
-                <table className="grid-table">
-                  <thead>
-                    <tr>
-                      <th>Booking</th>
-                      <th>Guest</th>
-                      <th>{e.rows[0]?.detail !== undefined ? "Detail" : "Room"}</th>
-                      {e.rows[0]?.checkIn !== undefined && <th>Stay</th>}
-                      {e.rows.some((r) => r.amount !== undefined) && <th className="text-right">Amount</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {e.rows.map((r, i) => (
-                      <tr key={`${r.reservationId}-${i}`}>
-                        <td>
-                          <BookingLink
-                            reference={r.reference}
-                            reservationId={r.reservationId}
-                            tab={FIX_TAB[e.id] || "details"}
-                            onOpen={onOpen}
-                          />
-                        </td>
-                        <td>{r.guest || "–"}</td>
-                        <td>
-                          {r.detail !== undefined
-                            ? r.detail || "–"
-                            : [r.room, r.roomType].filter(Boolean).join(" · ") || "Not assigned"}
-                        </td>
-                        {r.checkIn !== undefined && (
-                          <td className="whitespace-nowrap">
-                            {longDate(r.checkIn)} – {longDate(r.checkOut)}
-                          </td>
-                        )}
-                        {e.rows.some((x) => x.amount !== undefined) && (
-                          <td className="text-right tabular-nums">{r.amount === undefined ? "" : money(r.amount)}</td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableFrame>
+      <div className="space-y-5">
+        {error && (
+          <p className="text-sm" style={{ color: "var(--danger)" }}>
+            {error}
+          </p>
+        )}
+
+        {failing.map((e) => (
+          <div key={e.id} className="space-y-2">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="chip" style={TONE[e.tone]}>
+                {whole.format(e.rows.length)}
+              </span>
+              <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                {e.title}
+              </span>
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {e.hint}
+              </span>
             </div>
-          ))}
-        </div>
-      )}
+            <TableFrame>
+              <table className="grid-table">
+                <thead>
+                  <tr>
+                    <th>Booking</th>
+                    <th>Guest</th>
+                    <th>Room</th>
+                    <th>Stay</th>
+                    {e.rows.some((r) => r.amount !== undefined) && <th className="text-right">Amount</th>}
+                    <th className="text-right">Fix</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.rows.map((r, i) => (
+                    <tr key={`${r.reservationId}-${i}`}>
+                      <td>
+                        <BookingLink
+                          reference={r.reference}
+                          reservationId={r.reservationId}
+                          tab={FIX_TAB[e.id] || "details"}
+                          onOpen={onOpen}
+                        />
+                      </td>
+                      <td>{r.guest || "–"}</td>
+                      <td>
+                        {[r.room, r.roomType].filter(Boolean).join(" · ") || "Not assigned"}
+                        {r.detail && (
+                          <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                            {r.detail}
+                          </div>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {r.checkIn ? `${longDate(r.checkIn)} – ${longDate(r.checkOut)}` : "–"}
+                      </td>
+                      {e.rows.some((x) => x.amount !== undefined) && (
+                        <td className="text-right tabular-nums">{r.amount === undefined ? "" : money(r.amount)}</td>
+                      )}
+                      <td className="text-right whitespace-nowrap">
+                        {(FIXES[e.id] || [{ label: "Open", open: FIX_TAB[e.id] || "details" }]).map((f) => {
+                          const key = `${e.id}-${r.reservationId}-${f.label}`;
+                          return (
+                            <button
+                              key={f.label}
+                              type="button"
+                              className={`btn text-xs ml-1 ${f.primary ? "btn-primary" : "btn-ghost"}`}
+                              disabled={busy !== null || (f.clean && !r.roomId)}
+                              onClick={() => fix(e, r, f)}
+                            >
+                              {busy === key ? "…" : f.label}
+                            </button>
+                          );
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableFrame>
+          </div>
+        ))}
+
+        {passed.length > 0 && (
+          <ul className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+            {passed.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+                <span style={{ color: "var(--accent)" }}>
+                  <Icon name="check" size={16} strokeWidth={2.2} />
+                </span>
+                {c.ok}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* For the auditor to check against the drawer: nothing to fix. */}
+        {info.map((e) => (
+          <div key={e.id} className="space-y-1">
+            <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+              {e.title} <span className="font-normal" style={{ color: "var(--text-muted)" }}>({e.rows.length})</span>
+            </p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {e.hint}
+            </p>
+            <ul className="text-sm">
+              {e.rows.map((r, i) => (
+                <li key={i} className="flex flex-wrap gap-x-3">
+                  <BookingLink reference={r.reference} reservationId={r.reservationId} tab={FIX_TAB[e.id] || "details"} onOpen={onOpen} />
+                  <span>{r.guest || "–"}</span>
+                  <span style={{ color: "var(--text-muted)" }}>{r.detail}</span>
+                  <span className="tabular-nums">{money(r.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      {desk.settleDialog}
     </Section>
   );
 }
@@ -393,7 +539,7 @@ export default function NightAudit({ session }) {
 
       {report && (
         <div className="space-y-5" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
-          <Exceptions report={report} money={money} onOpen={openBooking} />
+          <Exceptions report={report} money={money} onOpen={openBooking} propertyId={propertyId} onChanged={reload} />
           <RoomsAndMovement report={report} money={money} />
           <div className="grid gap-5 xl:grid-cols-2">
             <Revenue report={report} money={money} />

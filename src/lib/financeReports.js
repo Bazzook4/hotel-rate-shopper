@@ -253,6 +253,11 @@ function stayRow(r) {
     status: r.status,
     room: r.rooms?.room_number || null,
     roomType: r.room_types?.room_type_name || null,
+    // Ids too, so a checklist row can check in, check out or clean the room
+    // where it stands rather than only opening the booking.
+    roomId: r.room_id || null,
+    roomTypeId: r.room_type_id || null,
+    currency: r.currency || null,
     channel: channelOf(r),
   };
 }

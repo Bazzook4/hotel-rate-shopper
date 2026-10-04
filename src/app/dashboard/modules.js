@@ -18,43 +18,39 @@ export const AREAS = [
     label: "Home",
     pages: [{ id: "today", label: "Today", icon: "home" }],
   },
+  // Areas are named for the question the user arrives with, so the label
+  // says where a page is: who is here, what do I charge, how did we do, and
+  // how is the hotel set up. Ids are kept from the old areas where one
+  // carried over, since the last page used in each area is remembered.
   {
     id: "frontoffice",
-    label: "Front Office",
+    label: "Front desk",
     pages: [
       { id: "calendar", label: "Calendar", icon: "calendar" },
       { id: "reservations", label: "Reservations", icon: "list" },
       { id: "housekeeping", label: "Housekeeping", icon: "check" },
+      // Done by the night desk, so it sits with the desk's pages.
+      { id: "nightaudit", label: "Night Audit", icon: "moon" },
     ],
   },
   {
-    id: "distribution",
-    label: "Distribution",
+    // Everything that decides or sends a price, together.
+    id: "rates",
+    label: "Rates",
     pages: [
       { id: "cm", label: "Rates & Inventory", icon: "channel" },
-      { id: "integrations", label: "Integrations", icon: "plug" },
-      { id: "logs", label: "Activity Log", icon: "list" },
+      { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
+      { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
+      { id: "parity", label: "Rate Parity", icon: "compass" },
+      { id: "events", label: "Events", icon: "calendar" },
       { id: "workflow", label: "Workflow", icon: "refresh" },
     ],
   },
   {
-    id: "insights",
-    label: "Insights",
-    pages: [
-      { id: "parity", label: "Rate Parity", icon: "compass" },
-      { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
-      { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
-      { id: "events", label: "Events", icon: "calendar" },
-    ],
-  },
-  {
-    // Looking back at what happened, apart from Insights, which looks at the
-    // market to decide what to charge next.
     id: "reports",
     label: "Reports",
     pages: [
       { id: "performance", label: "Booking Performance", icon: "trend" },
-      { id: "nightaudit", label: "Night Audit", icon: "moon" },
       { id: "invoicing", label: "Invoicing", icon: "file" },
       { id: "payments", label: "Payments", icon: "money" },
     ],
@@ -70,6 +66,9 @@ export const AREAS = [
       { id: "rateplans", label: "Rate Plan Setup", icon: "money" },
       { id: "servicesetup", label: "Services Setup", icon: "list" },
       { id: "taxsetup", label: "Tax Setup", icon: "money" },
+      { id: "integrations", label: "Integrations", icon: "plug" },
+      // For tracing a sync problem, which is set-up work, not daily work.
+      { id: "logs", label: "Activity Log", icon: "list" },
     ],
   },
 ];

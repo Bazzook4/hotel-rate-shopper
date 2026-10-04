@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
  * Starts hidden and appears once the browser has said it was not dismissed,
  * so a returning user never sees it flash up and vanish.
  */
-export default function Hint({ id, children }) {
+export default function Hint({ id, className = "", children }) {
   const key = `hms.hint.${id}`;
   const [show, setShow] = useState(false);
 
@@ -33,7 +33,7 @@ export default function Hint({ id, children }) {
 
   return (
     <div
-      className="flex items-start gap-3 rounded-lg px-3 py-2 text-sm"
+      className={`flex items-start gap-3 rounded-lg px-3 py-2 text-sm ${className}`}
       style={{ background: "var(--accent-soft)", color: "var(--accent-text)" }}
       role="note"
     >

@@ -9,6 +9,7 @@ import ThemeToggle from "./components/ThemeToggle";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
+import Hint from "./components/Hint";
 import CommandPalette from "./dashboard/components/CommandPalette";
 
 /**
@@ -309,6 +310,23 @@ export default function V2Dashboard() {
     if (sessionLoading || !active) return;
     if (window.location.hash.slice(1) === active) return;
     window.history.replaceState(null, "", `#${active}`);
+  }, [active, sessionLoading]);
+
+  // Count the page open -- page, role and job profile only, never who (see
+  // /api/usage). Fire and forget: nothing waits on it.
+  useEffect(() => {
+    if (sessionLoading || !active || !session) return;
+    const canSee = (id) => areas.some((a) => a.pages.some((p) => p.id === id));
+    const profile =
+      { today: "owner", calendar: "desk", housekeeping: "housekeeping" }[defaultStartPage(canSee)] || "other";
+    fetch("/api/usage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: active, profile, propertyId: propertyId || undefined }),
+      keepalive: true,
+    }).catch(() => {});
+    // Once per page opened; a property switch is not a new open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sessionLoading]);
 
   // Back and forward still move between pages when the hash does change --
@@ -693,6 +711,13 @@ export default function V2Dashboard() {
                    hotel's figures until the new ones arrive, and an unsaved
                    edit can never carry over to the other hotel. */
                 <Fragment key={scopedSession?.propertyId || ""}>
+                  {/* Said once, when the menu was regrouped, so nobody hunts
+                      for a page that moved. */}
+                  <Hint id="menu-regrouped-2026-10" className="mb-4">
+                      The menu now has four groups: Front desk, Rates, Reports and Setup. Night Audit
+                      is under Front desk, everything about price is under Rates, and Integrations and
+                      Activity Log are under Setup. The search at the top finds any page.
+                  </Hint>
                   {active === "today" && (
                     <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} />
                   )}

@@ -125,7 +125,7 @@ export default function Events({ session }) {
   return (
     <div className="space-y-4">
       <SetupHeader
-        area="Insights"
+        area="Rates"
         title="Events"
         count={events.length}
         sub="Festivals, holidays and seasons that bring guests to town. They feed Dynamic Pricing."

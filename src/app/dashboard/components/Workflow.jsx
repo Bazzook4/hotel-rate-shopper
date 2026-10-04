@@ -138,7 +138,7 @@ export default function Workflow({ session }) {
   return (
     <div className="space-y-4">
       <SetupHeader
-        area="Distribution"
+        area="Rates"
         title="Workflow"
         count={rules.length}
         sub="Close chosen channels automatically when a night fills up. A rule reopens only what it closed."

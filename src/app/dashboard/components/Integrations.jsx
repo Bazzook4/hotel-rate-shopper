@@ -157,7 +157,7 @@ export default function Integrations({ session }) {
   return (
     <div className="space-y-4">
       <SetupHeader
-        area="Distribution"
+        area="Setup"
         title="Integrations"
         sub="Connect the tools your property already uses."
       />

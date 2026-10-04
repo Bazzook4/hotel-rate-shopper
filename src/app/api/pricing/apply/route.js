@@ -69,7 +69,22 @@ export async function POST(req) {
     return NextResponse.json({ error: "Could not load the rates to apply." }, { status: 500 });
   }
 
-  const chosen = recommendations.filter((r) => ids.includes(r.id));
+  // "Adjust": the hotelier nudged the proposed rate before accepting it. A
+  // suggestion people can tweak is one they keep using; one they can only
+  // take or leave, they stop trusting after its first miss.
+  const overrides = {};
+  for (const [id, value] of Object.entries(body?.overrides || {})) {
+    const rate = Number(value);
+    if (!ids.includes(id)) continue;
+    if (!Number.isFinite(rate) || rate <= 0) {
+      return NextResponse.json({ error: "An adjusted rate must be a number above zero." }, { status: 400 });
+    }
+    overrides[id] = Math.round(rate);
+  }
+
+  const chosen = recommendations
+    .filter((r) => ids.includes(r.id))
+    .map((r) => (overrides[r.id] ? { ...r, recommended_rate: overrides[r.id] } : r));
   if (chosen.length === 0) {
     return NextResponse.json(
       { error: "Those recommendations are no longer available. Recalculate and try again." },

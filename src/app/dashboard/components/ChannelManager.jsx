@@ -4,6 +4,8 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
 import EventMarker, { useEventsByDate } from "./EventMarker";
+import { DateSignals, SuggestionDialog, SuggestionRow, useMarketSignals } from "./marketSignals";
+import Dropdown from "../../components/Dropdown";
 import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
 import { CHANNEL_LABELS } from "@/lib/channels";
 import { usePageState } from "./usePageState";
@@ -474,6 +476,10 @@ export default function ChannelManager({ session }) {
     [anchor, days]
   );
   const eventsByDate = useEventsByDate(propertyId, dates[0], dates[dates.length - 1]);
+  // Competitors, parity and pricing suggestions, shown in the date header
+  // and as a row under each room type (see marketSignals).
+  const market = useMarketSignals(propertyId, dates);
+  const [suggestion, setSuggestion] = useState(null);
 
   // How many loads are in flight. The property and the grid load separately,
   // so one finishing must not clear the spinner while the other is still out.
@@ -1240,7 +1246,7 @@ export default function ChannelManager({ session }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] muted">
-            Hotel Operations / Distribution
+            Hotel Operations / Rates
           </p>
           <h2 className="h1">Rates &amp; Inventory</h2>
           <p className="sub">
@@ -1636,15 +1642,30 @@ export default function ChannelManager({ session }) {
         }
         onClearAll={filter ? () => setFilter("") : undefined}
         filters={
-          <ToolbarField label="Room types & rate plans" htmlFor="cm-filter" width={240} hideLabel>
-            <input
-              id="cm-filter"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Search room type or plan…"
-              className="input"
-            />
-          </ToolbarField>
+          <>
+            <ToolbarField label="Room types & rate plans" htmlFor="cm-filter" width={240} hideLabel>
+              <input
+                id="cm-filter"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Search room type or plan…"
+                className="input"
+              />
+            </ToolbarField>
+            {/* The one rival watched most; its rate replaces the median in
+                the date header. */}
+            {market.competitors.length > 0 && (
+              <Dropdown
+                label="Key competitor"
+                value={market.keyCompetitor?.id || ""}
+                onChange={market.setKeyCompetitor}
+                options={[
+                  { value: "", label: "Median of all" },
+                  ...market.competitors.map((c) => ({ value: c.id, label: c.name })),
+                ]}
+              />
+            )}
+          </>
         }
       />
 
@@ -1667,6 +1688,20 @@ export default function ChannelManager({ session }) {
             Integrations.
           </p>
         </div>
+      )}
+
+      {suggestion && (
+        <SuggestionDialog
+          open={suggestion}
+          propertyId={propertyId}
+          onClose={() => setSuggestion(null)}
+          onDone={(message) => {
+            setSuggestion(null);
+            setNotice(message);
+            load();
+            market.reload();
+          }}
+        />
       )}
 
       {/* Grid — every cell is ruled, so a rate can be read across a row and
@@ -1721,6 +1756,7 @@ export default function ChannelManager({ session }) {
                     </div>
                     <div className="text-[10px] faint">{f.mon}</div>
                     <EventMarker events={eventsByDate[d]} />
+                    <DateSignals date={d} market={market} />
                   </th>
                 );
               })}
@@ -1728,8 +1764,8 @@ export default function ChannelManager({ session }) {
           </thead>
           <tbody>
             {rooms.map((room) => (
+              <Fragment key={room.id}>
               <ExpandableRoom
-                key={room.id}
                 room={room}
                 dates={dates}
                 currency={currency}
@@ -1764,6 +1800,15 @@ export default function ChannelManager({ session }) {
                 revert={revert}
                 busy={busy}
               />
+              {view === "rates" && market.suggestions[room.id] && (
+                <SuggestionRow
+                  room={room}
+                  cells={market.suggestions[room.id]}
+                  dates={dates}
+                  onOpen={setSuggestion}
+                />
+              )}
+              </Fragment>
             ))}
             {rooms.length === 0 && (
               <tr>

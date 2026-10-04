@@ -266,6 +266,13 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
       </SetupHeader>
 
+      {/* Said where users are managed, since that is where an owner would
+          ask what the app records about their staff. */}
+      <p className="flex items-start gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+        To improve the app, we count how often each page is opened, by role only. We never record who
+        opened it or anything typed.
+      </p>
+
       <Messages error={error} notice={notice} />
 
       <Toolbar>
