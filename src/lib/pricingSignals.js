@@ -49,10 +49,10 @@ export function compsetSignal({ currentRate, competitorMedian }) {
  * that has revealed itself, unlike a forecast. Steep at the top, because the
  * last few rooms are worth far more than the first few.
  */
-export function occupancySignal({ soldRooms, totalRooms }) {
-  if (!totalRooms || totalRooms <= 0 || soldRooms == null) return SILENT;
+export function occupancySignal({ occupancyPct }) {
+  if (occupancyPct == null || Number.isNaN(occupancyPct)) return SILENT;
 
-  const pct = (soldRooms / totalRooms) * 100;
+  const pct = occupancyPct;
   if (pct >= 90) return { pct: 20, note: `${pct.toFixed(0)}% sold — very little left` };
   if (pct >= 75) return { pct: 12, note: `${pct.toFixed(0)}% sold — filling fast` };
   if (pct >= 60) return { pct: 6, note: `${pct.toFixed(0)}% sold — ahead of pace` };
@@ -170,6 +170,15 @@ export const SIGNAL_KEYS = [
 ];
 
 /**
+ * The most of any one decision a signal may carry, however it is weighted.
+ *
+ * Competitor rates come from scraping, which fails in ways the hotel's own
+ * bookings do not -- a blocked request, a missing hotel, a stale night. They
+ * inform the rate; they are not allowed to set it.
+ */
+export const SHARE_CAPS = { compset: 0.2 };
+
+/**
  * Combine the signals that spoke into one recommended rate.
  *
  * Weights are normalised across the signals that had data, so switching a
@@ -185,18 +194,32 @@ export function recommendRate({ currentRate, signals, weights, maxChangePct = 25
   }
 
   const contributions = [];
-  let weightedPct = 0;
-  let totalWeight = 0;
 
   for (const key of SIGNAL_KEYS) {
     const signal = signals?.[key];
     const weight = Number(weights?.[key] ?? 0);
     // A silent signal and a switched-off one are both simply absent.
     if (!signal || weight <= 0) continue;
-
-    weightedPct += signal.pct * weight;
-    totalWeight += weight;
     contributions.push({ signal: key, pct: signal.pct, weight, note: signal.note });
+  }
+
+  // Shrink a capped signal's weight to its share of what the others carry.
+  // A capped signal that spoke alone keeps its weight: there is nothing for
+  // it to be a share of, and silence would help no one.
+  for (const c of contributions) {
+    const cap = SHARE_CAPS[c.signal];
+    if (cap == null) continue;
+    const others = contributions.reduce((sum, o) => (o === c ? sum : sum + o.weight), 0);
+    if (others > 0 && c.weight / (c.weight + others) > cap) {
+      c.weight = (cap * others) / (1 - cap);
+    }
+  }
+
+  let weightedPct = 0;
+  let totalWeight = 0;
+  for (const c of contributions) {
+    weightedPct += c.pct * c.weight;
+    totalWeight += c.weight;
   }
 
   if (totalWeight === 0) {
@@ -234,7 +257,7 @@ export function recommendRate({ currentRate, signals, weights, maxChangePct = 25
     signal: c.signal,
     note: c.note,
     pct: Number(c.pct.toFixed(1)),
-    weight: c.weight,
+    weight: Number(c.weight.toFixed(2)),
   }));
 
   if (wasCapped) {

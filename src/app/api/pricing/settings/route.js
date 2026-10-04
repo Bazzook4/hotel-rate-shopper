@@ -89,22 +89,43 @@ export async function PUT(req) {
     }
   }
 
+  const s = body?.strategy;
+  if (s) {
+    const floorPct = Number(s.floor_pct ?? 70);
+    const ceilingPct = Number(s.ceiling_pct ?? 250);
+    if (!(floorPct > 0) || !(ceilingPct >= floorPct)) {
+      return NextResponse.json(
+        { error: "The lowest rate must be above 0% and below the highest." },
+        { status: 400 }
+      );
+    }
+    const maxChange = Number(s.max_change_pct ?? 20);
+    if (!(maxChange > 0 && maxChange <= 100)) {
+      return NextResponse.json(
+        { error: "The most a rate may move must be between 1% and 100%." },
+        { status: 400 }
+      );
+    }
+  }
+
   try {
     const saved = {};
     if (Array.isArray(body?.bounds)) {
       saved.bounds = await savePricingBounds(propertyId, body.bounds);
     }
-    if (body?.strategy) {
-      const s = body.strategy;
+    if (s) {
       saved.strategy = await savePricingStrategy(propertyId, {
-        weight_compset: Number(s.weight_compset ?? 1),
+        weights_mode: s.weights_mode === "custom" ? "custom" : "auto",
+        floor_pct: Number(s.floor_pct ?? 70),
+        ceiling_pct: Number(s.ceiling_pct ?? 250),
+        weight_compset: Number(s.weight_compset ?? 0.5),
         weight_occupancy: Number(s.weight_occupancy ?? 1),
         weight_weekday: Number(s.weight_weekday ?? 0.5),
         weight_pickup: Number(s.weight_pickup ?? 1),
         weight_adr_90: Number(s.weight_adr_90 ?? 0.5),
         weight_adr_ly: Number(s.weight_adr_ly ?? 0.5),
         weight_events: Number(s.weight_events ?? 1),
-        max_change_pct: Number(s.max_change_pct ?? 25),
+        max_change_pct: Number(s.max_change_pct ?? 20),
       });
     }
     return NextResponse.json(saved);

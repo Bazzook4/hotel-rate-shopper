@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  BOLDNESS,
+  boldnessFor,
+  DEFAULT_CEILING_PCT,
+  DEFAULT_FLOOR_PCT,
+} from "@/lib/pricingStrategy";
 
 /** The signals, in the order the settings list them. */
 const SIGNALS = [
-  { key: "weight_compset", label: "Competitor rates", hint: "Where you sit against the comp set median" },
+  { key: "weight_compset", label: "Competitor rates", hint: "Where you sit against the comp set median. Never more than a fifth of any decision" },
   { key: "weight_occupancy", label: "Occupancy", hint: "How full you already are for that night" },
   { key: "weight_weekday", label: "Weekday / weekend", hint: "The usual shape of the week" },
   { key: "weight_pickup", label: "Pickup", hint: "Bookings taken lately, against your usual pace" },
@@ -12,6 +18,12 @@ const SIGNALS = [
   { key: "weight_adr_ly", label: "Last year, same date", hint: "Annual shape a 90-day window misses" },
   { key: "weight_events", label: "Events", hint: "Events near you on that date" },
 ];
+
+const BOLDNESS_HINTS = {
+  cautious: "Small steps. Rates move at most 10% at a time.",
+  balanced: "Recommended. Rates move at most 20% at a time.",
+  aggressive: "Reacts fast to demand. Rates move up to 30% at a time.",
+};
 
 /** Which signals can say anything yet, so the page is honest about it. */
 function SignalAvailability({ active }) {
@@ -24,17 +36,21 @@ function SignalAvailability({ active }) {
       <p className="text-sm" style={{ color: "var(--warn)" }}>
         {dormant.length} signal{dormant.length === 1 ? " has" : "s have"} no data yet:{" "}
         {dormant.map((s) => s.label).join(", ")}. They contribute nothing until the data exists, and
-        their weight is shared among the signals that do — so you can set them now and they start
-        working on their own.
+        their weight is shared among the signals that do — so they start working on their own.
       </p>
     </div>
   );
 }
 
+function pctOf(base, pct) {
+  if (base == null || pct === "" || pct == null) return null;
+  return Math.round((Number(base) * Number(pct)) / 100);
+}
+
 export default function PricingSettings({ propertyId, onClose, activeSignals }) {
   const [rooms, setRooms] = useState([]);
   const [strategy, setStrategy] = useState(null);
-  const [tab, setTab] = useState("bounds");
+  const [advanced, setAdvanced] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +78,11 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
   useEffect(() => {
     load();
   }, [load]);
+
+  function setField(key, value) {
+    setSaved(false);
+    setStrategy((st) => ({ ...st, [key]: value }));
+  }
 
   function setBound(roomTypeId, field, value) {
     setSaved(false);
@@ -104,12 +125,18 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
 
   if (loading) return <p className="sub">Loading settings…</p>;
 
+  const floorPct = strategy?.floor_pct ?? DEFAULT_FLOOR_PCT;
+  const ceilingPct = strategy?.ceiling_pct ?? DEFAULT_CEILING_PCT;
+  const boldness = boldnessFor(strategy?.max_change_pct);
+  const custom = strategy?.weights_mode === "custom";
+  const example = rooms.find((r) => r.basePrice != null);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="h2">Pricing settings</h3>
-          <p className="sub">What the algorithm may do, and what it pays attention to.</p>
+          <p className="sub">Two answers are enough. Everything else is worked out from your bookings.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" className="btn" onClick={onClose} disabled={saving}>
@@ -134,102 +161,108 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
         </p>
       )}
 
-      <div className="flex gap-2">
-        <button
-          type="button"
-          className={tab === "bounds" ? "btn btn-primary" : "btn"}
-          onClick={() => setTab("bounds")}
-        >
-          Floor and ceiling
-        </button>
-        <button
-          type="button"
-          className={tab === "algorithm" ? "btn btn-primary" : "btn"}
-          onClick={() => setTab("algorithm")}
-        >
-          Algorithm
-        </button>
+      <div className="card card-pad space-y-2">
+        <label className="label" htmlFor="floor-pct">
+          1. Lowest rate you&apos;ll accept (% of each room&apos;s base rate)
+        </label>
+        <input
+          id="floor-pct"
+          type="number"
+          min="1"
+          max="100"
+          className="input"
+          style={{ width: 110 }}
+          value={floorPct}
+          onChange={(e) => setField("floor_pct", e.target.value)}
+        />
+        {example && (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {example.name} has a base rate of {example.basePrice}, so it will never be priced below{" "}
+            {pctOf(example.basePrice, floorPct) ?? "—"}.
+          </p>
+        )}
       </div>
 
-      {tab === "bounds" ? (
-        <div className="card" style={{ overflowX: "auto" }}>
-          <table className="grid-table">
-            <thead>
-              <tr>
-                <th>Room type</th>
-                <th>Base rate</th>
-                <th>Floor (min)</th>
-                <th>Ceiling (max)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rooms.map((r) => (
-                <tr key={r.roomTypeId}>
-                  <td style={{ fontWeight: 500 }}>{r.name}</td>
-                  <td style={{ color: "var(--text-muted)" }}>
-                    {r.basePrice != null ? r.basePrice : "—"}
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      className="input"
-                      style={{ width: 110 }}
-                      value={r.floor ?? ""}
-                      placeholder="None"
-                      onChange={(e) => setBound(r.roomTypeId, "floor", e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      className="input"
-                      style={{ width: 110 }}
-                      value={r.ceiling ?? ""}
-                      placeholder="None"
-                      onChange={(e) => setBound(r.roomTypeId, "ceiling", e.target.value)}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="card-pad">
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              A recommendation is never allowed past these, whatever the signals say. Leave either
-              blank to set no limit.
-            </p>
-          </div>
+      <div className="card card-pad space-y-2">
+        <p className="label">2. How bold should pricing be?</p>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(BOLDNESS).map(([key, b]) => (
+            <button
+              key={key}
+              type="button"
+              className={boldness === key ? "btn btn-primary" : "btn"}
+              onClick={() => setField("max_change_pct", b.maxChangePct)}
+            >
+              {b.label}
+            </button>
+          ))}
         </div>
-      ) : (
-        <div className="space-y-3">
-          <SignalAvailability active={activeSignals} />
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {boldness
+            ? BOLDNESS_HINTS[boldness]
+            : `Custom: rates move at most ${strategy?.max_change_pct}% at a time.`}
+        </p>
+      </div>
 
+      <button type="button" className="btn" onClick={() => setAdvanced((a) => !a)}>
+        {advanced ? "Hide advanced settings" : "Advanced settings"}
+      </button>
+
+      {advanced && (
+        <div className="space-y-3">
           <div className="card" style={{ overflowX: "auto" }}>
+            <div className="card-pad space-y-2">
+              <p className="label">Limits per room type</p>
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Leave blank to follow the percentages. A rate typed here wins for that room.
+              </p>
+              <label className="label" htmlFor="ceiling-pct">
+                Highest rate (% of base rate)
+              </label>
+              <input
+                id="ceiling-pct"
+                type="number"
+                min="100"
+                className="input"
+                style={{ width: 110 }}
+                value={ceilingPct}
+                onChange={(e) => setField("ceiling_pct", e.target.value)}
+              />
+            </div>
             <table className="grid-table">
               <thead>
                 <tr>
-                  <th>Signal</th>
-                  <th>What it reads</th>
-                  <th>Weight</th>
+                  <th>Room type</th>
+                  <th>Base rate</th>
+                  <th>Floor (min)</th>
+                  <th>Ceiling (max)</th>
                 </tr>
               </thead>
               <tbody>
-                {SIGNALS.map((s) => (
-                  <tr key={s.key}>
-                    <td style={{ fontWeight: 500 }}>{s.label}</td>
-                    <td style={{ color: "var(--text-muted)" }}>{s.hint}</td>
+                {rooms.map((r) => (
+                  <tr key={r.roomTypeId}>
+                    <td style={{ fontWeight: 500 }}>{r.name}</td>
+                    <td style={{ color: "var(--text-muted)" }}>
+                      {r.basePrice != null ? r.basePrice : "—"}
+                    </td>
                     <td>
                       <input
                         type="number"
-                        step="0.5"
-                        min="0"
                         className="input"
-                        style={{ width: 90 }}
-                        value={strategy?.[s.key] ?? 0}
-                        onChange={(e) => {
-                          setSaved(false);
-                          setStrategy((st) => ({ ...st, [s.key]: e.target.value }));
-                        }}
+                        style={{ width: 110 }}
+                        value={r.floor ?? ""}
+                        placeholder={String(pctOf(r.basePrice, floorPct) ?? "None")}
+                        onChange={(e) => setBound(r.roomTypeId, "floor", e.target.value)}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="input"
+                        style={{ width: 110 }}
+                        value={r.ceiling ?? ""}
+                        placeholder={String(pctOf(r.basePrice, ceilingPct) ?? "None")}
+                        onChange={(e) => setBound(r.roomTypeId, "ceiling", e.target.value)}
                       />
                     </td>
                   </tr>
@@ -238,9 +271,31 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
             </table>
           </div>
 
-          <div className="card card-pad">
+          <div className="card card-pad space-y-2">
+            <p className="label">Signal weights</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className={!custom ? "btn btn-primary" : "btn"}
+                onClick={() => setField("weights_mode", "auto")}
+              >
+                Automatic
+              </button>
+              <button
+                type="button"
+                className={custom ? "btn btn-primary" : "btn"}
+                onClick={() => setField("weights_mode", "custom")}
+              >
+                Set my own
+              </button>
+            </div>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {custom
+                ? "Your weights are used as typed. Zero switches a signal off."
+                : "Occupancy, weekday and events count from day one. Pickup and past rates gain weight as your own bookings build up, so new hotels are not priced on thin history."}
+            </p>
             <label className="label" htmlFor="max-change">
-              Most a rate may move at once (%)
+              Most a rate may move at once (%), if none of the three choices fits
             </label>
             <input
               id="max-change"
@@ -249,17 +304,45 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
               max="100"
               className="input"
               style={{ width: 110 }}
-              value={strategy?.max_change_pct ?? 25}
-              onChange={(e) => {
-                setSaved(false);
-                setStrategy((st) => ({ ...st, max_change_pct: e.target.value }));
-              }}
+              value={strategy?.max_change_pct ?? 20}
+              onChange={(e) => setField("max_change_pct", e.target.value)}
             />
-            <p className="text-xs" style={{ color: "var(--text-muted)", marginTop: 6 }}>
-              A guard against one noisy signal producing a rate nobody would sanction. Zero weight
-              switches a signal off entirely.
-            </p>
           </div>
+
+          <SignalAvailability active={activeSignals} />
+
+          {custom && (
+            <div className="card" style={{ overflowX: "auto" }}>
+              <table className="grid-table">
+                <thead>
+                  <tr>
+                    <th>Signal</th>
+                    <th>What it reads</th>
+                    <th>Weight</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SIGNALS.map((s) => (
+                    <tr key={s.key}>
+                      <td style={{ fontWeight: 500 }}>{s.label}</td>
+                      <td style={{ color: "var(--text-muted)" }}>{s.hint}</td>
+                      <td>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          className="input"
+                          style={{ width: 90 }}
+                          value={strategy?.[s.key] ?? 0}
+                          onChange={(e) => setField(s.key, e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { listRoomTypes, listPricingRecommendations, listPricingBounds } from "@/lib/database";
+import {
+  listRoomTypes,
+  listPricingRecommendations,
+  listPricingBounds,
+  getPricingStrategy,
+} from "@/lib/database";
+import { effectiveBounds } from "@/lib/pricingStrategy";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { addDays, clampToToday, formatDateISO, parseDateISO } from "@/lib/date";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
@@ -31,11 +37,13 @@ export async function GET(req) {
   let roomTypes;
   let recommendations;
   let bounds;
+  let strategy;
   try {
-    [roomTypes, recommendations, bounds] = await Promise.all([
+    [roomTypes, recommendations, bounds, strategy] = await Promise.all([
       listRoomTypes(propertyId),
       listPricingRecommendations(propertyId, startISO, endISO),
       listPricingBounds(propertyId),
+      getPricingStrategy(propertyId),
     ]);
   } catch (err) {
     console.error("Pricing recommendations read failed:", err.message);
@@ -47,14 +55,17 @@ export async function GET(req) {
 
   const boundsByRoom = new Map(bounds.map((b) => [b.room_type_id, b]));
 
-  const rows = roomTypes.map((room) => ({
-    roomTypeId: room.id,
-    name: room.room_type_name,
-    basePrice: room.base_price == null ? null : Number(room.base_price),
-    floor: boundsByRoom.get(room.id)?.floor_rate ?? null,
-    ceiling: boundsByRoom.get(room.id)?.ceiling_rate ?? null,
-    cells: {},
-  }));
+  const rows = roomTypes.map((room) => {
+    const b = effectiveBounds(room, boundsByRoom.get(room.id), strategy);
+    return {
+      roomTypeId: room.id,
+      name: room.room_type_name,
+      basePrice: room.base_price == null ? null : Number(room.base_price),
+      floor: b.floor_rate,
+      ceiling: b.ceiling_rate,
+      cells: {},
+    };
+  });
   const byRoom = new Map(rows.map((r) => [r.roomTypeId, r]));
 
   for (const rec of recommendations) {

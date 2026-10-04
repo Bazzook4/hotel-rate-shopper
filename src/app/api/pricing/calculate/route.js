@@ -8,7 +8,8 @@ import {
   listDailyRates,
 } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/propertyScope";
-import { gatherPricingInputs, pickupFor } from "@/lib/pricingData";
+import { gatherPricingInputs, pickupFor, occupancyPctFor } from "@/lib/pricingData";
+import { effectiveBounds, resolveWeights } from "@/lib/pricingStrategy";
 import {
   compsetSignal,
   occupancySignal,
@@ -88,15 +89,9 @@ export async function POST(req) {
   }
 
   const boundsByRoom = new Map(bounds.map((b) => [b.room_type_id, b]));
-  const weights = {
-    compset: Number(strategy.weight_compset),
-    occupancy: Number(strategy.weight_occupancy),
-    weekday: Number(strategy.weight_weekday),
-    pickup: Number(strategy.weight_pickup),
-    adr_90: Number(strategy.weight_adr_90),
-    adr_ly: Number(strategy.weight_adr_ly),
-    events: Number(strategy.weight_events),
-  };
+  // Auto unless the hotelier chose to tune them: history-based signals earn
+  // their weight as the property's own bookings accumulate.
+  const weights = resolveWeights(strategy, inputs.maturity);
 
   // The rate a night currently carries: a per-date override where one exists,
   // otherwise the room's own base price.
@@ -114,23 +109,20 @@ export async function POST(req) {
         (room.base_price != null ? Number(room.base_price) : null);
       if (!currentRate) continue;
 
-      const { recentBookings, expectedBookings } = pickupFor(date, inputs.bookedAtByDate, dates);
+      const { recentBookings, expectedBookings } = pickupFor(date, inputs.pickup, dates);
 
       const signals = {
         compset: compsetSignal({
           currentRate,
           competitorMedian: inputs.competitorMedianByDate[date],
         }),
-        occupancy: occupancySignal({
-          soldRooms: inputs.soldByDate[date] ?? null,
-          totalRooms: room.number_of_rooms,
-        }),
+        occupancy: occupancySignal({ occupancyPct: occupancyPctFor(room.id, date, inputs) }),
         weekday: weekdaySignal({ stayDate: date }),
         pickup: pickupSignal({ recentBookings, expectedBookings }),
-        adr_90: adr90Signal({ currentRate, adr90: inputs.adr90 }),
+        adr_90: adr90Signal({ currentRate, adr90: inputs.adr90ByRoom[room.id] }),
         adr_ly: adrLastYearSignal({
-          adr90: inputs.adr90,
-          adrLastYearSameDate: inputs.adrLastYearByDate[date],
+          adr90: inputs.adr90ByRoom[room.id],
+          adrLastYearSameDate: inputs.adrLastYearByCell[`${room.id}|${date}`],
         }),
         events: eventsSignal({ events: inputs.eventsByDate[date] }),
       };
@@ -140,7 +132,7 @@ export async function POST(req) {
         signals,
         weights,
         maxChangePct: Number(strategy.max_change_pct),
-        bounds: boundsByRoom.get(room.id),
+        bounds: effectiveBounds(room, boundsByRoom.get(room.id), strategy),
       });
 
       if (result.rate == null) continue;

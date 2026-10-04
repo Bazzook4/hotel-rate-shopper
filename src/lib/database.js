@@ -2268,11 +2268,31 @@ export async function savePricingBounds(propertyId, rows) {
   return listPricingBounds(propertyId);
 }
 
+/** What an unconfigured property is priced with: auto weights, balanced moves. */
+const DEFAULT_PRICING_STRATEGY = {
+  weight_compset: 0.5,
+  weight_occupancy: 1.0,
+  weight_weekday: 0.5,
+  weight_pickup: 1.0,
+  weight_adr_90: 0.5,
+  weight_adr_ly: 0.5,
+  weight_events: 1.0,
+  max_change_pct: 20.0,
+  weights_mode: 'auto',
+  floor_pct: 70,
+  ceiling_pct: 250,
+};
+
+/** Columns added by migration 038, which a push can reach before the SQL is run. */
+const PRICING_STRATEGY_038 = ['weights_mode', 'floor_pct', 'ceiling_pct'];
+
 /**
  * The property's strategy, or the defaults it has not overridden yet.
  *
  * Returns a usable strategy rather than null, so the engine never has to
- * decide what an unconfigured property means.
+ * decide what an unconfigured property means. Defaults fill any column the
+ * row lacks, which is also what keeps a database without migration 038
+ * pricing on auto weights.
  */
 export async function getPricingStrategy(propertyId) {
   const { data, error } = await supabase
@@ -2283,19 +2303,11 @@ export async function getPricingStrategy(propertyId) {
 
   if (error) throw new Error(`Failed to load pricing strategy: ${error.message}`);
 
-  return (
-    data || {
-      property_id: propertyId,
-      weight_compset: 1.0,
-      weight_occupancy: 1.0,
-      weight_weekday: 0.5,
-      weight_pickup: 1.0,
-      weight_adr_90: 0.5,
-      weight_adr_ly: 0.5,
-      weight_events: 1.0,
-      max_change_pct: 25.0,
-    }
-  );
+  const strategy = { property_id: propertyId, ...DEFAULT_PRICING_STRATEGY };
+  for (const [key, value] of Object.entries(data || {})) {
+    if (value != null) strategy[key] = value;
+  }
+  return strategy;
 }
 
 export async function savePricingStrategy(propertyId, updates) {
@@ -2305,11 +2317,22 @@ export async function savePricingStrategy(propertyId, updates) {
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('pricing_strategy')
     .upsert(row, { onConflict: 'property_id' })
     .select()
     .single();
+
+  // Before migration 038 the new columns do not exist; save what can be.
+  if (error && (notMigrated(error) || error.code === 'PGRST204')) {
+    const legacy = { ...row };
+    for (const key of PRICING_STRATEGY_038) delete legacy[key];
+    ({ data, error } = await supabase
+      .from('pricing_strategy')
+      .upsert(legacy, { onConflict: 'property_id' })
+      .select()
+      .single());
+  }
 
   if (error) throw new Error(`Failed to save pricing strategy: ${error.message}`);
   return data;
