@@ -120,6 +120,11 @@ export default function EventMarker({ events }) {
 
   return (
     <>
+      {/* Zero width, stretched to the cell: the marker takes the date
+          column's width instead of setting it, so a long name like
+          "Dussehra long weekend" is cut short rather than widening its
+          column. The full list is a tap away. */}
+      <div style={{ width: 0, minWidth: "100%" }}>
       <button
         ref={btn}
         type="button"
@@ -143,6 +148,7 @@ export default function EventMarker({ events }) {
         {top.name}
         {events.length > 1 ? ` +${events.length - 1}` : ""}
       </button>
+      </div>
 
       {at && (
         <div
