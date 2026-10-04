@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { EMPTY_PROFILE, ProfileFields } from "../dashboard/components/PropertyProfile";
+import { profileGaps } from "@/lib/eventTags";
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
 
@@ -12,6 +14,7 @@ export default function OnboardPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -39,12 +42,17 @@ export default function OnboardPage() {
       setError("Passwords do not match");
       return;
     }
+    const gaps = profileGaps(profile);
+    if (gaps.length) {
+      setError(`Still needed: ${gaps.join(", ")}.`);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, propertyName, email, password }),
+        body: JSON.stringify({ token, propertyName, email, password, profile }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -64,7 +72,7 @@ export default function OnboardPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
+        className="w-full max-w-lg space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
       >
         <div className="space-y-2 text-center">
           <p className="text-xs uppercase tracking-[0.4em] text-ink/70">HMS · Online Hotelier</p>
@@ -102,6 +110,14 @@ export default function OnboardPage() {
                   className="input"
                 />
               </label>
+
+              <div className="space-y-2 text-left">
+                <span className={labelClass}>Where and what kind</span>
+                <p className="text-xs text-ink/70">
+                  So we can show you the festivals, holidays and events that fill hotels like yours.
+                </p>
+                <ProfileFields value={profile} onChange={setProfile} idPrefix="onboard" />
+              </div>
 
               <label className="block space-y-2 text-left">
                 <span className={labelClass}>Email</span>

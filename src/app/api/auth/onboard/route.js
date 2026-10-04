@@ -5,6 +5,7 @@ import { setSessionCookie } from "@/lib/session";
 import { ROLES } from "@/lib/permissions";
 import { getDefaultAdminModules } from "@/lib/rights";
 import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/lib/onboarding";
+import { savePropertyProfile, validateProfile } from "@/lib/events";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,6 +33,10 @@ export async function POST(request) {
 
   if (!propertyName) {
     return NextResponse.json({ error: "Hotel name is required" }, { status: 400 });
+  }
+  const { profile, error: profileError } = validateProfile(body?.profile);
+  if (profileError) {
+    return NextResponse.json({ error: profileError }, { status: 400 });
   }
   if (!EMAIL_PATTERN.test(email)) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
@@ -67,6 +72,13 @@ export async function POST(request) {
       .single();
     if (error) throw new Error(`Failed to create property: ${error.message}`);
     property = data;
+
+    // The profile is what events are matched on. A failure here -- most
+    // likely migration 039 not run yet -- must not cost the hotel its
+    // account: it can be filled in later under Property Setup.
+    await savePropertyProfile(property.id, profile).catch((err) =>
+      console.error("Could not save the property profile at onboarding:", err)
+    );
 
     user = await createUser({
       email,

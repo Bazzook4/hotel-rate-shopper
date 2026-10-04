@@ -1,5 +1,6 @@
 import { getSupabaseAdmin, getAvailabilityGrid } from "@/lib/database";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { eventsForProperty, toPricingEvent } from "@/lib/events";
 
 /**
  * The facts the signals read.
@@ -50,16 +51,11 @@ export async function gatherPricingInputs(propertyId, startDate, endDate) {
       .gte("checked_at", new Date(Date.now() - COMPSET_FRESH_HOURS * 3600 * 1000).toISOString())
       .then(({ data }) => data || []),
 
-    // Events near the property that overlap the window.
-    supabase
-      .from("pricing_events")
-      .select("*")
-      .eq("property_id", propertyId)
-      .lte("start_date", endDate)
-      .gte("end_date", startDate)
-      .then(({ data }) => data || [])
-      // The table arrives in a later migration; until then there are simply
-      // no events, which the signal treats as having nothing to say.
+    // The events this hotel's calendar shows: its own, and the public ones
+    // its profile matches. A failure here means no events, which the signal
+    // treats as having nothing to say, rather than no prices at all.
+    eventsForProperty(propertyId, startDate, endDate)
+      .then((rows) => rows.map(toPricingEvent))
       .catch(() => []),
   ]);
 
@@ -92,9 +88,8 @@ export async function gatherPricingInputs(propertyId, startDate, endDate) {
   // Events by the dates they cover.
   const eventsByDate = {};
   for (const e of events) {
-    for (let d = new Date(e.start_date); d <= new Date(e.end_date); d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().slice(0, 10);
-      (eventsByDate[key] ||= []).push(e);
+    for (let d = parseDateISO(e.start_date); formatDateISO(d) <= e.end_date; d = addDays(d, 1)) {
+      (eventsByDate[formatDateISO(d)] ||= []).push(e);
     }
   }
 

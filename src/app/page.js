@@ -68,6 +68,14 @@ const GoogleListingSetup = dynamic(() => import("./dashboard/components/GoogleLi
   ssr: false,
   loading: PageLoading,
 });
+const PropertyProfile = dynamic(() => import("./dashboard/components/PropertyProfile"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const Events = dynamic(() => import("./dashboard/components/Events"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const CompetitorShopper = dynamic(() => import("./dashboard/components/CompetitorShopper"), {
   ssr: false,
   loading: PageLoading,
@@ -604,6 +612,8 @@ export default function V2Dashboard() {
 
                   {active === "pricing" && <DynamicPricingGrid session={scopedSession} />}
 
+                  {active === "events" && <Events session={scopedSession} />}
+
                   {active === "performance" && <BookingPerformance session={scopedSession} />}
 
                   {active === "nightaudit" && <NightAudit session={scopedSession} />}
@@ -636,10 +646,11 @@ export default function V2Dashboard() {
                         <h2 className="h1">Property Setup</h2>
                         <p className="sub">
                           Property details — address, contact, policies and amenities — will
-                          be fed from the PMS rather than entered here. The Google listing is
-                          set here because only the hotelier knows which listing is theirs.
+                          be fed from the PMS rather than entered here. The profile and the
+                          Google listing are set here because only the hotelier knows them.
                         </p>
                       </div>
+                      <PropertyProfile propertyId={scopedSession?.propertyId} />
                       <GoogleListingSetup propertyId={scopedSession?.propertyId} />
                     </div>
                   )}
