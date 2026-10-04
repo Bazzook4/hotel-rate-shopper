@@ -16,7 +16,10 @@ export const AREAS = [
   {
     id: "home",
     label: "Home",
-    pages: [{ id: "today", label: "Today", icon: "home" }],
+    pages: [
+      { id: "today", label: "Today", icon: "home" },
+      { id: "whatsnew", label: "What's new", icon: "info" },
+    ],
   },
   // Areas are named for the question the user arrives with, so the label
   // says where a page is: who is here, what do I charge, how did we do, and
@@ -128,9 +131,10 @@ const ADMIN_PAGES = new Set(["users"]);
 /**
  * Pages everyone with any access has. The home page is a summary of the other
  * pages, each part shown only to whoever holds the page it summarises, so it
- * grants nothing of its own and is never ticked.
+ * grants nothing of its own and is never ticked. What's new shows each
+ * reader only the changes to pages they hold, so it grants nothing either.
  */
-const EVERYONE_PAGES = new Set(["today"]);
+const EVERYONE_PAGES = new Set(["today", "whatsnew"]);
 
 /**
  * Pages with no implementation yet. They stay in the navigation on purpose --

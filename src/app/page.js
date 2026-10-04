@@ -11,6 +11,7 @@ import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
 import Hint from "./components/Hint";
 import CommandPalette from "./dashboard/components/CommandPalette";
+import { RELEASE_NOTES } from "@/lib/releaseNotes";
 
 /**
  * Each page is fetched the first time it is opened, not with the dashboard.
@@ -39,6 +40,10 @@ function PageLoading() {
 }
 
 const TodayPage = dynamic(() => import("./dashboard/components/TodayPage"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const WhatsNew = dynamic(() => import("./dashboard/components/WhatsNew"), {
   ssr: false,
   loading: PageLoading,
 });
@@ -133,6 +138,8 @@ const PROPERTY_KEY = "hms.propertyId";
 const LAST_PAGE_KEY = "hms.lastPageInArea";
 // Where each user's chosen start page is kept, per browser.
 const START_KEY = "hms.startPage";
+// The date of the newest release note this browser has read.
+const NOTES_SEEN_KEY = "hms.whatsNewSeen";
 // Page ids that moved, so an old bookmark still lands on the right page.
 const MOVED_PAGES = { pmssetup: "rooms" };
 
@@ -398,7 +405,9 @@ export default function V2Dashboard() {
     setActive(id);
     setDrawerOpen(false);
     const area = areaForPage(areas, id);
-    if (area) {
+    // The Home tab always returns to Today: What's new is read once, not
+    // somewhere to come back to.
+    if (area && id !== "whatsnew") {
       setLastInArea((prev) => {
         const next = { ...prev, [area.id]: id };
         try {
@@ -416,6 +425,26 @@ export default function V2Dashboard() {
   }
 
   const canOpen = (id) => canOpenPage(areas, id);
+
+  // What's new is marked New until it is opened, counting only releases with
+  // something for this reader, so a change to a page they cannot open never
+  // calls them over. Null until the browser has answered, so it never flashes.
+  const [notesSeen, setNotesSeen] = useState(null);
+  useEffect(() => {
+    try {
+      setNotesSeen(localStorage.getItem(NOTES_SEEN_KEY) || "");
+    } catch {}
+  }, []);
+  const latestNote =
+    RELEASE_NOTES.find((r) => r.points.some((p) => !p.page || canOpen(p.page)))?.date || "";
+  const hasNews = notesSeen !== null && latestNote > notesSeen;
+  useEffect(() => {
+    if (active !== "whatsnew" || !latestNote) return;
+    setNotesSeen(latestNote);
+    try {
+      localStorage.setItem(NOTES_SEEN_KEY, latestNote);
+    } catch {}
+  }, [active, latestNote]);
 
   // The drawer lists every area's pages, so a phone reaches any page in two
   // taps rather than choosing an area first and then opening the drawer. The
@@ -550,6 +579,13 @@ export default function V2Dashboard() {
                 }}
               >
                 {area.label}
+                {area.id === "home" && hasNews && (
+                  <span
+                    className="ml-1 inline-block h-1.5 w-1.5 rounded-full align-top"
+                    style={{ background: "var(--accent)" }}
+                    aria-label="Something new"
+                  />
+                )}
                 {on && (
                   <span
                     className="absolute inset-x-2 bottom-0 h-[2px] rounded-t"
@@ -626,6 +662,7 @@ export default function V2Dashboard() {
                   {area.pages.map((page) => {
                     const on = active === page.id;
                     const soon = PLACEHOLDER_PAGES.has(page.id);
+                    const isNew = page.id === "whatsnew" && hasNews;
                     const isStart = (startPage || defaultStartPage(canOpen)) === page.id;
                     return (
                       <div key={page.id} className="group flex items-center">
@@ -657,6 +694,14 @@ export default function V2Dashboard() {
                                 }}
                               >
                                 Soon
+                              </span>
+                            )}
+                            {isNew && (
+                              <span
+                                className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
+                                style={{ background: "var(--accent)", color: "#fff" }}
+                              >
+                                New
                               </span>
                             )}
                           </>
@@ -724,6 +769,14 @@ export default function V2Dashboard() {
 
                   {/* Keyed by property so a switch starts the grid afresh:
                       an unsaved edit must never publish to another hotel. */}
+                  {active === "whatsnew" && (
+                    <WhatsNew
+                      onOpenPage={openPage}
+                      canOpen={canOpen}
+                      pageLabel={(id) => areas.flatMap((a) => a.pages).find((p) => p.id === id)?.label || id}
+                    />
+                  )}
+
                   {active === "cm" && (
                     <ChannelManager key={scopedSession?.propertyId || ""} session={scopedSession} />
                   )}
