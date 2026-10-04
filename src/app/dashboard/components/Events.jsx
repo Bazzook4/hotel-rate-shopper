@@ -6,6 +6,7 @@ import { Drawer, Field, RowMenu, Section } from "./RatePlanSetup";
 import PropertyProfile, { ProfileFields } from "./PropertyProfile";
 import { countryName } from "@/lib/countries";
 import { formatDateISO } from "@/lib/date";
+import { guessCountry } from "@/lib/places";
 import {
   EVENT_CATEGORIES,
   IMPACTS,
@@ -288,7 +289,7 @@ function EventDrawer({ event, profile, canPublish, defaultScope, onClose, onSave
           property_types: event.property_types || [],
         }
       : {
-          country_code: profile?.country_code || "IN",
+          country_code: profile?.country_code || guessCountry(),
           state: profile?.state || "",
           city: profile?.city || "",
           property_types: [],

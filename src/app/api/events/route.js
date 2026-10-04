@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { BOOKING_PAGES, pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { canManageSetup } from "@/lib/database";
 import { isSuperAdmin } from "@/lib/permissions";
 import { addDays, formatDateISO } from "@/lib/date";
@@ -27,6 +27,12 @@ import {
  */
 
 const PAGE = "events";
+/**
+ * Reading is open to every page that shows events on its dates -- the
+ * Calendar, Reservations, the Channel Manager and Dynamic Pricing -- so a
+ * person deciding about a night sees them there. Changing them is not.
+ */
+const READ_PAGES = [PAGE, ...BOOKING_PAGES, "cm", "pricing"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** The window asked for, or today and the year after it. */
@@ -39,7 +45,7 @@ function windowOf(params) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req, PAGE);
+  const { error, session } = await pmsGuard(req, READ_PAGES);
   if (error) return error;
 
   const params = req.nextUrl.searchParams;

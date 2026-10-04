@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { EMPTY_PROFILE, ProfileFields } from "../dashboard/components/PropertyProfile";
 import { profileGaps } from "@/lib/eventTags";
+import { guessCountry } from "@/lib/places";
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
 
@@ -19,6 +20,9 @@ export default function OnboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // A first guess from the browser, after mount so the server render and
+    // the first client render agree.
+    setProfile((p) => (p.country_code ? p : { ...p, country_code: guessCountry() }));
     const t = new URLSearchParams(window.location.search).get("token") || "";
     setToken(t);
     if (!t) {

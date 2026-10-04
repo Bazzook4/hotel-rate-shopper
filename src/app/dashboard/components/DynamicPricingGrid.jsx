@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import DateToolbar from "./DateToolbar";
+import EventMarker, { useEventsByDate } from "./EventMarker";
 import PricingSettings from "./PricingSettings";
 
 const WINDOW_DAYS = 14;
@@ -158,6 +159,11 @@ export default function DynamicPricingGrid({ session }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [activeSignals, setActiveSignals] = useState(null);
+  const eventsByDate = useEventsByDate(
+    propertyId,
+    data?.dates?.[0],
+    data?.dates?.[data.dates.length - 1]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -396,6 +402,7 @@ export default function DynamicPricingGrid({ session }) {
                           {parsed?.getDate()}{" "}
                           {parsed?.toLocaleDateString("en-GB", { month: "short" })}
                         </div>
+                        <EventMarker events={eventsByDate[d]} />
                       </th>
                     );
                   })}

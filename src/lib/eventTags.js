@@ -9,8 +9,12 @@
  * the property types it fills.
  *
  * Pure data and pure functions, so the setup page, the events page and the
- * pricing engine all read the same lists and apply the same rule.
+ * pricing engine all read the same lists and apply the same rule. Places --
+ * states, cities, and the other names they go by -- are per country, in
+ * places.js.
  */
+
+import { cityKey, stateKey } from "@/lib/places";
 
 /** Kinds of property. A hotel may be several -- a resort that hosts weddings. */
 export const PROPERTY_TYPES = [
@@ -61,122 +65,6 @@ export const IMPACTS = [
 export const impactOf = (id) => IMPACTS.find((i) => i.id === id) || IMPACTS[1];
 
 // ---------------------------------------------------------------------------
-// Places
-// ---------------------------------------------------------------------------
-
-/** States and union territories of India, for the state dropdown. */
-export const INDIA_STATES = [
-  "Andaman and Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar",
-  "Chandigarh", "Chhattisgarh", "Dadra and Nagar Haveli and Daman and Diu", "Delhi", "Goa",
-  "Gujarat", "Haryana", "Himachal Pradesh", "Jammu and Kashmir", "Jharkhand", "Karnataka",
-  "Kerala", "Ladakh", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
-  "Mizoram", "Nagaland", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
-  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
-];
-
-/**
- * Cities hotels in India are most often in, by state. Suggestions, not a
- * closed list: a hotel in a town not named here types it, and it is
- * normalised the same way.
- */
-export const INDIA_CITIES = {
-  "Andaman and Nicobar Islands": ["Port Blair", "Havelock"],
-  "Andhra Pradesh": ["Visakhapatnam", "Vijayawada", "Tirupati", "Araku"],
-  Assam: ["Guwahati", "Kaziranga"],
-  Bihar: ["Patna", "Bodh Gaya"],
-  Chandigarh: ["Chandigarh"],
-  Delhi: ["New Delhi"],
-  Goa: ["North Goa", "South Goa", "Panaji"],
-  Gujarat: ["Ahmedabad", "Vadodara", "Surat", "Dwarka", "Somnath", "Kutch"],
-  Haryana: ["Gurugram", "Faridabad"],
-  "Himachal Pradesh": ["Shimla", "Manali", "Dharamshala", "Dalhousie", "Kasauli"],
-  "Jammu and Kashmir": ["Srinagar", "Gulmarg", "Pahalgam", "Katra"],
-  Karnataka: ["Bengaluru", "Mysuru", "Coorg", "Chikmagalur", "Hampi", "Mangaluru", "Gokarna"],
-  Kerala: ["Kochi", "Thiruvananthapuram", "Munnar", "Alappuzha", "Kovalam", "Varkala", "Wayanad", "Thekkady", "Kozhikode"],
-  Ladakh: ["Leh"],
-  "Madhya Pradesh": ["Bhopal", "Indore", "Khajuraho", "Ujjain", "Pachmarhi"],
-  Maharashtra: ["Mumbai", "Pune", "Lonavala", "Mahabaleshwar", "Nashik", "Aurangabad", "Shirdi", "Nagpur"],
-  Meghalaya: ["Shillong"],
-  Odisha: ["Bhubaneswar", "Puri", "Konark"],
-  Puducherry: ["Puducherry"],
-  Punjab: ["Amritsar", "Ludhiana"],
-  Rajasthan: ["Jaipur", "Udaipur", "Jodhpur", "Jaisalmer", "Pushkar", "Mount Abu", "Ranthambore"],
-  Sikkim: ["Gangtok", "Pelling"],
-  "Tamil Nadu": ["Chennai", "Ooty", "Kodaikanal", "Madurai", "Coimbatore", "Mahabalipuram", "Rameswaram", "Kanyakumari", "Yercaud"],
-  Telangana: ["Hyderabad"],
-  "Uttar Pradesh": ["Agra", "Varanasi", "Lucknow", "Prayagraj", "Mathura", "Vrindavan", "Ayodhya", "Noida"],
-  Uttarakhand: ["Rishikesh", "Haridwar", "Mussoorie", "Nainital", "Jim Corbett", "Dehradun"],
-  "West Bengal": ["Kolkata", "Darjeeling", "Siliguri"],
-};
-
-/**
- * Old or local names that mean the same place. Without this, an event
- * entered for "Bangalore" would never reach a hotel that chose "Bengaluru".
- */
-const CITY_ALIASES = {
-  bangalore: "Bengaluru",
-  bombay: "Mumbai",
-  madras: "Chennai",
-  calcutta: "Kolkata",
-  gurgaon: "Gurugram",
-  delhi: "New Delhi",
-  udhagamandalam: "Ooty",
-  ootacamund: "Ooty",
-  pondicherry: "Puducherry",
-  pondy: "Puducherry",
-  trivandrum: "Thiruvananthapuram",
-  cochin: "Kochi",
-  mysore: "Mysuru",
-  mangalore: "Mangaluru",
-  calicut: "Kozhikode",
-  alleppey: "Alappuzha",
-  benares: "Varanasi",
-  banaras: "Varanasi",
-  allahabad: "Prayagraj",
-  baroda: "Vadodara",
-  poona: "Pune",
-  simla: "Shimla",
-  vizag: "Visakhapatnam",
-  kodagu: "Coorg",
-  madikeri: "Coorg",
-  mamallapuram: "Mahabalipuram",
-  corbett: "Jim Corbett",
-};
-
-const tidy = (value) => String(value ?? "").trim().replace(/\s+/g, " ");
-
-/** A state as the list spells it, whatever case was typed. "" when empty. */
-export function normaliseState(value) {
-  const text = tidy(value);
-  return INDIA_STATES.find((s) => s.toLowerCase() === text.toLowerCase()) || text;
-}
-
-/**
- * A city under the name the lists use. Separate from states because the
- * aliases differ: the city "Delhi" is New Delhi, the state is Delhi.
- */
-export function normaliseCity(value) {
-  const text = tidy(value);
-  if (!text) return "";
-  const lower = text.toLowerCase();
-  return (
-    CITY_ALIASES[lower] ||
-    Object.values(INDIA_CITIES).flat().find((c) => c.toLowerCase() === lower) ||
-    text
-  );
-}
-
-const stateKey = (value) => normaliseState(value).toLowerCase();
-const cityKey = (value) => normaliseCity(value).toLowerCase();
-
-/** The cities to suggest for a country and state. */
-export function citySuggestions(countryCode, state) {
-  if (countryCode !== "IN") return [];
-  if (state && INDIA_CITIES[state]) return INDIA_CITIES[state];
-  return Object.values(INDIA_CITIES).flat().sort();
-}
-
-// ---------------------------------------------------------------------------
 // Matching
 // ---------------------------------------------------------------------------
 
@@ -198,8 +86,9 @@ export function profileGaps(profile) {
  */
 export function eventMatchesProfile(event, profile) {
   if (!profile?.country_code || event.country_code !== profile.country_code) return false;
-  if (event.state && stateKey(event.state) !== stateKey(profile.state)) return false;
-  if (event.city && cityKey(event.city) !== cityKey(profile.city)) return false;
+  const country = profile.country_code;
+  if (event.state && stateKey(country, event.state) !== stateKey(country, profile.state)) return false;
+  if (event.city && cityKey(country, event.city) !== cityKey(country, profile.city)) return false;
   const types = event.property_types || [];
   if (types.length && !types.some((t) => (profile.property_types || []).includes(t))) return false;
   return true;

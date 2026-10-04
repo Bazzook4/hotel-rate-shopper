@@ -5,9 +5,8 @@ import {
   cleanPropertyTypes,
   eventMatchesProfile,
   impactOf,
-  normaliseCity,
-  normaliseState,
 } from "@/lib/eventTags";
+import { normaliseCity, normaliseState } from "@/lib/places";
 import { toCountryCode } from "@/lib/countries";
 
 /**
@@ -54,8 +53,8 @@ export async function getPropertyProfile(propertyId) {
 export function validateProfile(input) {
   const country_code = toCountryCode(input?.country_code);
   if (!country_code) return { error: "Choose the country the hotel is in." };
-  const state = normaliseState(input?.state);
-  const city = normaliseCity(input?.city);
+  const state = normaliseState(country_code, input?.state);
+  const city = normaliseCity(country_code, input?.city);
   if (!city) return { error: "Give the city or town the hotel is in." };
   const property_types = cleanPropertyTypes(input?.property_types);
   if (!property_types.length) return { error: "Choose at least one kind of property." };
@@ -126,6 +125,33 @@ export async function listPublicEvents(startDate, endDate) {
   return data || [];
 }
 
+/**
+ * The states and cities shared events already name in a country, for
+ * suggestions. A country with no place list of its own gains one this way
+ * as its calendar fills, and the next person picks the spelling already used
+ * rather than inventing another.
+ */
+export async function knownPlaces(countryCode) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("events")
+    .select("state, city")
+    .is("property_id", null)
+    .eq("country_code", countryCode)
+    .limit(5000);
+  if (error) {
+    if (missingEventsTable(error)) return { states: [], cities: [] };
+    throw new Error(`Failed to read places: ${error.message}`);
+  }
+  const states = new Set();
+  const cities = new Set();
+  for (const row of data || []) {
+    if (row.state) states.add(row.state);
+    if (row.city) cities.add(row.city);
+  }
+  const sort = (set) => [...set].sort((a, b) => a.localeCompare(b));
+  return { states: sort(states), cities: sort(cities) };
+}
+
 export async function getEvent(id) {
   if (!UUID_RE.test(id || "")) return null;
   const { data, error } = await getSupabaseAdmin().from("events").select("*").eq("id", id).maybeSingle();
@@ -164,8 +190,8 @@ export function validateEvent(input, { scope, propertyId }) {
     row.property_id = null;
     row.country_code = toCountryCode(input?.country_code);
     if (!row.country_code) return { error: "Choose the country the event is in." };
-    row.state = normaliseState(input?.state) || null;
-    row.city = normaliseCity(input?.city) || null;
+    row.state = normaliseState(row.country_code, input?.state) || null;
+    row.city = normaliseCity(row.country_code, input?.city) || null;
     row.property_types = cleanPropertyTypes(input?.property_types);
   } else {
     row.property_id = propertyId;

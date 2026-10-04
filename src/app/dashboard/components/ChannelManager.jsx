@@ -3,6 +3,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
+import EventMarker, { useEventsByDate } from "./EventMarker";
 import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
 import { CHANNEL_LABELS } from "@/lib/channels";
 
@@ -469,6 +470,7 @@ export default function ChannelManager({ session }) {
     () => buildDates(new Date(`${anchor}T00:00:00Z`), days),
     [anchor, days]
   );
+  const eventsByDate = useEventsByDate(propertyId, dates[0], dates[dates.length - 1]);
 
   // How many loads are in flight. The property and the grid load separately,
   // so one finishing must not clear the spinner while the other is still out.
@@ -1692,6 +1694,7 @@ export default function ChannelManager({ session }) {
                       {f.day}
                     </div>
                     <div className="text-[10px] faint">{f.mon}</div>
+                    <EventMarker events={eventsByDate[d]} />
                   </th>
                 );
               })}

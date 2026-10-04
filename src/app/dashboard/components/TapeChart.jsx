@@ -6,6 +6,7 @@ import BookingModal from "./BookingModal";
 import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
 import DateToolbar from "./DateToolbar";
+import EventMarker, { useEventsByDate } from "./EventMarker";
 import Dropdown from "../../components/Dropdown";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { visibleModules } from "../modules";
@@ -264,6 +265,7 @@ export default function TapeChart({ session }) {
     for (let i = 0; i < windowDays; i += 1) out.push(shiftDate(anchor, i));
     return out;
   }, [anchor, windowDays]);
+  const eventsByDate = useEventsByDate(propertyId, dates[0], dates[dates.length - 1]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -989,6 +991,7 @@ export default function TapeChart({ session }) {
                       <div>
                         {parsed.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}
                       </div>
+                      <EventMarker events={eventsByDate[d]} />
                     </div>
                   );
                 })}
