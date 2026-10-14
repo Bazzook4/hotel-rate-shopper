@@ -1977,13 +1977,22 @@ function ExpandableRoom({
 
           return (
             <Fragment key={plan.id}>
-              {rows.map((occ, i) => (
+              {rows.map((occ, i) => {
+                // A plan's adult rows read as one block: ruled only below
+                // its last row, so the line marks where the next plan starts.
+                const rowRule =
+                  i === rows.length - 1 ? "1px solid var(--border-strong)" : "1px solid transparent";
+                // The banner and the room row already say a room is not
+                // mapped; a row is flagged only when its room is mapped but
+                // this adult count is not.
+                const occUnmapped = Boolean(room.partnerCode) && !occ.partnerCode;
+                return (
                 <tr key={`${plan.id}-${view}-${occ.occupancy}`}>
                   <td
                     className="sticky left-0 z-10 px-2 py-1.5 pl-4 md:px-4 md:pl-10"
                     style={{
                       background: "var(--surface)",
-                      borderBottom: "1px solid var(--border)",
+                      borderBottom: rowRule,
                       borderRight: "1px solid var(--border-strong)",
                     }}
                   >
@@ -1991,9 +2000,10 @@ function ExpandableRoom({
                         the occupancy at the right of every row. */}
                     <span className="flex items-center justify-between gap-2">
                     {i === 0 ? (
-                      // Wraps on a phone, so the plan's name and channels
-                      // stack in a narrow column rather than holding one
-                      // long line that leaves no room for dates.
+                      <span className="min-w-0">
+                      {/* Wraps on a phone, so the plan's name and channels
+                          stack in a narrow column rather than holding one
+                          long line that leaves no room for dates. */}
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap">
                         {/* The meal-plan code is shown only when the name
                             does not already say it -- a plan called "CP"
@@ -2006,15 +2016,6 @@ function ExpandableRoom({
                         <span className="text-sm text-ink">{plan.name || plan.label}</span>
                         {plan.restrictions.stopSell && (
                           <span className="chip chip-warn">Stop sell</span>
-                        )}
-                        {plan.derived && (
-                          <span
-                            className="cm-meta text-xs muted"
-                            title="Worked out from this rate on each date; not typed here"
-                          >
-                            ↳ {plan.derived.from}
-                            {plan.derived.rule ? ` · ${plan.derived.rule}` : ""}
-                          </span>
                         )}
 
                         {channels.length > 0 && (
@@ -2033,26 +2034,36 @@ function ExpandableRoom({
                           </button>
                         )}
                       </span>
+                      {/* Under the name, not beside it, so a long name
+                          keeps to one line. */}
+                      {plan.derived && (
+                        <span
+                          className="cm-meta block whitespace-nowrap text-xs muted"
+                          title="Worked out from this rate on each date; not typed here"
+                        >
+                          ↳ {plan.derived.from}
+                          {plan.derived.rule ? ` · ${plan.derived.rule}` : ""}
+                        </span>
+                      )}
+                      </span>
                     ) : (
                       <span />
                     )}
                     {view === "rates" && (
                       <span
                         className="shrink-0 whitespace-nowrap text-xs muted"
-                        title={
+                        title={[
                           occ.partnerCode
                             ? `Partner code: ${occ.partnerCode}`
-                            : "Not mapped to a partner code"
-                        }
-                        style={occ.partnerCode ? undefined : { color: "var(--warn)" }}
+                            : "Not mapped to a partner code",
+                          occ.fromSingle && !plan.derived ? `Worked out as ${occ.fromSingle}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        style={occUnmapped ? { color: "var(--warn)" } : undefined}
                       >
                         {occ.occupancy} adult{occ.occupancy === 1 ? "" : "s"}
-                        {!occ.partnerCode && " !"}
-                        {occ.fromSingle && !plan.derived && (
-                          <span className="cm-meta block text-[10px] faint">
-                            = {occ.fromSingle}
-                          </span>
-                        )}
+                        {occUnmapped && " · not mapped"}
                       </span>
                     )}
                     </span>
@@ -2089,7 +2100,7 @@ function ExpandableRoom({
                               className="px-1.5 py-1.5"
                               style={{
                                 background: formatDay(d).weekend ? "var(--warn-soft)" : undefined,
-                                borderBottom: "1px solid var(--border)",
+                                borderBottom: rowRule,
                                 borderRight: "1px solid var(--border)",
                               }}
                             >
@@ -2115,7 +2126,7 @@ function ExpandableRoom({
                               background: formatDay(d).weekend
                                 ? "var(--warn-soft)"
                                 : undefined,
-                              borderBottom: "1px solid var(--border)",
+                              borderBottom: rowRule,
                               borderRight: "1px solid var(--border)",
                             }}
                           >
@@ -2126,7 +2137,7 @@ function ExpandableRoom({
                               className="w-full rounded border px-1.5 py-1 text-right text-sm"
                               style={{
                                 background: "var(--surface)",
-                                borderColor: !occ.partnerCode
+                                borderColor: occUnmapped
                                   ? "var(--warn)"
                                   : edited
                                   ? "var(--accent)"
@@ -2151,10 +2162,12 @@ function ExpandableRoom({
                           onChange={onRestrictionChange}
                           channelStops={channelStops}
                           editedChannelStops={editedChannelStops}
+                          rule={rowRule}
                         />
                       ))}
                 </tr>
-              ))}
+                );
+              })}
 
               {view === "rates" &&
                 openChannels[`${plan.id}|${room.id}`] &&
@@ -2335,6 +2348,7 @@ function RestrictionCell({
   onChange,
   channelStops = {},
   editedChannelStops = {},
+  rule = "1px solid var(--border)",
 }) {
   const key = `${plan.id}|${roomId}|${date}`;
   const patch = edits[key];
@@ -2357,7 +2371,7 @@ function RestrictionCell({
         className="px-1.5 py-1.5 text-center"
         style={{
           background: weekend ? "var(--warn-soft)" : undefined,
-          borderBottom: "1px solid var(--border)",
+          borderBottom: rule,
           borderRight: "1px solid var(--border)",
         }}
       >
@@ -2388,7 +2402,7 @@ function RestrictionCell({
     <td
       style={{
         background: weekend ? "var(--warn-soft)" : undefined,
-        borderBottom: "1px solid var(--border)",
+        borderBottom: rule,
         borderRight: "1px solid var(--border)",
       }}
       className="px-1.5 py-1.5"

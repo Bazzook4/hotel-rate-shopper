@@ -13,6 +13,16 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-14",
+    title: "A calmer rates page",
+    points: [
+      {
+        page: "cm",
+        text: "The Channel Manager rates page is easier to read. A room that is not linked to its channel code is flagged once, on the room's own line, not on every rate. Each rate plan's lines are grouped together, and the note saying which plan a rate follows (such as \"↳ EP · +25%\") now sits under the plan name. Hover over a greyed rate to see how it is worked out.",
+      },
+    ],
+  },
+  {
     date: "2026-10-05",
     title: "Set your own discounts and premiums",
     points: [
