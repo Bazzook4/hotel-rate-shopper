@@ -1941,13 +1941,14 @@ function ExpandableRoom({
             <span className="muted">{open ? "▾" : "▸"}</span>
             <span>
               <span className="cm-room-name block font-medium text-ink">{room.name}</span>
-              <span className="cm-room-sub block text-xs muted">
-                <span className="cm-room-sep"> · </span>
-                {room.count} rooms
-                {!room.partnerCode && (
-                  <span style={{ color: "var(--warn)" }}> · not mapped</span>
-                )}
-              </span>
+              {/* The room count is in every date cell ("of 5"), so the
+                  name says only what the desk has to fix. */}
+              {!room.partnerCode && (
+                <span className="cm-room-sub block text-xs" style={{ color: "var(--warn)" }}>
+                  <span className="cm-room-sep muted"> · </span>
+                  not mapped
+                </span>
+              )}
             </span>
           </button>
         </td>
