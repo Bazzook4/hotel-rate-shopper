@@ -42,13 +42,16 @@ function maxOf(a, b) {
 }
 
 /**
- * Whether a plan's name already carries its meal-plan code, as "CP" or
- * "CP Breakfast" does. Such a plan needs no separate code chip beside it.
+ * The part of a plan's code its name does not already say, for the chip
+ * beside it. "CP" or "CP Breakfast" needs none; a non-refundable EP named
+ * "EP MIN 2" needs only "NR" -- the whole "NR EP" read "NR EP EP MIN 2".
  */
-function planNameSays(plan) {
-  if (!plan.name || !plan.label) return !plan.label;
-  const escaped = plan.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|\\W)${escaped}(\\W|$)`, "i").test(plan.name);
+function planCodeChip(plan) {
+  // A plan with no name is shown by its code, which says it all.
+  if (!plan.name || !plan.label || plan.label === "—") return null;
+  const said = new Set(plan.name.toUpperCase().split(/\W+/));
+  const missing = plan.label.split(" ").filter((w) => !said.has(w.toUpperCase()));
+  return missing.length > 0 ? missing.join(" ") : null;
 }
 
 /** What the grid can show across the dates, for every plan at once. */
@@ -2005,12 +2008,14 @@ function ExpandableRoom({
                           stack in a narrow column rather than holding one
                           long line that leaves no room for dates. */}
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap">
-                        {/* The meal-plan code is shown only when the name
-                            does not already say it -- a plan called "CP"
-                            otherwise read "CP CP". */}
-                        {!planNameSays(plan) && (
-                          <span className="chip chip-off font-mono">
-                            {plan.label}
+                        {/* Only what the name leaves out of the meal-plan
+                            code -- a plan called "CP" otherwise read "CP CP". */}
+                        {planCodeChip(plan) && (
+                          <span
+                            className="chip chip-off font-mono"
+                            title={plan.label.startsWith("NR") ? "Non-refundable" : undefined}
+                          >
+                            {planCodeChip(plan)}
                           </span>
                         )}
                         <span className="text-sm text-ink">{plan.name || plan.label}</span>

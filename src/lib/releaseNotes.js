@@ -20,6 +20,10 @@ export const RELEASE_NOTES = [
         page: "cm",
         text: "The Channel Manager rates page is easier to read. A room that is not linked to its channel code is flagged once, on the room's own line, not on every rate. Each rate plan's lines are grouped together, and the note saying which plan a rate follows (such as \"↳ EP · +25%\") now sits under the plan name. Hover over a greyed rate to see how it is worked out.",
       },
+      {
+        page: "cm",
+        text: "A rate plan's name no longer repeats its meal plan. A non-refundable EP called \"EP MIN 2\" now shows a small NR tag before its name, not \"NR EP\".",
+      },
     ],
   },
   {
