@@ -722,3 +722,28 @@ body {
   .dd,
   .seg > button { min-height: 2.5rem; }
 }
+
+/* Occupancy colours card (DisplaySettings): small controls inside each
+ * colour chip, made finger-sized on touch screens. */
+.demand-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.demand-pct {
+  width: 2.75rem;
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
+.demand-pct:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+@media (pointer: coarse) {
+  .demand-swatch { width: 28px; height: 28px; }
+  .demand-pct { padding: 0.25rem 0.3rem; width: 3rem; }
+}
