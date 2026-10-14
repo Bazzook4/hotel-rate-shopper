@@ -13,6 +13,8 @@ import Dropdown from "../../components/Dropdown";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { visibleModules } from "../modules";
 import { usePageState } from "./usePageState";
+import { DemandKey, useDemandPrefs } from "./DemandColours";
+import { demandFor } from "@/lib/demandColours";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -272,6 +274,7 @@ export default function TapeChart({ session }) {
     return out;
   }, [anchor, windowDays]);
   const eventsByDate = useEventsByDate(propertyId, dates[0], dates[dates.length - 1]);
+  const demandPrefs = useDemandPrefs(propertyId, "calendar");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -782,6 +785,26 @@ export default function TapeChart({ session }) {
     return out;
   }, [chart, dates]);
 
+  /**
+   * The whole house on each date, for the occupancy colours the hotel can
+   * switch on in Property Setup. Every type counts, whatever the filter shows:
+   * the header says how full the hotel is, not the rows on screen.
+   */
+  const houseByDate = useMemo(() => {
+    if (!demandPrefs || !chart) return {};
+    const out = {};
+    for (const d of dates) {
+      let sold = 0;
+      let capacity = 0;
+      for (const rt of chart.roomTypes) {
+        sold += soldByType[rt.id]?.[d] || 0;
+        capacity += rt.rooms.length - (blockedByType[rt.id]?.[d] || 0);
+      }
+      out[d] = demandFor(demandPrefs, Math.min(sold, capacity), capacity);
+    }
+    return out;
+  }, [demandPrefs, chart, dates, soldByType, blockedByType]);
+
   function toggleGroup(id) {
     setCollapsed((prev) => ({ ...prev, [id]: !prev[id] }));
   }
@@ -837,6 +860,8 @@ export default function TapeChart({ session }) {
           </>
         }
       />
+
+      <DemandKey prefs={demandPrefs} />
 
       {syncWarning && (
         <div
@@ -982,9 +1007,14 @@ export default function TapeChart({ session }) {
                   const parsed = parseDateISO(d);
                   const isToday = d === today;
                   const weekend = [0, 6].includes(parsed.getUTCDay());
+                  // With occupancy colours on, the fill means how full the
+                  // house is and nothing else: today gets an underline and
+                  // the weekend a bold day name instead.
+                  const demand = houseByDate[d];
                   return (
                     <div
                       key={d}
+                      title={demand?.title}
                       style={{
                         width: dayWidth,
                         flexShrink: 0,
@@ -992,24 +1022,38 @@ export default function TapeChart({ session }) {
                         padding: "0.35rem 0",
                         fontSize: "0.65rem",
                         lineHeight: 1.25,
-                        background: isToday
-                          ? "var(--accent-soft)"
-                          : weekend
-                            ? "var(--surface-2)"
-                            : undefined,
-                        color: isToday ? "var(--accent-text)" : "var(--text-muted)",
+                        background: demand
+                          ? demand.background
+                          : isToday
+                            ? "var(--accent-soft)"
+                            : weekend
+                              ? "var(--surface-2)"
+                              : undefined,
+                        color: demand
+                          ? demand.color
+                          : isToday
+                            ? "var(--accent-text)"
+                            : "var(--text-muted)",
+                        boxShadow: demand && isToday ? "inset 0 -3px 0 var(--accent)" : undefined,
                         borderRight: "1px solid var(--border)",
                       }}
                     >
-                      <div>
+                      <div style={demand && weekend ? { fontWeight: 700 } : undefined}>
                         {parsed.toLocaleDateString("en-GB", { weekday: "short" })}
                       </div>
-                      <div style={{ fontWeight: 600, color: "var(--text)", fontSize: "0.8rem" }}>
+                      <div
+                        style={{
+                          fontWeight: 600,
+                          color: demand ? demand.color : "var(--text)",
+                          fontSize: "0.8rem",
+                        }}
+                      >
                         {parsed.getUTCDate()}
                       </div>
                       <div>
                         {parsed.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}
                       </div>
+                      {demand && <div style={{ fontWeight: 600 }}>{demand.pct}%</div>}
                       <EventMarker events={eventsByDate[d]} />
                     </div>
                   );

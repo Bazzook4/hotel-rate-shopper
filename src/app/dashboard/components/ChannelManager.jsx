@@ -9,6 +9,8 @@ import Dropdown from "../../components/Dropdown";
 import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
 import { CHANNEL_LABELS } from "@/lib/channels";
 import { usePageState } from "./usePageState";
+import { DemandKey, useDemandPrefs } from "./DemandColours";
+import { demandFor } from "@/lib/demandColours";
 
 
 
@@ -482,6 +484,7 @@ export default function ChannelManager({ session }) {
   // Competitors, parity and pricing suggestions, shown in the date header
   // and as a row under each room type (see marketSignals).
   const market = useMarketSignals(propertyId, dates);
+  const demandPrefs = useDemandPrefs(propertyId, "cm");
   const [suggestion, setSuggestion] = useState(null);
 
   // How many loads are in flight. The property and the grid load separately,
@@ -572,6 +575,25 @@ export default function ChannelManager({ session }) {
     }
     return [...seen.values()];
   }, [property]);
+
+  // The whole house on each date, for the occupancy colours the hotel can
+  // switch on in Property Setup -- every room type, whatever the filter shows.
+  const houseByDate = useMemo(() => {
+    if (!demandPrefs || !grid) return {};
+    const out = {};
+    for (const d of dates) {
+      let sold = 0;
+      let capacity = 0;
+      for (const room of grid.rooms || []) {
+        const a = grid.availability?.[`${room.id}|${d}`];
+        if (!a) continue;
+        sold += a.sold;
+        capacity += a.capacity;
+      }
+      out[d] = demandFor(demandPrefs, Math.min(sold, capacity), capacity);
+    }
+    return out;
+  }, [demandPrefs, grid, dates]);
 
   const rooms = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -1672,6 +1694,8 @@ export default function ChannelManager({ session }) {
         }
       />
 
+      <DemandKey prefs={demandPrefs} />
+
       {grid && grid.rooms.length === 0 && (
         <div className="card card-pad text-center">
           <p className="sub">No room types set up yet.</p>
@@ -1733,21 +1757,37 @@ export default function ChannelManager({ session }) {
               {dates.map((d) => {
                 const f = formatDay(d);
                 const todayIso = isoDate(new Date());
+                // With occupancy colours on, the fill means how full the
+                // house is and nothing else; the weekend shows as a bold day.
+                const demand = houseByDate[d];
                 return (
                   <th
                     key={d}
+                    title={demand?.title}
                     className="cm-date-col cm-head px-3 py-2 text-center text-[11px] font-medium"
                     style={{
-                      background: f.weekend
-                        ? "var(--warn-soft)"
-                        : "var(--surface-2)",
+                      background: demand
+                        ? demand.background
+                        : f.weekend
+                          ? "var(--warn-soft)"
+                          : "var(--surface-2)",
                       borderBottom: "1px solid var(--border-strong)",
                       borderRight: "1px solid var(--border)",
-                      color: f.weekend ? "var(--warn)" : "var(--text-muted)",
+                      color: demand
+                        ? demand.color
+                        : f.weekend
+                          ? "var(--warn)"
+                          : "var(--text-muted)",
                     }}
                   >
                     <div
-                      style={d === todayIso ? { color: "var(--accent-text)", fontWeight: 600 } : undefined}
+                      style={
+                        demand
+                          ? { fontWeight: d === todayIso || f.weekend ? 700 : undefined }
+                          : d === todayIso
+                            ? { color: "var(--accent-text)", fontWeight: 600 }
+                            : undefined
+                      }
                     >
                       {d === todayIso ? "TODAY" : f.dow}
                     </div>
@@ -1756,12 +1796,20 @@ export default function ChannelManager({ session }) {
                     <div className="cm-daymon">
                       <span
                         className="block text-base font-semibold"
-                        style={{ color: f.weekend ? "var(--warn)" : "var(--text)" }}
+                        style={{
+                          color: demand ? demand.color : f.weekend ? "var(--warn)" : "var(--text)",
+                        }}
                       >
                         {f.day}
                       </span>
-                      <span className="block text-[10px] faint">{f.mon}</span>
+                      <span
+                        className={demand ? "block text-[10px]" : "block text-[10px] faint"}
+                        style={demand ? { opacity: 0.8 } : undefined}
+                      >
+                        {f.mon}
+                      </span>
                     </div>
+                    {demand && <div className="text-[11px] font-semibold">{demand.pct}%</div>}
                     <EventMarker events={eventsByDate[d]} />
                     <DateSignals date={d} market={market} />
                   </th>

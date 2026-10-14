@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-14",
+    title: "See how full each night is, in your own colours",
+    points: [
+      {
+        page: "setup",
+        text: "Property Setup has a new Occupancy colours card. Turn it on to colour each date on the Calendar and the Rates & Inventory page by how many rooms are sold: Low, Normal, Good or High. You choose which pages show it, where each level starts and each colour. It is off until you turn it on.",
+      },
+      {
+        page: "calendar",
+        text: "With occupancy colours on, each date at the top of the Calendar shows the percentage of rooms sold and is coloured to match. Hover over a date to see the rooms sold out of rooms available.",
+      },
+      {
+        page: "cm",
+        text: "With occupancy colours on, the dates on the Rates & Inventory page show the same colours and percentage, so you can see busy nights while you set rates.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-14",
     title: "A calmer rates page",
     points: [
       {
