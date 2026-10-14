@@ -24,6 +24,10 @@ export const RELEASE_NOTES = [
         page: "cm",
         text: "A rate plan's name no longer repeats its meal plan. A non-refundable EP called \"EP MIN 2\" now shows a small NR tag before its name, not \"NR EP\".",
       },
+      {
+        page: "cm",
+        text: "On a laptop or desktop, the rates page is more compact, so three room types with two rate plans each fit on one screen. The line under your mouse is lightly tinted, so you keep your place along a row. Phones and tablets keep the bigger rows, which are easier to tap.",
+      },
     ],
   },
   {

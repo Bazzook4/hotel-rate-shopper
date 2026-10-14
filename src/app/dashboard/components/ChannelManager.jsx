@@ -1721,7 +1721,7 @@ export default function ChannelManager({ session }) {
           <thead>
             <tr>
               <th
-                className="cm-name-col sticky left-0 z-20 px-2 py-2.5 text-left text-xs uppercase tracking-wide muted md:px-4"
+                className="cm-name-col cm-head sticky left-0 z-20 px-2 py-2.5 text-left text-xs uppercase tracking-wide muted md:px-4"
                 style={{
                   background: "var(--surface-2)",
                   borderBottom: "1px solid var(--border-strong)",
@@ -1736,7 +1736,7 @@ export default function ChannelManager({ session }) {
                 return (
                   <th
                     key={d}
-                    className="cm-date-col px-3 py-2 text-center text-[11px] font-medium"
+                    className="cm-date-col cm-head px-3 py-2 text-center text-[11px] font-medium"
                     style={{
                       background: f.weekend
                         ? "var(--warn-soft)"
@@ -1751,13 +1751,17 @@ export default function ChannelManager({ session }) {
                     >
                       {d === todayIso ? "TODAY" : f.dow}
                     </div>
-                    <div
-                      className="text-base font-semibold"
-                      style={{ color: f.weekend ? "var(--warn)" : "var(--text)" }}
-                    >
-                      {f.day}
+                    {/* Day and month stack on a phone and share a line on a
+                        laptop, where the grid is made compact. */}
+                    <div className="cm-daymon">
+                      <span
+                        className="block text-base font-semibold"
+                        style={{ color: f.weekend ? "var(--warn)" : "var(--text)" }}
+                      >
+                        {f.day}
+                      </span>
+                      <span className="block text-[10px] faint">{f.mon}</span>
                     </div>
-                    <div className="text-[10px] faint">{f.mon}</div>
                     <EventMarker events={eventsByDate[d]} />
                     <DateSignals date={d} market={market} />
                   </th>
@@ -1907,7 +1911,7 @@ function ExpandableRoom({
 }) {
   return (
     <>
-      <tr>
+      <tr className="cm-room-row">
         <td
           className="sticky left-0 z-10 px-2 py-2.5 md:px-4"
           style={{
@@ -1927,8 +1931,9 @@ function ExpandableRoom({
           >
             <span className="muted">{open ? "▾" : "▸"}</span>
             <span>
-              <span className="block font-medium text-ink">{room.name}</span>
-              <span className="block text-xs muted">
+              <span className="cm-room-name block font-medium text-ink">{room.name}</span>
+              <span className="cm-room-sub block text-xs muted">
+                <span className="cm-room-sep"> · </span>
                 {room.count} rooms
                 {!room.partnerCode && (
                   <span style={{ color: "var(--warn)" }}> · not mapped</span>
@@ -1956,12 +1961,16 @@ function ExpandableRoom({
               {a ? (
                 <>
                   <span
-                    className="block font-medium"
+                    className="cm-free block font-medium"
                     style={{ color: full ? "var(--warn)" : "var(--text)" }}
                   >
                     {a.free}
                   </span>
-                  <span className="block text-xs faint">of {a.capacity}</span>
+                  <span className="cm-of block text-xs faint">
+                    <span className="cm-of-word">of </span>
+                    <span className="cm-of-slash">/</span>
+                    {a.capacity}
+                  </span>
                 </>
               ) : (
                 <span className="muted">{room.count ?? "—"}</span>
@@ -1989,8 +1998,17 @@ function ExpandableRoom({
                 // mapped; a row is flagged only when its room is mapped but
                 // this adult count is not.
                 const occUnmapped = Boolean(room.partnerCode) && !occ.partnerCode;
+                const derivedNote = plan.derived ? (
+                  <span
+                    className="cm-meta block whitespace-nowrap text-xs muted"
+                    title="Worked out from this rate on each date; not typed here"
+                  >
+                    ↳ {plan.derived.from}
+                    {plan.derived.rule ? ` · ${plan.derived.rule}` : ""}
+                  </span>
+                ) : null;
                 return (
-                <tr key={`${plan.id}-${view}-${occ.occupancy}`}>
+                <tr key={`${plan.id}-${view}-${occ.occupancy}`} className="cm-rate-row">
                   <td
                     className="sticky left-0 z-10 px-2 py-1.5 pl-4 md:px-4 md:pl-10"
                     style={{
@@ -2039,18 +2057,12 @@ function ExpandableRoom({
                           </button>
                         )}
                       </span>
-                      {/* Under the name, not beside it, so a long name
-                          keeps to one line. */}
-                      {plan.derived && (
-                        <span
-                          className="cm-meta block whitespace-nowrap text-xs muted"
-                          title="Worked out from this rate on each date; not typed here"
-                        >
-                          ↳ {plan.derived.from}
-                          {plan.derived.rule ? ` · ${plan.derived.rule}` : ""}
-                        </span>
-                      )}
+                      {rows.length === 1 && derivedNote}
                       </span>
+                    ) : i === 1 ? (
+                      // The plan's second row has room to spare on the left,
+                      // so the note goes there and no row grows taller.
+                      derivedNote || <span />
                     ) : (
                       <span />
                     )}
@@ -2110,7 +2122,7 @@ function ExpandableRoom({
                               }}
                             >
                               <div
-                                className="w-full rounded px-1.5 py-1 text-right text-sm tabular-nums"
+                                className="cm-cell w-full rounded px-1.5 py-1 text-right text-sm tabular-nums"
                                 style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
                                 title={
                                   plan.derived
@@ -2139,7 +2151,7 @@ function ExpandableRoom({
                               type="number"
                               value={value}
                               onChange={(e) => onRateChange(key, e.target.value)}
-                              className="w-full rounded border px-1.5 py-1 text-right text-sm"
+                              className="cm-cell w-full rounded border px-1.5 py-1 text-right text-sm"
                               style={{
                                 background: "var(--surface)",
                                 borderColor: occUnmapped
@@ -2421,7 +2433,7 @@ function RestrictionCell({
         onChange={(e) =>
           onChange(key, field, e.target.value === "" ? null : Number(e.target.value))
         }
-        className="w-full rounded border px-1.5 py-1 text-right text-sm"
+        className="cm-cell w-full rounded border px-1.5 py-1 text-right text-sm"
         style={{
           background: "var(--surface)",
           borderColor: edited ? "var(--accent)" : "var(--border)",

@@ -684,6 +684,38 @@ body {
   }
 }
 
+/* Shown only in the compact laptop layout below. */
+.cm-rate-grid .cm-room-sep,
+.cm-rate-grid .cm-of-slash { display: none; }
+
+/* The rate grid on a laptop or desktop: a mouse needs far less room than a
+ * finger, so rows close up until three room types with two plans each fit on
+ * a 13" screen. Phones and tablets (a coarse pointer) keep the roomier rows
+ * above. Inline styles carry the grid's colours, so only spacing moves here. */
+@media (min-width: 768px) and (pointer: fine) {
+  .cm-rate-grid th.cm-head { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .cm-rate-grid .cm-daymon > span { display: inline; }
+  .cm-rate-grid .cm-daymon > span + span { margin-left: 0.25rem; }
+
+  .cm-rate-grid .cm-room-row > td { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+  .cm-rate-grid .cm-room-name,
+  .cm-rate-grid .cm-room-sub,
+  .cm-rate-grid .cm-free,
+  .cm-rate-grid .cm-of { display: inline; }
+  .cm-rate-grid .cm-room-sep,
+  .cm-rate-grid .cm-of-slash { display: inline; }
+  .cm-rate-grid .cm-of-word { display: none; }
+
+  .cm-rate-grid .cm-rate-row > td { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+  .cm-rate-grid .cm-rate-row .cm-cell { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+
+  /* Rows this close are easy to read across into the wrong one; the row
+   * under the mouse is tinted to hold the eye. A shadow, because the cells'
+   * own backgrounds are inline and would win over a background here. */
+  .cm-rate-grid .cm-rate-row:hover > td {
+    box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--accent) 7%, transparent);
+  }
+}
 /* A finger needs a bigger target than a pointer, whatever the screen size. */
 @media (pointer: coarse) {
   .btn,
