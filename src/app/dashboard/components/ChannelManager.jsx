@@ -1909,6 +1909,15 @@ function ExpandableRoom({
   revert,
   busy,
 }) {
+  // The code chips' column: wide enough for the longest code in this room,
+  // and at least an indent under the room's name, so plan names line up.
+  const longestCode = Math.max(0, ...room.plans.map((p) => planCodeChip(p)?.length ?? 0));
+  const chipSlot = {
+    width: `max(1.25rem, calc(${longestCode}ch + 1.1rem))`,
+    fontSize: "0.7rem",
+    fontFamily: "var(--font-mono, ui-monospace, monospace)",
+  };
+
   return (
     <>
       <tr className="cm-room-row">
@@ -2010,7 +2019,7 @@ function ExpandableRoom({
                 return (
                 <tr key={`${plan.id}-${view}-${occ.occupancy}`} className="cm-rate-row">
                   <td
-                    className="sticky left-0 z-10 px-2 py-1.5 pl-4 md:px-4 md:pl-10"
+                    className="sticky left-0 z-10 px-2 py-1.5 pl-3 md:px-4 md:pl-5"
                     style={{
                       background: "var(--surface)",
                       borderBottom: rowRule,
@@ -2021,13 +2030,13 @@ function ExpandableRoom({
                         the occupancy at the right of every row. */}
                     <span className="flex items-center justify-between gap-2">
                     {i === 0 ? (
-                      <span className="min-w-0">
-                      {/* Wraps on a phone, so the plan's name and channels
-                          stack in a narrow column rather than holding one
-                          long line that leaves no room for dates. */}
-                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap">
-                        {/* Only what the name leaves out of the meal-plan
-                            code -- a plan called "CP" otherwise read "CP CP". */}
+                      <span className="flex min-w-0 items-start gap-2">
+                      {/* Only what the name leaves out of the meal-plan code
+                          -- a plan called "CP" otherwise read "CP CP". It sits
+                          in its own column at the left, as wide as the
+                          room's widest code, so every plan name starts at
+                          the same place. */}
+                      <span className="shrink-0" style={chipSlot}>
                         {planCodeChip(plan) && (
                           <span
                             className="chip chip-off font-mono"
@@ -2036,6 +2045,12 @@ function ExpandableRoom({
                             {planCodeChip(plan)}
                           </span>
                         )}
+                      </span>
+                      <span className="min-w-0">
+                      {/* Wraps on a phone, so the plan's name and channels
+                          stack in a narrow column rather than holding one
+                          long line that leaves no room for dates. */}
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 md:flex-nowrap">
                         <span className="text-sm text-ink">{plan.name || plan.label}</span>
                         {plan.restrictions.stopSell && (
                           <span className="chip chip-warn">Stop sell</span>
@@ -2059,10 +2074,15 @@ function ExpandableRoom({
                       </span>
                       {rows.length === 1 && derivedNote}
                       </span>
-                    ) : i === 1 ? (
+                      </span>
+                    ) : i === 1 && derivedNote ? (
                       // The plan's second row has room to spare on the left,
-                      // so the note goes there and no row grows taller.
-                      derivedNote || <span />
+                      // so the note goes there, under the name, and no row
+                      // grows taller.
+                      <span className="flex min-w-0 items-start gap-2">
+                        <span className="shrink-0" style={chipSlot} />
+                        {derivedNote}
+                      </span>
                     ) : (
                       <span />
                     )}
