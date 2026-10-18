@@ -42,6 +42,8 @@ function emptyBooking(country = "") {
     children: 0,
     source: "direct",
     booking_type: "standard",
+    company_id: "",
+    bill_to: "guest",
     // Only chosen when the booking is made; after that it moves through the
     // desk's status buttons, not the form.
     status: "confirmed",
@@ -68,6 +70,8 @@ function toForm(reservation) {
     children: reservation.children ?? 0,
     source: reservation.source || "direct",
     booking_type: reservation.booking_type || "standard",
+    company_id: reservation.company_id || "",
+    bill_to: reservation.bill_to || "guest",
     total_amount: reservation.total_amount ?? "",
     notes: reservation.notes || "",
   };
@@ -141,12 +145,25 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   // is what the room costs in setup, not what the channels are selling.
   const weak = quote.source === "base_price";
 
+  // A company with a contract that covers none of these nights is quoted at
+  // the public rate; the desk must see that, since the guest expects the
+  // contract.
+  const uncovered = quote.contract && quote.contract.covered === 0;
+
   return (
+    <>
+    {uncovered && (
+      <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: "var(--warn)" }}>
+        {quote.contract.company} has no contract rate for this room and plan on these dates — public rate quoted.
+      </p>
+    )}
     <p
       className="sub"
       style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: weak ? "var(--warn)" : undefined }}
     >
-      {SOURCE_LABEL[quote.source] || "from configured rates"}
+      {quote.source === "contract"
+        ? `${quote.contract.company} contract rate`
+        : SOURCE_LABEL[quote.source] || "from configured rates"}
       {quote.diagnosis && <> — {quote.diagnosis}</>}
       {perNight != null && nights > 1 && (
         <> · {perNight.toLocaleString("en-IN")}/night × {nights}</>
@@ -158,6 +175,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
         </span>
       )}
     </p>
+    </>
   );
 }
 
@@ -566,6 +584,37 @@ export default function BookingForm({
    */
   const [assignments, setAssignments] = useState(null);
 
+  /**
+   * Companies and travel agents. The field only appears once there is at
+   * least one, so a hotel that never uses them never sees it. Inactive ones
+   * are not offered, except the one an existing booking is already on.
+   */
+  const [companies, setCompanies] = useState([]);
+
+  useEffect(() => {
+    const qs = session?.propertyId ? `?propertyId=${session.propertyId}` : "";
+    fetch(`/api/pms/companies${qs}`)
+      .then((r) => (r.ok ? r.json() : { companies: [] }))
+      .then((d) => setCompanies(d.companies || []))
+      .catch(() => setCompanies([]));
+  }, [session?.propertyId]);
+
+  const company = companies.find((c) => c.id === form.company_id) || null;
+  const companyChoices = companies.filter((c) => c.is_active || c.id === form.company_id);
+
+  /**
+   * The agent's commission on this booking: what was agreed when it was
+   * booked if it is still with that agent, else the agent's current terms.
+   */
+  const commissionPercent =
+    company?.kind !== "travel_agent"
+      ? null
+      : reservation?.company_id === company.id && reservation?.commission_percent != null
+      ? Number(reservation.commission_percent)
+      : company.commission_percent != null
+      ? Number(company.commission_percent)
+      : null;
+
   useEffect(() => {
     const qs = session?.propertyId ? `?propertyId=${session.propertyId}` : "";
     fetch(`/api/setup/ratePlanRooms${qs}`)
@@ -647,6 +696,7 @@ export default function BookingForm({
       });
       if (session?.propertyId) qs.set("propertyId", session.propertyId);
       if (rate_plan_id) qs.set("ratePlanId", rate_plan_id);
+      if (form.company_id) qs.set("companyId", form.company_id);
 
       const res = await fetch(`/api/pms/quote?${qs}`);
       const data = await res.json();
@@ -666,6 +716,7 @@ export default function BookingForm({
     form.check_out,
     form.adults,
     form.children,
+    form.company_id,
     nights,
     session?.propertyId,
   ]);
@@ -727,6 +778,21 @@ export default function BookingForm({
       if (field === "room_type_id") next.room_id = "";
 
       if (field === "booking_type" && value === "complimentary") next.total_amount = 0;
+
+      // Choosing a company or agent suggests how it was booked and who is
+      // billed -- a company is usually invoiced, an agent's guest usually
+      // pays the hotel -- but only over the defaults, never over a choice.
+      if (field === "company_id") {
+        const c = companies.find((x) => x.id === value);
+        if (!c) {
+          next.bill_to = "guest";
+        } else {
+          next.bill_to = c.kind === "company" ? "company" : "guest";
+          if (["direct", "corporate", "travel_agent"].includes(prev.source)) {
+            next.source = c.kind === "company" ? "corporate" : "travel_agent";
+          }
+        }
+      }
 
       return next;
     });
@@ -935,6 +1001,54 @@ export default function BookingForm({
             ))}
           </select>
         </Field>
+        {companyChoices.length > 0 && (
+          <Field label="Company / agent" wide={!company}>
+            <select
+              className="input"
+              value={form.company_id}
+              onChange={(e) => set("company_id", e.target.value)}
+            >
+              <option value="">None — guest booked direct</option>
+              {[
+                ["company", "Companies"],
+                ["travel_agent", "Travel agents"],
+              ].map(([kind, label]) => {
+                const group = companyChoices.filter((c) => c.kind === kind);
+                return group.length ? (
+                  <optgroup key={kind} label={label}>
+                    {group.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.rate_lines ? " · contract" : ""}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null;
+              })}
+            </select>
+          </Field>
+        )}
+        {company && (
+          <Field
+            label="Bill to"
+            hint={
+              form.bill_to === "company"
+                ? company.gstin
+                  ? `Invoice to ${company.name}, GSTIN ${company.gstin}`
+                  : `${company.name} has no GSTIN on record`
+                : undefined
+            }
+          >
+            <select
+              className="input"
+              value={form.bill_to}
+              onChange={(e) => set("bill_to", e.target.value)}
+            >
+              <option value="guest">Guest</option>
+              <option value="company">{company.kind === "company" ? "Company" : "Agent"}</option>
+            </select>
+          </Field>
+        )}
       </Section>
 
       <Section title="Price">
@@ -980,6 +1094,12 @@ export default function BookingForm({
               nights={nights}
               onUseQuoted={useQuotedPrice}
             />
+          )}
+          {commissionPercent != null && Number(form.total_amount) > 0 && (
+            <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
+              {company.name} commission {commissionPercent}% ={" "}
+              {Math.round((Number(form.total_amount) * commissionPercent) / 100).toLocaleString("en-IN")}
+            </p>
           )}
         </Field>
       </Section>

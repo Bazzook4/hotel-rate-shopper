@@ -19,6 +19,8 @@ const EDITABLE = [
   "total_rooms",
   "check_in_time",
   "check_out_time",
+  // Printed on every invoice; a company needs it to claim GST input credit.
+  "gstin",
 ];
 
 export async function PATCH(req) {
@@ -63,6 +65,17 @@ export async function PATCH(req) {
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No editable fields supplied" }, { status: 400 });
+  }
+
+  if ("gstin" in updates) {
+    const gstin = String(updates.gstin || "").toUpperCase().replace(/\s+/g, "");
+    if (gstin && !/^[0-9]{2}[A-Z0-9]{13}$/.test(gstin)) {
+      return NextResponse.json(
+        { error: "A GSTIN is 15 characters and starts with the two-digit state code." },
+        { status: 400 }
+      );
+    }
+    updates.gstin = gstin || null;
   }
 
   if (!updates.name?.trim() && "name" in updates) {

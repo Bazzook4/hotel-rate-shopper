@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
+import { contractNights } from '@/lib/contractRates';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -4739,6 +4740,11 @@ export async function createReservationInvoice(reservationId, userId = null) {
   const { reservation, totals } = folio;
   const property = await getPropertyById(reservation.property_id).catch(() => null);
   const roomName = reservation.room_types?.room_type_name || 'room';
+  // Frozen with the rest: a company that later moves office or corrects its
+  // GSTIN must not change an invoice already issued to it.
+  const company = reservation.company_id
+    ? await getCompany(reservation.property_id, reservation.company_id).catch(() => null)
+    : null;
 
   // One line per night where the nights add up to the room charge, so the
   // invoice shows how the total was reached; one line for the stay otherwise.
@@ -4782,8 +4788,27 @@ export async function createReservationInvoice(reservationId, userId = null) {
           country: property.country,
           phone: property.phone,
           email: property.email,
+          gstin: property.gstin || null,
         }
       : null,
+    // Who the invoice is addressed to when it is not the guest.
+    bill_to:
+      company && reservation.bill_to === 'company'
+        ? {
+            name: company.name,
+            kind: company.kind,
+            gstin: company.gstin,
+            address: company.billing_address,
+            city: company.city,
+            state: company.state,
+            postal_code: company.postal_code,
+            country: company.country,
+            contact_person: company.contact_person,
+            email: company.email,
+            phone: company.phone,
+          }
+        : null,
+    company: company ? { name: company.name, kind: company.kind } : null,
     currency: reservation.currency || 'INR',
     guest_name: reservation.guest_name,
     guest_email: reservation.guest_email,
@@ -5039,6 +5064,7 @@ export async function quoteReservation(
     check_out,
     adults = 2,
     children = 0,
+    company_id = null,
   },
   preloaded = null
 ) {
@@ -5180,6 +5206,49 @@ export async function quoteReservation(
     };
   });
 
+  /**
+   * A company or agent with a contract pays its contracted price on every
+   * night a contract line covers. A night it does not cover keeps the public
+   * rate worked out above, and the quote says how many nights that is --
+   * a contract that has run out is something the desk must notice, not
+   * something to price silently.
+   */
+  let contract = null;
+  if (company_id && (await companiesReady())) {
+    const { data: company } = await supabase
+      .from('companies')
+      .select('id, name, kind, commission_percent')
+      .eq('id', company_id)
+      .eq('property_id', property_id)
+      .maybeSingle();
+    if (company) {
+      const lines = await listCompanyRates(company.id);
+      const priced = contractNights(lines, {
+        roomTypeId: room_type_id,
+        ratePlanId: rate_plan_id,
+        nights,
+        adults: occupancy,
+        children,
+        baseAdults,
+      });
+      let covered = 0;
+      priced.forEach((n, i) => {
+        if (n.rate == null) return;
+        breakdown[i].rate = n.rate;
+        breakdown[i].contract = true;
+        covered += 1;
+      });
+      if (covered > 0) {
+        sources.clear();
+        sources.add('contract');
+        breakdown.forEach((n) => {
+          if (!n.contract && n.rate != null) sources.add('public');
+        });
+      }
+      contract = { company: company.name, kind: company.kind, covered, nights: nights.length };
+    }
+  }
+
   const priced = breakdown.filter((n) => n.rate != null);
   if (priced.length === 0) {
     return {
@@ -5213,9 +5282,25 @@ export async function quoteReservation(
     }
   }
 
+  if (contract?.covered > 0) {
+    return {
+      total: Number(priced.reduce((sum, n) => sum + n.rate, 0).toFixed(2)),
+      nights: breakdown,
+      contract,
+      diagnosis:
+        contract.covered < contract.nights
+          ? `${contract.nights - contract.covered} of ${contract.nights} nights have no contract rate and are at the public rate.`
+          : null,
+      source: 'contract',
+      partial: priced.length !== breakdown.length,
+      reason: null,
+    };
+  }
+
   return {
     total: Number(priced.reduce((sum, n) => sum + n.rate, 0).toFixed(2)),
     nights: breakdown,
+    contract,
     diagnosis,
     source: sources.has('daily_rates')
       ? 'daily_rates'
@@ -5498,4 +5583,219 @@ export async function linkGuestForBooking(propertyId, fields, guestId = null) {
     residency: fields.guest_residency,
   });
   return created.id;
+}
+
+// ============================================
+// COMPANIES & TRAVEL AGENTS (migration 046)
+// ============================================
+//
+// Who books on a guest's behalf, may be billed, and may have contracted
+// rates. Contract lines are priced by src/lib/contractRates.js.
+
+let companiesTableSeen = false;
+let companiesCheckedAt = 0;
+
+/** Whether migration 046 has run; re-checked at most once a minute until it has. */
+export async function companiesReady() {
+  if (companiesTableSeen) return true;
+  if (Date.now() - companiesCheckedAt < 60000) return false;
+  companiesCheckedAt = Date.now();
+  const { error } = await supabase.from('company_rates').select('id').limit(1);
+  companiesTableSeen = !error;
+  return companiesTableSeen;
+}
+
+const COMPANY_TEXT_FIELDS = [
+  'name',
+  'gstin',
+  'billing_address',
+  'city',
+  'state',
+  'postal_code',
+  'country',
+  'contact_person',
+  'email',
+  'phone',
+  'notes',
+];
+
+/**
+ * Only the fields a company holds, trimmed; blanks stored as null. Credit
+ * terms (migration 047) are left out of a new company when blank, so adding
+ * one works before that migration has run.
+ */
+function companyRow(input, { creating = false } = {}) {
+  const row = {};
+  for (const f of COMPANY_TEXT_FIELDS) {
+    if (f in input) row[f] = String(input[f] ?? '').trim() || null;
+  }
+  if ('gstin' in row && row.gstin) row.gstin = row.gstin.toUpperCase().replace(/\s+/g, '');
+  if ('kind' in input) row.kind = input.kind === 'travel_agent' ? 'travel_agent' : 'company';
+  if ('commission_percent' in input) {
+    const v = input.commission_percent;
+    row.commission_percent = v === '' || v == null ? null : Number(v);
+  }
+  if ('is_active' in input) row.is_active = input.is_active !== false;
+  for (const f of ['credit_days', 'credit_limit']) {
+    if (!(f in input)) continue;
+    const v = input[f];
+    if (v === '' || v == null) {
+      if (!creating) row[f] = null;
+      continue;
+    }
+    row[f] = f === 'credit_days' ? Math.round(Number(v)) : Number(v);
+  }
+  return row;
+}
+
+/** Companies and agents, by name, each with how many rate lines it has. */
+export async function listCompanies(propertyId, { includeInactive = true } = {}) {
+  let query = supabase
+    .from('companies')
+    .select('*, company_rates(count)')
+    .eq('property_id', propertyId)
+    .order('name', { ascending: true });
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to load companies: ${error.message}`);
+  return (data || []).map(({ company_rates, ...c }) => ({
+    ...c,
+    rate_lines: company_rates?.[0]?.count || 0,
+  }));
+}
+
+export async function getCompany(propertyId, id) {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load company: ${error.message}`);
+  return data;
+}
+
+export async function createCompany(propertyId, input) {
+  const row = companyRow(input, { creating: true });
+  if (!row.name) throw new Error('Company name is required.');
+  const { data, error } = await supabase
+    .from('companies')
+    .insert({ ...row, property_id: propertyId })
+    .select('*')
+    .single();
+  if (error) throw new Error(`Failed to save company: ${error.message}`);
+  return data;
+}
+
+export async function updateCompany(propertyId, id, input) {
+  const row = companyRow(input);
+  if ('name' in row && !row.name) throw new Error('Company name cannot be blank.');
+  const { data, error } = await supabase
+    .from('companies')
+    .update({ ...row, updated_at: new Date().toISOString() })
+    .eq('property_id', propertyId)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw new Error(`Failed to save company: ${error.message}`);
+  return data;
+}
+
+/** Deleting a company removes its rates and unlinks its bookings, which stay. */
+export async function deleteCompany(propertyId, id) {
+  const { error } = await supabase
+    .from('companies')
+    .delete()
+    .eq('property_id', propertyId)
+    .eq('id', id);
+  if (error) throw new Error(`Failed to delete company: ${error.message}`);
+  return true;
+}
+
+/** A company's contract lines, by room type and then start date. */
+export async function listCompanyRates(companyId) {
+  const { data, error } = await supabase
+    .from('company_rates')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('room_type_id')
+    .order('valid_from');
+  if (error) throw new Error(`Failed to load contract rates: ${error.message}`);
+  return data || [];
+}
+
+const isoDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+
+/** Days or months as a sorted list of whole numbers in range, or null for "all". */
+function dayList(value, min, max) {
+  if (!Array.isArray(value)) return null;
+  const out = [...new Set(value.map(Number).filter((n) => Number.isInteger(n) && n >= min && n <= max))];
+  return out.length === 0 || out.length === max - min + 1 ? null : out.sort((a, b) => a - b);
+}
+
+/** A contract line as stored, or a message saying what is wrong with it. */
+function companyRateRow(input) {
+  const row = {};
+  if ('room_type_id' in input) row.room_type_id = input.room_type_id || null;
+  if ('rate_plan_id' in input) row.rate_plan_id = input.rate_plan_id || null;
+  if ('valid_from' in input) row.valid_from = isoDate(input.valid_from);
+  if ('valid_to' in input) row.valid_to = isoDate(input.valid_to);
+  if ('weekdays' in input) row.weekdays = dayList(input.weekdays, 0, 6);
+  if ('months' in input) row.months = dayList(input.months, 1, 12);
+  if ('adult_rates' in input) {
+    const rates = {};
+    for (const [k, v] of Object.entries(input.adult_rates || {})) {
+      if (v === '' || v == null) continue;
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < 0) throw new Error('Rates must be zero or more.');
+      rates[String(Number(k))] = n;
+    }
+    row.adult_rates = rates;
+  }
+  for (const f of ['extra_adult_rate', 'extra_child_rate']) {
+    if (f in input) {
+      const v = input[f];
+      row[f] = v === '' || v == null ? null : Number(v);
+      if (row[f] != null && (!Number.isFinite(row[f]) || row[f] < 0)) {
+        throw new Error('Extra charges must be zero or more.');
+      }
+    }
+  }
+  if ('notes' in input) row.notes = String(input.notes ?? '').trim() || null;
+  return row;
+}
+
+export async function saveCompanyRate(propertyId, companyId, input) {
+  const company = await getCompany(propertyId, companyId);
+  if (!company) throw new Error('Company not found.');
+
+  const row = companyRateRow(input);
+  const existing = input.id
+    ? (await supabase.from('company_rates').select('*').eq('id', input.id).eq('company_id', companyId).maybeSingle()).data
+    : null;
+  if (input.id && !existing) throw new Error('That rate line no longer exists.');
+
+  const merged = { ...(existing || {}), ...row };
+  if (!merged.room_type_id) throw new Error('Choose a room type.');
+  if (!merged.valid_from || !merged.valid_to) throw new Error('Give the dates the rate applies from and to.');
+  if (merged.valid_to < merged.valid_from) throw new Error('The end date is before the start date.');
+  if (!Object.keys(merged.adult_rates || {}).length) throw new Error('Enter at least one rate.');
+
+  const query = existing
+    ? supabase
+        .from('company_rates')
+        .update({ ...row, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+    : supabase.from('company_rates').insert({ ...merged, company_id: companyId });
+  const { data, error } = await query.select('*').single();
+  if (error) throw new Error(`Failed to save the rate: ${error.message}`);
+  return data;
+}
+
+export async function deleteCompanyRate(propertyId, companyId, id) {
+  const company = await getCompany(propertyId, companyId);
+  if (!company) throw new Error('Company not found.');
+  const { error } = await supabase.from('company_rates').delete().eq('id', id).eq('company_id', companyId);
+  if (error) throw new Error(`Failed to delete the rate: ${error.message}`);
+  return true;
 }

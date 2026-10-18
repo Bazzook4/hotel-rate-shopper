@@ -110,6 +110,7 @@ async function renderInvoice(invoice, fallbackProperty) {
     [property.city, property.state, property.postal_code].filter(Boolean).join(", "),
     property.country,
     [property.phone, property.email].filter(Boolean).join("  |  "),
+    property.gstin ? `GSTIN: ${property.gstin}` : null,
   ].filter(Boolean);
 
   const docLines = [
@@ -144,7 +145,18 @@ async function renderInvoice(invoice, fallbackProperty) {
   text("Stay", col2, { bold: true, size: 9, color: muted });
   y -= 13;
 
-  const guestLines = [snap.guest_name, snap.guest_email, snap.guest_phone].filter(Boolean);
+  // Billed to a company, the invoice carries its name, address and GSTIN so
+  // the company can claim the input credit, and names the guest who stayed.
+  const bill = snap.bill_to;
+  const guestLines = bill
+    ? [
+        bill.name,
+        bill.address,
+        [bill.city, bill.state, bill.postal_code].filter(Boolean).join(", "),
+        bill.gstin ? `GSTIN: ${bill.gstin}` : null,
+        `Guest: ${snap.guest_name}`,
+      ].filter(Boolean)
+    : [snap.guest_name, snap.guest_email, snap.guest_phone].filter(Boolean);
   const stayLines = [
     `${day(snap.check_in)} to ${day(snap.check_out)}`,
     [snap.room_type, snap.room_number ? `Room ${snap.room_number}` : null]

@@ -121,7 +121,7 @@ function groupBy(rows, key = 'reservation_id') {
  * it: nights, lines, payments and invoices read in bulk, the property's tax
  * rules and services read once.
  */
-async function loadFolios(propertyId, reservations) {
+export async function loadFolios(propertyId, reservations) {
   const supabase = getSupabaseAdmin();
   const [taxRules, services] = await Promise.all([
     listPropertyTaxes(propertyId),

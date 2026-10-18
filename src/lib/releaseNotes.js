@@ -14,7 +14,7 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-18",
-    title: "A guest list, so returning guests are never retyped",
+    title: "A guest list, and companies and travel agents with contract rates",
     points: [
       {
         page: "reservations",
@@ -23,6 +23,22 @@ export const RELEASE_NOTES = [
       {
         page: "guests",
         text: "Front desk has a new Guests page listing everyone who has booked, with how many stays, how much they have spent and their last or next visit. Add an ID, company or note to a guest, and click their number of stays to see and open their bookings. Every booking adds its guest by itself, matched on phone number or email, and bookings from the channels are added too.",
+      },
+      {
+        page: "companies",
+        text: "Front desk has a new Companies & agents page. Add each company or travel agent with its GSTIN, billing address and contact, and a commission % for agents. Click \"Add rates\" on a row to enter its contract rates: a fixed price per room type and meal plan, for 1 or 2 adults plus extra adult and child, over dates you choose. Pick weekdays or months to set a weekend or season rate on top; the most specific rate wins.",
+      },
+      {
+        page: "reservations",
+        text: "On a booking, choose the company or agent under Company / agent. The price is then quoted at their contract rate, and the form warns you if any night has no contract rate. Choose Bill to: Company and the invoice is addressed to the company with its GSTIN, naming the guest who stayed. For an agent, the commission is shown under the total.",
+      },
+      {
+        page: "cityledger",
+        text: "Reports has a new City Ledger page for bookings billed to a company or travel agent. It shows how much is owed to you, how much is overdue, and what is due in the next 7 and 30 days, then each company with its bills split by how late they are. Click a company to see its statement, and press Receive payment to record money it sent: it is applied to the oldest bills first (you can change the split), and anything left over is kept as credit for the next bills. Set each company's credit days and credit limit on the Companies & agents page.",
+      },
+      {
+        page: "taxsetup",
+        text: "Enter your hotel's own GSTIN at the bottom of Tax Setup. It is printed on every invoice, which companies need to claim GST back.",
       },
     ],
   },

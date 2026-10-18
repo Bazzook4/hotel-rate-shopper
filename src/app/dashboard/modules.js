@@ -33,6 +33,8 @@ export const AREAS = [
       { id: "reservations", label: "Reservations", icon: "list" },
       // Everyone who has stayed, so a returning guest is never retyped.
       { id: "guests", label: "Guests", icon: "users" },
+      // Who books for a guest, is billed, and may have contracted rates.
+      { id: "companies", label: "Companies & agents", icon: "building" },
       { id: "housekeeping", label: "Housekeeping", icon: "check" },
       // Done by the night desk, so it sits with the desk's pages.
       { id: "nightaudit", label: "Night Audit", icon: "moon" },
@@ -58,6 +60,8 @@ export const AREAS = [
       { id: "performance", label: "Booking Performance", icon: "trend" },
       { id: "invoicing", label: "Invoicing", icon: "file" },
       { id: "payments", label: "Payments", icon: "money" },
+      // What companies and agents owe for stays billed to them.
+      { id: "cityledger", label: "City Ledger", icon: "file" },
     ],
   },
   {

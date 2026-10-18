@@ -95,6 +95,14 @@ const DynamicPricingGrid = dynamic(() => import("./dashboard/components/DynamicP
   ssr: false,
   loading: PageLoading,
 });
+const CityLedger = dynamic(() => import("./dashboard/components/CityLedger"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const Companies = dynamic(() => import("./dashboard/components/Companies"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const Guests = dynamic(() => import("./dashboard/components/Guests"), {
   ssr: false,
   loading: PageLoading,
@@ -807,6 +815,8 @@ export default function V2Dashboard() {
 
                   {active === "payments" && <PaymentsReport session={scopedSession} />}
 
+                  {active === "cityledger" && <CityLedger session={scopedSession} />}
+
                   {/* Rooms and rate plans are separate pages; the component
                       renders one panel or the other. */}
                   {/* Room types, then the numbered rooms of each. Saving a
@@ -855,6 +865,8 @@ export default function V2Dashboard() {
                   {active === "reservations" && <Reservations session={scopedSession} initialView={pageView} />}
 
                   {active === "guests" && <Guests session={scopedSession} />}
+
+                  {active === "companies" && <Companies session={scopedSession} />}
 
                   {active === "housekeeping" && <Housekeeping session={scopedSession} />}
 

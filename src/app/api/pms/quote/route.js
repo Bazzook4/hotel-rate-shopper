@@ -36,6 +36,7 @@ export async function GET(req) {
       check_out: searchParams.get("checkOut"),
       adults: Number(searchParams.get("adults")) || 2,
       children: Number(searchParams.get("children")) || 0,
+      company_id: searchParams.get("companyId") || null,
     });
 
     return NextResponse.json(quote);

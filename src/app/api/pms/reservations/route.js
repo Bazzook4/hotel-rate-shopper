@@ -11,6 +11,8 @@ import {
   findRoomClash,
   reservationsHaveCountry,
   linkGuestForBooking,
+  companiesReady,
+  getCompany,
 } from "@/lib/database";
 import { toCountryCode } from "@/lib/countries";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
@@ -121,6 +123,44 @@ async function applyGuest(fields, body, propertyId, before = null) {
   }
 }
 
+/**
+ * The company or agent on the booking, who the invoice is addressed to, and
+ * the agent's commission.
+ *
+ * Commission is copied from the agent when the booking is made, or when it
+ * moves to a different agent, and otherwise left as it was -- a later change
+ * to the agent's terms must not rewrite what an old booking owes them.
+ *
+ * Only written once migration 046 has run, and only when the form sent a
+ * company field, so older callers and an un-migrated database are untouched.
+ * Returns a message when the company named is not this property's.
+ */
+async function applyCompany(fields, body, propertyId, before = null) {
+  if (!("company_id" in body)) return null;
+  if (!(await companiesReady())) return null;
+
+  const companyId = body.company_id || null;
+  if (!companyId) {
+    fields.company_id = null;
+    fields.bill_to = "guest";
+    fields.commission_percent = null;
+    return null;
+  }
+
+  const company = await getCompany(propertyId, companyId);
+  if (!company) return "That company or agent is not on this property's list.";
+
+  fields.company_id = company.id;
+  fields.bill_to = body.bill_to === "company" ? "company" : "guest";
+  if (!before || before.company_id !== company.id) {
+    fields.commission_percent =
+      company.kind === "travel_agent" && company.commission_percent != null
+        ? Number(company.commission_percent)
+        : null;
+  }
+  return null;
+}
+
 /** A room already held for those nights, as a 409 the form can show. */
 async function roomClashResponse(fields, ignoreReservationId = null) {
   if (!fields.room_id) return null;
@@ -178,6 +218,8 @@ export async function POST(req) {
     const fields = bookingFields(body);
     const complimentary = applyBookingType(fields, body);
     await applyGuestCountry(fields, body);
+    const badCompany = await applyCompany(fields, body, propertyId);
+    if (badCompany) return NextResponse.json({ error: badCompany }, { status: 400 });
 
     // A booking placed in a particular room -- from a cell on the tape chart,
     // say -- must find that room free, which the type-level count below
@@ -266,6 +308,8 @@ export async function PATCH(req) {
     const fields = bookingFields(body);
     const complimentary = applyBookingType(fields, body, before);
     await applyGuestCountry(fields, body);
+    const badCompany = await applyCompany(fields, body, propertyId, before);
+    if (badCompany) return NextResponse.json({ error: badCompany }, { status: 400 });
 
     // Only when the stay moved room or dates: an unrelated edit to a booking
     // should not be refused over a clash it did not create.
