@@ -17,6 +17,7 @@ import { useDialog } from "../../components/Dialog";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, TiersGrid, WalletPlansGrid, useGuestTiers } from "./GuestSettings";
 import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
+import GuestIdPhotos from "./GuestIdPhotos";
 
 /**
  * Guests: everyone who has stayed, or is booked to stay, at the property.
@@ -24,7 +25,7 @@ import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
  * A booking puts its guest on this list by itself -- matched on phone, then
  * email, or added new -- so the list fills without anyone keeping it. This
  * page is for correcting a record, adding what a booking does not ask for (an
- * ID, a company, an address), and seeing someone's history.
+ * ID and a photo of it, a company, an address), and seeing someone's history.
  *
  * Edited like every setup grid: changes are held and highlighted until Save.
  * The search runs on the server, since a busy hotel has more guests than one
@@ -118,7 +119,7 @@ export default function Guests({ session }) {
   const [notReady, setNotReady] = useState(false);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
-  // One guest's row opened below it: their bookings, or their wallet.
+  // One guest's row opened below it: their bookings, their wallet or their ID files.
   const [openId, setOpenId] = useState(null);
   const [openWhat, setOpenWhat] = useState("history");
   // The tiers or wallet plans list, opened above the guests.
@@ -244,7 +245,7 @@ export default function Guests({ session }) {
     }
   }
 
-  const COLS = 14;
+  const COLS = 15;
 
   return (
     <div className="space-y-4">
@@ -312,6 +313,7 @@ export default function Guests({ session }) {
             <th style={{ minWidth: 140 }}>Company</th>
             <th style={{ minWidth: 120 }}>ID type</th>
             <th style={{ minWidth: 130 }}>ID number</th>
+            <th style={{ width: 80 }} title="Photos or a PDF of the guest's ID">ID file</th>
             <th style={{ minWidth: 180 }}>Notes</th>
             <SortTh sorter={sorter} col="stays" style={{ width: 70 }}>
               Stays
@@ -350,6 +352,8 @@ export default function Guests({ session }) {
             const draft = isDraft(g.id);
             const open = openId === g.id && openWhat === "history";
             const walletOpen = openId === g.id && openWhat === "wallet";
+            const photosOpen = openId === g.id && openWhat === "photos";
+            const photoCount = g.id_photos?.length || 0;
             return (
               <Fragment key={g.id}>
                 <tr className={draft ? "cm-new" : undefined}>
@@ -380,6 +384,21 @@ export default function Guests({ session }) {
                   <td>{grid.input(g, "company")}</td>
                   <td>{grid.select(g, "id_type", ID_TYPES)}</td>
                   <td>{grid.input(g, "id_number")}</td>
+                  <td>
+                    {draft ? (
+                      "—"
+                    ) : (
+                      <button
+                        type="button"
+                        className={photosOpen ? "btn btn-primary text-xs" : "btn btn-ghost text-xs"}
+                        onClick={() => toggle(g, "photos")}
+                        aria-expanded={photosOpen}
+                        title={photoCount ? "See this guest's ID" : "Upload a photo of this guest's ID"}
+                      >
+                        {photoCount ? `${photoCount} file${photoCount === 1 ? "" : "s"}` : "Add"} {photosOpen ? "▾" : "▸"}
+                      </button>
+                    )}
+                  </td>
                   <td>{grid.input(g, "notes", { placeholder: "Preferences, VIP…" })}</td>
                   <td className="cm-num">
                     {draft ? (
@@ -443,6 +462,13 @@ export default function Guests({ session }) {
                         onChanged={load}
                         onOpenBooking={(id) => openBooking(id)}
                       />
+                    </td>
+                  </tr>
+                )}
+                {photosOpen && (
+                  <tr>
+                    <td colSpan={COLS} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
+                      <GuestIdPhotos propertyId={propertyId} guest={g} onChanged={load} />
                     </td>
                   </tr>
                 )}

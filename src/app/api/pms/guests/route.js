@@ -12,6 +12,7 @@ import {
   guestPhoneKey,
 } from "@/lib/database";
 import { walletBalances } from "@/lib/wallets";
+import { removeAllGuestIdPhotos } from "@/lib/guestIdPhotos";
 
 /** Each guest's wallet balance, where they have a wallet. */
 async function withWallets(propertyId, guests) {
@@ -175,6 +176,7 @@ export async function DELETE(req) {
     const existing = await getGuest(propertyId, id);
     if (!existing) return NextResponse.json({ error: "Guest not found" }, { status: 404 });
     await deleteGuest(propertyId, id);
+    if (existing.id_photos?.length) await removeAllGuestIdPhotos(propertyId, id);
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

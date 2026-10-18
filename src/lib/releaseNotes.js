@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-18",
+    title: "Keep a copy of a guest's ID",
+    points: [
+      {
+        page: "guests",
+        text: "On the Guests page you can now keep a photo of a guest's ID. Click Add in the ID file column, then Upload a photo or PDF, or Take photo to use a phone or tablet camera. Add the front and back if the ID has both. Click a picture to see it full size. ID copies are private: only people who can open the Guests page can see them, and they are deleted with the guest.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-18",
     title: "A guest list, and companies and travel agents with contract rates",
     points: [
       {
