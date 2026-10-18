@@ -22,7 +22,7 @@ export const RELEASE_NOTES = [
       },
       {
         page: "calendar",
-        text: "On the Calendar, click a single empty day in a room and choose \"Day use (hours)\" to book it. Day-use bookings show inside their day with their start time and the guest's name (for example "10a Sharma"); several in one room sit side by side in time order. Point at one to see its full times. The rooms-sold count above each room type now includes day uses.",
+        text: "On the Calendar, click a single empty day in a room and choose \"Day use (hours)\" to book it. Day-use bookings show inside their day with their start time and the guest's name (for example \"10a Sharma\"); several in one room sit side by side in time order. Point at one to see its full times. The rooms-sold count above each room type now includes day uses.",
       },
       {
         page: "rateplans",
