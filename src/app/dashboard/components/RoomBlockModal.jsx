@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
+import { useEscape } from "../../components/useEscape";
 
 /**
  * Taking one room out of order for some nights, or changing and ending that.
@@ -22,13 +23,7 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
   const [error, setError] = useState(null);
   const toast = useToast();
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));

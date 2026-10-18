@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
+import { confirmDiscard, useDialog } from "../../components/Dialog";
+import { useBackdropClose, useEscape } from "../../components/useEscape";
 
 /**
  * Booking several rooms at once for one party, as a three-step wizard.
@@ -116,13 +118,37 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
       .catch(() => setAssignments([]));
   }, [propertyId]);
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
+  /**
+   * Anything the desk has put in beyond what the chart handed over. Past the
+   * first step there is always a rooming list to lose. Escape, the close
+   * button and Cancel ask before discarding it; a click outside is ignored.
+   */
+  const startRooms = initial.room_ids || [];
+  const dirty =
+    step > 0 ||
+    ["name", "contact_name", "contact_phone", "contact_email", "notes"].some((k) => form[k].trim()) ||
+    form.check_in !== initial.check_in ||
+    form.check_out !== initial.check_out ||
+    selected.size !== startRooms.length ||
+    startRooms.some((id) => !selected.has(id));
+
+  const dialog = useDialog();
+  const asking = useRef(false);
+  async function requestClose() {
+    // Not while the group is being saved, and one question at a time.
+    if (busy || asking.current) return;
+    if (dirty) {
+      asking.current = true;
+      const discard = await confirmDiscard(dialog);
+      asking.current = false;
+      if (!discard) return;
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    onClose();
+  }
+  useEscape(requestClose);
+  const backdrop = useBackdropClose(() => {
+    if (!dirty && !busy) onClose();
+  });
 
   const allRooms = useMemo(() => chart.roomTypes.flatMap((rt) => rt.rooms), [chart]);
   const typeById = useMemo(
@@ -387,7 +413,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
 
   return (
     <div
-      onClick={onClose}
+      {...backdrop}
       style={{
         position: "fixed",
         inset: 0,
@@ -423,7 +449,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
           </span>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Close"
             style={{ background: "none", border: 0, color: "#fff", cursor: "pointer" }}
           >
@@ -889,7 +915,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                   ← Back
                 </button>
               )}
-              <button className="btn btn-ghost text-sm ml-auto" disabled={busy} onClick={onClose}>
+              <button className="btn btn-ghost text-sm ml-auto" disabled={busy} onClick={requestClose}>
                 Cancel
               </button>
               {step < STEPS.length - 1 ? (

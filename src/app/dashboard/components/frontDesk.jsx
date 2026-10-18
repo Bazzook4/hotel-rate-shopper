@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useDialog } from "../../components/Dialog";
+import { useEscape } from "../../components/useEscape";
 import { dayUseLabel, dayUseWindowLabel } from "@/lib/dayUse";
 
 /**
@@ -47,6 +48,7 @@ function SettleDialog({ request, onDone }) {
   const [method, setMethod] = useState("cash");
   const paid = Number(amount);
   const valid = Number.isFinite(paid) && paid > 0;
+  useEscape(() => onDone(null));
 
   return (
     // Stops the click here: rendered inside the booking window, it would

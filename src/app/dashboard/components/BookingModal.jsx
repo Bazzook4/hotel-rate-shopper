@@ -6,7 +6,8 @@ import FolioTabs from "./FolioTabs";
 import { todayUTC } from "@/lib/date";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
-import { useDialog } from "../../components/Dialog";
+import { confirmDiscard, useDialog } from "../../components/Dialog";
+import { useBackdropClose, useEscape } from "../../components/useEscape";
 import { useFrontDesk, whatsappLink } from "./frontDesk";
 import { toCountryCode } from "@/lib/countries";
 
@@ -142,14 +143,37 @@ export default function BookingModal({
     loadSetup();
   }, [loadFolio, loadSetup]);
 
-  // Escape closes, which is what every modal is expected to do.
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  /**
+   * Unsaved edits on Details. Escape, the close button and switching tab all
+   * ask before throwing them away; a click outside the window is ignored while
+   * there are any, since a stray click is no reason to lose a booking.
+   */
+  const [dirty, setDirty] = useState(false);
+  // While a save is on its way the window stays: closing then would say
+  // "nothing has been saved" about a booking that is about to exist.
+  const [saving, setSaving] = useState(false);
+  const asking = useRef(false);
+
+  async function leaveDetails() {
+    if (!dirty) return true;
+    if (asking.current) return false;
+    asking.current = true;
+    const discard = await confirmDiscard(dialog, !isNew);
+    asking.current = false;
+    if (!discard) return false;
+    setDirty(false);
+    return true;
+  }
+
+  async function requestClose() {
+    if (saving) return;
+    if (await leaveDetails()) onClose();
+  }
+
+  useEscape(requestClose);
+  const backdrop = useBackdropClose(() => {
+    if (!dirty && !saving) onClose();
+  });
 
   const reservation = folio?.reservation;
 
@@ -287,7 +311,7 @@ export default function BookingModal({
 
   return (
     <div
-      onClick={onClose}
+      {...backdrop}
       style={{
         position: "fixed",
         inset: 0,
@@ -329,7 +353,7 @@ export default function BookingModal({
                 }`}
           </div>
           <button
-            onClick={onClose}
+            onClick={requestClose}
             style={{
               background: "none",
               border: "none",
@@ -379,7 +403,8 @@ export default function BookingModal({
                 type="button"
                 className="chip"
                 title="Open the bill"
-                onClick={() => {
+                onClick={async () => {
+                  if (!(await leaveDetails())) return;
                   setTab("bill");
                   setIntent("payments");
                 }}
@@ -462,7 +487,8 @@ export default function BookingModal({
             {TABS.map((t) => (
               <button
                 key={t.id}
-                onClick={() => {
+                onClick={async () => {
+                  if (t.id === tab || !(await leaveDetails())) return;
                   setTab(t.id);
                   setIntent(null);
                 }}
@@ -509,6 +535,8 @@ export default function BookingModal({
                   else await loadFolio();
                 }}
                 onCancel={onClose}
+                onDirtyChange={setDirty}
+                onSavingChange={setSaving}
               />
             </>
           )}

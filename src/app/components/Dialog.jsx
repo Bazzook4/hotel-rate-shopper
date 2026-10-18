@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useEscape } from "./useEscape";
 
 /**
  * The app's own confirm, prompt and pick-one dialogs, in place of the
@@ -25,6 +26,7 @@ function DialogBox({ request, onDone }) {
   );
   const fieldRef = useRef(null);
   const okRef = useRef(null);
+  const cancelRef = useRef(null);
 
   const cancel = useCallback(() => onDone(kind === "confirm" ? false : null), [kind, onDone]);
   const required = kind === "prompt" && request.required !== false;
@@ -35,14 +37,12 @@ function DialogBox({ request, onDone }) {
     onDone(kind === "confirm" ? true : kind === "prompt" ? String(value).trim() : value);
   }
 
+  // A dangerous answer (discard, delete, void) is never the one Enter gives:
+  // focus starts on the safe button, so a reflex Enter keeps things as they are.
   useEffect(() => {
-    (fieldRef.current || okRef.current)?.focus();
-    const onKey = (e) => {
-      if (e.key === "Escape") cancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cancel]);
+    (fieldRef.current || (danger ? cancelRef.current : okRef.current))?.focus();
+  }, [danger]);
+  useEscape(cancel);
 
   return (
     <div className="dialog-backdrop" onClick={cancel}>
@@ -95,7 +95,7 @@ function DialogBox({ request, onDone }) {
           </div>
         )}
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" className="btn btn-ghost text-sm" onClick={cancel}>
+          <button ref={cancelRef} type="button" className="btn btn-ghost text-sm" onClick={cancel}>
             {request.cancelLabel || "Cancel"}
           </button>
           <button
@@ -163,4 +163,21 @@ const BROWSER_FALLBACK = {
 /** `{ confirm, prompt, choose }`, each returning a promise of the answer. */
 export function useDialog() {
   return useContext(DialogContext) || BROWSER_FALLBACK;
+}
+
+/**
+ * "Discard?" before closing a form with unsaved changes. Discarding typed work
+ * is one of the few places a confirm beats undo: once the form is gone there
+ * is nothing to undo. Keep editing is the safe answer, so Escape gives it.
+ */
+export function confirmDiscard(dialog, editing = false) {
+  return dialog.confirm({
+    title: editing ? "Discard your changes?" : "Discard this booking?",
+    message: editing
+      ? "Your changes to this booking have not been saved."
+      : "Nothing has been saved yet.",
+    confirmLabel: "Yes, discard",
+    cancelLabel: "Keep editing",
+    danger: true,
+  });
 }

@@ -16,6 +16,7 @@ import { usePageState } from "./usePageState";
 import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
 import { dayUseSummary, dayUseWindow, holdsInventory, isDayUse, shortMinutes } from "@/lib/dayUse";
+import { useEscape } from "../../components/useEscape";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -540,14 +541,7 @@ export default function TapeChart({ session }) {
     setMenu(null);
   }, []);
 
-  useEffect(() => {
-    if (!menu) return;
-    function onKey(e) {
-      if (e.key === "Escape") closeSelection();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [menu, closeSelection]);
+  useEscape(closeSelection, Boolean(menu));
 
   /**
    * What already sits on a selection's nights in its room, if anything.
@@ -1628,13 +1622,7 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
     setBusy(false);
   }
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  useEscape(onCancel);
 
   return (
     <div
@@ -1904,13 +1892,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
   // Likewise check-out, from the departure day on.
   const leaving = r.status === "in_house" && r.check_out <= today;
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscape(onClose);
 
   return (
     <MenuShell x={x} y={y} onClose={onClose}>
@@ -1985,13 +1967,7 @@ function RoomChangeDialog({ reservation: r, roomTypes, onChoose, onCancel }) {
   const [busy, setBusy] = useState(false);
   const nights = daysBetween(r.check_in, r.check_out);
 
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  useEscape(onCancel);
 
   const free = (room) =>
     room.is_active &&

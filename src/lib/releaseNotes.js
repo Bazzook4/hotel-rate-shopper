@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-18",
+    title: "A booking you are typing is no longer lost by accident",
+    points: [
+      {
+        page: "calendar",
+        text: "Pressing Escape or clicking the close button on a new booking, an edited booking or a group booking now asks \"Discard this booking?\" if you have typed anything, so one key no longer throws it away. Choose Keep editing to carry on; a form you have not touched still closes straight away. A click outside the window no longer closes it while you have unsaved changes, and Escape now closes only the top thing on screen: the guest suggestions, a question box, or the check-out payment box, without closing the booking behind it. Moving from Details to the Guests or Bill tab with unsaved changes asks too.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-18",
     title: "Adults are picked from a list",
     points: [
       {

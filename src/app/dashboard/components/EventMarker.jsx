@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { categoryLabel, impactOf } from "@/lib/eventTags";
+import { useEscape } from "../../components/useEscape";
 
 /**
  * Events on a date header, wherever someone decides about a night.
@@ -77,6 +78,7 @@ function formatRange(start, end) {
  */
 export default function EventMarker({ events }) {
   const [at, setAt] = useState(null);
+  useEscape(() => setAt(null), Boolean(at));
   const btn = useRef(null);
   const box = useRef(null);
 
@@ -86,13 +88,10 @@ export default function EventMarker({ events }) {
       if (box.current?.contains(e.target) || btn.current?.contains(e.target)) return;
       setAt(null);
     };
-    const esc = (e) => e.key === "Escape" && setAt(null);
     document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
     window.addEventListener("scroll", close, true);
     return () => {
       document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", esc);
       window.removeEventListener("scroll", close, true);
     };
   }, [at]);

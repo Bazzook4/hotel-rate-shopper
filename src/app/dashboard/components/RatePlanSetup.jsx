@@ -16,6 +16,7 @@ import {
 } from "@/lib/ratePlanPricing";
 import { Grid, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import { useEscape } from "../../components/useEscape";
 
 /**
  * Rate Plan Setup, laid out the way SiteMinder lays it out.
@@ -544,6 +545,10 @@ function StayRules({ min, max, release, stopSell, own = {} }) {
 export function RowMenu({ title, items }) {
   const [at, setAt] = useState(null);
   const [sub, setSub] = useState(null);
+  useEscape(() => {
+    setAt(null);
+    setSub(null);
+  }, Boolean(at));
   const btn = useRef(null);
   const box = useRef(null);
 
@@ -554,13 +559,10 @@ export function RowMenu({ title, items }) {
       setAt(null);
       setSub(null);
     };
-    const esc = (e) => e.key === "Escape" && (setAt(null), setSub(null));
     document.addEventListener("mousedown", close);
-    document.addEventListener("keydown", esc);
     window.addEventListener("scroll", close, true);
     return () => {
       document.removeEventListener("mousedown", close);
-      document.removeEventListener("keydown", esc);
       window.removeEventListener("scroll", close, true);
     };
   }, [at]);
@@ -657,11 +659,7 @@ export function RowMenu({ title, items }) {
 /* ------------------------------------------------------------------ */
 
 export function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", busy, error, children }) {
-  useEffect(() => {
-    const esc = (e) => e.key === "Escape" && onCancel();
-    document.addEventListener("keydown", esc);
-    return () => document.removeEventListener("keydown", esc);
-  }, [onCancel]);
+  useEscape(onCancel);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>

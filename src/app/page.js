@@ -12,6 +12,7 @@ import { DialogProvider } from "./components/Dialog";
 import Hint from "./components/Hint";
 import CommandPalette from "./dashboard/components/CommandPalette";
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
+import { useEscape } from "./components/useEscape";
 
 /**
  * Each page is fetched the first time it is opened, not with the dashboard.
@@ -364,12 +365,7 @@ export default function V2Dashboard() {
   }, []);
 
   // Escape closes the drawer, as it would any other overlay.
-  useEffect(() => {
-    if (!drawerOpen) return undefined;
-    const onKey = (e) => e.key === "Escape" && setDrawerOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [drawerOpen]);
+  useEscape(() => setDrawerOpen(false), drawerOpen);
 
   // Widening past a phone -- a rotated tablet, a resized window -- brings the
   // rail back, so a drawer left open would sit on the rail as a wider copy.

@@ -7,6 +7,7 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, useGuestTiers } from "./GuestSettings";
+import { confirmDiscard, useDialog } from "../../components/Dialog";
 import {
   DAY_USE_HOLDING_STATUSES,
   dayUseLabel,
@@ -418,6 +419,8 @@ export default function BookingForm({
   embedded = false,
   onSaved,
   onCancel,
+  onDirtyChange,
+  onSavingChange,
 }) {
   // The hotel's own country: where most guests come from, so the default,
   // and the line between a domestic and an international guest.
@@ -433,6 +436,27 @@ export default function BookingForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  /**
+   * Whether the desk has changed anything since the form opened (or last
+   * saved). Only the desk's own edits count -- the price quote, the default
+   * plan and the suggested day-use time fill themselves in -- so a form
+   * opened and closed untouched never asks "Discard?".
+   */
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    onDirtyChange?.(touched);
+  }, [touched, onDirtyChange]);
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
+  const dialog = useDialog();
+
+  /** Close, asking first when there are unsaved changes. */
+  async function leave() {
+    if (touched && !(await confirmDiscard(dialog, Boolean(reservation)))) return;
+    onCancel();
+  }
 
   /**
    * The guest database. `linked` is the record this booking is on; while
@@ -520,6 +544,7 @@ export default function BookingForm({
   }
 
   function pickGuest(g) {
+    setTouched(true);
     lookupSeq.current += 1;
     setSearchStatus(null);
     setSuggest({ field: null, items: [], active: -1 });
@@ -537,6 +562,7 @@ export default function BookingForm({
 
   /** Wrong person picked: start the guest afresh rather than keep their details. */
   function unlinkGuest() {
+    setTouched(true);
     setLinked(null);
     setForm((prev) => ({
       ...prev,
@@ -550,6 +576,9 @@ export default function BookingForm({
   function suggestKeys(e) {
     const { items, active } = suggest;
     if (e.key === "Escape") {
+      // Escape hides an open list and nothing more; with no list showing it
+      // is left for the booking window to close.
+      if (suggest.field || searchStatus) e.preventDefault();
       setSearchStatus(null);
       setSuggest({ field: null, items: [], active: -1 });
       return;
@@ -916,6 +945,7 @@ export default function BookingForm({
   }, [reservation, homeCountry]);
 
   function set(field, value) {
+    setTouched(true);
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -1043,6 +1073,7 @@ export default function BookingForm({
       }
       if (!res.ok) throw new Error(data.error || "Could not save the booking");
 
+      setTouched(false);
       onSaved(
         reservation
           ? `Booking ${data.reservation.reference} updated.`
@@ -1063,7 +1094,7 @@ export default function BookingForm({
           <h3 style={{ fontWeight: 600 }}>
             {reservation ? `Edit ${reservation.reference}` : "New booking"}
           </h3>
-          <button className="btn btn-ghost text-sm" onClick={onCancel}>
+          <button className="btn btn-ghost text-sm" onClick={leave}>
             Close
           </button>
         </div>
@@ -1521,7 +1552,7 @@ export default function BookingForm({
           {saving ? "Saving…" : reservation ? "Save changes" : "Create booking"}
         </button>
         {!embedded && (
-          <button className="btn btn-ghost text-sm" onClick={onCancel} disabled={saving}>
+          <button className="btn btn-ghost text-sm" onClick={leave} disabled={saving}>
             Cancel
           </button>
         )}
