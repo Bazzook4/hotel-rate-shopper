@@ -16,6 +16,7 @@ import {
 } from "@/lib/database";
 import { toCountryCode } from "@/lib/countries";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
+import { validDayUseHours } from "@/lib/dayUse";
 
 /** A date the database will accept, and that a person actually typed. */
 function isDate(value) {
@@ -32,8 +33,11 @@ function validate(body) {
   if (!body.guest_name?.trim()) return "Guest name is required.";
   if (!body.room_type_id) return "Choose a room type.";
   if (!isDate(body.check_in)) return "Check-in date is required.";
-  if (!isDate(body.check_out)) return "Check-out date is required.";
-  if (body.check_out <= body.check_in) {
+  if (body.stay_kind === "day_use") {
+    if (!validDayUseHours(body.day_use_hours)) return "Choose how many hours the day use is for.";
+  } else if (!isDate(body.check_out)) {
+    return "Check-out date is required.";
+  } else if (body.check_out <= body.check_in) {
     return "Check-out must be at least one night after check-in.";
   }
   if (body.adults != null && Number(body.adults) < 1) {
@@ -67,6 +71,28 @@ function bookingFields(body) {
     currency: body.currency || "INR",
     notes: body.notes?.trim() || null,
   };
+}
+
+/**
+ * Whether this is a day use, and what that does to its fields.
+ *
+ * A day use leaves on the day it arrives, whatever the form's check-out box
+ * held. Like `booking_type`, the columns are only written where they are
+ * known to exist -- on a new booking only for a day use, on an edit only when
+ * the stored row carries them -- so overnight bookings keep working on a
+ * database migration 048 has not reached.
+ */
+function applyStayKind(fields, body, before = null) {
+  const dayUse = body.stay_kind === "day_use";
+  if (dayUse) {
+    fields.stay_kind = "day_use";
+    fields.day_use_hours = validDayUseHours(body.day_use_hours);
+    fields.check_out = fields.check_in;
+  } else if (before && "stay_kind" in before) {
+    fields.stay_kind = "overnight";
+    fields.day_use_hours = null;
+  }
+  return dayUse;
 }
 
 /**
@@ -216,6 +242,7 @@ export async function POST(req) {
 
   try {
     const fields = bookingFields(body);
+    const dayUse = applyStayKind(fields, body);
     const complimentary = applyBookingType(fields, body);
     await applyGuestCountry(fields, body);
     const badCompany = await applyCompany(fields, body, propertyId);
@@ -229,8 +256,9 @@ export async function POST(req) {
     if (roomTaken) return roomTaken;
 
     // Overbooking is a decision, not an accident: the check runs first and a
-    // full date is refused unless the caller deliberately overrides it.
-    if (!body.allow_overbook) {
+    // full date is refused unless the caller deliberately overrides it. A day
+    // use holds no night, so there is no night to be full.
+    if (!body.allow_overbook && !dayUse) {
       const availability = await checkAvailability(
         propertyId,
         body.room_type_id,
@@ -248,7 +276,7 @@ export async function POST(req) {
     // A quoted booking arrives with the price of each night, so the folio can
     // show a Saturday at the Saturday rate rather than an even average. A
     // complimentary one has no prices to keep: every night is nothing.
-    const rates = complimentary
+    const rates = complimentary || dayUse
       ? null
       : acceptNightRates(body.night_rates, fields.check_in, fields.check_out, fields.total_amount);
 
@@ -306,6 +334,7 @@ export async function PATCH(req) {
     }
 
     const fields = bookingFields(body);
+    const dayUse = applyStayKind(fields, body, before);
     const complimentary = applyBookingType(fields, body, before);
     await applyGuestCountry(fields, body);
     const badCompany = await applyCompany(fields, body, propertyId, before);
@@ -322,7 +351,7 @@ export async function PATCH(req) {
       if (roomTaken) return roomTaken;
     }
 
-    if (!body.allow_overbook) {
+    if (!body.allow_overbook && !dayUse) {
       // The stay checks its own dates without counting itself as competition
       // for the room it already holds.
       const availability = await checkAvailability(
@@ -340,7 +369,7 @@ export async function PATCH(req) {
       }
     }
 
-    const rates = complimentary
+    const rates = complimentary || dayUse
       ? null
       : acceptNightRates(body.night_rates, fields.check_in, fields.check_out, fields.total_amount);
 

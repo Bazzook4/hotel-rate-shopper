@@ -5,6 +5,7 @@ import { roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 import { contractNights } from '@/lib/contractRates';
+import { cleanDayUseHours, dayUseLabel, dayUsePrice } from '@/lib/dayUse';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -346,7 +347,7 @@ export async function deleteSnapshotById(id) {
 // ROOM TYPE FUNCTIONS
 // ============================================
 
-export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, base_adults, max_adults, description, amenities }) {
+export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, base_adults, max_adults, description, amenities, day_use_rates }) {
   const roomTypeId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const roomType = {
@@ -360,6 +361,9 @@ export async function createRoomType({ property_id, room_type_name, base_price, 
     description: description || '',
     amenities: amenities || [],
   };
+  // Only when prices were typed, so a new room type still saves on a
+  // database migration 048 has not reached.
+  if (day_use_rates && Object.keys(day_use_rates).length) roomType.day_use_rates = day_use_rates;
 
   const { data, error } = await supabase
     .from('room_types')
@@ -3067,11 +3071,28 @@ export async function getBlockedCounts(propertyId, startDate, endDate, { roomTyp
 }
 
 /**
+ * Where a span stops for the purpose of an out-of-order block.
+ *
+ * A day use arrives and leaves on one date, so as a span of nights it is
+ * empty -- which is right against other stays (it shares the day with a
+ * departure in the morning and an arrival in the afternoon) but would let it
+ * into a room that is out of order all that day. Against blocks it is
+ * treated as the whole day.
+ */
+function blockSpanEnd(checkIn, checkOut) {
+  return checkOut > checkIn ? checkOut : dayAfter(checkIn);
+}
+
+/**
  * What already holds a room for any of a span of nights, or null if nothing.
  *
  * A stay and a block clash the same way two stays do: one starts before the
  * other ends and ends after the other starts. The departure day is shared
  * freely -- one guest out on the 4th and the next in on the 4th share no night.
+ *
+ * A day use (check-in = check-out) clashes only with a guest staying through
+ * that day, or a block covering it. Two day uses in one room on one date do
+ * not clash here; the hours do, and that is checked at check-in.
  *
  * Answers with a sentence the desk can act on, naming who is in the way.
  */
@@ -3103,7 +3124,7 @@ export async function findRoomClash(
     .from('room_blocks')
     .select('id, start_date, end_date, reason')
     .eq('room_id', roomId)
-    .lt('start_date', checkOut)
+    .lt('start_date', blockSpanEnd(checkIn, checkOut))
     .gt('end_date', checkIn);
 
   if (blockError) {
@@ -3122,6 +3143,27 @@ export async function findRoomClash(
   }
 
   return null;
+}
+
+/**
+ * Another day-use guest checked in to a room on a date, or null. Checking a
+ * second day use into the room while the first one's hours are running would
+ * put two guests in it at once.
+ */
+export async function findDayUseInRoom(roomId, date, ignoreReservationId = null) {
+  if (!roomId) return null;
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('id, reference, guest_name')
+    .eq('room_id', roomId)
+    .eq('stay_kind', 'day_use')
+    .eq('check_in', date)
+    .eq('status', 'in_house');
+  if (error) {
+    if (notMigrated(error)) return null;
+    throw new Error(`Failed to check the room: ${error.message}`);
+  }
+  return (data || []).find((r) => r.id !== ignoreReservationId) || null;
 }
 
 /**
@@ -3154,7 +3196,7 @@ export async function listTakenRoomIds(
     .from('room_blocks')
     .select('room_id')
     .eq('property_id', propertyId)
-    .lt('start_date', checkOut)
+    .lt('start_date', blockSpanEnd(checkIn, checkOut))
     .gt('end_date', checkIn);
 
   if (blockError && !notMigrated(blockError)) {
@@ -4755,7 +4797,16 @@ export async function createReservationInvoice(reservationId, userId = null) {
         unit_price: n.rate,
         amount: n.rate,
       }))
-    : [
+    : reservation.stay_kind === 'day_use'
+      ? [
+          {
+            description: `Day use — ${roomName}, ${dayUseLabel(reservation.day_use_hours)} on ${reservation.check_in}`,
+            quantity: 1,
+            unit_price: totals.room,
+            amount: totals.room,
+          },
+        ]
+      : [
         {
           description: `Accommodation — ${roomName} (${folio.nights.length} night${
             folio.nights.length === 1 ? '' : 's'
@@ -4934,7 +4985,10 @@ export async function getTapeChart(propertyId, startDate, endDate) {
   for (const r of live) {
     if (r.room_id) (byRoom[r.room_id] = byRoom[r.room_id] || []).push(r);
     // A stay with no room that left on the first morning is past placing.
-    else if (r.check_out > startDate) unassigned.push(r);
+    // A day use on the first date is still to be placed that day.
+    else if (r.check_out > startDate || (r.stay_kind === 'day_use' && r.check_in >= startDate)) {
+      unassigned.push(r);
+    }
   }
 
   const typeName = {};
@@ -5030,6 +5084,68 @@ export async function loadQuoteData(propertyId, firstNight, lastNight) {
     listRoomTypes(propertyId).catch(() => []),
   ]);
   return { ratePlans, assignments, stored, roomTypes };
+}
+
+/**
+ * The day-use slots a property offers, in hours, shortest first. The defaults
+ * (3, 6, 9) before migration 048 or when the hotel has cleared the list.
+ */
+export async function getDayUseHours(propertyId) {
+  const { data, error } = await supabase
+    .from('properties')
+    .select('day_use_hours')
+    .eq('id', propertyId)
+    .maybeSingle();
+  if (error && !notMigrated(error)) {
+    throw new Error(`Failed to load day-use slots: ${error.message}`);
+  }
+  return cleanDayUseHours(data?.day_use_hours);
+}
+
+/** Replace a property's day-use slots. Returns them as stored. */
+export async function setDayUseHours(propertyId, hours) {
+  const clean = cleanDayUseHours(hours);
+  const { error } = await supabase
+    .from('properties')
+    .update({ day_use_hours: clean, updated_at: new Date().toISOString() })
+    .eq('id', propertyId);
+  if (error) {
+    if (notMigrated(error)) {
+      throw new Error('Day use needs migration 048_day_use.sql — run it in the Supabase SQL editor first.');
+    }
+    throw new Error(`Failed to save day-use slots: ${error.message}`);
+  }
+  return clean;
+}
+
+/**
+ * What a day-use slot costs: the fixed price the hotel set for that room type
+ * and number of hours. Never derived from the night rate -- a day use is
+ * priced as its own product. Shaped like `quoteReservation`'s answer so the
+ * booking form reads both the same way.
+ */
+export async function quoteDayUse({ property_id, room_type_id, hours }) {
+  if (!property_id || !room_type_id || !hours) {
+    return { total: null, nights: [], source: null, reason: 'Nothing to price yet.' };
+  }
+  const { data: room, error } = await supabase
+    .from('room_types')
+    .select('*')
+    .eq('id', room_type_id)
+    .eq('property_id', property_id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load room type: ${error.message}`);
+
+  const total = dayUsePrice(room, hours);
+  if (total == null) {
+    return {
+      total: null,
+      nights: [],
+      source: null,
+      reason: `No ${dayUseLabel(hours)} day-use price set for ${room?.room_type_name || 'this room type'} — enter it by hand, or set it in Setup → Rooms.`,
+    };
+  }
+  return { total, nights: [], source: 'day_use' };
 }
 
 /**
@@ -5366,6 +5482,8 @@ function guestRow(input) {
     if (f in input) row[f] = String(input[f] ?? '').trim() || null;
   }
   if ('country' in row) row.country = toCountryCode(row.country) || row.country;
+  // The guest's tier (migration 047), set by hand; blank takes it off.
+  if ('tier_id' in input) row.tier_id = input.tier_id || null;
   if ('residency' in input) {
     row.residency = input.residency === 'international' ? 'international' : 'domestic';
   }

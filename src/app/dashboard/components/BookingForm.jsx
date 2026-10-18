@@ -6,6 +6,8 @@ import { handleExpiredSession } from "@/lib/authRedirect";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { countryOptions, toCountryCode } from "@/lib/countries";
+import { TierBadge, useGuestTiers } from "./GuestSettings";
+import { DEFAULT_DAY_USE_HOURS, cleanDayUseHours, dayUseLabel } from "@/lib/dayUse";
 
 /**
  * Entering or editing a booking.
@@ -38,6 +40,10 @@ function emptyBooking(country = "") {
     // would turn it into "", leaving every new booking without an arrival.
     check_in: today,
     check_out: formatDateISO(addDays(today, 1)),
+    // "day_use" is some hours of one day; it then leaves on the day it
+    // arrives and holds no night.
+    stay_kind: "overnight",
+    day_use_hours: "",
     adults: 2,
     children: 0,
     source: "direct",
@@ -66,6 +72,8 @@ function toForm(reservation) {
     rate_plan_id: reservation.rate_plan_id || "",
     check_in: reservation.check_in || "",
     check_out: reservation.check_out || "",
+    stay_kind: reservation.stay_kind || "overnight",
+    day_use_hours: reservation.day_use_hours ?? "",
     adults: reservation.adults ?? 2,
     children: reservation.children ?? 0,
     source: reservation.source || "direct",
@@ -83,6 +91,7 @@ const SOURCE_LABEL = {
   derived: "derived from the master plan",
   rate_plan: "from the rate plan",
   base_price: "room base price — not a channel rate",
+  day_use: "day-use price for this room type",
 };
 
 /**
@@ -323,7 +332,11 @@ function GuestSuggestions({ items, active, onPick, status, term }) {
 }
 
 /** The guest record this booking is on: who, how often, and their notes. */
-function LinkedGuest({ guest, onUnlink }) {
+function LinkedGuest({ guest, onUnlink, propertyId }) {
+  // The guest's tier, shown as its badge so the desk knows who they are
+  // talking to; and what their wallet holds, which can pay this bill.
+  const { tiers } = useGuestTiers(propertyId);
+  const tier = guest.tier_id ? tiers.find((t) => t.id === guest.tier_id) : null;
   return (
     <div
       className="text-xs flex flex-wrap items-center gap-x-2 gap-y-1"
@@ -332,6 +345,12 @@ function LinkedGuest({ guest, onUnlink }) {
       <span className="chip chip-ok">
         {guest.stays ? "Returning guest" : "Guest on record"}
       </span>
+      <TierBadge tier={tier} />
+      {guest.wallet > 0 && (
+        <span title="Can pay this booking's bill, from the Bill tab">
+          Wallet ₹{Math.round(guest.wallet).toLocaleString("en-IN")}
+        </span>
+      )}
       {guest.stays > 0 && (
         <span>
           {guest.stays} stay{guest.stays === 1 ? "" : "s"}
@@ -567,7 +586,31 @@ export default function BookingForm({
   // override, so overbooking is always a deliberate second action.
   const [conflict, setConflict] = useState(null);
 
-  const nights = nightsBetween(form.check_in, form.check_out);
+  const dayUse = form.stay_kind === "day_use";
+  const nights = dayUse ? 0 : nightsBetween(form.check_in, form.check_out);
+
+  /**
+   * The hotel's day-use slots. The defaults stand in until they arrive, and
+   * a booking already on a slot the hotel has since dropped keeps it on offer.
+   */
+  const [slotHours, setSlotHours] = useState(DEFAULT_DAY_USE_HOURS);
+  useEffect(() => {
+    const qs = session?.propertyId ? `?propertyId=${session.propertyId}` : "";
+    fetch(`/api/setup/dayUse${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.hours && setSlotHours(cleanDayUseHours(d.hours)))
+      .catch(() => {});
+  }, [session?.propertyId]);
+  // A day use started from the tape chart arrives without a slot chosen.
+  useEffect(() => {
+    if (dayUse && !form.day_use_hours) {
+      setForm((prev) => ({ ...prev, day_use_hours: slotHours[0] || DEFAULT_DAY_USE_HOURS[0] }));
+    }
+  }, [dayUse, form.day_use_hours, slotHours]);
+  const slotOptions = useMemo(
+    () => cleanDayUseHours([...slotHours, ...(form.day_use_hours ? [form.day_use_hours] : [])]),
+    [slotHours, form.day_use_hours]
+  );
 
   const sourceOptions = BOOKING_SOURCES.some((o) => o.value === form.source)
     ? BOOKING_SOURCES
@@ -677,7 +720,8 @@ export default function BookingForm({
   const fetchQuote = useCallback(async () => {
     const { room_type_id, rate_plan_id, check_in, check_out, adults, children } = form;
 
-    if (!room_type_id || !check_in || !check_out || nights === 0) {
+    const priceable = dayUse ? Boolean(form.day_use_hours) : Boolean(check_out) && nights > 0;
+    if (!room_type_id || !check_in || !priceable) {
       setQuote(null);
       return;
     }
@@ -697,6 +741,7 @@ export default function BookingForm({
       if (session?.propertyId) qs.set("propertyId", session.propertyId);
       if (rate_plan_id) qs.set("ratePlanId", rate_plan_id);
       if (form.company_id) qs.set("companyId", form.company_id);
+      if (dayUse) qs.set("dayUseHours", String(form.day_use_hours));
 
       const res = await fetch(`/api/pms/quote?${qs}`);
       const data = await res.json();
@@ -718,6 +763,8 @@ export default function BookingForm({
     form.children,
     form.company_id,
     nights,
+    dayUse,
+    form.day_use_hours,
     session?.propertyId,
   ]);
 
@@ -774,6 +821,14 @@ export default function BookingForm({
         next.guest_residency = value === homeCountry ? "domestic" : "international";
       }
 
+      // A day use needs a slot, and leaving one needs a night again.
+      if (field === "stay_kind" && value === "day_use" && !prev.day_use_hours) {
+        next.day_use_hours = slotHours[0] || DEFAULT_DAY_USE_HOURS[0];
+      }
+      if (field === "stay_kind" && value === "overnight" && next.check_out <= next.check_in) {
+        next.check_out = formatDateISO(addDays(parseDateISO(next.check_in), 1));
+      }
+
       // A room of the old type cannot stay selected against a new one.
       if (field === "room_type_id") next.room_id = "";
 
@@ -816,7 +871,8 @@ export default function BookingForm({
         // The quote's night-by-night prices, sent only while the total is
         // the quoted one -- a typed total has no breakdown to go with it.
         night_rates:
-          !manualTotal && !complimentary && quote?.nights ? quote.nights : undefined,
+          !manualTotal && !complimentary && !dayUse && quote?.nights ? quote.nights : undefined,
+        ...(dayUse ? { check_out: form.check_in, day_use_hours: Number(form.day_use_hours) } : {}),
         ...(reservation ? { id: reservation.id } : {}),
       };
 
@@ -925,7 +981,7 @@ export default function BookingForm({
               />
             )}
           </div>
-          {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} />}
+          {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
         </Field>
         <Field label="Phone">
           <div style={{ position: "relative" }}>
@@ -943,7 +999,17 @@ export default function BookingForm({
             )}
           </div>
         </Field>
-        <Field label="Check in">
+        <Field label="Stay">
+          <select
+            className="input"
+            value={form.stay_kind}
+            onChange={(e) => set("stay_kind", e.target.value)}
+          >
+            <option value="overnight">Overnight</option>
+            <option value="day_use">Day use (hours)</option>
+          </select>
+        </Field>
+        <Field label={dayUse ? "Date" : "Check in"}>
           <input
             className="input"
             type="date"
@@ -951,18 +1017,34 @@ export default function BookingForm({
             onChange={(e) => set("check_in", e.target.value)}
           />
         </Field>
-        <Field
-          label="Check out"
-          hint={nights ? `${nights} night${nights === 1 ? "" : "s"}` : "Pick a later date"}
-        >
-          <input
-            className="input"
-            type="date"
-            value={form.check_out}
-            min={form.check_in}
-            onChange={(e) => set("check_out", e.target.value)}
-          />
-        </Field>
+        {dayUse ? (
+          <Field label="Hours" hint="Counted from check-in">
+            <select
+              className="input"
+              value={form.day_use_hours}
+              onChange={(e) => set("day_use_hours", e.target.value)}
+            >
+              {slotOptions.map((h) => (
+                <option key={h} value={h}>
+                  {dayUseLabel(h)}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : (
+          <Field
+            label="Check out"
+            hint={nights ? `${nights} night${nights === 1 ? "" : "s"}` : "Pick a later date"}
+          >
+            <input
+              className="input"
+              type="date"
+              value={form.check_out}
+              min={form.check_in}
+              onChange={(e) => set("check_out", e.target.value)}
+            />
+          </Field>
+        )}
         <Field label="Adults">
           <input
             className="input"
@@ -1069,7 +1151,7 @@ export default function BookingForm({
             ))}
           </select>
         </Field>
-        <Field label="Total amount (whole stay)" wide>
+        <Field label={dayUse ? "Total amount (day use)" : "Total amount (whole stay)"} wide>
           <input
             className="input"
             type="number"

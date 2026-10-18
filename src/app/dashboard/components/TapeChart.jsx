@@ -15,6 +15,7 @@ import { visibleModules } from "../modules";
 import { usePageState } from "./usePageState";
 import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
+import { dayUseSummary, isDayUse } from "@/lib/dayUse";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -115,6 +116,8 @@ const SELECTION_ACTIONS = [
   { id: "reservation", label: "New reservation" },
   { id: "inquiry", label: "Inquiry (hold the room)" },
   { id: "complimentary", label: "Complimentary stay" },
+  // Offered on a single day only: a day use is hours on one date.
+  { id: "day_use", label: "Day use (hours)", singleDay: true },
   { id: "group", label: "Group booking" },
   { id: "block", label: "Out of order" },
 ];
@@ -413,6 +416,9 @@ export default function TapeChart({ session }) {
     function onMove(e) {
       const d = dragRef.current;
       if (!d) return;
+      // A day use is not dragged: it stays put, so letting go is a click and
+      // opens its menu. Its date and room are changed in the booking.
+      if (isDayUse(d.reservation)) return;
 
       const dayShift = Math.round((e.clientX - d.originX) / dayWidthRef.current);
 
@@ -569,7 +575,12 @@ export default function TapeChart({ session }) {
     const { check_in, check_out } = selectionRange(sel);
     const room = sel.room;
 
-    if (action === "reservation" || action === "complimentary" || action === "inquiry") {
+    if (
+      action === "reservation" ||
+      action === "complimentary" ||
+      action === "inquiry" ||
+      action === "day_use"
+    ) {
       setNewBooking({
         room_id: room.id,
         room_type_id: room.room_type_id,
@@ -577,6 +588,7 @@ export default function TapeChart({ session }) {
         check_out,
         ...(action === "complimentary" ? { booking_type: "complimentary" } : {}),
         ...(action === "inquiry" ? { status: "inquiry" } : {}),
+        ...(action === "day_use" ? { stay_kind: "day_use" } : {}),
       });
     } else if (action === "group") {
       setNewGroup({ room_ids: [room.id], check_in, check_out });
@@ -713,7 +725,25 @@ export default function TapeChart({ session }) {
           ? pending.move
           : reservation;
 
+    if (isDayUse(reservation)) return dayUseGeometry(reservation.check_in);
     return spanGeometry(d.check_in, d.check_out);
+  }
+
+  /**
+   * A day use is hours inside one day, so it is drawn as a short bar in the
+   * middle of its date rather than a span from noon to noon -- between the
+   * morning's departure and the afternoon's arrival, which is when it is used.
+   */
+  function dayUseGeometry(date) {
+    const offset = daysBetween(anchor, date);
+    if (offset < 0 || offset >= windowDays) return null;
+    return {
+      left: (offset + 0.2) * dayWidth,
+      width: 0.6 * dayWidth,
+      clippedStart: false,
+      clippedEnd: false,
+      dayUse: true,
+    };
   }
 
   /**
@@ -898,9 +928,10 @@ export default function TapeChart({ session }) {
                 onClick={(e) =>
                   setBookingMenu({ reservation: r, x: e.clientX, y: e.clientY })
                 }
-                title={`${r.check_in} → ${r.check_out}`}
+                title={isDayUse(r) ? `${r.check_in} · ${dayUseSummary(r)}` : `${r.check_in} → ${r.check_out}`}
               >
                 {r.guest_name} · {r.room_types?.room_type_name}
+                {isDayUse(r) ? ` · day use ${r.day_use_hours}h` : ""}
               </button>
             ))}
           </div>
@@ -1331,7 +1362,11 @@ export default function TapeChart({ session }) {
                                 <div
                                   key={r.id}
                                   onPointerDown={(e) => beginDrag(e, r, "move")}
-                                  title={`${r.guest_name} · ${r.reference}\n${r.check_in} → ${r.check_out}`}
+                                  title={
+                                    geo.dayUse
+                                      ? `${r.guest_name} · ${r.reference}\n${r.check_in} · ${dayUseSummary(r)}`
+                                      : `${r.guest_name} · ${r.reference}\n${r.check_in} → ${r.check_out}`
+                                  }
                                   style={{
                                     position: "absolute",
                                     left: geo.left,
@@ -1347,14 +1382,16 @@ export default function TapeChart({ session }) {
                                     borderBottomRightRadius: geo.clippedEnd ? 0 : 4,
                                     display: "flex",
                                     alignItems: "center",
-                                    padding: "0 0.4rem",
+                                    padding: geo.dayUse ? "0 0.2rem" : "0 0.4rem",
+                                    justifyContent: geo.dayUse ? "center" : undefined,
                                     fontSize: rowSize.font,
                                     fontWeight: 600,
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
-                                    cursor: isDragging ? "grabbing" : "grab",
+                                    cursor: geo.dayUse ? "pointer" : isDragging ? "grabbing" : "grab",
                                     opacity: isDragging ? 0.75 : 1,
-                                    zIndex: isDragging ? 5 : 1,
+                                    // Above a departure or arrival sharing its day.
+                                    zIndex: isDragging ? 5 : geo.dayUse ? 2 : 1,
                                     userSelect: "none",
                                     boxShadow: isDragging
                                       ? "0 2px 8px rgba(0,0,0,0.3)"
@@ -1378,7 +1415,7 @@ export default function TapeChart({ session }) {
                                   )}
                                   {r.group_id && <BarTag title="Group booking">GRP</BarTag>}
                                   <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {r.guest_name}
+                                    {geo.dayUse ? `${r.day_use_hours}h` : r.guest_name}
                                   </span>
                                   <span
                                     onPointerDown={(e) => beginDrag(e, r, "end")}
@@ -1798,7 +1835,7 @@ function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
         </div>
         {conflict && <div style={{ color: "var(--danger)" }}>{conflict}</div>}
       </div>
-      {SELECTION_ACTIONS.map((a) => (
+      {SELECTION_ACTIONS.filter((a) => !a.singleDay || nights === 1).map((a) => (
         <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
       ))}
     </MenuShell>
@@ -1840,8 +1877,16 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           {room ? ` · Room ${room.room_number}` : " · no room yet"}
         </div>
         <div style={{ color: "var(--text-muted)" }}>
-          {nightLabel(r.check_in)} → {nightLabel(r.check_out)} · {nights} night
-          {nights === 1 ? "" : "s"}
+          {isDayUse(r) ? (
+            <>
+              {nightLabel(r.check_in)} · {dayUseSummary(r)}
+            </>
+          ) : (
+            <>
+              {nightLabel(r.check_in)} → {nightLabel(r.check_out)} · {nights} night
+              {nights === 1 ? "" : "s"}
+            </>
+          )}
         </div>
       </div>
       {r.status === "inquiry" && (

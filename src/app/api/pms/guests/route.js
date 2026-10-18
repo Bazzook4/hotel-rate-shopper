@@ -11,6 +11,13 @@ import {
   deleteGuest,
   guestPhoneKey,
 } from "@/lib/database";
+import { walletBalances } from "@/lib/wallets";
+
+/** Each guest's wallet balance, where they have a wallet. */
+async function withWallets(propertyId, guests) {
+  const balances = await walletBalances(propertyId, "guest", guests.map((g) => g.id)).catch(() => new Map());
+  return guests.map((g) => ({ ...g, wallet: balances.get(g.id)?.balance ?? 0 }));
+}
 
 /**
  * The guest database.
@@ -73,12 +80,13 @@ export async function GET(req) {
       const guest = await getGuest(propertyId, id);
       if (!guest) return NextResponse.json({ error: "Guest not found" }, { status: 404 });
       const reservations = await listGuestReservations(propertyId, id);
-      return NextResponse.json({ guest, reservations });
+      const [withWallet] = await withWallets(propertyId, [guest]);
+      return NextResponse.json({ guest: withWallet, reservations });
     }
 
     const limit = Math.min(Math.max(Number(params.get("limit")) || 200, 1), 500);
     const guests = await listGuests(propertyId, { search: params.get("search"), limit });
-    return NextResponse.json({ guests });
+    return NextResponse.json({ guests: await withWallets(propertyId, guests) });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

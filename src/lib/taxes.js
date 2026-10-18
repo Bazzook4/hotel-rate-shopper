@@ -290,11 +290,19 @@ export function folioTotals({ reservation, nights = [], extras = [], payments = 
   const serviceTaxes = {};
   for (const sv of services) serviceTaxes[sv.id] = sv.tax_ids || [];
 
+  // A day use holds no night, but its price is still the room charge, taxed
+  // as one unit on the day -- a 6-hour slot at 1,800 is in the 5% slab, as a
+  // night at 1,800 would be.
+  const roomUnits =
+    nights.length === 0 && reservation.stay_kind === "day_use" && room > 0
+      ? [{ stay_date: reservation.check_in, rate: room }]
+      : nights;
+
   const tax = computeTaxes(
     taxRules,
     serviceTaxes,
     stayLines({
-      nights: nights.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, nights.length) })),
+      nights: roomUnits.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, roomUnits.length) })),
       extras,
       roomServiceId: roomService?.id || null,
     }),

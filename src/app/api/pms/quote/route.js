@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
-import { quoteReservation } from "@/lib/database";
+import { quoteReservation, quoteDayUse } from "@/lib/database";
+import { validDayUseHours } from "@/lib/dayUse";
 
 /**
  * What a stay would cost, from the rates the property already has configured.
@@ -28,6 +29,19 @@ export async function GET(req) {
   }
 
   try {
+    // A day use is priced from the room type's fixed slot price, not from the
+    // night rate.
+    const dayUseHours = validDayUseHours(searchParams.get("dayUseHours"));
+    if (dayUseHours) {
+      return NextResponse.json(
+        await quoteDayUse({
+          property_id: propertyId,
+          room_type_id: searchParams.get("roomTypeId"),
+          hours: dayUseHours,
+        })
+      );
+    }
+
     const quote = await quoteReservation({
       property_id: propertyId,
       room_type_id: searchParams.get("roomTypeId"),

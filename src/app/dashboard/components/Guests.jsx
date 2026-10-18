@@ -15,6 +15,8 @@ import { useSort, SortTh } from "./useSort";
 import { useBookingOpener } from "./reportKit";
 import { useDialog } from "../../components/Dialog";
 import { countryOptions, toCountryCode } from "@/lib/countries";
+import { TierBadge, TiersGrid, WalletPlansGrid, useGuestTiers } from "./GuestSettings";
+import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
 
 /**
  * Guests: everyone who has stayed, or is booked to stay, at the property.
@@ -116,7 +118,23 @@ export default function Guests({ session }) {
   const [notReady, setNotReady] = useState(false);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
+  // One guest's row opened below it: their bookings, or their wallet.
   const [openId, setOpenId] = useState(null);
+  const [openWhat, setOpenWhat] = useState("history");
+  // The tiers or wallet plans list, opened above the guests.
+  const [settings, setSettings] = useState(null);
+  const { tiers, reload: reloadTiers } = useGuestTiers(propertyId);
+  const { plans, reload: reloadPlans } = useWalletPlans(propertyId);
+  const tierOptions = [{ id: "", label: "—" }, ...tiers.map((t) => ({ id: t.id, label: t.name }))];
+  const tierById = Object.fromEntries(tiers.map((t) => [t.id, t]));
+
+  function toggle(g, what) {
+    if (openId === g.id && openWhat === what) setOpenId(null);
+    else {
+      setOpenId(g.id);
+      setOpenWhat(what);
+    }
+  }
 
   const countries = useMemo(
     () => [{ id: "", label: "—" }, ...countryOptions().map((c) => ({ id: c.code, label: c.name }))],
@@ -162,6 +180,7 @@ export default function Guests({ session }) {
     nights: "nights",
     revenue: "revenue",
     last: (g) => g.next_stay || g.last_stay,
+    wallet: "wallet",
   });
   const rows = [...sorter.rows, ...grid.drafts];
 
@@ -172,6 +191,7 @@ export default function Guests({ session }) {
       email: "",
       country: toCountryCode(session?.propertyCountry) || "",
       company: "",
+      tier_id: "",
       id_type: "",
       id_number: "",
       notes: "",
@@ -189,6 +209,8 @@ export default function Guests({ session }) {
       create: (d) => {
         if (!String(d.full_name).trim()) throw new Error("Give the guest a name");
         const { id, ...row } = d;
+        // A blank tier is left off, so adding a guest works before tiers exist.
+        if (!row.tier_id) delete row.tier_id;
         return sendJSON("/api/pms/guests", "POST", { property_id: propertyId, ...row });
       },
     });
@@ -222,7 +244,7 @@ export default function Guests({ session }) {
     }
   }
 
-  const COLS = 12;
+  const COLS = 14;
 
   return (
     <div className="space-y-4">
@@ -248,6 +270,22 @@ export default function Guests({ session }) {
         <button type="button" className="btn btn-secondary text-sm" onClick={addRow} disabled={notReady}>
           + Add guest
         </button>
+        <button
+          type="button"
+          className={settings === "tiers" ? "btn btn-primary text-sm" : "btn btn-secondary text-sm"}
+          onClick={() => setSettings(settings === "tiers" ? null : "tiers")}
+          disabled={notReady}
+        >
+          Tiers{tiers.length ? ` (${tiers.length})` : ""}
+        </button>
+        <button
+          type="button"
+          className={settings === "plans" ? "btn btn-primary text-sm" : "btn btn-secondary text-sm"}
+          onClick={() => setSettings(settings === "plans" ? null : "plans")}
+          disabled={notReady}
+        >
+          Wallet plans{plans.length ? ` (${plans.length})` : ""}
+        </button>
         <div className="ml-auto flex items-center gap-2">
           <input
             className="input w-64"
@@ -258,12 +296,16 @@ export default function Guests({ session }) {
         </div>
       </Toolbar>
 
+      {settings === "tiers" && <TiersGrid propertyId={propertyId} tiers={tiers} onSaved={reloadTiers} />}
+      {settings === "plans" && <WalletPlansGrid propertyId={propertyId} plans={plans} onSaved={reloadPlans} />}
+
       <Grid>
         <thead>
           <tr>
             <SortTh sorter={sorter} col="name" className="cm-sticky" style={{ minWidth: 180 }}>
               Name
             </SortTh>
+            <th style={{ minWidth: 120 }} title="Set by hand; shown as a badge when the guest books">Tier</th>
             <th style={{ minWidth: 130 }}>Phone</th>
             <th style={{ minWidth: 180 }}>Email</th>
             <th style={{ minWidth: 130 }}>Country</th>
@@ -279,6 +321,9 @@ export default function Guests({ session }) {
             </SortTh>
             <SortTh sorter={sorter} col="last" style={{ width: 120 }}>
               Last / next
+            </SortTh>
+            <SortTh sorter={sorter} col="wallet" style={{ width: 110 }}>
+              Wallet
             </SortTh>
             <th style={{ width: 50 }} />
           </tr>
@@ -303,7 +348,8 @@ export default function Guests({ session }) {
 
           {rows.map((g) => {
             const draft = isDraft(g.id);
-            const open = openId === g.id;
+            const open = openId === g.id && openWhat === "history";
+            const walletOpen = openId === g.id && openWhat === "wallet";
             return (
               <Fragment key={g.id}>
                 <tr className={draft ? "cm-new" : undefined}>
@@ -312,6 +358,12 @@ export default function Guests({ session }) {
                       placeholder: "Full name",
                       invalid: draft && !String(g.full_name).trim(),
                     })}
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1">
+                      {grid.select(g, "tier_id", tierOptions)}
+                      {tierById[grid.value(g, "tier_id")] && <TierBadge tier={tierById[grid.value(g, "tier_id")]} />}
+                    </div>
                   </td>
                   <td>{grid.input(g, "phone", { type: "tel" })}</td>
                   <td>{grid.input(g, "email", { type: "email" })}</td>
@@ -336,7 +388,7 @@ export default function Guests({ session }) {
                       <button
                         type="button"
                         className="btn btn-ghost text-xs"
-                        onClick={() => setOpenId(open ? null : g.id)}
+                        onClick={() => toggle(g, "history")}
                         aria-expanded={open}
                         title="Show this guest's bookings"
                       >
@@ -354,6 +406,21 @@ export default function Guests({ session }) {
                       formatDate(g.last_stay)
                     )}
                   </td>
+                  <td className="cm-num">
+                    {draft ? (
+                      "—"
+                    ) : (
+                      <button
+                        type="button"
+                        className={walletOpen ? "btn btn-primary text-xs" : "btn btn-ghost text-xs"}
+                        onClick={() => toggle(g, "wallet")}
+                        aria-expanded={walletOpen}
+                        title="Open this guest's wallet"
+                      >
+                        {g.wallet ? inr(g.wallet) : "Add"} {walletOpen ? "▾" : "▸"}
+                      </button>
+                    )}
+                  </td>
                   <td>
                     <button
                       type="button"
@@ -366,6 +433,19 @@ export default function Guests({ session }) {
                     </button>
                   </td>
                 </tr>
+                {walletOpen && (
+                  <tr>
+                    <td colSpan={COLS} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
+                      <WalletPanel
+                        owner={{ type: "guest", id: g.id, name: g.full_name }}
+                        propertyId={propertyId}
+                        plans={plans}
+                        onChanged={load}
+                        onOpenBooking={(id) => openBooking(id)}
+                      />
+                    </td>
+                  </tr>
+                )}
                 {open && (
                   <GuestHistory
                     propertyId={propertyId}

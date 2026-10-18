@@ -14,6 +14,7 @@ import {
   voidReservationInvoice,
   setNightRate,
 } from "@/lib/database";
+import { walletBalance } from "@/lib/wallets";
 
 /**
  * Everything hanging off one reservation: guests, nights, extras, payments,
@@ -27,7 +28,37 @@ import {
  */
 
 async function folioResponse(reservationId) {
-  return NextResponse.json(await getReservationFolio(reservationId));
+  const folio = await getReservationFolio(reservationId);
+  return NextResponse.json({ ...folio, wallets: await folioWallets(folio.reservation) });
+}
+
+/**
+ * The wallets that may pay this bill -- the guest's own, and the company's
+ * or agent's on the booking -- with what each holds. Empty before migration
+ * 047, or when nobody on the booking has ever had a wallet.
+ */
+async function folioWallets(reservation) {
+  const out = [];
+  try {
+    const supabase = getSupabaseAdmin();
+    if (reservation.guest_id) {
+      const w = await walletBalance(reservation.property_id, { type: "guest", id: reservation.guest_id });
+      if (w.credit > 0) {
+        const { data } = await supabase.from("guests").select("full_name").eq("id", reservation.guest_id).maybeSingle();
+        out.push({ type: "guest", id: reservation.guest_id, name: data?.full_name || reservation.guest_name, balance: w.balance });
+      }
+    }
+    if (reservation.company_id) {
+      const w = await walletBalance(reservation.property_id, { type: "company", id: reservation.company_id });
+      if (w.credit > 0) {
+        const { data } = await supabase.from("companies").select("name").eq("id", reservation.company_id).maybeSingle();
+        out.push({ type: "company", id: reservation.company_id, name: data?.name || "Company", balance: w.balance });
+      }
+    }
+  } catch {
+    // A wallet that cannot be read only hides the Pay from wallet option.
+  }
+  return out;
 }
 
 /** A 404 or 403 unless the reservation is at a property this session may act on. */

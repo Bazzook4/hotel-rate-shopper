@@ -33,12 +33,12 @@ import { SortTh, useSort } from "./useSort";
  */
 
 /** Methods in a fixed order, so columns do not move between periods. */
-const METHOD_ORDER = ["cash", "card", "upi", "bank_transfer", "ota", "other"];
+const METHOD_ORDER = ["cash", "card", "upi", "bank_transfer", "ota", "other", "wallet"];
 
 function ByMethod({ report, money }) {
   const { byMethod } = report.summary;
   return (
-    <Section title="By method" sub="Paid to OTA is money the channel collected, not money in the hotel's hands">
+    <Section title="By method" sub="Paid to OTA is money the channel collected, not money in the hotel's hands. Money paid into wallets counts here when it is paid; bills paid from a wallet are listed but not counted again.">
       {byMethod.length === 0 ? (
         <Empty>No payments in this period.</Empty>
       ) : (
@@ -54,7 +54,7 @@ function ByMethod({ report, money }) {
               </tr>
             </thead>
             <tbody>
-              {byMethod.map((m) => (
+              {byMethod.filter((m) => !m.notMoney).map((m) => (
                 <tr key={m.method}>
                   <td className="font-medium">{m.label}</td>
                   <td className="text-right tabular-nums">{whole.format(m.count)}</td>
@@ -70,6 +70,17 @@ function ByMethod({ report, money }) {
                 <td className="text-right font-semibold tabular-nums">{money(report.summary.refunded)}</td>
                 <td className="text-right font-semibold tabular-nums">{money(report.summary.net)}</td>
               </tr>
+              {/* Paid from a wallet: credit moving onto a bill, already counted
+                  as money when it was paid into the wallet. */}
+              {byMethod.filter((m) => m.notMoney).map((m) => (
+                <tr key={m.method} style={{ color: "var(--text-muted)" }}>
+                  <td title="Not money received — already counted when paid into the wallet">{m.label} · not counted</td>
+                  <td className="text-right tabular-nums">{whole.format(m.count)}</td>
+                  <td className="text-right tabular-nums">{money(m.received)}</td>
+                  <td className="text-right tabular-nums">{money(m.refunded)}</td>
+                  <td className="text-right tabular-nums">{money(m.net)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </TableFrame>
@@ -312,7 +323,7 @@ export default function PaymentsReport({ session }) {
   const money = useMemo(() => moneyFormatter(report?.currency || "INR", { decimals: 2 }), [report?.currency]);
 
   const methods = useMemo(() => {
-    const seen = new Set((report?.payments || []).filter((p) => !p.voidedAt).map((p) => p.method));
+    const seen = new Set((report?.payments || []).filter((p) => !p.voidedAt && p.method !== "wallet").map((p) => p.method));
     return [...METHOD_ORDER.filter((m) => seen.has(m)), ...[...seen].filter((m) => !METHOD_ORDER.includes(m))];
   }, [report]);
 

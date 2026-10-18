@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useDialog } from "../../components/Dialog";
+import { dayUseLabel } from "@/lib/dayUse";
 
 /**
  * Check-in and check-out as one shared action, so the Today page, the
@@ -224,8 +225,12 @@ export function whatsappLink(r, { propertyName, countryCode, balance } = {}) {
     "",
     `Your booking at ${propertyName || "our hotel"} is confirmed.`,
     `Booking: ${r.reference}`,
-    `Check-in: ${day(r.check_in)}`,
-    `Check-out: ${day(r.check_out)} (${nights} night${nights === 1 ? "" : "s"})`,
+    ...(r.stay_kind === "day_use"
+      ? [`Day use: ${day(r.check_in)}, ${dayUseLabel(r.day_use_hours)} from check-in`]
+      : [
+          `Check-in: ${day(r.check_in)}`,
+          `Check-out: ${day(r.check_out)} (${nights} night${nights === 1 ? "" : "s"})`,
+        ]),
     r.room_types?.room_type_name ? `Room: ${r.room_types.room_type_name}` : null,
     `Guests: ${r.adults} adult${r.adults === 1 ? "" : "s"}${r.children ? `, ${r.children} child${r.children === 1 ? "" : "ren"}` : ""}`,
     r.total_amount != null ? `Total: ${money(r.total_amount, r.currency)}` : null,

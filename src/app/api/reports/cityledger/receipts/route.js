@@ -1,21 +1,22 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { normaliseTz } from "@/lib/financeReports";
-import { recordReceipt, applyReceiptCredit, voidReceipt } from "@/lib/cityLedger";
+import { recordReceipt, applyCompanyCredit, voidReceipt } from "@/lib/cityLedger";
+import { WalletError } from "@/lib/wallets";
 
 /**
- * Money received from a company or agent.
+ * Money received from a company or agent, which goes into its wallet.
  *
- *   POST   record a receipt and apply it to bills (chosen, or oldest first)
- *   PATCH  { id, action: "apply" }  apply what is left on a receipt
- *          { id, action: "void", reason }  void it and every payment it made
+ *   POST   add it to the wallet and pay bills (chosen, or oldest first)
+ *   PATCH  { company_id, action: "apply" }  spend the wallet on bills
+ *          { id, action: "void", reason }  void money recorded in error
  *
  * A mistake in what was sent is the desk's to fix, so those answer 400; a
  * database failure answers 500.
  */
 
 const failure = (err) =>
-  NextResponse.json({ error: err.message }, { status: /^Failed to|could not be/.test(err.message) ? 500 : 400 });
+  NextResponse.json({ error: err.message }, { status: err instanceof WalletError ? 400 : 500 });
 
 async function context(req) {
   const { error, session } = await pmsGuard(req, ["cityledger"]);
@@ -47,20 +48,21 @@ export async function PATCH(req) {
   const ctx = await context(req);
   if (ctx.error) return ctx.error;
   const { id, action } = ctx.body;
-  if (!id) return NextResponse.json({ error: "Receipt id is required" }, { status: 400 });
   try {
     if (action === "apply") {
-      const result = await applyReceiptCredit(
+      if (!ctx.body.company_id) return NextResponse.json({ error: "Choose the company" }, { status: 400 });
+      const result = await applyCompanyCredit(
         ctx.propertyId,
-        id,
+        ctx.body.company_id,
         { allocations: ctx.body.allocations ?? null, tz: ctx.tz },
         ctx.session.userId
       );
       return NextResponse.json(result);
     }
     if (action === "void") {
-      await voidReceipt(ctx.propertyId, id, ctx.body.reason, ctx.session.userId);
-      return NextResponse.json({ success: true });
+      if (!id) return NextResponse.json({ error: "Which payment?" }, { status: 400 });
+      const result = await voidReceipt(ctx.propertyId, id, ctx.body.reason, ctx.session.userId);
+      return NextResponse.json({ success: true, ...result });
     }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {

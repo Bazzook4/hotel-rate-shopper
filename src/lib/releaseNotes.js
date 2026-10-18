@@ -18,6 +18,18 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
+        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date and how many hours (3, 6 or 9), and the price is filled in. The hours start when you check the guest in, and the booking then shows when they are due out. A day-use room is still sold for that night on the channels.",
+      },
+      {
+        page: "calendar",
+        text: "On the Calendar, click a single empty day in a room and choose \"Day use (hours)\" to book it. Day-use bookings show as a short bar in the middle of the day with their hours.",
+      },
+      {
+        page: "rooms",
+        text: "Setup → Rooms has a price column for each day-use slot. Enter a fixed price per room type. Change \"Day-use hours\" to offer other slots, for example 4, 8.",
+      },
+      {
+        page: "reservations",
         text: "When you make a booking, type the guest's name and press Search (or Enter) to find them among past bookings. Guests who match the name, phone number or email you type also appear underneath as you go. Pick one and their name, phone, email and country are filled in for you. The form shows how many times they have stayed, and any note you keep about them. If you picked the wrong person, click \"Not this guest\".",
       },
       {
@@ -34,7 +46,23 @@ export const RELEASE_NOTES = [
       },
       {
         page: "cityledger",
-        text: "Reports has a new City Ledger page for bookings billed to a company or travel agent. It shows how much is owed to you, how much is overdue, and what is due in the next 7 and 30 days, then each company with its bills split by how late they are. Click a company to see its statement, and press Receive payment to record money it sent: it is applied to the oldest bills first (you can change the split), and anything left over is kept as credit for the next bills. Set each company's credit days and credit limit on the Companies & agents page.",
+        text: "Reports has a new City Ledger page for bookings billed to a company or travel agent. It shows how much is owed to you, how much is overdue, and what is due in the next 7 and 30 days, then each company with its bills split by how late they are. Click a company to see its statement, and press Receive payment to record money it sent (with bonus credit if you give any). It goes into the company's wallet and pays the oldest bills first (you can change the split); anything left stays in the wallet for the next bills. Set each company's credit days and credit limit on the Companies & agents page.",
+      },
+      {
+        page: "guests",
+        text: "Guests can now have a wallet. On the Guests page, click a guest's Wallet and press Add money — any amount, or on a wallet plan such as \"pay ₹10,000, get ₹11,000\". Set up your plans with the Wallet plans button. The wallet shows everything added and every bill it paid.",
+      },
+      {
+        page: "guests",
+        text: "Give guests a tier — Silver, Gold, VIP or your own names and colours. Set them up with the Tiers button on the Guests page, then pick a guest's tier in the Tier column. The tier shows as a badge on the booking form when that guest books.",
+      },
+      {
+        page: "reservations",
+        text: "On a booking's Bill, use Pay from wallet to pay the room and services from the guest's wallet, or from the wallet of the company or agent on the booking. Voiding that payment puts the money back in the wallet.",
+      },
+      {
+        page: "payments",
+        text: "The Payments report counts money paid into wallets on the day it is paid. Bills paid from a wallet are listed as \"Paid from wallet\" but not counted again, so your cash-up stays right.",
       },
       {
         page: "taxsetup",

@@ -45,6 +45,95 @@ const METHODS = [
   { id: "other", label: "Other" },
 ];
 
+/** Shown on payments taken from a wallet; never picked from the list. */
+const WALLET_METHOD = { id: "wallet", label: "Wallet" };
+
+/** Take what the bill owes from a wallet, up to what the wallet holds. */
+function WalletPay({ wallets, owing, currency, reservationId, propertyId, busy, onPaid }) {
+  const usable = wallets.filter((w) => w.balance > 0);
+  const [which, setWhich] = useState(usable[0] ? `${usable[0].type}:${usable[0].id}` : "");
+  const chosen = usable.find((w) => `${w.type}:${w.id}` === which) || usable[0];
+  const [amount, setAmount] = useState(() => (chosen ? String(Math.min(chosen.balance, owing)) : ""));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (!chosen) return null;
+
+  async function pay() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pms/wallets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "pay",
+          property_id: propertyId,
+          reservationId,
+          type: chosen.type,
+          id: chosen.id,
+          amount,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not pay from the wallet");
+      await onPaid();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card card-pad space-y-2" style={{ borderColor: "var(--accent)" }}>
+      <div className="flex flex-wrap items-end gap-2">
+        <div style={{ fontWeight: 600, fontSize: "0.8rem", marginRight: "auto" }}>
+          Pay from wallet
+          <div className="sub" style={{ fontSize: "0.7rem", fontWeight: 400 }}>
+            {usable.map((w) => `${w.name}: ${money(w.balance, currency)}`).join(" · ")}
+          </div>
+        </div>
+        {usable.length > 1 && (
+          <select
+            className="input"
+            style={{ width: "auto" }}
+            value={which}
+            onChange={(e) => {
+              setWhich(e.target.value);
+              const w = usable.find((x) => `${x.type}:${x.id}` === e.target.value);
+              if (w) setAmount(String(Math.min(w.balance, owing)));
+            }}
+          >
+            {usable.map((w) => (
+              <option key={`${w.type}:${w.id}`} value={`${w.type}:${w.id}`}>
+                {w.type === "company" ? `${w.name} (company)` : `${w.name} (guest)`}
+              </option>
+            ))}
+          </select>
+        )}
+        <input
+          className="input"
+          type="number"
+          min="0"
+          max={Math.min(chosen.balance, owing)}
+          style={{ width: 130 }}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+        <button className="btn btn-primary text-sm" disabled={busy || saving || !(Number(amount) > 0)} onClick={pay}>
+          {saving ? "Paying…" : "Pay"}
+        </button>
+      </div>
+      {error && (
+        <p className="text-sm" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * `intent` is the job the folio was opened for from the tape chart's menu --
  * "inclusions" to add a service, "payments" to collect one -- and puts the
@@ -665,7 +754,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                   // the desk can see what was taken back and why.
                   <tr key={p.id} style={p.voided_at ? { color: "var(--text-faint)" } : undefined}>
                     <td>{when(p.paid_at)}</td>
-                    <td>{METHODS.find((m) => m.id === p.method)?.label || p.method}</td>
+                    <td>{[...METHODS, WALLET_METHOD].find((m) => m.id === p.method)?.label || p.method}</td>
                     <td>
                       {p.reference || "—"}
                       {p.voided_at && (
@@ -707,6 +796,20 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                 ))}
               </tbody>
             </table>
+          )}
+
+          {/* A guest's own wallet, or the company's on the booking, can pay
+              the bill -- room and services alike -- up to what it holds. */}
+          {folio.wallets?.length > 0 && folio.totals.balance > 0 && (
+            <WalletPay
+              wallets={folio.wallets}
+              owing={folio.totals.balance}
+              currency={currency}
+              reservationId={reservationId}
+              propertyId={folio.reservation?.property_id}
+              busy={busy}
+              onPaid={onChanged}
+            />
           )}
 
           <div className="card card-pad space-y-2">

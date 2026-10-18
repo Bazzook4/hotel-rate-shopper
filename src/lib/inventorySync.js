@@ -44,6 +44,8 @@ export function staySpan(reservation) {
   if (!reservation?.room_type_id || !reservation.check_in || !reservation.check_out) {
     return null;
   }
+  // A day use holds no night: the room is still sold for the night it is on.
+  if (reservation.check_out <= reservation.check_in) return null;
   return {
     roomTypeId: reservation.room_type_id,
     from: reservation.check_in,

@@ -29,8 +29,16 @@ export const PAYMENT_METHODS = {
   upi: 'UPI',
   bank_transfer: 'Bank transfer',
   ota: 'Paid to OTA',
+  wallet: 'Paid from wallet',
   other: 'Other',
 };
+
+/**
+ * A bill paid from a wallet moved credit, not money: the money was counted
+ * when it was paid into the wallet, as a top-up. So wallet payments are
+ * listed, but left out of every total of money received.
+ */
+const NOT_MONEY = new Set(['wallet']);
 
 /** Statuses that gave the room back rather than used it. */
 const RELEASED = new Set(['cancelled', 'no_show']);
@@ -298,15 +306,16 @@ function summarisePayments(rows) {
   let refunded = 0;
   for (const p of live) {
     if (!methods.has(p.method)) {
-      methods.set(p.method, { method: p.method, label: p.methodLabel, received: 0, refunded: 0, count: 0 });
+      methods.set(p.method, { method: p.method, label: p.methodLabel, received: 0, refunded: 0, count: 0, notMoney: NOT_MONEY.has(p.method) });
     }
     const m = methods.get(p.method);
+    const counts = !NOT_MONEY.has(p.method);
     if (p.amount >= 0) {
       m.received += p.amount;
-      received += p.amount;
+      if (counts) received += p.amount;
     } else {
       m.refunded -= p.amount;
-      refunded -= p.amount;
+      if (counts) refunded -= p.amount;
     }
     m.count += 1;
   }
@@ -314,7 +323,7 @@ function summarisePayments(rows) {
     received: round(received),
     refunded: round(refunded),
     net: round(received - refunded),
-    count: live.length,
+    count: live.filter((p) => !NOT_MONEY.has(p.method)).length,
     voidedCount: voided.length,
     voidedAmount: round(voided.reduce((s, p) => s + p.amount, 0)),
     byMethod: [...methods.values()]
@@ -324,11 +333,63 @@ function summarisePayments(rows) {
 }
 
 /** Every payment taken between two dates (local days, both inclusive). */
+/**
+ * Money paid into wallets on these days, as payment rows: real money taken,
+ * by method, with no booking. The bonus credit given is in the notes, since
+ * it is credit, not money.
+ */
+async function loadWalletTopUps(propertyId, start, end) {
+  const rows = await tolerant(() =>
+    readAll(
+      () =>
+        getSupabaseAdmin()
+          .from('wallet_transactions')
+          .select('*, guests(full_name), companies(name)')
+          .eq('property_id', propertyId)
+          .eq('kind', 'topup')
+          .gte('received_on', start)
+          .lte('received_on', end)
+          .order('received_on')
+          .order('id'),
+      'wallet top-ups'
+    )
+  );
+  return rows;
+}
+
+function topUpRow(t, emails) {
+  const cash = Number(t.cash_amount) || 0;
+  const bonus = Number(t.credit) - cash;
+  return {
+    id: t.id,
+    paidAt: t.created_at,
+    day: t.received_on,
+    reservationId: null,
+    reference: null,
+    guest: t.guests?.full_name || t.companies?.name || null,
+    method: t.method,
+    methodLabel: PAYMENT_METHODS[t.method] || t.method,
+    transaction: t.reference || null,
+    notes: `Wallet top-up${bonus > 0.009 ? ` · credit ${round(Number(t.credit))} incl. ${round(bonus)} bonus` : ''}${t.notes ? ` · ${t.notes}` : ''}`,
+    amount: cash,
+    walletTopUp: true,
+    recordedBy: emails[t.recorded_by] || null,
+    voidedAt: t.voided_at || null,
+    voidReason: t.void_reason || null,
+    voidedBy: emails[t.voided_by] || null,
+  };
+}
+
 export async function getPaymentsReport(propertyId, { start, end, tz = 0 }) {
-  const raw = await loadPayments(propertyId, dayStart(start, tz), dayStart(shiftDay(end, 1), tz));
-  const emails = await userEmails(raw.flatMap((p) => [p.recorded_by, p.voided_by]));
-  const payments = raw.map((p) => paymentRow(p, tz, emails));
-  const live = payments.filter((p) => !p.voidedAt);
+  const [raw, topUps] = await Promise.all([
+    loadPayments(propertyId, dayStart(start, tz), dayStart(shiftDay(end, 1), tz)),
+    loadWalletTopUps(propertyId, start, end),
+  ]);
+  const emails = await userEmails([...raw, ...topUps].flatMap((p) => [p.recorded_by, p.voided_by]));
+  const payments = [...raw.map((p) => paymentRow(p, tz, emails)), ...topUps.map((t) => topUpRow(t, emails))].sort(
+    (a, b) => String(a.paidAt).localeCompare(String(b.paidAt))
+  );
+  const live = payments.filter((p) => !p.voidedAt && !NOT_MONEY.has(p.method));
 
   const days = new Map(everyDay(start, end).map((d) => [d, { date: d, received: 0, refunded: 0, count: 0, byMethod: {} }]));
   const users = new Map();

@@ -9,6 +9,7 @@ import { useToast } from "../../components/Toast";
 import { useFrontDesk } from "./frontDesk";
 import { useDialog } from "../../components/Dialog";
 import { usePageState } from "./usePageState";
+import { dayUseSummary, isDayUse } from "@/lib/dayUse";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -641,9 +642,9 @@ export default function Reservations({ session, initialView = null }) {
                         </div>
                       </td>
                       <td>
-                        {shortDate(r.check_in)} → {shortDate(r.check_out)}
+                        {isDayUse(r) ? shortDate(r.check_in) : `${shortDate(r.check_in)} → ${shortDate(r.check_out)}`}
                         <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
-                          {nights} night{nights === 1 ? "" : "s"} · {r.adults}A
+                          {isDayUse(r) ? dayUseSummary(r) : `${nights} night${nights === 1 ? "" : "s"}`} · {r.adults}A
                           {r.children ? ` ${r.children}C` : ""}
                         </div>
                       </td>

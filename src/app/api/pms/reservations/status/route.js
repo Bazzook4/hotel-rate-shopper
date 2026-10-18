@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
-import { findRoomClash, getReservation, getRoom, setReservationStatus } from "@/lib/database";
+import {
+  findRoomClash,
+  findDayUseInRoom,
+  getReservation,
+  getRoom,
+  setReservationStatus,
+} from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { todayUTC } from "@/lib/date";
 
@@ -114,6 +120,21 @@ export async function POST(req) {
       if (room?.housekeeping === "dirty") {
         return NextResponse.json(
           { error: `Room ${room.room_number} is dirty. Mark it clean before checking this guest in.` },
+          { status: 409 }
+        );
+      }
+    }
+
+    // A day use's hours start now, so the room has to be empty now: not
+    // still held by another day-use guest whose hours are running. Two day
+    // uses can share a room on one date, one after the other -- not at once.
+    if (status === "in_house" && current.stay_kind === "day_use") {
+      const busy = await findDayUseInRoom(room_id || current.room_id, current.check_in, id);
+      if (busy) {
+        return NextResponse.json(
+          {
+            error: `${busy.guest_name} (${busy.reference}) is still checked in to that room on day use. Check them out first, or pick another room.`,
+          },
           { status: 409 }
         );
       }

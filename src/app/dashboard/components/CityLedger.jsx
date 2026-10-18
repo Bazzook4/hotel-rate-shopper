@@ -17,7 +17,7 @@ import {
   useReport,
 } from "./reportKit";
 import { SortTh, useSort } from "./useSort";
-import { useDialog } from "../../components/Dialog";
+import WalletPanel, { useWalletPlans } from "./WalletPanel";
 
 /**
  * City Ledger: what companies and travel agents owe for stays billed to
@@ -30,7 +30,8 @@ import { useDialog } from "../../components/Dialog";
  * next payment right there.
  *
  * Balances are each stay's own folio balance, so a figure here is the figure
- * the desk sees when it opens the stay.
+ * the desk sees when it opens the stay. Money a company sends goes into its
+ * wallet and pays its bills from there; what is left is its credit.
  */
 
 const METHODS = [
@@ -82,6 +83,8 @@ async function send(method, body) {
 function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
   const bills = statement.stays.filter((s) => s.phase === "billed" && s.balance > PENNY);
   const [amount, setAmount] = useState("");
+  // Bonus credit the hotel gives on top, as on a wallet plan. Blank = none.
+  const [credit, setCredit] = useState("");
   const [receivedOn, setReceivedOn] = useState(todayLocal());
   const [method, setMethod] = useState("bank_transfer");
   const [reference, setReference] = useState("");
@@ -93,13 +96,14 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
 
   // Until the desk changes a line by hand, the split follows the amount.
   useEffect(() => {
-    if (!touched) setSplit(oldestFirst(bills, amount));
+    if (!touched) setSplit(oldestFirst(bills, credit || amount));
     // bills is derived from the statement, which does not change while open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amount, touched]);
+  }, [amount, credit, touched]);
 
+  const toSpend = Number(credit || amount) || 0;
   const applied = round2(Object.values(split).reduce((s, v) => s + (Number(v) || 0), 0));
-  const credit = round2((Number(amount) || 0) - applied);
+  const left = round2(toSpend - applied);
 
   async function submit() {
     setBusy(true);
@@ -109,6 +113,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
         property_id: propertyId,
         company_id: statement.company.id,
         amount,
+        credit,
         received_on: receivedOn,
         method,
         reference,
@@ -119,7 +124,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
       });
       onDone(
         `Recorded ${money(Number(amount))} from ${statement.company.name}` +
-          (result.unapplied > PENNY ? ` — ${money(result.unapplied)} kept as credit.` : ".")
+          (result.unapplied > PENNY ? ` — ${money(result.unapplied)} kept in its wallet.` : ".")
       );
     } catch (err) {
       setError(err.message);
@@ -130,10 +135,14 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
 
   return (
     <div className="card card-pad space-y-3" style={{ borderColor: "var(--accent)" }}>
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-6">
         <label>
           <span className="label">Amount received</span>
           <input className="input" type="number" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+        </label>
+        <label title="Leave blank for the same as received. More gives bonus credit, as a wallet plan does.">
+          <span className="label">Credit given</span>
+          <input className="input" type="number" min="0" value={credit} placeholder={amount || "same"} onChange={(e) => setCredit(e.target.value)} />
         </label>
         <label>
           <span className="label">Received on</span>
@@ -202,14 +211,14 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
           </table>
         </TableFrame>
       ) : (
-        <Empty>No bills owing — the whole amount is kept as credit for the next bills.</Empty>
+        <Empty>No bills owing — the whole amount goes into the company&apos;s wallet for the next bills.</Empty>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm tabular-nums">
           Applied {money(applied)}
-          {credit > PENNY && <> · <strong>{money(credit)}</strong> kept as credit</>}
-          {credit < -PENNY && <span style={{ color: "var(--danger)" }}> · {money(-credit)} more than received</span>}
+          {left > PENNY && <> · <strong>{money(left)}</strong> kept in the wallet</>}
+          {left < -PENNY && <span style={{ color: "var(--danger)" }}> · {money(-left)} more than the credit</span>}
         </span>
         {touched && (
           <button type="button" className="btn btn-ghost text-xs" onClick={() => setTouched(false)}>
@@ -224,7 +233,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
             type="button"
             className="btn btn-primary text-sm"
             onClick={submit}
-            disabled={busy || !(Number(amount) > 0) || credit < -PENNY}
+            disabled={busy || !(Number(amount) > 0) || left < -PENNY || (credit !== "" && Number(credit) < Number(amount))}
           >
             {busy ? "Recording…" : "Record payment"}
           </button>
@@ -236,7 +245,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
 }
 
 function Statement({ session, propertyId, companyId, startReceiving, onChanged }) {
-  const dialog = useDialog();
+  const { plans } = useWalletPlans(propertyId);
   const [all, setAll] = useState(false);
   const [receiving, setReceiving] = useState(startReceiving);
   const [notice, setNotice] = useState("");
@@ -263,27 +272,10 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
     onChanged();
   }
 
-  async function applyCredit(rc) {
+  async function applyCredit() {
     try {
-      const r = await send("PATCH", { property_id: propertyId, id: rc.id, action: "apply" });
-      changed(`Applied ${money(r.applied)} of credit to the oldest bills.`);
-    } catch (err) {
-      setActionError(err.message);
-    }
-  }
-
-  async function voidIt(rc) {
-    const reason = await dialog.prompt({
-      title: `Void this ${money(rc.amount)} payment?`,
-      message: "Every bill it was applied to will owe that amount again. The payment stays on record, struck through.",
-      placeholder: "Reason — e.g. cheque bounced",
-      confirmLabel: "Void payment",
-      danger: true,
-    });
-    if (reason == null) return;
-    try {
-      await send("PATCH", { property_id: propertyId, id: rc.id, action: "void", reason });
-      changed("Payment voided.");
+      const r = await send("PATCH", { property_id: propertyId, company_id: companyId, action: "apply" });
+      changed(`Applied ${money(r.applied)} from the wallet to the oldest bills.`);
     } catch (err) {
       setActionError(err.message);
     }
@@ -302,8 +294,11 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
         s.charges, s.paid, s.balance, s.overdueDays || "",
       ]),
       [],
-      ["Payment received", "Amount", "Method", "Reference", "Applied", "Credit left", "Voided"],
-      ...st.receipts.map((r) => [r.receivedOn, r.amount, METHOD_LABEL[r.method] || r.method, r.reference || "", r.applied, r.unapplied, r.voided ? "yes" : ""]),
+      ["Wallet", "Entry", "Money paid", "Credit", "Method", "Reference", "Booking", "Voided"],
+      ...(st.wallet || []).map((e) => [
+        e.on, e.kind === "topup" ? "Money received" : e.kind === "adjust" ? "Adjustment" : "Bill paid",
+        e.kind === "topup" ? e.cash : "", e.credit, METHOD_LABEL[e.method] || e.method || "", e.reference || "", e.booking || "", e.voided ? "yes" : "",
+      ]),
     ]);
   }
 
@@ -331,6 +326,11 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
           <button type="button" className="btn btn-secondary text-sm" onClick={exportCsv}>
             Download CSV
           </button>
+          {st.totals.credit > PENNY && st.totals.receivable > PENNY && (
+            <button type="button" className="btn btn-secondary text-sm" onClick={applyCredit} title="Pay the oldest bills from the company's wallet">
+              Apply {money(st.totals.credit)} credit
+            </button>
+          )}
           {!receiving && (
             <button type="button" className="btn btn-primary text-sm" onClick={() => setReceiving(true)}>
               Receive payment
@@ -357,7 +357,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
           { label: "Owed", value: money(st.totals.receivable) },
           { label: "Overdue", value: money(st.totals.overdue), tone: st.totals.overdue > PENNY ? "danger" : undefined },
           { label: "Still in house", value: money(st.totals.running), hint: "Bills of guests not yet checked out — still growing" },
-          { label: "Credit held", value: money(st.totals.credit), hint: "Paid but not yet applied to a bill" },
+          { label: "Wallet / credit", value: money(st.totals.credit), hint: "Money in the company's wallet, not yet used on a bill" },
         ]}
       />
 
@@ -408,50 +408,18 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
         </TableFrame>
       )}
 
-      <h4 className="text-sm font-semibold">Payments received</h4>
-      {st.receipts.length === 0 ? (
-        <Empty>No payments recorded from {c.name} yet.</Empty>
-      ) : (
-        <TableFrame>
-          <table className="grid-table">
-            <thead>
-              <tr>
-                <th>Received</th>
-                <th className="text-right">Amount</th>
-                <th>Method</th>
-                <th>Reference</th>
-                <th className="text-right">Applied</th>
-                <th className="text-right">Credit left</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {st.receipts.map((r) => (
-                <tr key={r.id} style={r.voided ? { textDecoration: "line-through", opacity: 0.6 } : undefined}>
-                  <td title={r.voided && r.voidReason ? `Voided: ${r.voidReason}` : r.notes || undefined}>{longDate(r.receivedOn)}</td>
-                  <td className="text-right tabular-nums">{money(r.amount)}</td>
-                  <td>{METHOD_LABEL[r.method] || r.method}</td>
-                  <td>{r.reference || "–"}</td>
-                  <td className="text-right tabular-nums">{money(r.applied)}</td>
-                  <td className="text-right tabular-nums">{r.unapplied > PENNY ? money(r.unapplied) : "–"}</td>
-                  <td className="text-right" style={{ whiteSpace: "nowrap" }}>
-                    {!r.voided && r.unapplied > PENNY && st.totals.receivable > PENNY && (
-                      <button type="button" className="btn btn-secondary text-xs" onClick={() => applyCredit(r)}>
-                        Apply credit
-                      </button>
-                    )}
-                    {!r.voided && (
-                      <button type="button" className="btn btn-ghost text-xs" onClick={() => voidIt(r)}>
-                        Void
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableFrame>
-      )}
+      <h4 className="text-sm font-semibold">Wallet — money received and bills paid</h4>
+      <WalletPanel
+        key={`${companyId}-${st.totals.credit}-${st.totals.receivable}`}
+        owner={{ type: "company", id: companyId, name: c.name }}
+        propertyId={propertyId}
+        plans={plans}
+        onChanged={() => {
+          reload();
+          onChanged();
+        }}
+        onOpenBooking={openBooking}
+      />
       {modal}
     </Section>
   );
@@ -510,7 +478,7 @@ export default function CityLedger({ session }) {
                 { label: "Due in the next 7 days", value: money(t.dueIn7) },
                 { label: "Due in 8–30 days", value: money(t.dueIn30) },
                 { label: "Still in house", value: money(t.running), hint: "Bills of guests not yet checked out — they join what is owed at check-out" },
-                { label: "Credit held", value: money(t.credit), hint: "Paid by companies but not yet applied to a bill" },
+                { label: "In company wallets", value: money(t.credit), hint: "Money companies sent that is not yet used on a bill" },
                 { label: "Received this month", value: money(t.receivedThisMonth) },
               ]}
             />

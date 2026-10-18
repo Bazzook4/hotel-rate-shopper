@@ -67,6 +67,15 @@ export async function POST(req) {
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
     }
 
+    // A day use is hours on one day, not a span of nights to drag; its date,
+    // room and slot are changed in the booking itself.
+    if (current.stay_kind === "day_use") {
+      return NextResponse.json(
+        { error: "Day-use bookings are changed from the booking, not by dragging." },
+        { status: 409 }
+      );
+    }
+
     // A stay that has already ended should not slide around the chart on a
     // stray drag; correcting one is an edit, made deliberately in the modal.
     if (current.status === "checked_out") {
