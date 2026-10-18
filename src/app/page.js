@@ -95,6 +95,10 @@ const DynamicPricingGrid = dynamic(() => import("./dashboard/components/DynamicP
   ssr: false,
   loading: PageLoading,
 });
+const Guests = dynamic(() => import("./dashboard/components/Guests"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const Reservations = dynamic(() => import("./dashboard/components/Reservations"), {
   ssr: false,
   loading: PageLoading,
@@ -849,6 +853,8 @@ export default function V2Dashboard() {
                   {active === "calendar" && <TapeChart session={scopedSession} />}
 
                   {active === "reservations" && <Reservations session={scopedSession} initialView={pageView} />}
+
+                  {active === "guests" && <Guests session={scopedSession} />}
 
                   {active === "housekeeping" && <Housekeeping session={scopedSession} />}
 

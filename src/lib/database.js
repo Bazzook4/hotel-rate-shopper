@@ -2855,6 +2855,18 @@ function partnerGuestCountry(row) {
   return toCountryCode(guest.address?.country || guest.country || guest.nationality);
 }
 
+/** The guest's phone and email from a partner booking's payload. */
+function partnerGuestContact(row) {
+  const b = row.payload?.booking || row.payload?.reservation || row.payload || {};
+  const guest = b.guest || b.customer || {};
+  const phone = guest.phone || guest.mobile || guest.phoneNumber || guest.contactNumber || null;
+  const email = guest.email || guest.emailId || null;
+  return {
+    guest_phone: phone ? String(phone).trim() || null : null,
+    guest_email: email ? String(email).trim() || null : null,
+  };
+}
+
 /** The statuses that still hold a room. A cancelled stay frees its nights. */
 const OCCUPYING_STATUSES = ['inquiry', 'confirmed', 'in_house', 'checked_out'];
 
@@ -3956,6 +3968,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
     const booked = partnerAmount(row);
     const country = partnerGuestCountry(row);
     const withCountry = country && (await reservationsHaveCountry());
+    const contact = partnerGuestContact(row);
     let createdAny = false;
     let updatedAny = false;
 
@@ -3990,9 +4003,18 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
         currency: booked.currency || 'INR',
         source: row.channel || 'OTA',
         ...(withCountry ? { guest_country: country } : {}),
+        ...(contact.guest_phone ? { guest_phone: contact.guest_phone } : {}),
+        ...(contact.guest_email ? { guest_email: contact.guest_email } : {}),
         ...(room.adults ? { adults: room.adults } : {}),
         ...(room.children != null ? { children: room.children } : {}),
       };
+
+      // A returning guest booking through a channel lands on their record,
+      // matched on phone or email. Never fatal: the booking matters more.
+      if (!existing?.guest_id) {
+        const guestId = await linkGuestForBooking(propertyId, fields).catch(() => null);
+        if (guestId) fields.guest_id = guestId;
+      }
 
       if (existing) {
         const updates = { ...fields };
@@ -5205,4 +5227,275 @@ export async function quoteReservation(
     partial: priced.length !== breakdown.length,
     reason: null,
   };
+}
+
+// ============================================
+// GUEST DATABASE (migration 045)
+// ============================================
+//
+// One record per person, per property, that bookings point at. The booking
+// keeps its own copy of the name and contact details -- lists, searches and
+// invoices read those, and an invoice must show what was true when the stay
+// was booked -- so a guest record is what the desk looks a person up by, not
+// what the rest of the PMS reads.
+
+let guestsTableSeen = false;
+let guestsCheckedAt = 0;
+
+/**
+ * Whether the guests table exists yet. Code goes live before the SQL is
+ * pasted, and a booking must not fail in between just because it could not
+ * be linked to a guest. Re-checked at most once a minute until seen.
+ */
+export async function guestsReady() {
+  if (guestsTableSeen) return true;
+  if (Date.now() - guestsCheckedAt < 60000) return false;
+  guestsCheckedAt = Date.now();
+  const { error } = await supabase.from('guests').select('id').limit(1);
+  guestsTableSeen = !error;
+  return guestsTableSeen;
+}
+
+/** The last ten digits of a phone number, which is what a guest is matched on. */
+export function guestPhoneKey(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits ? digits.slice(-10) : null;
+}
+
+const GUEST_TEXT_FIELDS = [
+  'full_name',
+  'phone',
+  'email',
+  'country',
+  'company',
+  'address',
+  'id_type',
+  'id_number',
+  'notes',
+];
+
+/** Only the fields a guest record holds, trimmed; blanks stored as null. */
+function guestRow(input) {
+  const row = {};
+  for (const f of GUEST_TEXT_FIELDS) {
+    if (f in input) row[f] = String(input[f] ?? '').trim() || null;
+  }
+  if ('country' in row) row.country = toCountryCode(row.country) || row.country;
+  if ('residency' in input) {
+    row.residency = input.residency === 'international' ? 'international' : 'domestic';
+  }
+  return row;
+}
+
+/**
+ * How often each guest has stayed: stays and nights not cancelled, the last
+ * arrival, and what those stays were sold for. Computed on read, like the
+ * folio, so it can never disagree with the bookings beneath it.
+ */
+async function attachGuestStats(guests) {
+  if (guests.length === 0) return guests;
+  const ids = guests.map((g) => g.id);
+  const stats = Object.fromEntries(
+    ids.map((id) => [id, { stays: 0, nights: 0, last_stay: null, next_stay: null, revenue: 0 }])
+  );
+  const today = new Date().toISOString().slice(0, 10);
+
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('id, guest_id, check_in, check_out, status, total_amount')
+      .in('guest_id', ids)
+      .order('id')
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`Failed to load guest history: ${error.message}`);
+
+    for (const r of data || []) {
+      if (r.status === 'cancelled' || r.status === 'no_show') continue;
+      const s = stats[r.guest_id];
+      s.stays += 1;
+      s.nights += nightsBetween(r.check_in, r.check_out).length;
+      s.revenue += Number(r.total_amount) || 0;
+      if (r.check_in < today) {
+        if (!s.last_stay || r.check_in > s.last_stay) s.last_stay = r.check_in;
+      } else if (!s.next_stay || r.check_in < s.next_stay) {
+        s.next_stay = r.check_in;
+      }
+    }
+    if (!data || data.length < PAGE) break;
+  }
+
+  return guests.map((g) => ({ ...g, ...stats[g.id] }));
+}
+
+/**
+ * Guests matching what the desk has typed: a name, an email, or four or more
+ * digits of a phone number. Most recently seen first.
+ */
+export async function listGuests(propertyId, { search = null, limit = 200, withStats = true } = {}) {
+  let query = supabase.from('guests').select('*').eq('property_id', propertyId);
+
+  // The term goes into a PostgREST .or() filter, where commas and brackets
+  // are syntax, so they are dropped rather than escaped.
+  const term = String(search || '').replace(/[,()]/g, ' ').trim();
+  if (term) {
+    const digits = term.replace(/\D/g, '');
+    const clauses = [`full_name.ilike.%${term}%`, `email.ilike.%${term}%`];
+    if (digits.length >= 4) clauses.push(`phone_key.like.%${digits.slice(-10)}%`);
+    query = query.or(clauses.join(','));
+  }
+
+  const { data, error } = await query.order('updated_at', { ascending: false }).limit(limit);
+  if (error) throw new Error(`Failed to load guests: ${error.message}`);
+  return withStats ? attachGuestStats(data || []) : data || [];
+}
+
+export async function getGuest(propertyId, id) {
+  const { data, error } = await supabase
+    .from('guests')
+    .select('*')
+    .eq('property_id', propertyId)
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load guest: ${error.message}`);
+  if (!data) return null;
+  const [withStats] = await attachGuestStats([data]);
+  return withStats;
+}
+
+/** A guest's bookings, newest arrival first, for their history. */
+export async function listGuestReservations(propertyId, guestId, { limit = 50 } = {}) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('id, reference, check_in, check_out, status, total_amount, source, room_types(room_type_name), rooms(room_number)')
+    .eq('property_id', propertyId)
+    .eq('guest_id', guestId)
+    .order('check_in', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Failed to load the guest's stays: ${error.message}`);
+  return data || [];
+}
+
+/**
+ * Another guest already holding this phone or email, if any -- so the desk
+ * is told before it creates a second record for the same person.
+ */
+export async function findGuestMatch(propertyId, { phone, email }, { ignoreId = null } = {}) {
+  const phoneKey = guestPhoneKey(phone);
+  const emailKey = String(email || '').trim().toLowerCase() || null;
+
+  for (const [column, value] of [
+    ['phone_key', phoneKey],
+    ['email_key', emailKey],
+  ]) {
+    if (!value) continue;
+    let query = supabase
+      .from('guests')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq(column, value)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+    if (ignoreId) query = query.neq('id', ignoreId);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to look up guest: ${error.message}`);
+    if (data?.[0]) return data[0];
+  }
+  return null;
+}
+
+export async function createGuest(propertyId, input) {
+  const row = guestRow(input);
+  if (!row.full_name) throw new Error('Guest name is required.');
+  const { data, error } = await supabase
+    .from('guests')
+    .insert({ ...row, property_id: propertyId })
+    .select('*')
+    .single();
+  if (error) throw new Error(`Failed to save guest: ${error.message}`);
+  return data;
+}
+
+export async function updateGuest(propertyId, id, input) {
+  const row = guestRow(input);
+  if ('full_name' in row && !row.full_name) throw new Error('Guest name cannot be blank.');
+  const { data, error } = await supabase
+    .from('guests')
+    .update({ ...row, updated_at: new Date().toISOString() })
+    .eq('property_id', propertyId)
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw new Error(`Failed to save guest: ${error.message}`);
+  return data;
+}
+
+/** Deleting a guest unlinks their bookings; the bookings themselves stay. */
+export async function deleteGuest(propertyId, id) {
+  const { error } = await supabase
+    .from('guests')
+    .delete()
+    .eq('property_id', propertyId)
+    .eq('id', id);
+  if (error) throw new Error(`Failed to delete guest: ${error.message}`);
+  return true;
+}
+
+/**
+ * The guest a booking belongs to, found or made, so every booking is on a
+ * guest record without the desk having to think about it.
+ *
+ *   guestId given   the desk picked this guest. The booking's contact details
+ *                   are what the desk has just confirmed with them, so they
+ *                   are written back onto the record.
+ *   otherwise       matched on phone, then email. A match only has its blanks
+ *                   filled -- an unconfirmed match must not overwrite what
+ *                   the record already says. No match makes a new guest.
+ *
+ * Returns the guest id, or null before migration 045 or when there is nothing
+ * to go on (a channel booking with no name and no contact).
+ */
+export async function linkGuestForBooking(propertyId, fields, guestId = null) {
+  if (!(await guestsReady())) return null;
+
+  const contact = {
+    full_name: fields.guest_name,
+    phone: fields.guest_phone,
+    email: fields.guest_email,
+    ...(fields.guest_country !== undefined ? { country: fields.guest_country } : {}),
+  };
+
+  if (guestId) {
+    const picked = await getGuest(propertyId, guestId).catch(() => null);
+    if (picked) {
+      const updates = {};
+      for (const [k, v] of Object.entries(contact)) {
+        if (v && v !== picked[k]) updates[k] = v;
+      }
+      if (fields.guest_residency && fields.guest_residency !== picked.residency) {
+        updates.residency = fields.guest_residency;
+      }
+      if (Object.keys(updates).length) await updateGuest(propertyId, picked.id, updates);
+      return picked.id;
+    }
+  }
+
+  const match = await findGuestMatch(propertyId, contact);
+  if (match) {
+    const blanks = {};
+    for (const [k, v] of Object.entries(contact)) {
+      if (v && !match[k]) blanks[k] = v;
+    }
+    if (Object.keys(blanks).length) await updateGuest(propertyId, match.id, blanks);
+    return match.id;
+  }
+
+  const name = String(contact.full_name || '').trim();
+  if (!name || (name === 'OTA guest' && !contact.phone && !contact.email)) return null;
+
+  const created = await createGuest(propertyId, {
+    ...contact,
+    residency: fields.guest_residency,
+  });
+  return created.id;
 }

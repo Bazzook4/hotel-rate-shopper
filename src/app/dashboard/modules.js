@@ -31,6 +31,8 @@ export const AREAS = [
     pages: [
       { id: "calendar", label: "Calendar", icon: "calendar" },
       { id: "reservations", label: "Reservations", icon: "list" },
+      // Everyone who has stayed, so a returning guest is never retyped.
+      { id: "guests", label: "Guests", icon: "users" },
       { id: "housekeeping", label: "Housekeeping", icon: "check" },
       // Done by the night desk, so it sits with the desk's pages.
       { id: "nightaudit", label: "Night Audit", icon: "moon" },

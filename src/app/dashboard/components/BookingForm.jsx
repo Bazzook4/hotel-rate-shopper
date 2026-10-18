@@ -25,6 +25,7 @@ function nightsBetween(checkIn, checkOut) {
 function emptyBooking(country = "") {
   const today = todayUTC();
   return {
+    guest_id: null,
     guest_name: "",
     guest_email: "",
     guest_phone: "",
@@ -52,6 +53,7 @@ function emptyBooking(country = "") {
 /** A reservation from the API, flattened into what the inputs hold. */
 function toForm(reservation) {
   return {
+    guest_id: reservation.guest_id || null,
     guest_name: reservation.guest_name || "",
     guest_email: reservation.guest_email || "",
     guest_phone: reservation.guest_phone || "",
@@ -209,6 +211,109 @@ function Field({ label, hint, wide = false, children }) {
   );
 }
 
+function shortDate(iso) {
+  if (!iso) return null;
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
+ * Guests on record matching what the desk is typing, under the box.
+ *
+ * Offered from the name box and the phone box, since a caller is as likely
+ * to give a number as a name. Picking with the mouse uses mousedown, so the
+ * pick lands before the box's blur closes the list.
+ */
+function GuestSuggestions({ items, active, onPick }) {
+  if (!items?.length) return null;
+  return (
+    <ul
+      className="card"
+      role="listbox"
+      style={{
+        position: "absolute",
+        zIndex: 30,
+        left: 0,
+        right: 0,
+        top: "100%",
+        marginTop: 2,
+        padding: 0,
+        maxHeight: 260,
+        overflowY: "auto",
+        boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+      }}
+    >
+      {items.map((g, i) => (
+        <li
+          key={g.id}
+          role="option"
+          aria-selected={i === active}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onPick(g);
+          }}
+          style={{
+            padding: "0.4rem 0.6rem",
+            cursor: "pointer",
+            borderBottom: "1px solid var(--border)",
+            background: i === active ? "var(--accent-soft)" : undefined,
+          }}
+        >
+          <div className="text-sm" style={{ fontWeight: 600 }}>
+            {g.full_name}
+          </div>
+          <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {[g.phone, g.email].filter(Boolean).join(" · ") || "No contact details"}
+            {" · "}
+            {g.stays ? `${g.stays} stay${g.stays === 1 ? "" : "s"}` : "no stays yet"}
+            {g.last_stay ? `, last ${shortDate(g.last_stay)}` : ""}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The guest record this booking is on: who, how often, and their notes. */
+function LinkedGuest({ guest, onUnlink }) {
+  return (
+    <div
+      className="text-xs flex flex-wrap items-center gap-x-2 gap-y-1"
+      style={{ marginTop: "0.25rem", color: "var(--text-muted)" }}
+    >
+      <span className="chip chip-ok">
+        {guest.stays ? "Returning guest" : "Guest on record"}
+      </span>
+      {guest.stays > 0 && (
+        <span>
+          {guest.stays} stay{guest.stays === 1 ? "" : "s"}
+          {guest.last_stay ? `, last ${shortDate(guest.last_stay)}` : ""}
+        </span>
+      )}
+      {guest.notes && <span style={{ color: "var(--warn)" }}>{guest.notes}</span>}
+      <button
+        type="button"
+        onClick={onUnlink}
+        style={{
+          padding: 0,
+          border: 0,
+          background: "none",
+          color: "var(--accent)",
+          cursor: "pointer",
+          font: "inherit",
+          textDecoration: "underline",
+        }}
+      >
+        Not this guest
+      </button>
+    </div>
+  );
+}
+
 export default function BookingForm({
   session,
   reservation,
@@ -235,12 +340,120 @@ export default function BookingForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  /**
+   * The guest database. `linked` is the record this booking is on; while
+   * there is none, typing a name or phone looks for one. A booking saved
+   * without picking is still matched on phone or email by the server, so the
+   * list only ever saves the desk typing -- it is never required.
+   */
+  const [linked, setLinked] = useState(null);
+  const [suggest, setSuggest] = useState({ field: null, items: [], active: -1 });
+  const lookupSeq = useRef(0);
+
+  // An existing booking already on a guest shows who, and how often.
+  useEffect(() => {
+    if (!reservation?.guest_id) return;
+    const qs = new URLSearchParams({ id: reservation.guest_id });
+    if (session?.propertyId) qs.set("propertyId", session.propertyId);
+    fetch(`/api/pms/guests?${qs}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.guest && setLinked(d.guest))
+      .catch(() => {});
+  }, [reservation?.guest_id, session?.propertyId]);
+
+  function lookUpGuest(field, value) {
+    const term = String(value || "").trim();
+    const digits = term.replace(/\D/g, "");
+    const enough =
+      field === "guest_phone"
+        ? digits.length >= 4
+        : field === "guest_email"
+        ? term.length >= 3
+        : term.length >= 2;
+    const seq = lookupSeq.current + 1;
+    lookupSeq.current = seq;
+    if (linked || !enough) {
+      setSuggest({ field: null, items: [], active: -1 });
+      return;
+    }
+    // Waits for a pause in typing; a newer keystroke supersedes this one.
+    setTimeout(async () => {
+      if (seq !== lookupSeq.current) return;
+      try {
+        const qs = new URLSearchParams({ search: field === "guest_phone" ? digits : term, limit: "6" });
+        if (session?.propertyId) qs.set("propertyId", session.propertyId);
+        const res = await fetch(`/api/pms/guests?${qs}`);
+        const data = res.ok ? await res.json() : { guests: [] };
+        if (seq !== lookupSeq.current) return;
+        setSuggest({ field, items: data.guests || [], active: -1 });
+      } catch {
+        // No suggestions is the same as no match: the desk keeps typing.
+      }
+    }, 250);
+  }
+
+  function pickGuest(g) {
+    lookupSeq.current += 1;
+    setSuggest({ field: null, items: [], active: -1 });
+    setLinked(g);
+    setForm((prev) => ({
+      ...prev,
+      guest_id: g.id,
+      guest_name: g.full_name || prev.guest_name,
+      guest_phone: g.phone || prev.guest_phone,
+      guest_email: g.email || prev.guest_email,
+      guest_country: g.country || prev.guest_country,
+      guest_residency: g.residency || prev.guest_residency,
+    }));
+  }
+
+  /** Wrong person picked: start the guest afresh rather than keep their details. */
+  function unlinkGuest() {
+    setLinked(null);
+    setForm((prev) => ({
+      ...prev,
+      guest_id: null,
+      guest_name: "",
+      guest_phone: "",
+      guest_email: "",
+    }));
+  }
+
+  function suggestKeys(e) {
+    const { items, active } = suggest;
+    if (!items.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      setSuggest((s) => ({ ...s, active: (s.active + step + items.length) % items.length }));
+    } else if (e.key === "Enter" && active >= 0) {
+      e.preventDefault();
+      pickGuest(items[active]);
+    } else if (e.key === "Escape") {
+      setSuggest({ field: null, items: [], active: -1 });
+    }
+  }
+
+  /** Props for a box that offers guests on record as the desk types. */
+  function guestBox(field) {
+    return {
+      value: form[field],
+      onChange: (e) => {
+        set(field, e.target.value);
+        lookUpGuest(field, e.target.value);
+      },
+      onKeyDown: suggestKeys,
+      onBlur: () => setSuggest({ field: null, items: [], active: -1 }),
+      autoComplete: "off",
+    };
+  }
+
   // More details starts open only when something in it is already filled
   // in beyond the usual -- an emailed guest, a note, a comp or an inquiry
   // started from the calendar -- so nothing set is ever hidden.
   const [more, setMore] = useState(
     () =>
-      Boolean(form.guest_email || form.notes) ||
+      Boolean(form.notes) ||
       Number(form.children) > 0 ||
       form.booking_type !== "standard" ||
       form.status === "inquiry" ||
@@ -529,34 +742,38 @@ export default function BookingForm({
         </p>
       )}
 
-      {/* What every booking needs, up front. The rest -- contact details,
+      {/* What every booking needs, up front. The rest -- country,
           tax residency, children, how it was booked -- waits under More
           details, already filled with the usual answers. */}
       <Section title="Guest and stay">
         <Field label="Guest name" wide>
-          <input
-            className="input"
-            value={form.guest_name}
-            onChange={(e) => set("guest_name", e.target.value)}
-            placeholder="Full name"
-          />
+          <div style={{ position: "relative" }}>
+            <input
+              className="input"
+              {...guestBox("guest_name")}
+              placeholder={linked ? "Full name" : "Full name — or search guests on record"}
+            />
+            {suggest.field === "guest_name" && (
+              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
+            )}
+          </div>
+          {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} />}
         </Field>
         <Field label="Phone">
-          <input
-            className="input"
-            type="tel"
-            value={form.guest_phone}
-            onChange={(e) => set("guest_phone", e.target.value)}
-          />
+          <div style={{ position: "relative" }}>
+            <input className="input" type="tel" {...guestBox("guest_phone")} />
+            {suggest.field === "guest_phone" && (
+              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
+            )}
+          </div>
         </Field>
-        <Field label="Adults">
-          <input
-            className="input"
-            type="number"
-            min="1"
-            value={form.adults}
-            onChange={(e) => set("adults", e.target.value)}
-          />
+        <Field label="Email">
+          <div style={{ position: "relative" }}>
+            <input className="input" type="email" {...guestBox("guest_email")} />
+            {suggest.field === "guest_email" && (
+              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
+            )}
+          </div>
         </Field>
         <Field label="Check in">
           <input
@@ -576,6 +793,15 @@ export default function BookingForm({
             value={form.check_out}
             min={form.check_in}
             onChange={(e) => set("check_out", e.target.value)}
+          />
+        </Field>
+        <Field label="Adults">
+          <input
+            className="input"
+            type="number"
+            min="1"
+            value={form.adults}
+            onChange={(e) => set("adults", e.target.value)}
           />
         </Field>
         <Field label="Room type">
@@ -665,21 +891,13 @@ export default function BookingForm({
         {more ? "▾" : "▸"} More details
         {!more && (
           <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            email, country, children, booking method{reservation ? "" : ", inquiry"}, notes
+            country, children, booking method{reservation ? "" : ", inquiry"}, notes
           </span>
         )}
       </button>
 
       {more && (
         <Section title="More details">
-          <Field label="Email">
-            <input
-              className="input"
-              type="email"
-              value={form.guest_email}
-              onChange={(e) => set("guest_email", e.target.value)}
-            />
-          </Field>
           <Field label="Country">
             <select
               className="input"

@@ -10,6 +10,7 @@ import {
   getReservation,
   findRoomClash,
   reservationsHaveCountry,
+  linkGuestForBooking,
 } from "@/lib/database";
 import { toCountryCode } from "@/lib/countries";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
@@ -101,6 +102,25 @@ async function applyGuestCountry(fields, body) {
   fields.guest_country = toCountryCode(body.guest_country);
 }
 
+/**
+ * Put the booking on a guest record: the one the desk picked, or one matched
+ * on phone or email, or a new one. `guest_id` is only sent by the form; when
+ * it is absent an edit keeps the guest the booking already had.
+ *
+ * A guest that cannot be linked never costs the desk the booking -- the
+ * booking is saved unlinked and the reason logged.
+ */
+async function applyGuest(fields, body, propertyId, before = null) {
+  const chosen = "guest_id" in body ? body.guest_id || null : before?.guest_id || null;
+  try {
+    const guestId = await linkGuestForBooking(propertyId, fields, chosen);
+    if (guestId) fields.guest_id = guestId;
+    else if (before?.guest_id && "guest_id" in body) fields.guest_id = null;
+  } catch (err) {
+    console.error("Could not link the booking to a guest:", err.message);
+  }
+}
+
 /** A room already held for those nights, as a 409 the form can show. */
 async function roomClashResponse(fields, ignoreReservationId = null) {
   if (!fields.room_id) return null;
@@ -190,6 +210,8 @@ export async function POST(req) {
       ? null
       : acceptNightRates(body.night_rates, fields.check_in, fields.check_out, fields.total_amount);
 
+    await applyGuest(fields, body, propertyId);
+
     const reservation = await createReservation(
       {
         ...fields,
@@ -277,6 +299,8 @@ export async function PATCH(req) {
     const rates = complimentary
       ? null
       : acceptNightRates(body.night_rates, fields.check_in, fields.check_out, fields.total_amount);
+
+    await applyGuest(fields, body, propertyId, before);
 
     const reservation = await updateReservation(id, fields, { rates });
 

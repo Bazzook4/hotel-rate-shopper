@@ -1,0 +1,386 @@
+"use client";
+
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Grid,
+  Messages,
+  SaveActions,
+  SetupHeader,
+  Toolbar,
+  isDraft,
+  sendJSON,
+  useGrid,
+} from "./SetupGrid";
+import { useSort, SortTh } from "./useSort";
+import { useBookingOpener } from "./reportKit";
+import { useDialog } from "../../components/Dialog";
+import { countryOptions, toCountryCode } from "@/lib/countries";
+
+/**
+ * Guests: everyone who has stayed, or is booked to stay, at the property.
+ *
+ * A booking puts its guest on this list by itself -- matched on phone, then
+ * email, or added new -- so the list fills without anyone keeping it. This
+ * page is for correcting a record, adding what a booking does not ask for (an
+ * ID, a company, an address), and seeing someone's history.
+ *
+ * Edited like every setup grid: changes are held and highlighted until Save.
+ * The search runs on the server, since a busy hotel has more guests than one
+ * page should load.
+ */
+
+const ID_TYPES = [
+  { id: "", label: "—" },
+  { id: "aadhaar", label: "Aadhaar" },
+  { id: "passport", label: "Passport" },
+  { id: "driving_licence", label: "Driving licence" },
+  { id: "voter_id", label: "Voter ID" },
+  { id: "other", label: "Other" },
+];
+
+const STATUS_LABELS = {
+  inquiry: "Inquiry",
+  confirmed: "Confirmed",
+  in_house: "Checked in",
+  checked_out: "Checked out",
+  cancelled: "Cancelled",
+  no_show: "No show",
+};
+
+const money = (v) => Math.round(Number(v) || 0).toLocaleString("en-IN");
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(`${iso}T00:00:00Z`);
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** A guest's bookings, opened under their row. */
+function GuestHistory({ propertyId, guestId, onOpen, colSpan }) {
+  const [state, setState] = useState({ loading: true });
+
+  useEffect(() => {
+    let live = true;
+    const qs = new URLSearchParams({ id: guestId });
+    if (propertyId) qs.set("propertyId", propertyId);
+    fetch(`/api/pms/guests?${qs}`)
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!live) return;
+        setState(ok ? { reservations: d.reservations || [] } : { error: d.error || "Could not load stays" });
+      })
+      .catch(() => live && setState({ error: "Could not load stays" }));
+    return () => {
+      live = false;
+    };
+  }, [propertyId, guestId]);
+
+  return (
+    <tr>
+      <td colSpan={colSpan} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
+        {state.loading && <span className="sub">Loading stays…</span>}
+        {state.error && <span style={{ color: "var(--danger)" }}>{state.error}</span>}
+        {state.reservations?.length === 0 && <span className="sub">No bookings on record.</span>}
+        {state.reservations?.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {state.reservations.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className="btn btn-secondary text-xs"
+                onClick={() => onOpen(r.id)}
+                title="Open this booking"
+              >
+                {r.reference} · {formatDate(r.check_in)} → {formatDate(r.check_out)}
+                {r.room_types?.room_type_name ? ` · ${r.room_types.room_type_name}` : ""}
+                {r.rooms?.room_number ? ` ${r.rooms.room_number}` : ""} ·{" "}
+                {STATUS_LABELS[r.status] || r.status}
+              </button>
+            ))}
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+export default function Guests({ session }) {
+  const dialog = useDialog();
+  const propertyId = session?.propertyId || null;
+
+  const [guests, setGuests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [notReady, setNotReady] = useState(false);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [openId, setOpenId] = useState(null);
+
+  const countries = useMemo(
+    () => [{ id: "", label: "—" }, ...countryOptions().map((c) => ({ id: c.code, label: c.name }))],
+    []
+  );
+
+  // The search waits for a pause in typing, so each keystroke is not a query.
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const grid = useGrid(guests);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const qs = new URLSearchParams();
+      if (propertyId) qs.set("propertyId", propertyId);
+      if (query) qs.set("search", query);
+      const res = await fetch(`/api/pms/guests?${qs}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load guests");
+      setGuests(data.guests || []);
+      setNotReady(Boolean(data.notReady));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [propertyId, query]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const { openBooking, modal } = useBookingOpener(session, load);
+
+  const sorter = useSort(guests, {
+    name: (g) => String(grid.value(g, "full_name") || "").toLowerCase(),
+    stays: "stays",
+    nights: "nights",
+    revenue: "revenue",
+    last: (g) => g.next_stay || g.last_stay,
+  });
+  const rows = [...sorter.rows, ...grid.drafts];
+
+  function addRow() {
+    grid.add({
+      full_name: "",
+      phone: "",
+      email: "",
+      country: toCountryCode(session?.propertyCountry) || "",
+      company: "",
+      id_type: "",
+      id_number: "",
+      notes: "",
+    });
+  }
+
+  async function saveAll() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const saved = grid.count;
+    const errors = await grid.save({
+      label: (g) => g.full_name || "New guest",
+      update: (g, changes) => sendJSON("/api/pms/guests", "PATCH", { property_id: propertyId, id: g.id, ...changes }),
+      create: (d) => {
+        if (!String(d.full_name).trim()) throw new Error("Give the guest a name");
+        const { id, ...row } = d;
+        return sendJSON("/api/pms/guests", "POST", { property_id: propertyId, ...row });
+      },
+    });
+    await load();
+    setBusy(false);
+    if (errors.length) setError(errors.join(" · "));
+    else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
+  }
+
+  async function removeGuest(g) {
+    if (isDraft(g.id)) {
+      grid.removeDraft(g.id);
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: `Delete ${g.full_name}?`,
+      message: g.stays
+        ? `Their ${g.stays} booking${g.stays === 1 ? " stays" : "s stay"} as they are, but will no longer be linked to a guest record.`
+        : "This guest has no bookings.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    setError(null);
+    try {
+      const qs = propertyId ? `&propertyId=${propertyId}` : "";
+      await sendJSON(`/api/pms/guests?id=${g.id}${qs}`, "DELETE");
+      setGuests((prev) => prev.filter((x) => x.id !== g.id));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const COLS = 12;
+
+  return (
+    <div className="space-y-4">
+      <SetupHeader
+        area="Front desk"
+        title="Guests"
+        count={query ? undefined : guests.length}
+        sub="Everyone who has booked. Each new booking adds or finds its guest by phone or email."
+      >
+        <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
+      </SetupHeader>
+
+      <Messages
+        error={error}
+        notice={
+          notReady
+            ? "The guest list is not switched on for this property yet. Bookings still work as before."
+            : notice
+        }
+      />
+
+      <Toolbar>
+        <button type="button" className="btn btn-secondary text-sm" onClick={addRow} disabled={notReady}>
+          + Add guest
+        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <input
+            className="input w-64"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Name, phone or email…"
+          />
+        </div>
+      </Toolbar>
+
+      <Grid>
+        <thead>
+          <tr>
+            <SortTh sorter={sorter} col="name" className="cm-sticky" style={{ minWidth: 180 }}>
+              Name
+            </SortTh>
+            <th style={{ minWidth: 130 }}>Phone</th>
+            <th style={{ minWidth: 180 }}>Email</th>
+            <th style={{ minWidth: 130 }}>Country</th>
+            <th style={{ minWidth: 140 }}>Company</th>
+            <th style={{ minWidth: 120 }}>ID type</th>
+            <th style={{ minWidth: 130 }}>ID number</th>
+            <th style={{ minWidth: 180 }}>Notes</th>
+            <SortTh sorter={sorter} col="stays" style={{ width: 70 }}>
+              Stays
+            </SortTh>
+            <SortTh sorter={sorter} col="revenue" style={{ width: 100 }}>
+              Spent
+            </SortTh>
+            <SortTh sorter={sorter} col="last" style={{ width: 120 }}>
+              Last / next
+            </SortTh>
+            <th style={{ width: 50 }} />
+          </tr>
+        </thead>
+        <tbody>
+          {loading && guests.length === 0 && (
+            <tr>
+              <td colSpan={COLS} className="cm-empty">
+                Loading…
+              </td>
+            </tr>
+          )}
+          {!loading && rows.length === 0 && (
+            <tr>
+              <td colSpan={COLS} className="cm-empty">
+                {query
+                  ? "No guest matches that search."
+                  : "No guests yet. They are added as bookings are made."}
+              </td>
+            </tr>
+          )}
+
+          {rows.map((g) => {
+            const draft = isDraft(g.id);
+            const open = openId === g.id;
+            return (
+              <Fragment key={g.id}>
+                <tr className={draft ? "cm-new" : undefined}>
+                  <td className="cm-sticky">
+                    {grid.input(g, "full_name", {
+                      placeholder: "Full name",
+                      invalid: draft && !String(g.full_name).trim(),
+                    })}
+                  </td>
+                  <td>{grid.input(g, "phone", { type: "tel" })}</td>
+                  <td>{grid.input(g, "email", { type: "email" })}</td>
+                  <td>
+                    {grid.select(
+                      g,
+                      "country",
+                      // A stored country outside the list still shows as itself.
+                      grid.value(g, "country") && !countries.some((c) => c.id === grid.value(g, "country"))
+                        ? [...countries, { id: grid.value(g, "country"), label: grid.value(g, "country") }]
+                        : countries
+                    )}
+                  </td>
+                  <td>{grid.input(g, "company")}</td>
+                  <td>{grid.select(g, "id_type", ID_TYPES)}</td>
+                  <td>{grid.input(g, "id_number")}</td>
+                  <td>{grid.input(g, "notes", { placeholder: "Preferences, VIP…" })}</td>
+                  <td className="cm-num">
+                    {draft ? (
+                      "—"
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-ghost text-xs"
+                        onClick={() => setOpenId(open ? null : g.id)}
+                        aria-expanded={open}
+                        title="Show this guest's bookings"
+                      >
+                        {g.stays || 0} {open ? "▾" : "▸"}
+                      </button>
+                    )}
+                  </td>
+                  <td className="cm-num">{draft ? "—" : money(g.revenue)}</td>
+                  <td>
+                    {draft ? (
+                      "—"
+                    ) : g.next_stay ? (
+                      <span title="Booked to arrive">→ {formatDate(g.next_stay)}</span>
+                    ) : (
+                      formatDate(g.last_stay)
+                    )}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-ghost text-xs"
+                      onClick={() => removeGuest(g)}
+                      title="Delete guest"
+                      aria-label={`Delete ${g.full_name || "guest"}`}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+                {open && (
+                  <GuestHistory
+                    propertyId={propertyId}
+                    guestId={g.id}
+                    onOpen={(id) => openBooking(id)}
+                    colSpan={COLS}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </Grid>
+
+      {modal}
+    </div>
+  );
+}

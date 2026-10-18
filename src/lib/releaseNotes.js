@@ -13,6 +13,20 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-18",
+    title: "A guest list, so returning guests are never retyped",
+    points: [
+      {
+        page: "reservations",
+        text: "When you make a booking, start typing the guest's name, phone number or email and guests who have booked before appear underneath. Pick one and their name, phone, email and country are filled in for you. The form shows how many times they have stayed, and any note you keep about them. If you picked the wrong person, click \"Not this guest\".",
+      },
+      {
+        page: "guests",
+        text: "Front desk has a new Guests page listing everyone who has booked, with how many stays, how much they have spent and their last or next visit. Add an ID, company or note to a guest, and click their number of stays to see and open their bookings. Every booking adds its guest by itself, matched on phone number or email, and bookings from the channels are added too.",
+      },
+    ],
+  },
+  {
     date: "2026-10-14",
     title: "See how full each night is, in your own colours",
     points: [
