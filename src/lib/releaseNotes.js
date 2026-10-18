@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-18",
+    title: "Adults are picked from a list",
+    points: [
+      {
+        page: "reservations",
+        text: "In the booking form and in group bookings, Adults is now a list that only goes up to the most adults the room type takes, so a room can no longer be booked for more guests than it holds. Change to a smaller room type and the adults come down to fit. A booking that already has more adults than its room takes, for example one that came from a channel, keeps its number until you change it.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-18",
     title: "Keep a copy of a guest's ID",
     points: [
       {

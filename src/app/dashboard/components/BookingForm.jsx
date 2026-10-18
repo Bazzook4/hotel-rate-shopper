@@ -398,6 +398,16 @@ function LinkedGuest({ guest, onUnlink, propertyId }) {
   );
 }
 
+/**
+ * Most adults a room type takes. With no type chosen yet, the roomiest
+ * type's limit, so the desk is never offered a count no room can hold.
+ */
+function adultCap(roomTypes, roomTypeId) {
+  const cap = (rt) => Math.max(1, Number(rt?.max_adults) || 2);
+  if (roomTypeId) return cap(roomTypes.find((rt) => rt.id === roomTypeId));
+  return roomTypes.length ? Math.max(...roomTypes.map(cap)) : 2;
+}
+
 export default function BookingForm({
   session,
   reservation,
@@ -791,6 +801,19 @@ export default function BookingForm({
     }
   }, [dayUse, slotLength, chosenStart, takenSlots, form.day_use_hours, form.check_in, form.day_use_start, reservation]);
 
+  /**
+   * Adults offered: 1 up to the room type's max. A booking already over it
+   * (an OTA sent it so) keeps its count as a choice, flagged, so opening it
+   * changes nothing by itself.
+   */
+  const maxAdults = adultCap(roomTypes, form.room_type_id);
+  const adultChoices = useMemo(() => {
+    const list = Array.from({ length: maxAdults }, (_, i) => i + 1);
+    const current = Number(form.adults);
+    if (current > maxAdults) list.push(current);
+    return list;
+  }, [maxAdults, form.adults]);
+
   /** Only rooms of the chosen type can hold this booking. */
   const roomsForType = useMemo(
     () => rooms.filter((r) => r.room_type_id === form.room_type_id && r.is_active),
@@ -937,6 +960,10 @@ export default function BookingForm({
 
       // A room of the old type cannot stay selected against a new one.
       if (field === "room_type_id") next.room_id = "";
+      // Nor more adults than the new type takes.
+      if (field === "room_type_id" && value) {
+        next.adults = Math.min(Number(next.adults) || 1, adultCap(roomTypes, value));
+      }
 
       if (field === "booking_type" && value === "complimentary") next.total_amount = 0;
 
@@ -1208,14 +1235,19 @@ export default function BookingForm({
             />
           </Field>
         )}
-        <Field label="Adults">
-          <input
+        <Field label="Adults" hint={form.room_type_id ? `Up to ${maxAdults}` : undefined}>
+          <select
             className="input"
-            type="number"
-            min="1"
-            value={form.adults}
-            onChange={(e) => set("adults", e.target.value)}
-          />
+            value={String(form.adults)}
+            onChange={(e) => set("adults", Number(e.target.value))}
+          >
+            {adultChoices.map((n) => (
+              <option key={n} value={n} disabled={n > maxAdults}>
+                {n}
+                {n > maxAdults ? ` (over the ${maxAdults} this room takes)` : ""}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Room type">
           <select

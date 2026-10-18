@@ -145,6 +145,13 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
     [allRooms, selected]
   );
 
+  /** Most adults a room of this type takes. */
+  const adultCap = (typeId) => Math.max(1, Number(typeById[typeId]?.max_adults) || 2);
+  /** The set-all adults choice goes up to the roomiest chosen type. */
+  const bulkAdultCap = chosenRooms.length
+    ? Math.max(...chosenRooms.map((room) => adultCap(room.room_type_id)))
+    : 2;
+
   // Every chosen room has a line; a default plan follows the setup as it loads.
   useEffect(() => {
     setLines((prev) => {
@@ -275,7 +282,10 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
             line.planAuto = false;
           }
         }
-        if (bulk.adults !== "") line.adults = bulk.adults;
+        // Each room gets as many as asked, or as many as its type takes.
+        if (bulk.adults !== "") {
+          line.adults = String(Math.min(Number(bulk.adults), adultCap(room.room_type_id)));
+        }
         if (bulk.children !== "") line.children = bulk.children;
         next[room.id] = line;
       }
@@ -654,14 +664,19 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                   </div>
                   <div style={{ width: 90 }}>
                     <label className="label">Adults</label>
-                    <input
+                    <select
                       className="cm-input"
-                      type="number"
-                      min="1"
-                      placeholder="—"
                       value={bulk.adults}
+                      title="Rooms that take fewer get their own max"
                       onChange={(e) => setBulk((b) => ({ ...b, adults: e.target.value }))}
-                    />
+                    >
+                      <option value="">—</option>
+                      {Array.from({ length: bulkAdultCap }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div style={{ width: 90 }}>
                     <label className="label">Children</label>
@@ -763,14 +778,18 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                                   </select>
                                 </td>
                                 <td>
-                                  <input
+                                  <select
                                     className={`cm-input ${tooMany ? "is-invalid" : ""}`}
-                                    type="number"
-                                    min="1"
                                     title={tooMany ? `${rt.name} takes up to ${rt.max_adults} adults` : undefined}
-                                    value={line.adults}
+                                    value={String(line.adults)}
                                     onChange={(e) => setLine(room.id, { adults: e.target.value })}
-                                  />
+                                  >
+                                    {Array.from({ length: adultCap(room.room_type_id) }, (_, i) => i + 1).map((n) => (
+                                      <option key={n} value={n}>
+                                        {n}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </td>
                                 <td>
                                   <input
