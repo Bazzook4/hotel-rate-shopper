@@ -18,15 +18,15 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date and how many hours (3, 6 or 9), and the price is filled in. The hours start when you check the guest in, and the booking then shows when they are due out. A day-use room is still sold for that night on the channels.",
+        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date and the day-use plan (for example Day Use 6h), and the price is filled in from that plan. The hours start when you check the guest in, and the booking then shows when they are due out. The room is taken off sale on the channels for that date when the day use is booked, and goes back on sale as soon as you check the guest out, so you can still sell it for the night.",
       },
       {
         page: "calendar",
         text: "On the Calendar, click a single empty day in a room and choose \"Day use (hours)\" to book it. Day-use bookings show as a short bar in the middle of the day with their hours.",
       },
       {
-        page: "rooms",
-        text: "Setup → Rooms has a price column for each day-use slot. Enter a fixed price per room type. Change \"Day-use hours\" to offer other slots, for example 4, 8.",
+        page: "rateplans",
+        text: "Day use is set up as rate plans. In Rate Plan Setup, add a plan, set Sells to \"Day use (hours)\" and enter the hours, for example one plan for 3 hours and one for 6. Assign room types and set its rates in Rates & Inventory like any other plan, or base them on another plan (for example 50% of your room-only rate). Map the plan under Integrations, and day-use bookings from your channels arrive as day use by themselves.",
       },
       {
         page: "reservations",

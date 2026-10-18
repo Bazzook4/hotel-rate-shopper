@@ -7,7 +7,7 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, useGuestTiers } from "./GuestSettings";
-import { DEFAULT_DAY_USE_HOURS, cleanDayUseHours, dayUseLabel } from "@/lib/dayUse";
+import { dayUseLabel, isDayUsePlan } from "@/lib/dayUse";
 
 /**
  * Entering or editing a booking.
@@ -589,29 +589,6 @@ export default function BookingForm({
   const dayUse = form.stay_kind === "day_use";
   const nights = dayUse ? 0 : nightsBetween(form.check_in, form.check_out);
 
-  /**
-   * The hotel's day-use slots. The defaults stand in until they arrive, and
-   * a booking already on a slot the hotel has since dropped keeps it on offer.
-   */
-  const [slotHours, setSlotHours] = useState(DEFAULT_DAY_USE_HOURS);
-  useEffect(() => {
-    const qs = session?.propertyId ? `?propertyId=${session.propertyId}` : "";
-    fetch(`/api/setup/dayUse${qs}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d?.hours && setSlotHours(cleanDayUseHours(d.hours)))
-      .catch(() => {});
-  }, [session?.propertyId]);
-  // A day use started from the tape chart arrives without a slot chosen.
-  useEffect(() => {
-    if (dayUse && !form.day_use_hours) {
-      setForm((prev) => ({ ...prev, day_use_hours: slotHours[0] || DEFAULT_DAY_USE_HOURS[0] }));
-    }
-  }, [dayUse, form.day_use_hours, slotHours]);
-  const slotOptions = useMemo(
-    () => cleanDayUseHours([...slotHours, ...(form.day_use_hours ? [form.day_use_hours] : [])]),
-    [slotHours, form.day_use_hours]
-  );
-
   const sourceOptions = BOOKING_SOURCES.some((o) => o.value === form.source)
     ? BOOKING_SOURCES
     : [...BOOKING_SOURCES, { value: form.source, label: form.source }];
@@ -666,11 +643,18 @@ export default function BookingForm({
       .catch(() => setAssignments([]));
   }, [session?.propertyId]);
 
-  /** The plans this room type is sold under; every plan until a type is chosen. */
+  /**
+   * The plans this room type is sold under, of the kind of stay being booked:
+   * day-use plans for a day use, night plans otherwise. Every plan of that
+   * kind until a type is chosen.
+   */
   const plansForType = useMemo(() => {
-    if (!form.room_type_id || !assignments) return ratePlans;
-    return plansForRoom(ratePlans, form.room_type_id, assignments);
-  }, [ratePlans, form.room_type_id, assignments]);
+    const all =
+      !form.room_type_id || !assignments
+        ? ratePlans
+        : plansForRoom(ratePlans, form.room_type_id, assignments);
+    return all.filter((p) => isDayUsePlan(p) === dayUse);
+  }, [ratePlans, form.room_type_id, assignments, dayUse]);
 
   /**
    * A new booking starts on the plan the room is normally sold under -- the
@@ -691,14 +675,22 @@ export default function BookingForm({
     const next = pick?.id || "";
     if (next !== form.rate_plan_id) {
       planChosen.current = false;
-      setForm((prev) => ({ ...prev, rate_plan_id: next }));
+      setForm((prev) => ({
+        ...prev,
+        rate_plan_id: next,
+        ...(pick && isDayUsePlan(pick) ? { day_use_hours: Number(pick.day_use_hours) } : {}),
+      }));
     }
   }, [reservation, assignments, plansForType, form.rate_plan_id]);
 
-  // A booking already on a plan this type no longer sells still shows it.
+  // A booking already on a plan this type no longer sells still shows it --
+  // so long as it sells the kind of stay being booked.
   const planOptions =
     form.rate_plan_id && !plansForType.some((p) => p.id === form.rate_plan_id)
-      ? [...plansForType, ...ratePlans.filter((p) => p.id === form.rate_plan_id)]
+      ? [
+          ...plansForType,
+          ...ratePlans.filter((p) => p.id === form.rate_plan_id && isDayUsePlan(p) === dayUse),
+        ]
       : plansForType;
 
   /** Only rooms of the chosen type can hold this booking. */
@@ -720,7 +712,7 @@ export default function BookingForm({
   const fetchQuote = useCallback(async () => {
     const { room_type_id, rate_plan_id, check_in, check_out, adults, children } = form;
 
-    const priceable = dayUse ? Boolean(form.day_use_hours) : Boolean(check_out) && nights > 0;
+    const priceable = dayUse ? Boolean(rate_plan_id) : Boolean(check_out) && nights > 0;
     if (!room_type_id || !check_in || !priceable) {
       setQuote(null);
       return;
@@ -741,7 +733,7 @@ export default function BookingForm({
       if (session?.propertyId) qs.set("propertyId", session.propertyId);
       if (rate_plan_id) qs.set("ratePlanId", rate_plan_id);
       if (form.company_id) qs.set("companyId", form.company_id);
-      if (dayUse) qs.set("dayUseHours", String(form.day_use_hours));
+      if (dayUse) qs.set("stayKind", "day_use");
 
       const res = await fetch(`/api/pms/quote?${qs}`);
       const data = await res.json();
@@ -764,7 +756,6 @@ export default function BookingForm({
     form.company_id,
     nights,
     dayUse,
-    form.day_use_hours,
     session?.propertyId,
   ]);
 
@@ -821,9 +812,26 @@ export default function BookingForm({
         next.guest_residency = value === homeCountry ? "domestic" : "international";
       }
 
-      // A day use needs a slot, and leaving one needs a night again.
-      if (field === "stay_kind" && value === "day_use" && !prev.day_use_hours) {
-        next.day_use_hours = slotHours[0] || DEFAULT_DAY_USE_HOURS[0];
+      // A day-use plan carries its hours; leaving day use needs a night again.
+      if (field === "rate_plan_id") {
+        const plan = ratePlans.find((p) => p.id === value);
+        if (isDayUsePlan(plan)) next.day_use_hours = Number(plan.day_use_hours);
+      }
+      // Switching between a night and a day use switches plan too: a plan
+      // sells one or the other.
+      if (field === "stay_kind") {
+        const wantDayUse = value === "day_use";
+        const current = ratePlans.find((p) => p.id === prev.rate_plan_id);
+        if (!current || isDayUsePlan(current) !== wantDayUse) {
+          const sold = (
+            prev.room_type_id && assignments
+              ? plansForRoom(ratePlans, prev.room_type_id, assignments)
+              : ratePlans
+          ).filter((p) => isDayUsePlan(p) === wantDayUse);
+          const pick = sold.find((p) => p.is_master) || sold[0];
+          next.rate_plan_id = pick?.id || "";
+          if (pick && wantDayUse) next.day_use_hours = Number(pick.day_use_hours);
+        }
       }
       if (field === "stay_kind" && value === "overnight" && next.check_out <= next.check_in) {
         next.check_out = formatDateISO(addDays(parseDateISO(next.check_in), 1));
@@ -1018,15 +1026,28 @@ export default function BookingForm({
           />
         </Field>
         {dayUse ? (
-          <Field label="Hours" hint="Counted from check-in">
+          <Field
+            label="Day-use plan"
+            hint={
+              planOptions.length
+                ? `${dayUseLabel(form.day_use_hours)} from check-in`
+                : "No day-use plan on this room type — add one in Rate Plans"
+            }
+          >
             <select
               className="input"
-              value={form.day_use_hours}
-              onChange={(e) => set("day_use_hours", e.target.value)}
+              value={form.rate_plan_id}
+              onChange={(e) => {
+                planChosen.current = true;
+                set("rate_plan_id", e.target.value);
+              }}
             >
-              {slotOptions.map((h) => (
-                <option key={h} value={h}>
-                  {dayUseLabel(h)}
+              {!planOptions.length && (
+                <option value="">{form.day_use_hours ? dayUseLabel(form.day_use_hours) : "None"}</option>
+              )}
+              {planOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.plan_name} · {dayUseLabel(p.day_use_hours)}
                 </option>
               ))}
             </select>
@@ -1134,23 +1155,25 @@ export default function BookingForm({
       </Section>
 
       <Section title="Price">
-        <Field label="Rate plan" wide>
-          <select
-            className="input"
-            value={form.rate_plan_id}
-            onChange={(e) => {
-              planChosen.current = true;
-              set("rate_plan_id", e.target.value);
-            }}
-          >
-            <option value="">None</option>
-            {planOptions.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.plan_name}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {!dayUse && (
+          <Field label="Rate plan" wide>
+            <select
+              className="input"
+              value={form.rate_plan_id}
+              onChange={(e) => {
+                planChosen.current = true;
+                set("rate_plan_id", e.target.value);
+              }}
+            >
+              <option value="">None</option>
+              {planOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.plan_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label={dayUse ? "Total amount (day use)" : "Total amount (whole stay)"} wide>
           <input
             className="input"

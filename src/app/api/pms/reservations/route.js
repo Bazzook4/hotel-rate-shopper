@@ -13,10 +13,11 @@ import {
   linkGuestForBooking,
   companiesReady,
   getCompany,
+  listRatePlans,
 } from "@/lib/database";
 import { toCountryCode } from "@/lib/countries";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
-import { validDayUseHours } from "@/lib/dayUse";
+import { isDayUsePlan, validDayUseHours } from "@/lib/dayUse";
 
 /** A date the database will accept, and that a person actually typed. */
 function isDate(value) {
@@ -34,7 +35,8 @@ function validate(body) {
   if (!body.room_type_id) return "Choose a room type.";
   if (!isDate(body.check_in)) return "Check-in date is required.";
   if (body.stay_kind === "day_use") {
-    if (!validDayUseHours(body.day_use_hours)) return "Choose how many hours the day use is for.";
+    // Its hours come from the plan, or the form when there is none; checked
+    // once the plan is known.
   } else if (!isDate(body.check_out)) {
     return "Check-out date is required.";
   } else if (body.check_out <= body.check_in) {
@@ -76,23 +78,44 @@ function bookingFields(body) {
 /**
  * Whether this is a day use, and what that does to its fields.
  *
- * A day use leaves on the day it arrives, whatever the form's check-out box
- * held. Like `booking_type`, the columns are only written where they are
- * known to exist -- on a new booking only for a day use, on an edit only when
- * the stored row carries them -- so overnight bookings keep working on a
- * database migration 048 has not reached.
+ * The rate plan decides: a booking on a day-use plan is a day use of that
+ * plan's hours, and one on an overnight plan is not, whatever the form sent.
+ * With no plan the form's choice stands, its price typed by hand. A day use
+ * leaves on the day it arrives, whatever the form's check-out box held.
+ *
+ * Like `booking_type`, the columns are only written where they are known to
+ * exist -- on a new booking only for a day use, on an edit only when the
+ * stored row carries them -- so overnight bookings keep working on a database
+ * migration 048 has not reached. Returns a message when the plan and the
+ * stay disagree in a way the desk must fix.
  */
-function applyStayKind(fields, body, before = null) {
-  const dayUse = body.stay_kind === "day_use";
+async function applyStayKind(fields, body, propertyId, before = null) {
+  let dayUse = body.stay_kind === "day_use";
+  let hours = validDayUseHours(body.day_use_hours);
+  if (fields.rate_plan_id) {
+    const plans = await listRatePlans(propertyId).catch(() => []);
+    const plan = plans.find((p) => p.id === fields.rate_plan_id);
+    if (plan) {
+      dayUse = isDayUsePlan(plan);
+      if (dayUse) hours = Number(plan.day_use_hours);
+    }
+  }
+  if (dayUse && !hours) {
+    return "Pick a day-use plan for this room type. Add one in Rate Plan Setup if there is none.";
+  }
+  if (!dayUse && body.stay_kind === "day_use") {
+    return "That rate plan sells nights. Pick a day-use plan for a day use.";
+  }
+
   if (dayUse) {
     fields.stay_kind = "day_use";
-    fields.day_use_hours = validDayUseHours(body.day_use_hours);
+    fields.day_use_hours = hours;
     fields.check_out = fields.check_in;
   } else if (before && "stay_kind" in before) {
     fields.stay_kind = "overnight";
     fields.day_use_hours = null;
   }
-  return dayUse;
+  return null;
 }
 
 /**
@@ -242,7 +265,9 @@ export async function POST(req) {
 
   try {
     const fields = bookingFields(body);
-    const dayUse = applyStayKind(fields, body);
+    const badStay = await applyStayKind(fields, body, propertyId);
+    if (badStay) return NextResponse.json({ error: badStay }, { status: 400 });
+    const dayUse = fields.stay_kind === "day_use";
     const complimentary = applyBookingType(fields, body);
     await applyGuestCountry(fields, body);
     const badCompany = await applyCompany(fields, body, propertyId);
@@ -257,13 +282,13 @@ export async function POST(req) {
 
     // Overbooking is a decision, not an accident: the check runs first and a
     // full date is refused unless the caller deliberately overrides it. A day
-    // use holds no night, so there is no night to be full.
-    if (!body.allow_overbook && !dayUse) {
+    // use takes a room for its date, so it is checked on that date.
+    if (!body.allow_overbook) {
       const availability = await checkAvailability(
         propertyId,
-        body.room_type_id,
-        body.check_in,
-        body.check_out
+        fields.room_type_id,
+        fields.check_in,
+        fields.check_out
       );
       if (!availability.available) {
         return NextResponse.json(
@@ -334,7 +359,9 @@ export async function PATCH(req) {
     }
 
     const fields = bookingFields(body);
-    const dayUse = applyStayKind(fields, body, before);
+    const badStay = await applyStayKind(fields, body, propertyId, before);
+    if (badStay) return NextResponse.json({ error: badStay }, { status: 400 });
+    const dayUse = fields.stay_kind === "day_use";
     const complimentary = applyBookingType(fields, body, before);
     await applyGuestCountry(fields, body);
     const badCompany = await applyCompany(fields, body, propertyId, before);
@@ -351,14 +378,14 @@ export async function PATCH(req) {
       if (roomTaken) return roomTaken;
     }
 
-    if (!body.allow_overbook && !dayUse) {
+    if (!body.allow_overbook) {
       // The stay checks its own dates without counting itself as competition
       // for the room it already holds.
       const availability = await checkAvailability(
         propertyId,
-        body.room_type_id,
-        body.check_in,
-        body.check_out,
+        fields.room_type_id,
+        fields.check_in,
+        fields.check_out,
         { ignoreReservationId: id }
       );
       if (!availability.available) {

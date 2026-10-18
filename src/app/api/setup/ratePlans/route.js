@@ -12,6 +12,7 @@ import {
   listRoomTypes,
 } from "@/lib/database";
 import { eligibleMasters, findDerivationLoop, ruleProblem } from "@/lib/ratePlanPricing";
+import { validDayUseHours } from "@/lib/dayUse";
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -64,6 +65,13 @@ function validateDerivation(body, existingPlans, planId) {
   }
 
   return null;
+}
+
+/** A day-use plan's hours: blank for an overnight plan, else 1 to 23. */
+function validateDayUseHours(body) {
+  const v = body.day_use_hours;
+  if (v === undefined || v === null || v === "") return null;
+  return validDayUseHours(v) ? null : "Day-use hours must be a whole number from 1 to 23.";
 }
 
 function validateMinRate(body) {
@@ -130,7 +138,8 @@ export async function POST(req) {
   const existing = await listRatePlans(propertyId).catch(() => []);
   const invalid =
     validateDerivation({ ...body, property_id: propertyId }, existing, null) ||
-    validateMinRate(body);
+    validateMinRate(body) ||
+    validateDayUseHours(body);
   if (invalid) {
     return NextResponse.json({ error: invalid }, { status: 400 });
   }
@@ -166,7 +175,8 @@ export async function PATCH(req) {
   const existing = propertyId ? await listRatePlans(propertyId).catch(() => []) : [];
   const invalid =
     validateDerivation({ ...body, property_id: propertyId }, existing, id) ||
-    validateMinRate(body);
+    validateMinRate(body) ||
+    validateDayUseHours(body);
   if (invalid) {
     return NextResponse.json({ error: invalid }, { status: 400 });
   }

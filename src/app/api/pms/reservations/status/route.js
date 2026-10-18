@@ -9,6 +9,7 @@ import {
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { todayUTC } from "@/lib/date";
+import { holdsInventory } from "@/lib/dayUse";
 
 /**
  * Moving a reservation through its lifecycle.
@@ -19,9 +20,6 @@ import { todayUTC } from "@/lib/date";
  */
 
 const STATUSES = ["inquiry", "confirmed", "in_house", "checked_out", "cancelled", "no_show"];
-
-/** The statuses that hold a room; moving between these and the rest changes what is free. */
-const HOLDS_ROOM = new Set(["inquiry", "confirmed", "in_house", "checked_out"]);
 
 /**
  * Which moves make sense from where.
@@ -157,9 +155,10 @@ export async function POST(req) {
     });
 
     // Cancelling or marking a no-show gives the nights back; reinstating one
-    // takes them again. A check-in or check-out changes nothing on sale.
+    // takes them again. A check-in or check-out changes nothing on sale --
+    // except a day use's check-out, which hands its room back for the night.
     let inventory = null;
-    if (HOLDS_ROOM.has(current.status) !== HOLDS_ROOM.has(status)) {
+    if (holdsInventory(current, current.status) !== holdsInventory(current, status)) {
       inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
     }
 

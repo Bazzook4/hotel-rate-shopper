@@ -5,7 +5,7 @@ import { roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 import { contractNights } from '@/lib/contractRates';
-import { cleanDayUseHours, dayUseLabel, dayUsePrice } from '@/lib/dayUse';
+import { DAY_USE_HOLDING_STATUSES, dayUseLabel, isDayUsePlan, validDayUseHours } from '@/lib/dayUse';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -347,7 +347,7 @@ export async function deleteSnapshotById(id) {
 // ROOM TYPE FUNCTIONS
 // ============================================
 
-export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, base_adults, max_adults, description, amenities, day_use_rates }) {
+export async function createRoomType({ property_id, room_type_name, base_price, number_of_rooms, base_adults, max_adults, description, amenities }) {
   const roomTypeId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   const roomType = {
@@ -361,9 +361,6 @@ export async function createRoomType({ property_id, room_type_name, base_price, 
     description: description || '',
     amenities: amenities || [],
   };
-  // Only when prices were typed, so a new room type still saves on a
-  // database migration 048 has not reached.
-  if (day_use_rates && Object.keys(day_use_rates).length) roomType.day_use_rates = day_use_rates;
 
   const { data, error } = await supabase
     .from('room_types')
@@ -790,6 +787,7 @@ export async function createRatePlanWithDerivation({
   derive_value = null,
   derive_value_2 = null,
   min_rate = null,
+  day_use_hours = null,
 }) {
   const ratePlanId = `plan_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -820,6 +818,9 @@ export async function createRatePlanWithDerivation({
   // an ordinary plan.
   if (payload.derive_value_2 === null) delete payload.derive_value_2;
   if (payload.min_rate === null) delete payload.min_rate;
+  // A day-use plan needs migration 049; an overnight plan does not.
+  const hours = validDayUseHours(day_use_hours);
+  if (hours) payload.day_use_hours = hours;
 
   const { data, error } = await supabase
     .from('rate_plans')
@@ -858,6 +859,7 @@ export async function updateRatePlanDerivation(id, updates) {
   }
   if ('room_type_id' in updates) patch.room_type_id = updates.room_type_id || null;
   if ('is_master' in updates) patch.is_master = Boolean(updates.is_master);
+  if ('day_use_hours' in updates) patch.day_use_hours = validDayUseHours(updates.day_use_hours);
 
   if ('derive_from_id' in updates) {
     patch.derive_from_id = updates.derive_from_id || null;
@@ -2919,7 +2921,40 @@ export async function getSoldCounts(propertyId, startDate, endDate, { roomTypeId
     if (!data || data.length < PAGE) break;
   }
 
+  // A day use holds no night, but its room is off sale for its date until
+  // the guest checks out.
+  const dayUses = await listHeldDayUses(propertyId, startDate, endDate, { roomTypeIds });
+  for (const r of dayUses) {
+    const key = `${r.room_type_id}|${r.check_in}`;
+    sold[key] = (sold[key] || 0) + 1;
+  }
+
   return sold;
+}
+
+/**
+ * Day uses still holding their room across a window: booked and not yet
+ * checked out (DAY_USE_HOLDING_STATUSES). A checked-out day use has given its
+ * room back for the night. Nothing before migration 048.
+ */
+async function listHeldDayUses(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
+  let query = supabase
+    .from('reservations')
+    .select('id, room_type_id, check_in')
+    .eq('property_id', propertyId)
+    .eq('stay_kind', 'day_use')
+    .in('status', DAY_USE_HOLDING_STATUSES)
+    .gte('check_in', startDate)
+    .lte('check_in', endDate);
+  if (Array.isArray(roomTypeIds) && roomTypeIds.length > 0) {
+    query = query.in('room_type_id', roomTypeIds);
+  }
+  const { data, error } = await query;
+  if (error) {
+    if (notMigrated(error)) return [];
+    throw new Error(`Failed to load day uses: ${error.message}`);
+  }
+  return data || [];
 }
 
 /**
@@ -2939,7 +2974,8 @@ export async function checkAvailability(
   checkOut,
   { ignoreReservationId = null } = {}
 ) {
-  const nights = nightsBetween(checkIn, checkOut);
+  // A day use leaves on the day it arrives, but takes a room for that date.
+  const nights = checkOut === checkIn ? [checkIn] : nightsBetween(checkIn, checkOut);
   if (nights.length === 0) return { available: false, reason: 'Stay must be at least one night.' };
 
   const { data: roomType, error: typeError } = await supabase
@@ -2970,6 +3006,13 @@ export async function checkAvailability(
   for (const row of data || []) {
     if (ignoreReservationId && row.reservation_id === ignoreReservationId) continue;
     sold[row.stay_date] = (sold[row.stay_date] || 0) + 1;
+  }
+  const dayUses = await listHeldDayUses(propertyId, nights[0], nights[nights.length - 1], {
+    roomTypeIds: [roomTypeId],
+  });
+  for (const r of dayUses) {
+    if (ignoreReservationId && r.id === ignoreReservationId) continue;
+    sold[r.check_in] = (sold[r.check_in] || 0) + 1;
   }
 
   // A room out of order is a room fewer to sell that night.
@@ -3845,6 +3888,7 @@ function readPartnerRooms(payload) {
     const children = Number(occupancy.children ?? r?.children);
     return {
       roomCode: r?.roomCode || r?.room_code || r?.roomTypeCode || null,
+      rateplanCode: r?.rateplanCode || r?.ratePlanCode || r?.rate_plan_code || null,
       adults: Number.isFinite(adults) && adults > 0 ? adults : null,
       children: Number.isFinite(children) && children >= 0 ? children : null,
       prices: Object.keys(prices).length > 0 ? prices : null,
@@ -3959,16 +4003,30 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
 
   const found = await getPropertyIntegration(propertyId, 'aiosell').catch(() => null);
   const typeByCode = {};
+  // A rate plan is mapped once per room and adult count, each with its own
+  // code; any of them names the plan.
+  const planByCode = {};
   for (const row of found?.codeMap || []) {
     if (!row.rate_plan_id && row.room_type_id && row.partner_room_code) {
       typeByCode[String(row.partner_room_code).toLowerCase()] = row.room_type_id;
     }
+    if (row.rate_plan_id && row.partner_rateplan_code) {
+      planByCode[String(row.partner_rateplan_code).toLowerCase()] = row.rate_plan_id;
+    }
   }
+  const plansById = new Map((await listRatePlans(propertyId).catch(() => [])).map((p) => [p.id, p]));
+  const planFor = (room) => {
+    const id = room.rateplanCode ? planByCode[String(room.rateplanCode).toLowerCase()] : null;
+    return id ? plansById.get(id) || null : null;
+  };
 
+  // A day use holds its one date; a stay holds its nights.
   const span = (r) =>
-    r?.room_type_id && r.check_in && r.check_out
-      ? { roomTypeId: r.room_type_id, from: r.check_in, to: nightsBetween(r.check_in, r.check_out).pop() }
-      : null;
+    !r?.room_type_id || !r.check_in || !r.check_out
+      ? null
+      : r.stay_kind === 'day_use'
+      ? { roomTypeId: r.room_type_id, from: r.check_in, to: r.check_in }
+      : { roomTypeId: r.room_type_id, from: r.check_in, to: nightsBetween(r.check_in, r.check_out).pop() };
 
   const cancel = async (reservation) => {
     if (reservation.status === 'cancelled') return false;
@@ -3991,8 +4049,17 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
       continue;
     }
 
+    const rooms = readPartnerRooms(row.payload);
+    if (rooms.length === 0) {
+      rooms.push({ roomCode: null, rateplanCode: null, adults: null, children: null, prices: null });
+    }
+
+    // A booking on a day-use plan is some hours of its arrival date. The
+    // channel may well send the next day as its departure, since channels
+    // sell nights; the plan says otherwise, so only the arrival is needed.
+    const allDayUse = rooms.every((room) => isDayUsePlan(planFor(room)));
     const { check_in, check_out } = partnerStayDates(row);
-    if (!check_in || !check_out || check_out <= check_in) {
+    if (!check_in || (!allDayUse && (!check_out || check_out <= check_in))) {
       result.skipped += 1;
       result.reasons.push(`${bookingId}: no stay dates in the booking`);
       continue;
@@ -4004,10 +4071,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
       continue;
     }
 
-    const rooms = readPartnerRooms(row.payload);
-    if (rooms.length === 0) rooms.push({ roomCode: null, adults: null, children: null, prices: null });
-
-    const nights = nightsBetween(check_in, check_out);
+    const nights = check_out && check_out > check_in ? nightsBetween(check_in, check_out) : [];
     const booked = partnerAmount(row);
     const country = partnerGuestCountry(row);
     const withCountry = country && (await reservationsHaveCountry());
@@ -4020,28 +4084,39 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
       const key = partnerRoomKey(bookingId, i);
       const existing = byKey.get(key);
       const mappedType = room.roomCode ? typeByCode[String(room.roomCode).toLowerCase()] : null;
+      const plan = planFor(room);
+      const dayUse = isDayUsePlan(plan);
 
       // A room's own nightly prices are its amount when they cover the stay;
-      // otherwise the booking's total is shared evenly between its rooms.
-      const covered = room.prices && nights.every((d) => d in room.prices);
+      // otherwise the booking's total is shared evenly between its rooms. A
+      // day use is priced on its one date and keeps no nights.
+      const priceDates = dayUse ? [check_in] : nights;
+      const covered = room.prices && priceDates.every((d) => d in room.prices);
       const amount = covered
-        ? Number(nights.reduce((sum, d) => sum + room.prices[d], 0).toFixed(2))
+        ? Number(priceDates.reduce((sum, d) => sum + room.prices[d], 0).toFixed(2))
         : booked.amount != null
         ? Number((booked.amount / rooms.length).toFixed(2))
         : null;
-      const rates = covered
-        ? acceptNightRates(
-            nights.map((d) => ({ stay_date: d, rate: room.prices[d] })),
-            check_in,
-            check_out,
-            amount
-          )
-        : null;
+      const rates =
+        covered && !dayUse
+          ? acceptNightRates(
+              nights.map((d) => ({ stay_date: d, rate: room.prices[d] })),
+              check_in,
+              check_out,
+              amount
+            )
+          : null;
 
       const fields = {
         guest_name: row.guest_name || 'OTA guest',
         check_in,
-        check_out,
+        check_out: dayUse ? check_in : check_out,
+        ...(plan ? { rate_plan_id: plan.id } : {}),
+        ...(dayUse
+          ? { stay_kind: 'day_use', day_use_hours: Number(plan.day_use_hours) }
+          : existing?.stay_kind === 'day_use'
+          ? { stay_kind: 'overnight', day_use_hours: null }
+          : {}),
         total_amount: amount,
         currency: booked.currency || 'INR',
         source: row.channel || 'OTA',
@@ -4163,8 +4238,9 @@ export async function listUnadoptedPartnerReservations(propertyId, { limit = 500
         amount,
         currency,
         received_at: row.received_at,
+        // A same-day booking may be a day use, which only needs its date.
         problem:
-          !check_in || !check_out || check_out <= check_in
+          !check_in || (check_out && check_out < check_in)
             ? 'The booking has no usable stay dates'
             : null,
       };
@@ -5087,65 +5163,47 @@ export async function loadQuoteData(propertyId, firstNight, lastNight) {
 }
 
 /**
- * The day-use slots a property offers, in hours, shortest first. The defaults
- * (3, 6, 9) before migration 048 or when the hotel has cleared the list.
+ * What a day use costs: the day-use plan's rate in that room on that date,
+ * worked out exactly as a night on that plan would be -- per adult, derived or
+ * typed in the grid. Shaped like `quoteReservation`'s answer, with no nights,
+ * so the booking form reads both the same way.
+ *
+ * Never falls back to the room's base price: that is a night's price, and a
+ * day use quoted at it would be wrong by a night. No contract rates either --
+ * contract lines are priced per night.
  */
-export async function getDayUseHours(propertyId) {
-  const { data, error } = await supabase
-    .from('properties')
-    .select('day_use_hours')
-    .eq('id', propertyId)
-    .maybeSingle();
-  if (error && !notMigrated(error)) {
-    throw new Error(`Failed to load day-use slots: ${error.message}`);
-  }
-  return cleanDayUseHours(data?.day_use_hours);
-}
-
-/** Replace a property's day-use slots. Returns them as stored. */
-export async function setDayUseHours(propertyId, hours) {
-  const clean = cleanDayUseHours(hours);
-  const { error } = await supabase
-    .from('properties')
-    .update({ day_use_hours: clean, updated_at: new Date().toISOString() })
-    .eq('id', propertyId);
-  if (error) {
-    if (notMigrated(error)) {
-      throw new Error('Day use needs migration 048_day_use.sql — run it in the Supabase SQL editor first.');
-    }
-    throw new Error(`Failed to save day-use slots: ${error.message}`);
-  }
-  return clean;
-}
-
-/**
- * What a day-use slot costs: the fixed price the hotel set for that room type
- * and number of hours. Never derived from the night rate -- a day use is
- * priced as its own product. Shaped like `quoteReservation`'s answer so the
- * booking form reads both the same way.
- */
-export async function quoteDayUse({ property_id, room_type_id, hours }) {
-  if (!property_id || !room_type_id || !hours) {
+export async function quoteDayUse({ property_id, room_type_id, rate_plan_id, check_in, adults = 2, children = 0 }) {
+  if (!property_id || !room_type_id || !check_in) {
     return { total: null, nights: [], source: null, reason: 'Nothing to price yet.' };
   }
-  const { data: room, error } = await supabase
-    .from('room_types')
-    .select('*')
-    .eq('id', room_type_id)
-    .eq('property_id', property_id)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load room type: ${error.message}`);
-
-  const total = dayUsePrice(room, hours);
-  if (total == null) {
+  if (!rate_plan_id) {
     return {
       total: null,
       nights: [],
       source: null,
-      reason: `No ${dayUseLabel(hours)} day-use price set for ${room?.room_type_name || 'this room type'} — enter it by hand, or set it in Setup → Rooms.`,
+      reason: 'Choose a day-use plan, or type the price.',
     };
   }
-  return { total, nights: [], source: 'day_use' };
+  const next = new Date(`${check_in}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const quote = await quoteReservation({
+    property_id,
+    room_type_id,
+    rate_plan_id,
+    check_in,
+    check_out: next.toISOString().slice(0, 10),
+    adults,
+    children,
+  });
+  if (quote.total == null || quote.source === 'base_price') {
+    return {
+      total: null,
+      nights: [],
+      source: null,
+      reason: 'This day-use plan has no rate for this room on this date — set it in Rates & Inventory, or type the price.',
+    };
+  }
+  return { ...quote, nights: [], diagnosis: null };
 }
 
 /**

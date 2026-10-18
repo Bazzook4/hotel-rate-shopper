@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import RatePlanSetup from "./RatePlanSetup";
 import {
   Grid,
@@ -14,7 +14,6 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
-import { DEFAULT_DAY_USE_HOURS, cleanDayUseHours, dayUseLabel } from "@/lib/dayUse";
 
 /**
  * Room types and rate plans for one property.
@@ -164,44 +163,13 @@ const BLANK_ROOM_TYPE = {
  * saved together.
  */
 function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: outerNotice }) {
-  /**
-   * Day-use slots and their prices. The slots are the hotel's (3, 6, 9 hours
-   * unless changed); each room type has a fixed price per slot, edited here
-   * as one column per slot. The grid edits flat `du_<hours>` fields, folded
-   * back into `day_use_rates` on save.
-   */
-  const [slots, setSlots] = useState(DEFAULT_DAY_USE_HOURS);
-  const [slotText, setSlotText] = useState(DEFAULT_DAY_USE_HOURS.join(", "));
-  useEffect(() => {
-    const qs = propertyId ? `?propertyId=${propertyId}` : "";
-    fetch(`/api/setup/dayUse${qs}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d?.hours) return;
-        setSlots(d.hours);
-        setSlotText(d.hours.join(", "));
-      })
-      .catch(() => {});
-  }, [propertyId]);
-  const slotDraft = cleanDayUseHours(slotText);
-  const slotsChanged = slotDraft.join(",") !== slots.join(",");
-
-  const gridRows = useMemo(
-    () =>
-      roomTypes.map((rt) => {
-        const flat = { ...rt };
-        for (const [h, v] of Object.entries(rt.day_use_rates || {})) flat[`du_${h}`] = v;
-        return flat;
-      }),
-    [roomTypes]
-  );
-  const grid = useGrid(gridRows, slotsChanged ? 1 : 0);
+  const grid = useGrid(roomTypes);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [filter, setFilter] = useState("");
 
-  const rows = [...gridRows, ...grid.drafts].filter(
+  const rows = [...roomTypes, ...grid.drafts].filter(
     (r) =>
       isDraft(r.id) ||
       !filter ||
@@ -209,18 +177,10 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
   );
 
   const numberFields = ["number_of_rooms", "base_price", "base_adults", "max_adults"];
-  function clean(row, base = null) {
+  function clean(row) {
     const out = {};
     for (const [k, v] of Object.entries(row)) {
       if (k === "id") continue;
-      // Day-use prices travel together, merged over what the type had.
-      if (k.startsWith("du_")) {
-        out.day_use_rates = out.day_use_rates || { ...(base?.day_use_rates || {}) };
-        const hours = k.slice(3);
-        if (v === "" || v === null) delete out.day_use_rates[hours];
-        else out.day_use_rates[hours] = Number(v);
-        continue;
-      }
       out[k] = numberFields.includes(k) ? (v === "" || v === null ? null : Number(v)) : v;
     }
     return out;
@@ -231,21 +191,11 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
     setError("");
     setNotice("");
     const saved = grid.count;
-    const slotErrors = [];
-    if (slotsChanged) {
-      try {
-        const d = await sendJSON("/api/setup/dayUse", "PUT", { propertyId, hours: slotDraft });
-        setSlots(d.hours);
-        setSlotText(d.hours.join(", "));
-      } catch (err) {
-        slotErrors.push(`Day-use hours: ${err.message}`);
-      }
-    }
     const errors = await grid.save({
       label: (r) => r.room_type_name || "New room type",
       update: (row, changes, next) => {
         if (!next.room_type_name?.trim()) throw new Error("Name is required");
-        return sendJSON("/api/setup/roomTypes", "PATCH", { id: row.id, ...clean(changes, row) });
+        return sendJSON("/api/setup/roomTypes", "PATCH", { id: row.id, ...clean(changes) });
       },
       create: (d) => {
         if (!d.room_type_name?.trim()) throw new Error("Name is required");
@@ -259,7 +209,6 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
     });
     await onReload();
     setBusy(false);
-    errors.unshift(...slotErrors);
     if (errors.length) setError(errors.join(" · "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
@@ -284,19 +233,6 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
         >
           + Add room type
         </button>
-        <label
-          className="flex items-center gap-2 text-sm"
-          title="The day-use slots you offer, in hours. Each gets a price column below."
-        >
-          <span className="muted">Day-use hours</span>
-          <input
-            value={slotText}
-            onChange={(e) => setSlotText(e.target.value)}
-            onBlur={() => setSlotText(slotDraft.join(", "))}
-            placeholder="3, 6, 9"
-            className={`input w-28${slotsChanged ? " is-edited" : ""}`}
-          />
-        </label>
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -320,11 +256,6 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
             <th style={{ width: 100 }} title="Adults beyond base pay the extra adult rate">
               Max adults
             </th>
-            {slotDraft.map((h) => (
-              <th key={h} style={{ width: 100 }} title={`Fixed price for a ${dayUseLabel(h)} day use`}>
-                Day use {h}h
-              </th>
-            ))}
             <th style={{ width: 50 }} />
           </tr>
         </thead>
@@ -346,9 +277,6 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
                 <td>{grid.input(r, "base_price", { type: "number", min: 0 })}</td>
                 <td>{grid.input(r, "base_adults", { type: "number", min: 1 })}</td>
                 <td>{grid.input(r, "max_adults", { type: "number", min: 1 })}</td>
-                {slotDraft.map((h) => (
-                  <td key={h}>{grid.input(r, `du_${h}`, { type: "number", min: 0, placeholder: "—" })}</td>
-                ))}
                 <td className="text-center">
                   <button
                     type="button"
@@ -366,7 +294,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={7 + slotDraft.length} className="cm-empty">
+              <td colSpan={7} className="cm-empty">
                 {roomTypes.length ? `No room types match “${filter}”.` : "No room types yet."}
               </td>
             </tr>

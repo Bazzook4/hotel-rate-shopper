@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { MEAL_PLANS, planLabel } from "@/lib/mealPlans";
+import { isDayUsePlan, validDayUseHours } from "@/lib/dayUse";
 import {
   DERIVE_RULES,
   describeRule,
@@ -269,6 +270,11 @@ export default function RatePlanSetup({
                       >
                         {plan.plan_name}
                       </button>
+                      {isDayUsePlan(plan) && (
+                        <span className="chip" title="Sells some hours of one day, not a night">
+                          Day use {plan.day_use_hours}h
+                        </span>
+                      )}
                       {plan.meal_plan && <span className="chip chip-off font-mono">{planLabel(plan)}</span>}
                       <span className="text-xs muted whitespace-nowrap">
                         {roomsOf(plan.id).length} room{roomsOf(plan.id).length === 1 ? "" : "s"}
@@ -861,6 +867,8 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
     description: plan?.description ?? "",
     meal_plan: plan?.meal_plan ?? "EP",
     refundable: plan?.refundable !== false,
+    sells: isDayUsePlan(plan) ? "day_use" : "nights",
+    day_use_hours: orBlank(plan?.day_use_hours),
     min_stay: orBlank(plan?.min_stay),
     max_stay: orBlank(plan?.max_stay),
     release_period: orBlank(plan?.release_period),
@@ -874,6 +882,9 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
   }));
   const [newRooms, setNewRooms] = useState(() => new Set());
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  // A day-use plan sells hours of one day, so stay lengths in nights mean
+  // nothing on it.
+  const dayUse = form.sells === "day_use";
 
   const masters = eligibleMasters(
     { id: plan?.id, property_id: plan?.property_id ?? ratePlans[0]?.property_id },
@@ -902,6 +913,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
 
   function problem() {
     if (!form.plan_name.trim()) return "Give the rate plan a name.";
+    if (dayUse && !validDayUseHours(form.day_use_hours)) return "Day-use hours are a whole number from 1 to 23.";
     const min = numOrNull(form.min_stay);
     const max = numOrNull(form.max_stay);
     if (min !== null && !(Number.isInteger(min) && min >= 1)) return "Minimum stay is a whole number of nights.";
@@ -923,9 +935,10 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
       description: form.description,
       meal_plan: form.meal_plan || null,
       refundable: form.refundable,
+      day_use_hours: dayUse ? Number(form.day_use_hours) : null,
       stop_sell: form.stop_sell,
-      min_stay: numOrNull(form.min_stay),
-      max_stay: numOrNull(form.max_stay),
+      min_stay: dayUse ? null : numOrNull(form.min_stay),
+      max_stay: dayUse ? null : numOrNull(form.max_stay),
       release_period: numOrNull(form.release_period),
       min_rate: numOrNull(form.min_rate),
       is_master: !derived && form.is_master,
@@ -975,6 +988,33 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
           <input className="input" value={form.plan_name} onChange={(e) => set({ plan_name: e.target.value })} placeholder="Dinner Bed & Breakfast" autoFocus={isNew} />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Sells" hint={dayUse ? "Hours from check-in. The room goes back on sale when the guest checks out." : null}>
+            <select
+              className="input"
+              value={form.sells}
+              onChange={(e) =>
+                set({
+                  sells: e.target.value,
+                  day_use_hours: e.target.value === "day_use" && blank(form.day_use_hours) ? 6 : form.day_use_hours,
+                })
+              }
+            >
+              <option value="nights">Nights</option>
+              <option value="day_use">Day use (hours)</option>
+            </select>
+          </Field>
+          {dayUse && (
+            <Field label="Hours *">
+              <input
+                type="number"
+                min="1"
+                max="23"
+                className="input"
+                value={form.day_use_hours}
+                onChange={(e) => set({ day_use_hours: e.target.value })}
+              />
+            </Field>
+          )}
           <Field label="Inclusions (meal plan)">
             <select className="input" value={form.meal_plan} onChange={(e) => set({ meal_plan: e.target.value })}>
               {MEAL_PLANS.map((m) => (
@@ -999,12 +1039,16 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
       <Section title="Restrictions">
         <p className="text-xs faint">Defaults for every room rate on this plan. A room rate can unlock and change any of them.</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Default minimum stay">
-            <input type="number" min="1" className="input" value={form.min_stay} onChange={(e) => set({ min_stay: e.target.value })} placeholder="None" />
-          </Field>
-          <Field label="Default maximum stay">
-            <input type="number" min="1" className="input" value={form.max_stay} onChange={(e) => set({ max_stay: e.target.value })} placeholder="None" />
-          </Field>
+          {!dayUse && (
+            <>
+              <Field label="Default minimum stay">
+                <input type="number" min="1" className="input" value={form.min_stay} onChange={(e) => set({ min_stay: e.target.value })} placeholder="None" />
+              </Field>
+              <Field label="Default maximum stay">
+                <input type="number" min="1" className="input" value={form.max_stay} onChange={(e) => set({ max_stay: e.target.value })} placeholder="None" />
+              </Field>
+            </>
+          )}
           <Field label="Release period" hint="Days before arrival the plan closes.">
             <input type="number" min="0" className="input" value={form.release_period} onChange={(e) => set({ release_period: e.target.value })} placeholder="None" />
           </Field>
