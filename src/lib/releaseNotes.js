@@ -18,11 +18,11 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date and the day-use plan (for example Day Use 6h), and the price is filled in from that plan. The hours start when you check the guest in, and the booking then shows when they are due out. The room is taken off sale on the channels for that date when the day use is booked, and goes back on sale as soon as you check the guest out, so you can still sell it for the night.",
+        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date, the day-use plan (for example Day Use 6h) and a start time, and the price is filled in from that plan. Start times are offered every half hour from 6:00 AM, shown with their end time (10:00 AM – 1:00 PM); times another day-use guest already has in that room are greyed out, and the first free time is picked for you. Two day uses can share a room one after the other, but not at the same time. Once you check the guest in, the hours run from check-in and the booking shows when they are due out. The room is taken off sale on the channels for that date when the day use is booked, and goes back on sale as soon as you check the guest out, so you can still sell it for the night.",
       },
       {
         page: "calendar",
-        text: "On the Calendar, click a single empty day in a room and choose \"Day use (hours)\" to book it. Day-use bookings show as a short bar in the middle of the day with their hours.",
+        text: "On the Calendar, click a single empty day in a room and choose \"Day use (hours)\" to book it. Day-use bookings show inside their day with their start time and the guest's name (for example "10a Sharma"); several in one room sit side by side in time order. Point at one to see its full times. The rooms-sold count above each room type now includes day uses.",
       },
       {
         page: "rateplans",

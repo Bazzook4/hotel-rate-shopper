@@ -15,7 +15,7 @@ import { visibleModules } from "../modules";
 import { usePageState } from "./usePageState";
 import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
-import { dayUseSummary, isDayUse } from "@/lib/dayUse";
+import { dayUseSummary, dayUseWindow, holdsInventory, isDayUse, shortMinutes } from "@/lib/dayUse";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -717,7 +717,7 @@ export default function TapeChart({ session }) {
   }
 
   /** Where a bar sits and how wide it is, in pixels across the date window. */
-  function barGeometry(reservation) {
+  function barGeometry(reservation, lanes) {
     const d =
       drag?.id === reservation.id
         ? drag.preview
@@ -725,25 +725,60 @@ export default function TapeChart({ session }) {
           ? pending.move
           : reservation;
 
-    if (isDayUse(reservation)) return dayUseGeometry(reservation.check_in);
+    if (isDayUse(reservation)) {
+      return dayUseGeometry(reservation.check_in, lanes?.[reservation.id] || { index: 0, count: 1 });
+    }
     return spanGeometry(d.check_in, d.check_out);
   }
 
   /**
-   * A day use is hours inside one day, so it is drawn as a short bar in the
-   * middle of its date rather than a span from noon to noon -- between the
-   * morning's departure and the afternoon's arrival, which is when it is used.
+   * A day use is hours inside one day, so it sits inside its date's cell
+   * rather than spanning noon to noon. Several on one date share the cell
+   * side by side in time order -- each wide enough to read its time and,
+   * when there is room, the guest -- rather than being drawn to scale, which
+   * would make a 3-hour slot a sliver a few pixels wide.
    */
-  function dayUseGeometry(date) {
+  function dayUseGeometry(date, { index, count }) {
     const offset = daysBetween(anchor, date);
     if (offset < 0 || offset >= windowDays) return null;
+    const inner = dayWidth - 6;
+    const gap = 2;
+    const width = (inner - gap * (count - 1)) / count;
     return {
-      left: (offset + 0.2) * dayWidth,
-      width: 0.6 * dayWidth,
+      left: offset * dayWidth + 3 + index * (width + gap),
+      width,
       clippedStart: false,
       clippedEnd: false,
       dayUse: true,
     };
+  }
+
+  /**
+   * Where each day use in a room sits among the others on its date: its
+   * place in time order and how many share the date. Ones with no booked
+   * time go last, in booking order.
+   */
+  function dayUseLanes(reservations) {
+    const byDate = {};
+    for (const r of reservations) {
+      if (isDayUse(r)) (byDate[r.check_in] = byDate[r.check_in] || []).push(r);
+    }
+    const out = {};
+    for (const list of Object.values(byDate)) {
+      list.sort((a, b) => (dayUseWindow(a)?.start ?? 1e9) - (dayUseWindow(b)?.start ?? 1e9));
+      list.forEach((r, index) => {
+        out[r.id] = { index, count: list.length };
+      });
+    }
+    return out;
+  }
+
+  /** "10a SJ" when the bar has room, "10a" when it does not. */
+  function dayUseBarLabel(r, width) {
+    const w = dayUseWindow(r);
+    const time = w ? shortMinutes(w.start) : `${r.day_use_hours}h`;
+    if (width >= 64) return `${time} ${r.guest_name}`;
+    return width >= 20 ? time : "";
   }
 
   /**
@@ -788,7 +823,15 @@ export default function TapeChart({ session }) {
       const own = stays.filter((r) => r.room_type_id === rt.id);
       out[rt.id] = {};
       for (const d of dates) {
-        out[rt.id][d] = own.filter((r) => r.check_in <= d && r.check_out > d).length;
+        // A day use holds a room on its date until check-out; several in one
+        // room, one after the other, hold that one room.
+        const dayUseRooms = new Set(
+          own
+            .filter((r) => isDayUse(r) && r.check_in === d && holdsInventory(r))
+            .map((r) => r.room_id || r.id)
+        );
+        out[rt.id][d] =
+          own.filter((r) => r.check_in <= d && r.check_out > d).length + dayUseRooms.size;
       }
     }
     return out;
@@ -1352,8 +1395,10 @@ export default function TapeChart({ session }) {
                           })()}
 
                         {/* Bars for this room, over the cells */}
-                        {barsForRoom(room).map((r) => {
-                              const geo = barGeometry(r);
+                        {(() => {
+                          const lanes = dayUseLanes(room.reservations);
+                          return barsForRoom(room).map((r) => {
+                              const geo = barGeometry(r, lanes);
                               if (!geo) return null;
                               const isDragging = drag?.id === r.id;
                               const style = BAR_STYLE[r.status] || BAR_STYLE.confirmed;
@@ -1415,7 +1460,7 @@ export default function TapeChart({ session }) {
                                   )}
                                   {r.group_id && <BarTag title="Group booking">GRP</BarTag>}
                                   <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                                    {geo.dayUse ? `${r.day_use_hours}h` : r.guest_name}
+                                    {geo.dayUse ? dayUseBarLabel(r, geo.width) : r.guest_name}
                                   </span>
                                   <span
                                     onPointerDown={(e) => beginDrag(e, r, "end")}
@@ -1430,7 +1475,8 @@ export default function TapeChart({ session }) {
                                   />
                                 </div>
                               );
-                            })}
+                            });
+                        })()}
                       </div>
                     </div>
                     ))}

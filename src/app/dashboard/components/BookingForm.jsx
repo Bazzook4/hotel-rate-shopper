@@ -7,7 +7,19 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, useGuestTiers } from "./GuestSettings";
-import { dayUseLabel, isDayUsePlan } from "@/lib/dayUse";
+import {
+  DAY_USE_HOLDING_STATUSES,
+  dayUseLabel,
+  dayUseStartOptions,
+  dayUseWindow,
+  dayUseWindowLabel,
+  formatMinutes,
+  isDayUsePlan,
+  parseClock,
+  suggestDayUseStart,
+  toClock,
+  windowsOverlap,
+} from "@/lib/dayUse";
 
 /**
  * Entering or editing a booking.
@@ -22,6 +34,12 @@ function nightsBetween(checkIn, checkOut) {
   const b = parseDateISO(checkOut);
   if (!a || !b || b <= a) return 0;
   return Math.round((b - a) / 86400000);
+}
+
+/** Today's date on the desk's own clock, for "the next free half hour". */
+function localToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function emptyBooking(country = "") {
@@ -44,6 +62,8 @@ function emptyBooking(country = "") {
     // arrives and holds no night.
     stay_kind: "overnight",
     day_use_hours: "",
+    // A day use's booked start, "10:00"; suggested once the slot is known.
+    day_use_start: "",
     adults: 2,
     children: 0,
     source: "direct",
@@ -74,6 +94,7 @@ function toForm(reservation) {
     check_out: reservation.check_out || "",
     stay_kind: reservation.stay_kind || "overnight",
     day_use_hours: reservation.day_use_hours ?? "",
+    day_use_start: String(reservation.day_use_start || "").slice(0, 5),
     adults: reservation.adults ?? 2,
     children: reservation.children ?? 0,
     source: reservation.source || "direct",
@@ -693,6 +714,83 @@ export default function BookingForm({
         ]
       : plansForType;
 
+  /**
+   * The other day uses already in the chosen room on the chosen date, so the
+   * time picker can grey out their slots and suggest the first free one.
+   */
+  const [roomDayUses, setRoomDayUses] = useState([]);
+  useEffect(() => {
+    if (!dayUse || !form.room_id || !form.check_in) {
+      setRoomDayUses([]);
+      return;
+    }
+    let live = true;
+    const qs = new URLSearchParams({ arrivingOn: form.check_in });
+    if (session?.propertyId) qs.set("propertyId", session.propertyId);
+    fetch(`/api/pms/reservations?${qs}`)
+      .then((r) => (r.ok ? r.json() : { reservations: [] }))
+      .then((d) => {
+        if (!live) return;
+        setRoomDayUses(
+          (d.reservations || []).filter(
+            (r) =>
+              r.id !== reservation?.id &&
+              r.room_id === form.room_id &&
+              r.stay_kind === "day_use" &&
+              DAY_USE_HOLDING_STATUSES.includes(r.status) &&
+              dayUseWindow(r)
+          )
+        );
+      })
+      .catch(() => live && setRoomDayUses([]));
+    return () => {
+      live = false;
+    };
+  }, [dayUse, form.room_id, form.check_in, session?.propertyId, reservation?.id]);
+
+  const slotLength = (Number(form.day_use_hours) || 0) * 60;
+  const takenSlots = useMemo(() => roomDayUses.map(dayUseWindow), [roomDayUses]);
+  const startOptions = useMemo(
+    () => (slotLength ? dayUseStartOptions(form.day_use_hours) : []),
+    [slotLength, form.day_use_hours]
+  );
+  /** Who already has the room at a start time, or null when it is free. */
+  function slotTakenBy(start) {
+    if (!slotLength) return null;
+    return (
+      roomDayUses.find((r) =>
+        windowsOverlap(dayUseWindow(r), { start, end: start + slotLength })
+      ) || null
+    );
+  }
+  const chosenStart = parseClock(form.day_use_start);
+  const startClash = chosenStart != null ? slotTakenBy(chosenStart) : null;
+
+  /**
+   * A day use without a time, or whose time no longer fits (a longer plan,
+   * another guest in the new room), gets the first free start: from the next
+   * half hour today, from 10 AM on a later date. A start the desk picked that
+   * still fits is left alone.
+   */
+  useEffect(() => {
+    if (!dayUse || !slotLength) return;
+    const fits =
+      chosenStart != null &&
+      chosenStart + slotLength <= 24 * 60 &&
+      !takenSlots.some((w) => windowsOverlap(w, { start: chosenStart, end: chosenStart + slotLength }));
+    if (fits) return;
+    // An existing booking keeps its time even if it clashes -- the warning
+    // under the picker says so, and the desk decides.
+    if (reservation && chosenStart != null) return;
+    const pick = suggestDayUseStart(form.day_use_hours, {
+      taken: takenSlots,
+      isToday: form.check_in === localToday(),
+    });
+    if (pick != null && toClock(pick) !== form.day_use_start) {
+      setForm((prev) => ({ ...prev, day_use_start: toClock(pick) }));
+    }
+  }, [dayUse, slotLength, chosenStart, takenSlots, form.day_use_hours, form.check_in, form.day_use_start, reservation]);
+
   /** Only rooms of the chosen type can hold this booking. */
   const roomsForType = useMemo(
     () => rooms.filter((r) => r.room_type_id === form.room_type_id && r.is_active),
@@ -880,7 +978,13 @@ export default function BookingForm({
         // the quoted one -- a typed total has no breakdown to go with it.
         night_rates:
           !manualTotal && !complimentary && !dayUse && quote?.nights ? quote.nights : undefined,
-        ...(dayUse ? { check_out: form.check_in, day_use_hours: Number(form.day_use_hours) } : {}),
+        ...(dayUse
+          ? {
+              check_out: form.check_in,
+              day_use_hours: Number(form.day_use_hours),
+              day_use_start: form.day_use_start || null,
+            }
+          : {}),
         ...(reservation ? { id: reservation.id } : {}),
       };
 
@@ -1026,11 +1130,12 @@ export default function BookingForm({
           />
         </Field>
         {dayUse ? (
+          <>
           <Field
             label="Day-use plan"
             hint={
               planOptions.length
-                ? `${dayUseLabel(form.day_use_hours)} from check-in`
+                ? dayUseLabel(form.day_use_hours)
                 : "No day-use plan on this room type — add one in Rate Plans"
             }
           >
@@ -1052,6 +1157,43 @@ export default function BookingForm({
               ))}
             </select>
           </Field>
+          <Field
+            label="Start time"
+            hint={
+              startClash
+                ? `Clashes with ${startClash.guest_name} (${dayUseWindowLabel(startClash)})`
+                : chosenStart != null && slotLength
+                  ? `Until ${formatMinutes(chosenStart + slotLength)}${
+                      roomDayUses.length ? ` · ${roomDayUses.length} other day use${roomDayUses.length === 1 ? "" : "s"} in this room` : ""
+                    }`
+                  : form.room_id
+                    ? "No free time left in this room"
+                    : "Pick a room to see its free times"
+            }
+          >
+            <select
+              className="input"
+              value={form.day_use_start}
+              onChange={(e) => set("day_use_start", e.target.value)}
+              disabled={!slotLength}
+            >
+              {!form.day_use_start && <option value="">Choose…</option>}
+              {/* A stored time off the half-hour grid still shows. */}
+              {chosenStart != null && !startOptions.includes(chosenStart) && (
+                <option value={form.day_use_start}>{formatMinutes(chosenStart)}</option>
+              )}
+              {startOptions.map((t) => {
+                const taken = slotTakenBy(t);
+                return (
+                  <option key={t} value={toClock(t)} disabled={Boolean(taken)}>
+                    {formatMinutes(t)} – {formatMinutes(t + slotLength)}
+                    {taken ? ` · ${taken.guest_name}` : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </Field>
+          </>
         ) : (
           <Field
             label="Check out"

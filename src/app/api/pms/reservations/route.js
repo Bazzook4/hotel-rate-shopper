@@ -8,6 +8,7 @@ import {
   checkAvailability,
   acceptNightRates,
   getReservation,
+  findDayUseSlotClash,
   findRoomClash,
   reservationsHaveCountry,
   linkGuestForBooking,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/database";
 import { toCountryCode } from "@/lib/countries";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
-import { isDayUsePlan, validDayUseHours } from "@/lib/dayUse";
+import { dayUseWindow, isDayUsePlan, validDayUseHours, validDayUseStart } from "@/lib/dayUse";
 
 /** A date the database will accept, and that a person actually typed. */
 function isDate(value) {
@@ -108,12 +109,23 @@ async function applyStayKind(fields, body, propertyId, before = null) {
   }
 
   if (dayUse) {
+    // A booked time, so the room can take another day use before or after.
+    // An edit that leaves the time alone keeps the one stored.
+    const rawStart = body.day_use_start ?? before?.day_use_start ?? null;
+    const start = validDayUseStart(rawStart, hours);
+    if (!start) {
+      return rawStart
+        ? `A ${hours}-hour day use starting then would run past midnight. Pick an earlier time.`
+        : "Pick a start time for the day use.";
+    }
     fields.stay_kind = "day_use";
     fields.day_use_hours = hours;
+    fields.day_use_start = start;
     fields.check_out = fields.check_in;
   } else if (before && "stay_kind" in before) {
     fields.stay_kind = "overnight";
     fields.day_use_hours = null;
+    if ("day_use_start" in before) fields.day_use_start = null;
   }
   return null;
 }
@@ -213,9 +225,18 @@ async function applyCompany(fields, body, propertyId, before = null) {
 /** A room already held for those nights, as a 409 the form can show. */
 async function roomClashResponse(fields, ignoreReservationId = null) {
   if (!fields.room_id) return null;
-  const clash = await findRoomClash(fields.room_id, fields.check_in, fields.check_out, {
-    ignoreReservationId,
-  });
+  const clash =
+    (await findRoomClash(fields.room_id, fields.check_in, fields.check_out, {
+      ignoreReservationId,
+    })) ||
+    (fields.stay_kind === "day_use"
+      ? await findDayUseSlotClash(
+          fields.room_id,
+          fields.check_in,
+          dayUseWindow(fields),
+          ignoreReservationId
+        )
+      : null);
   return clash ? NextResponse.json({ error: clash.message }, { status: 409 }) : null;
 }
 
@@ -372,7 +393,11 @@ export async function PATCH(req) {
     const moved =
       fields.room_id !== before.room_id ||
       fields.check_in !== before.check_in ||
-      fields.check_out !== before.check_out;
+      fields.check_out !== before.check_out ||
+      // A day use moved to another time, or lengthened, can now meet another.
+      (dayUse &&
+        (fields.day_use_start !== String(before.day_use_start || "").slice(0, 5) ||
+          fields.day_use_hours !== before.day_use_hours));
     if (moved) {
       const roomTaken = await roomClashResponse(fields, id);
       if (roomTaken) return roomTaken;

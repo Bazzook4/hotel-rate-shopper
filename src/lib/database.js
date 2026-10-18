@@ -5,7 +5,15 @@ import { roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 import { contractNights } from '@/lib/contractRates';
-import { DAY_USE_HOLDING_STATUSES, dayUseLabel, isDayUsePlan, validDayUseHours } from '@/lib/dayUse';
+import {
+  DAY_USE_HOLDING_STATUSES,
+  dayUseLabel,
+  dayUseWindow,
+  dayUseWindowLabel,
+  isDayUsePlan,
+  validDayUseHours,
+  windowsOverlap,
+} from '@/lib/dayUse';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2924,7 +2932,7 @@ export async function getSoldCounts(propertyId, startDate, endDate, { roomTypeId
   // A day use holds no night, but its room is off sale for its date until
   // the guest checks out.
   const dayUses = await listHeldDayUses(propertyId, startDate, endDate, { roomTypeIds });
-  for (const r of dayUses) {
+  for (const r of roomsHeldByDayUses(dayUses)) {
     const key = `${r.room_type_id}|${r.check_in}`;
     sold[key] = (sold[key] || 0) + 1;
   }
@@ -2940,7 +2948,7 @@ export async function getSoldCounts(propertyId, startDate, endDate, { roomTypeId
 async function listHeldDayUses(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
   let query = supabase
     .from('reservations')
-    .select('id, room_type_id, check_in')
+    .select('id, room_type_id, room_id, check_in')
     .eq('property_id', propertyId)
     .eq('stay_kind', 'day_use')
     .in('status', DAY_USE_HOLDING_STATUSES)
@@ -2955,6 +2963,25 @@ async function listHeldDayUses(propertyId, startDate, endDate, { roomTypeIds = n
     throw new Error(`Failed to load day uses: ${error.message}`);
   }
   return data || [];
+}
+
+/**
+ * One entry per room a set of day uses holds on a date. Day uses booked one
+ * after the other in the same room take one room off sale, not one each; a
+ * day use with no room yet holds a room of its own.
+ */
+function roomsHeldByDayUses(dayUses) {
+  const seen = new Set();
+  const out = [];
+  for (const r of dayUses) {
+    if (r.room_id) {
+      const key = `${r.room_id}|${r.check_in}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+    }
+    out.push(r);
+  }
+  return out;
 }
 
 /**
@@ -3010,8 +3037,8 @@ export async function checkAvailability(
   const dayUses = await listHeldDayUses(propertyId, nights[0], nights[nights.length - 1], {
     roomTypeIds: [roomTypeId],
   });
-  for (const r of dayUses) {
-    if (ignoreReservationId && r.id === ignoreReservationId) continue;
+  const others = dayUses.filter((r) => !(ignoreReservationId && r.id === ignoreReservationId));
+  for (const r of roomsHeldByDayUses(others)) {
     sold[r.check_in] = (sold[r.check_in] || 0) + 1;
   }
 
@@ -3207,6 +3234,35 @@ export async function findDayUseInRoom(roomId, date, ignoreReservationId = null)
     throw new Error(`Failed to check the room: ${error.message}`);
   }
   return (data || []).find((r) => r.id !== ignoreReservationId) || null;
+}
+
+/**
+ * Another day use booked into a room on a date whose slot overlaps this one,
+ * or null. Day uses share a room one after the other; two at once would put
+ * two guests in it. A day use already checked out has handed the room back,
+ * and one with no booked time cannot be placed, so neither blocks a slot.
+ */
+export async function findDayUseSlotClash(roomId, date, slot, ignoreReservationId = null) {
+  if (!roomId || !slot) return null;
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('id, reference, guest_name, stay_kind, day_use_start, day_use_hours')
+    .eq('room_id', roomId)
+    .eq('stay_kind', 'day_use')
+    .eq('check_in', date)
+    .in('status', DAY_USE_HOLDING_STATUSES);
+  if (error) {
+    if (notMigrated(error)) return null;
+    throw new Error(`Failed to check the room: ${error.message}`);
+  }
+  const other = (data || []).find(
+    (r) => r.id !== ignoreReservationId && windowsOverlap(dayUseWindow(r), slot)
+  );
+  if (!other) return null;
+  return {
+    kind: 'day_use',
+    message: `That room is booked for day use ${dayUseWindowLabel(other)} by ${other.guest_name} (${other.reference}). Pick another time or room.`,
+  };
 }
 
 /**
