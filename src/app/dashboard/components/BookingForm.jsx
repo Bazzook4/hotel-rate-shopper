@@ -228,7 +228,33 @@ function shortDate(iso) {
  * to give a number as a name. Picking with the mouse uses mousedown, so the
  * pick lands before the box's blur closes the list.
  */
-function GuestSuggestions({ items, active, onPick }) {
+function GuestSuggestions({ items, active, onPick, status, term }) {
+  const box = {
+    position: "absolute",
+    zIndex: 30,
+    left: 0,
+    right: 0,
+    top: "100%",
+    marginTop: 2,
+    padding: "0.5rem 0.6rem",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+  };
+  // A search the desk asked for always answers, so a blank space under the
+  // box never leaves them wondering whether it is still looking.
+  if (status === "searching" && !items?.length) {
+    return (
+      <div className="card text-xs" style={{ ...box, color: "var(--text-muted)" }}>
+        Searching guests…
+      </div>
+    );
+  }
+  if (status === "none") {
+    return (
+      <div className="card text-xs" style={{ ...box, color: "var(--text-muted)" }}>
+        No guest on record matches &ldquo;{term}&rdquo;. A new guest is added when you save.
+      </div>
+    );
+  }
   if (!items?.length) return null;
   return (
     <ul
@@ -348,7 +374,10 @@ export default function BookingForm({
    */
   const [linked, setLinked] = useState(null);
   const [suggest, setSuggest] = useState({ field: null, items: [], active: -1 });
+  // "searching" or "none" while the Search button's own search is showing.
+  const [searchStatus, setSearchStatus] = useState(null);
   const lookupSeq = useRef(0);
+  const nameBox = useRef(null);
 
   // An existing booking already on a guest shows who, and how often.
   useEffect(() => {
@@ -361,6 +390,26 @@ export default function BookingForm({
       .catch(() => {});
   }, [reservation?.guest_id, session?.propertyId]);
 
+  /** Ask for guests matching `term`, shown under `field`'s box. */
+  async function runGuestSearch(field, term, seq, { asked = false } = {}) {
+    try {
+      const qs = new URLSearchParams({ search: term, limit: "6" });
+      if (session?.propertyId) qs.set("propertyId", session.propertyId);
+      const res = await fetch(`/api/pms/guests?${qs}`);
+      const data = res.ok ? await res.json() : { guests: [] };
+      if (seq !== lookupSeq.current) return;
+      const items = data.guests || [];
+      // An asked-for search highlights the first match, so Enter takes it;
+      // suggestions while typing highlight nothing, so Enter never picks
+      // someone the desk did not choose.
+      setSuggest({ field, items, active: asked && items.length ? 0 : -1, term });
+      if (asked) setSearchStatus(items.length ? null : "none");
+    } catch {
+      // No suggestions is the same as no match: the desk keeps typing.
+      if (seq === lookupSeq.current && asked) setSearchStatus("none");
+    }
+  }
+
   function lookUpGuest(field, value) {
     const term = String(value || "").trim();
     const digits = term.replace(/\D/g, "");
@@ -372,28 +421,39 @@ export default function BookingForm({
         : term.length >= 2;
     const seq = lookupSeq.current + 1;
     lookupSeq.current = seq;
+    setSearchStatus(null);
     if (linked || !enough) {
       setSuggest({ field: null, items: [], active: -1 });
       return;
     }
     // Waits for a pause in typing; a newer keystroke supersedes this one.
-    setTimeout(async () => {
+    setTimeout(() => {
       if (seq !== lookupSeq.current) return;
-      try {
-        const qs = new URLSearchParams({ search: field === "guest_phone" ? digits : term, limit: "6" });
-        if (session?.propertyId) qs.set("propertyId", session.propertyId);
-        const res = await fetch(`/api/pms/guests?${qs}`);
-        const data = res.ok ? await res.json() : { guests: [] };
-        if (seq !== lookupSeq.current) return;
-        setSuggest({ field, items: data.guests || [], active: -1 });
-      } catch {
-        // No suggestions is the same as no match: the desk keeps typing.
-      }
+      runGuestSearch(field, field === "guest_phone" ? digits : term, seq);
     }, 250);
+  }
+
+  /**
+   * The Search button (and Enter in the name box): look now, by whatever
+   * the desk has typed -- the name, else the phone, else the email -- and
+   * always say what was found, even when it is nothing.
+   */
+  function searchGuestsNow() {
+    const name = form.guest_name.trim();
+    const phone = form.guest_phone.replace(/\D/g, "");
+    const email = form.guest_email.trim();
+    const term = name || phone || email;
+    if (!term) return;
+    const seq = lookupSeq.current + 1;
+    lookupSeq.current = seq;
+    setSuggest({ field: "guest_name", items: [], active: -1, term });
+    setSearchStatus("searching");
+    runGuestSearch("guest_name", term, seq, { asked: true });
   }
 
   function pickGuest(g) {
     lookupSeq.current += 1;
+    setSearchStatus(null);
     setSuggest({ field: null, items: [], active: -1 });
     setLinked(g);
     setForm((prev) => ({
@@ -421,6 +481,17 @@ export default function BookingForm({
 
   function suggestKeys(e) {
     const { items, active } = suggest;
+    if (e.key === "Escape") {
+      setSearchStatus(null);
+      setSuggest({ field: null, items: [], active: -1 });
+      return;
+    }
+    // Enter in the name box with nothing highlighted searches, like the button.
+    if (e.key === "Enter" && active < 0 && e.currentTarget.name === "guest_name" && !linked) {
+      e.preventDefault();
+      searchGuestsNow();
+      return;
+    }
     if (!items.length) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -429,8 +500,6 @@ export default function BookingForm({
     } else if (e.key === "Enter" && active >= 0) {
       e.preventDefault();
       pickGuest(items[active]);
-    } else if (e.key === "Escape") {
-      setSuggest({ field: null, items: [], active: -1 });
     }
   }
 
@@ -442,8 +511,12 @@ export default function BookingForm({
         set(field, e.target.value);
         lookUpGuest(field, e.target.value);
       },
+      name: field,
       onKeyDown: suggestKeys,
-      onBlur: () => setSuggest({ field: null, items: [], active: -1 }),
+      onBlur: () => {
+        setSearchStatus(null);
+        setSuggest({ field: null, items: [], active: -1 });
+      },
       autoComplete: "off",
     };
   }
@@ -748,13 +821,42 @@ export default function BookingForm({
       <Section title="Guest and stay">
         <Field label="Guest name" wide>
           <div style={{ position: "relative" }}>
-            <input
-              className="input"
-              {...guestBox("guest_name")}
-              placeholder={linked ? "Full name" : "Full name — or search guests on record"}
-            />
+            <div className="flex gap-2">
+              <input
+                className="input"
+                style={{ flex: 1, minWidth: 0 }}
+                ref={nameBox}
+                {...guestBox("guest_name")}
+                placeholder="Full name"
+              />
+              {!linked && (
+                <button
+                  type="button"
+                  className="btn btn-secondary text-sm"
+                  // mousedown, so the name box's blur does not close the
+                  // results this click is about to open.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    // Focus stays in the name box, so arrows, Enter, Escape
+                    // and clicking away all work on the results.
+                    nameBox.current?.focus();
+                    searchGuestsNow();
+                  }}
+                  disabled={!form.guest_name.trim() && !form.guest_phone.trim() && !form.guest_email.trim()}
+                  title="Find this guest among past bookings, by name, phone or email"
+                >
+                  Search
+                </button>
+              )}
+            </div>
             {suggest.field === "guest_name" && (
-              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
+              <GuestSuggestions
+                items={suggest.items}
+                active={suggest.active}
+                onPick={pickGuest}
+                status={searchStatus}
+                term={suggest.term}
+              />
             )}
           </div>
           {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} />}

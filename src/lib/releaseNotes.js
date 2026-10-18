@@ -18,7 +18,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "When you make a booking, start typing the guest's name, phone number or email and guests who have booked before appear underneath. Pick one and their name, phone, email and country are filled in for you. The form shows how many times they have stayed, and any note you keep about them. If you picked the wrong person, click \"Not this guest\".",
+        text: "When you make a booking, type the guest's name and press Search (or Enter) to find them among past bookings. Guests who match the name, phone number or email you type also appear underneath as you go. Pick one and their name, phone, email and country are filled in for you. The form shows how many times they have stayed, and any note you keep about them. If you picked the wrong person, click \"Not this guest\".",
       },
       {
         page: "guests",
