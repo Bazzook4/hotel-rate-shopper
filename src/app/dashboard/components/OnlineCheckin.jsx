@@ -180,6 +180,7 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
   // Shown only when the browser would not copy it, to be copied by hand.
   const [showLink, setShowLink] = useState(false);
   const c = data.checkin;
+  const people = c.guests || [];
   const url = onlineCheckinUrl(data);
   const open = !c.closed;
   const ctx = { propertyName: session?.propertyName, countryCode: toCountryCode(session?.propertyCountry) };
@@ -308,9 +309,9 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
         />
       )}
 
-      {c.guests.length > 0 && (
+      {people.length > 0 && (
         <div className="mt-3 space-y-2">
-          {c.guests.map((g, i) => (
+          {people.map((g, i) => (
             <Person key={i} g={g} index={i} canSeeIds={data.canSeeIds} />
           ))}
           {(c.arrivalTime || c.requests) && (

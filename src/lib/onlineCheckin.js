@@ -350,7 +350,7 @@ export async function removeGuestFile(found, fileId) {
  * links only for someone who may open the Guests page, as on that page.
  */
 export async function deskView(row, { reservation, withFiles }) {
-  if (!row) return { status: "none" };
+  if (!row) return { status: "none", guests: [] };
   const people = row.details?.guests || [];
   let links = new Map();
   if (withFiles) links = await signedFileLinks(allFilePaths(row)).catch(() => new Map());

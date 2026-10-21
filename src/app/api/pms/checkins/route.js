@@ -52,7 +52,7 @@ export async function GET(req) {
   const { session, reservation, response } = await scope(req, req.nextUrl.searchParams.get("reservationId"));
   if (response) return response;
   // Before the migration the booking window simply shows no online check-in.
-  if (!(await checkinReady())) return NextResponse.json({ ready: false, enabled: false, checkin: { status: "none" } });
+  if (!(await checkinReady())) return NextResponse.json({ ready: false, enabled: false, checkin: { status: "none", guests: [] } });
   try {
     return await answer(session, reservation);
   } catch (err) {
