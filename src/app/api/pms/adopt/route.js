@@ -76,7 +76,7 @@ export async function POST(req) {
       status: "success",
       source: "pms",
       entry_count: result.created + result.updated + result.cancelled,
-      summary: `${bookingId ? `Retried booking #${bookingId}` : "Adopted OTA bookings"} — ${
+      summary: `${bookingId ? `Retried booking #${bookingId}` : "Adopted OTA bookings"}: ${
         summary || "nothing to adopt"
       }`,
       error: result.reasons.length ? result.reasons.join("; ") : null,

@@ -209,7 +209,7 @@ export default function BusyOverlay() {
             }}
           />
           <div style={{ fontSize: "0.875rem", color: "var(--text)" }}>
-            {slow ? "Still working — this is taking longer than usual." : "Working…"}
+            {slow ? "Still working. This is taking longer than usual." : "Working..."}
             {slow && (
               <div style={{ marginTop: 6 }}>
                 <button className="btn btn-ghost text-xs" onClick={() => setReleased(true)}>

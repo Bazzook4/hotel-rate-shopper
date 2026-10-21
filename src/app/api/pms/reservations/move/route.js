@@ -80,7 +80,7 @@ export async function POST(req) {
     // stray drag; correcting one is an edit, made deliberately in the modal.
     if (current.status === "checked_out") {
       return NextResponse.json(
-        { error: "This guest has checked out — edit the booking instead." },
+        { error: "This guest has checked out. Edit the booking instead." },
         { status: 409 }
       );
     }

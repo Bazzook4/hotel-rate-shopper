@@ -18,7 +18,7 @@ function describe(entry) {
     );
   }
   if (entry.rate != null) bits.push(`from ₹${Math.round(entry.rate).toLocaleString("en-IN")}`);
-  return bits.join(" · ");
+  return bits.join(", ");
 }
 
 /**
@@ -143,7 +143,7 @@ export default function ManageCompetitors({ propertyId, onClose, onSaved }) {
             Cancel
           </button>
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving || loading}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function ManageCompetitors({ propertyId, onClose, onSaved }) {
           Added competitors
         </h4>
         {loading ? (
-          <p className="sub">Loading…</p>
+          <p className="sub">Loading...</p>
         ) : added.length === 0 ? (
           <p className="sub">
             None yet. Find the hotels near you below and add the ones you compete with.
@@ -207,7 +207,7 @@ export default function ManageCompetitors({ propertyId, onClose, onSaved }) {
             </p>
           </div>
           <button type="button" className="btn" onClick={findNearby} disabled={searching}>
-            {searching ? "Searching…" : suggestions.length ? "Search again" : "Find nearby hotels"}
+            {searching ? "Searching..." : suggestions.length ? "Search again" : "Find nearby hotels"}
           </button>
         </div>
 

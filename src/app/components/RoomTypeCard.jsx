@@ -91,7 +91,7 @@ export default function RoomTypeCard({ room, index, totalRooms, onUpdate, onDele
             <div className="flex-1 flex items-center gap-4">
               <h5 className="text-ink font-semibold text-sm">{room.room_type_name}</h5>
               <span className="text-xs muted">
-                ₹{room.base_price} • {room.number_of_rooms} rooms • Max {room.max_adults || 2} adults
+                ₹{room.base_price}, {room.number_of_rooms} rooms, max {room.max_adults || 2} adults
               </span>
               {room.description && (
                 <span className="text-xs faint italic truncate max-w-xs">{room.description}</span>

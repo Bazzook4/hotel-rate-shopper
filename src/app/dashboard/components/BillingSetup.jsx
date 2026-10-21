@@ -18,7 +18,7 @@ import { Loading, Messages } from "./SetupGrid";
 const PAGES = {
   services: {
     title: "Services Setup",
-    sub: "Everything a stay is billed for is a service — the room itself, breakfast, a pickup — grouped into categories. Each service carries its own taxes, set up under Tax Setup.",
+    sub: "Everything a stay is billed for is a service (the room itself, breakfast, a pickup), grouped into categories. Each service carries its own taxes, set up under Tax Setup.",
   },
   taxes: {
     title: "Tax Setup",

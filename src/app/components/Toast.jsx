@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import Icon from "./Icon";
 
 /**
  * Short confirmations at the foot of the screen, with an Undo where the
@@ -55,11 +56,11 @@ function ToastItem({ toast, onDismiss }) {
       <span>{toast.message}</span>
       {toast.undo && (
         <button type="button" onClick={undo} disabled={busy}>
-          {busy ? "Undoing…" : "Undo"}
+          {busy ? "Undoing..." : "Undo"}
         </button>
       )}
       <button type="button" onClick={() => onDismiss(toast.id)} aria-label="Dismiss">
-        ×
+        <Icon name="close" size={14} />
       </button>
     </div>
   );

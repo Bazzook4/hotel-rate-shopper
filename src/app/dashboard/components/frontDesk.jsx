@@ -142,14 +142,14 @@ export function useFrontDesk(propertyId) {
       if (!res.ok) throw new Error(data.error || "Could not load the rooms");
 
       const ofType = (data.rooms || []).filter((x) => x.room_type_id === r.room_type_id && x.is_active);
-      if (!ofType.length) throw new Error("No rooms of that type have been set up yet — add them under Setup → Rooms first.");
+      if (!ofType.length) throw new Error("No rooms of that type have been set up yet. Add them under Setup > Rooms first.");
       const free = ofType.filter((x) => !x.taken);
       if (!free.length) throw new Error(`Every room of that type is taken or out of order for ${r.guest_name}'s stay.`);
       // A dirty room is free but not ready, so it is not offered.
       const ready = free.filter((x) => x.housekeeping !== "dirty");
       if (!ready.length) {
         throw new Error(
-          `Every free room of that type is dirty (${free.map((x) => x.room_number).join(", ")}) — mark one clean first.`
+          `Every free room of that type is dirty (${free.map((x) => x.room_number).join(", ")}. Mark one clean first.`
         );
       }
 

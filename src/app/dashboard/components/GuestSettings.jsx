@@ -23,7 +23,7 @@ export function TierBadge({ tier }) {
   if (!tier) return null;
   return (
     <span className="chip" style={toneStyle(tier.tone)} title={tier.notes || undefined}>
-      ★ {tier.name}
+      {tier.name}
     </span>
   );
 }
@@ -64,7 +64,7 @@ function useListGrid({ rows, url, propertyId, onSaved, label }) {
     });
     await onSaved();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
   }
 
   async function remove(row, message) {
@@ -98,7 +98,7 @@ export function TiersGrid({ propertyId, tiers, onSaved }) {
 
   return (
     <div className="space-y-3">
-      <SetupHeader section title="Guest tiers" count={tiers.length} sub="Labels you give guests by hand — shown as a badge when they book.">
+      <SetupHeader section title="Guest tiers" count={tiers.length} sub="Labels you give guests by hand, shown as a badge when they book.">
         <SaveActions count={grid.count} busy={busy} onSave={save} onDiscard={grid.discard} />
       </SetupHeader>
       <Messages error={error} />
@@ -121,7 +121,7 @@ export function TiersGrid({ propertyId, tiers, onSaved }) {
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="cm-empty">No tiers yet — add Silver, Gold, VIP or whatever your hotel uses.</td>
+              <td colSpan={6} className="cm-empty">No tiers yet. Add Silver, Gold, VIP or whatever your hotel uses.</td>
             </tr>
           )}
           {rows.map((t) => (
@@ -135,7 +135,7 @@ export function TiersGrid({ propertyId, tiers, onSaved }) {
               </td>
               <td>
                 <button type="button" className="btn btn-ghost text-xs" aria-label="Delete tier" onClick={() => remove(t, "Guests on this tier keep everything else; they just lose the badge.")}>
-                  ✕
+                  x
                 </button>
               </td>
             </tr>
@@ -158,7 +158,7 @@ export function WalletPlansGrid({ propertyId, plans, onSaved }) {
 
   return (
     <div className="space-y-3">
-      <SetupHeader section title="Wallet plans" count={plans.length} sub="Offers for adding money to a wallet — e.g. pay ₹10,000, get ₹11,000 to spend on stays and services.">
+      <SetupHeader section title="Wallet plans" count={plans.length} sub="Offers for adding money to a wallet, e.g. pay ₹10,000, get ₹11,000 to spend on stays and services.">
         <SaveActions count={grid.count} busy={busy} onSave={save} onDiscard={grid.discard} />
       </SetupHeader>
       <Messages error={error} />
@@ -194,12 +194,12 @@ export function WalletPlansGrid({ propertyId, plans, onSaved }) {
                 <td className="cm-sticky">{grid.input(p, "name", { placeholder: "e.g. Gold wallet" })}</td>
                 <td className="cm-num">{grid.input(p, "pay_amount", { type: "number", min: 0 })}</td>
                 <td className="cm-num">{grid.input(p, "credit", { type: "number", min: 0, invalid: pay > 0 && credit > 0 && credit < pay })}</td>
-                <td className="cm-num">{bonus == null ? "—" : `${bonus}%`}</td>
+                <td className="cm-num">{bonus == null ? "-" : `${bonus}%`}</td>
                 <td style={{ textAlign: "center" }}>{grid.check(p, "is_active")}</td>
                 <td>{grid.input(p, "notes")}</td>
                 <td>
                   <button type="button" className="btn btn-ghost text-xs" aria-label="Delete plan" onClick={() => remove(p, "Money already added on this plan stays in the wallets.")}>
-                    ✕
+                    x
                   </button>
                 </td>
               </tr>

@@ -71,7 +71,7 @@ export function describeRule(rule, roomName = "Whole hotel") {
   const m = METRICS[rule.metric] || METRICS.sold;
   const amount = rule.metric === "occupancy" ? `${Number(rule.threshold)}%` : Number(rule.threshold);
   const channels = (rule.channels || []).map(channelLabel).join(", ");
-  return `${roomName}: ${m.label} ${amount} ${m.word} → stop sell on ${channels}`;
+  return `${roomName}: ${m.label} ${amount} ${m.word}, then stop sell on ${channels}`;
 }
 
 const cellKey = (planId, roomId, date) => `${planId}|${roomId}|${date}`;

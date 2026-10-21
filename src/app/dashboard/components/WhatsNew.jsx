@@ -1,6 +1,7 @@
 "use client";
 
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
+import Icon from "../../components/Icon";
 
 /**
  * What changed in the app, in plain words, newest first.
@@ -46,7 +47,7 @@ export default function WhatsNew({ onOpenPage, canOpen, pageLabel }) {
             {r.points.map((p, i) => (
               <li key={i} className="flex gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
                 <span aria-hidden style={{ color: "var(--accent)" }}>
-                  •
+                  <Icon name="check" size={14} strokeWidth={2.2} />
                 </span>
                 <span className="flex-1">
                   {p.text}
@@ -59,7 +60,7 @@ export default function WhatsNew({ onOpenPage, canOpen, pageLabel }) {
                         className="whitespace-nowrap font-semibold"
                         style={{ color: "var(--accent-text)" }}
                       >
-                        Open {pageLabel(p.page)} →
+                        Open {pageLabel(p.page)}
                       </button>
                     </>
                   )}

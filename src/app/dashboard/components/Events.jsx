@@ -48,9 +48,9 @@ function formatRange(start, end) {
   const fmt = (iso, opts) => new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", opts);
   if (start === end) return fmt(start, { day: "numeric", month: "short", year: "numeric" });
   if (start.slice(0, 7) === end.slice(0, 7)) {
-    return `${fmt(start, { day: "numeric" })}–${fmt(end, { day: "numeric", month: "short", year: "numeric" })}`;
+    return `${fmt(start, { day: "numeric" })}-${fmt(end, { day: "numeric", month: "short", year: "numeric" })}`;
   }
-  return `${fmt(start, { day: "numeric", month: "short" })} – ${fmt(end, { day: "numeric", month: "short", year: "numeric" })}`;
+  return `${fmt(start, { day: "numeric", month: "short" })} to ${fmt(end, { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
 const IMPACT_CHIP = { none: "chip chip-off", low: "chip chip-off", medium: "chip chip-ok", high: "chip chip-warn" };
@@ -120,7 +120,7 @@ export default function Events({ session }) {
     }
   }
 
-  if (!data) return <Loading label="Loading events…" />;
+  if (!data) return <Loading label="Loading events..." />;
 
   return (
     <div className="space-y-4">
@@ -148,13 +148,13 @@ export default function Events({ session }) {
         (data.canEdit ? (
           <PropertyProfile
             propertyId={propertyId}
-            intro={`Shared events reach hotels by place and kind, and this hotel's ${gaps.join(", ")} ${gaps.length === 1 ? "is" : "are"} not set yet — so only its own events show. Fill these in once; they also live under Setup → Property Setup.`}
+            intro={`Shared events reach hotels by place and kind, and this hotel's ${gaps.join(", ")} ${gaps.length === 1 ? "is" : "are"} not set yet, so only its own events show. Fill these in once; they also live under Setup > Property Setup.`}
             onSaved={load}
           />
         ) : (
           <div className="card card-pad sub">
             Shared events reach hotels by place and kind, and this hotel&apos;s {gaps.join(", ")} {gaps.length === 1 ? "is" : "are"} not
-            set yet. Ask an administrator to fill in Setup → Property Setup.
+            set yet. Ask an administrator to fill in Setup &gt; Property Setup.
           </div>
         ))}
 
@@ -186,7 +186,7 @@ export default function Events({ session }) {
             No events in this window
           </p>
           <p className="sub mx-auto mt-1 max-w-[460px]">
-            Add what brings guests to town — a festival, a trade fair, a long weekend, the wedding season — and say
+            Add what brings guests to town (a festival, a trade fair, a long weekend, the wedding season) and say
             how big it is. Dynamic Pricing lifts its suggestions on those nights.
           </p>
           {data.canEdit && (
@@ -253,7 +253,7 @@ export default function Events({ session }) {
       <p className="text-xs faint">
         Impact sets how far Dynamic Pricing leans on the night: low +{impactOf("low").liftPct}%, medium +
         {impactOf("medium").liftPct}%, high +{impactOf("high").liftPct}%, before its other signals and your floor and
-        ceiling. When events overlap, the biggest one counts. Info only — used for public holidays — shows the
+        ceiling. When events overlap, the biggest one counts. Info only (used for public holidays) shows the
         night on every grid without moving a price.
       </p>
 
@@ -413,7 +413,7 @@ function EventDrawer({ event, profile, canPublish, defaultScope, onClose, onSave
           rows={2}
           value={form.notes}
           onChange={(e) => set({ notes: e.target.value })}
-          placeholder="Optional — venue, expected crowd, source"
+          placeholder="Optional: venue, expected crowd, source"
         />
       </Field>
 
@@ -425,7 +425,7 @@ function EventDrawer({ event, profile, canPublish, defaultScope, onClose, onSave
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input type="radio" name="scope" checked={scope === "public"} onChange={() => setScope("public")} />
-            Shared — every hotel that matches the tags below
+            Shared: every hotel that matches the tags below
           </label>
 
           {scope === "public" && (

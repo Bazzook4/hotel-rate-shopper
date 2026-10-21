@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
 
 /**
@@ -28,7 +29,7 @@ function nightLabel(date) {
 }
 
 function when(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -91,7 +92,7 @@ function WalletPay({ wallets, owing, currency, reservationId, propertyId, busy, 
         <div style={{ fontWeight: 600, fontSize: "0.8rem", marginRight: "auto" }}>
           Pay from wallet
           <div className="sub" style={{ fontSize: "0.7rem", fontWeight: 400 }}>
-            {usable.map((w) => `${w.name}: ${money(w.balance, currency)}`).join(" · ")}
+            {usable.map((w) => `${w.name}: ${money(w.balance, currency)}`).join(", ")}
           </div>
         </div>
         {usable.length > 1 && (
@@ -122,7 +123,7 @@ function WalletPay({ wallets, owing, currency, reservationId, propertyId, busy, 
           onChange={(e) => setAmount(e.target.value)}
         />
         <button className="btn btn-primary text-sm" disabled={busy || saving || !(Number(amount) > 0)} onClick={pay}>
-          {saving ? "Paying…" : "Pay"}
+          {saving ? "Paying..." : "Pay"}
         </button>
       </div>
       {error && (
@@ -245,9 +246,9 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                 ? ` : Room ${folio.reservation.rooms.room_number}`
                 : ""}
               <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
-                {" "}
-                · {folio.reservation.adults} Adult
-                {folio.reservation.adults === 1 ? "" : "s"} ·{" "}
+                
+                , {folio.reservation.adults} Adult
+                {folio.reservation.adults === 1 ? "" : "s"},{" "}
                 {folio.reservation.children} Children
               </span>
             </div>
@@ -263,7 +264,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
 
           {folio.guests.length === 0 && !guest && (
             <p className="sub">
-              No named guests yet. The booking name is “{folio.reservation.guest_name}”.
+              No named guests yet. The booking name is &quot;{folio.reservation.guest_name}&quot;.
             </p>
           )}
 
@@ -274,14 +275,14 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
               style={{ padding: "0.6rem 0.75rem", display: "flex", gap: "1rem", alignItems: "center" }}
             >
               <span title={g.is_primary ? "Primary guest" : "Guest"}>
-                {g.is_primary ? "★" : "☆"}
+                <Icon name="star" size={16} filled={g.is_primary} />
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
                   {[g.first_name, g.last_name].filter(Boolean).join(" ")}
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>
-                  {[g.email, g.phone].filter(Boolean).join(" · ") || "No contact details"}
+                  {[g.email, g.phone].filter(Boolean).join(", ") || "No contact details"}
                 </div>
               </div>
               <button className="btn btn-ghost text-xs" onClick={() => setGuest(g)}>
@@ -292,7 +293,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                 disabled={busy}
                 onClick={() => remove("guest", g.id)}
               >
-                ✕
+                x
               </button>
             </div>
           ))}
@@ -356,7 +357,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                   checked={guest.is_primary === true}
                   onChange={(e) => setGuest({ ...guest, is_primary: e.target.checked })}
                 />
-                Primary guest — their name appears on the booking
+                Primary guest: their name appears on the booking
               </label>
               <div className="flex gap-2">
                 <button
@@ -413,7 +414,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                                   : `${e.name} ${money(Number(e.unit_price) * Number(e.quantity), currency)}`
                               )
                               .join(", ")
-                          : "—"}
+                          : "-"}
                       </td>
                       <td className="text-right">
                         <input
@@ -423,7 +424,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                           step="0.01"
                           disabled={busy}
                           value={draft !== undefined ? draft : n.rate ?? ""}
-                          placeholder="—"
+                          placeholder="-"
                           onChange={(e) =>
                             setNightEdits((prev) => ({ ...prev, [n.stay_date]: e.target.value }))
                           }
@@ -444,7 +445,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
           {folio.nights.length > 0 && !folio.nightsMatch && (
             <p className="sub" style={{ fontSize: "0.7rem", color: "var(--warn)" }}>
               The nights do not add up to the room charge of{" "}
-              {money(folio.totals.room, currency)} — it was recorded as one figure.
+              {money(folio.totals.room, currency)}, recorded as one figure.
               Setting any night&apos;s rate makes the room charge the sum of the
               nights.
             </p>
@@ -461,8 +462,8 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                   {c.name}
                   {c.tax > 0 && (
                     <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
-                      {" "}
-                      · incl. {money(c.tax, currency)} tax
+                      
+                      , incl. {money(c.tax, currency)} tax
                     </span>
                   )}
                 </span>
@@ -481,8 +482,8 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                   <span style={{ color: "var(--text-muted)" }}>
                     {t.name}
                     <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
-                      {" "}
-                      · {t.detail}
+                      
+                      , {t.detail}
                     </span>
                   </span>
                   <span>{money(t.amount, currency)}</span>
@@ -549,8 +550,8 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                       {e.name}
                       {e.stay_date && (
                         <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
-                          {" "}
-                          · {nightLabel(e.stay_date)}
+                          
+                          , {nightLabel(e.stay_date)}
                         </span>
                       )}
                       {e.kind === "inclusion" && (
@@ -563,7 +564,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     <td className="text-right">{Number(e.quantity)}</td>
                     <td className="text-right">
                       {e.kind === "inclusion"
-                        ? "—"
+                        ? "-"
                         : money(Number(e.unit_price) * Number(e.quantity), currency)}
                     </td>
                     <td className="text-right">
@@ -572,7 +573,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                         disabled={busy}
                         onClick={() => remove("extra", e.id)}
                       >
-                        ✕
+                        x
                       </button>
                     </td>
                   </tr>
@@ -605,12 +606,12 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     });
                   }}
                 >
-                  <option value="">Choose…</option>
+                  <option value="">Choose...</option>
                   {serviceGroups.map(([category, items]) => (
                     <optgroup key={category} label={category}>
                       {items.map((x) => (
                         <option key={x.id} value={x.id}>
-                          {x.name} — {money(x.unit_price, currency)}
+                          {x.name}: {money(x.unit_price, currency)}
                           {x.charge_type === "per_night" ? "/night" : ""}
                         </option>
                       ))}
@@ -691,7 +692,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
             </div>
             {sellable.length === 0 && (
               <p className="sub" style={{ fontSize: "0.7rem" }}>
-                No services set up yet. Add them under Setup → Services Setup,
+                No services set up yet. Add them under Setup &gt; Services Setup,
                 and give each its taxes under Tax Setup.
               </p>
             )}
@@ -756,10 +757,10 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     <td>{when(p.paid_at)}</td>
                     <td>{[...METHODS, WALLET_METHOD].find((m) => m.id === p.method)?.label || p.method}</td>
                     <td>
-                      {p.reference || "—"}
+                      {p.reference || "-"}
                       {p.voided_at && (
                         <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }}>
-                          Voided{p.void_reason ? ` · ${p.void_reason}` : ""}
+                          Voided{p.void_reason ? `, ${p.void_reason}` : ""}
                         </span>
                       )}
                     </td>
@@ -892,8 +893,8 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     )}
                   </div>
                   <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>
-                    Issued {when(inv.issued_at)} · {money(inv.total_amount, inv.currency)}
-                    {inv.void_reason ? ` · ${inv.void_reason}` : ""}
+                    Issued {when(inv.issued_at)}, {money(inv.total_amount, inv.currency)}
+                    {inv.void_reason ? `, ${inv.void_reason}` : ""}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -902,7 +903,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     href={`/api/pms/invoice?id=${inv.id}`}
                     download={`${inv.invoice_number}.pdf`}
                   >
-                    ↓ PDF
+                    <Icon name="download" size={14} /> PDF
                   </a>
                   {!inv.voided_at && (
                     <button

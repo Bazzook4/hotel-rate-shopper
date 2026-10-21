@@ -46,9 +46,9 @@ function daysBetween(from, to) {
 /** Overdue buckets, by days past the due date. */
 export const AGE_BUCKETS = [
   { id: 'notDue', label: 'Not due' },
-  { id: 'd30', label: '1–30 days', upTo: 30 },
-  { id: 'd60', label: '31–60 days', upTo: 60 },
-  { id: 'd90', label: '61–90 days', upTo: 90 },
+  { id: 'd30', label: '1 to 30 days', upTo: 30 },
+  { id: 'd60', label: '31 to 60 days', upTo: 60 },
+  { id: 'd90', label: '61 to 90 days', upTo: 90 },
   { id: 'older', label: '90+ days', upTo: Infinity },
 ];
 

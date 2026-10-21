@@ -280,8 +280,8 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
             />
             <div>
               <div className="text-ink text-sm font-medium">Per Adult Rate</div>
-              <div className="text-xs muted mt-1">Rate per person × number of adults</div>
-              <div className="text-xs text-[var(--accent-text)] mt-1">Example: ₹1000/adult × 2 = ₹2000</div>
+              <div className="text-xs muted mt-1">Rate per person x number of adults</div>
+              <div className="text-xs text-[var(--accent-text)] mt-1">Example: ₹1000/adult x 2 = ₹2000</div>
             </div>
           </label>
         </div>
@@ -368,7 +368,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                       )}
                       {!isBaseRoom && roomData.calcType?.[1] === 'ratio' && (
                         <div className="flex items-center gap-1">
-                          <span className="muted text-xs">×</span>
+                          <span className="muted text-xs">x</span>
                           <input
                             type="number"step="0.1"value={roomData.ratioMultiplier?.[1] || 1}
                             onChange={(e) => handleRatioChange(room.id, 1, e.target.value)}
@@ -506,7 +506,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     )}
                     {!isBaseRoom && roomData.calcType?.[adultCount] === 'ratio' && (
                       <div className="flex items-center gap-1">
-                        <span className="muted text-xs">×</span>
+                        <span className="muted text-xs">x</span>
                         <input
                           type="number"step="0.1"value={roomData.ratioMultiplier?.[adultCount] || 1}
                           onChange={(e) => handleRatioChange(room.id, adultCount, e.target.value)}

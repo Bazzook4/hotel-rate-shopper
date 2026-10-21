@@ -320,7 +320,7 @@ export default function BookingModal({
   // but it is disabled and says why.
   const tooEarly =
     reservation && reservation.check_in > todayUTC()
-      ? `Arrives ${reservation.check_in} — check-in opens that day`
+      ? `Arrives ${reservation.check_in} ; check-in opens that day`
       : null;
 
   // Nor can a guest go into a room still waiting to be cleaned. The server
@@ -328,7 +328,7 @@ export default function BookingModal({
   const assignedRoom = reservation && rooms.find((r) => r.id === reservation.room_id);
   const roomDirty =
     reservation?.status === "confirmed" && assignedRoom?.housekeeping === "dirty"
-      ? `Room ${assignedRoom.room_number} is dirty — mark it clean first`
+      ? `Room ${assignedRoom.room_number} is dirty. Mark it clean first`
       : null;
 
   return (
@@ -370,7 +370,7 @@ export default function BookingModal({
               ? prefill?.booking_type === "complimentary"
                 ? "New complimentary stay"
                 : "New booking"
-              : `Edit reservation — ${reservation?.reference || ""} for ${
+              : `Edit reservation: ${reservation?.reference || ""} for ${
                   reservation?.guest_name || ""
                 }`}
           </div>
@@ -386,7 +386,7 @@ export default function BookingModal({
             }}
             aria-label="Close"
           >
-            ✕
+            x
           </button>
         </div>
 
@@ -412,11 +412,11 @@ export default function BookingModal({
                 title={group.reservations
                   .map(
                     (m) =>
-                      `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name} · ${m.guest_name} · ${m.reference}`
+                      `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name}, ${m.guest_name}, ${m.reference}`
                   )
                   .join("\n")}
               >
-                Group: {group.name} · {group.reservations.length} room
+                Group: {group.name}, {group.reservations.length} room
                 {group.reservations.length === 1 ? "" : "s"}
               </span>
             )}
@@ -550,7 +550,7 @@ export default function BookingModal({
             </p>
           )}
 
-          {firstLoad && <p className="sub">Loading…</p>}
+          {firstLoad && <p className="sub">Loading...</p>}
 
           {!firstLoad && (tab === "details" || isNew) && (
             <>

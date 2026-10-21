@@ -206,7 +206,7 @@ async function sendInventory(propertyId, spans, { session = null, actor = null }
       return { status: "sent", message: "Availability sent to the channel manager." };
     }
     if (status === 200) {
-      return { status: "mock", message: "Channel manager not connected — availability was not sent." };
+      return { status: "mock", message: "Channel manager not connected, so availability was not sent." };
     }
     // Inventory out switched off is a choice the property made, not a fault.
     if (status === 409 && /turned off/.test(body.error || "")) {

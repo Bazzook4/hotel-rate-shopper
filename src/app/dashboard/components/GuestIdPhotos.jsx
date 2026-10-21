@@ -132,13 +132,13 @@ export default function GuestIdPhotos({ propertyId, guest, onChanged }) {
         <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => cameraRef.current?.click()}>
           Take photo
         </button>
-        <span className="sub text-xs">{busy ? "Working…" : "Photo or PDF, up to 4 MB each. Front and back if the ID has both."}</span>
+        <span className="sub text-xs">{busy ? "Working..." : "Photo or PDF, up to 4 MB each. Front and back if the ID has both."}</span>
         <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={pick} />
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={pick} />
       </div>
 
       {error && <div className="text-sm" style={{ color: "var(--danger)" }}>{error}</div>}
-      {!photos && !error && <span className="sub">Loading…</span>}
+      {!photos && !error && <span className="sub">Loading...</span>}
       {photos?.length === 0 && <span className="sub">No ID on file.</span>}
 
       {photos?.length > 0 && (
@@ -174,7 +174,7 @@ export default function GuestIdPhotos({ propertyId, guest, onChanged }) {
                   aria-label={`Delete ${p.name}`}
                   title="Delete"
                 >
-                  ✕
+                  x
                 </button>
               </div>
             </div>

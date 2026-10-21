@@ -20,7 +20,7 @@ export function mealPlan(code) {
 
 /** "CP" + refundable false -> "NR CP" */
 export function planLabel({ meal_plan, refundable } = {}) {
-  if (!meal_plan) return "—";
+  if (!meal_plan) return "-";
   return refundable === false ? `NR ${meal_plan}` : meal_plan;
 }
 

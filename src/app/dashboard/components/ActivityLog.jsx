@@ -52,9 +52,9 @@ const SOURCE_LABELS = {
 };
 
 function formatWhen(value) {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString(undefined, {
     day: "2-digit",
     month: "short",
@@ -65,9 +65,9 @@ function formatWhen(value) {
 
 /** A date span reads as one date when both ends match. */
 function formatSpan(from, to) {
-  if (!from && !to) return "—";
+  if (!from && !to) return "-";
   if (!to || from === to) return from || to;
-  return `${from} → ${to}`;
+  return `${from} to ${to}`;
 }
 
 export default function ActivityLog({ session }) {
@@ -143,7 +143,7 @@ export default function ActivityLog({ session }) {
           disabled={loading}
           className="btn btn-secondary"
         >
-          {loading ? "Refreshing…" : "Refresh"}
+          {loading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
@@ -195,7 +195,7 @@ export default function ActivityLog({ session }) {
             {loading && logs.length === 0 && (
               <tr>
                 <td colSpan={8} className="py-6 text-center muted">
-                  Loading activity…
+                  Loading activity...
                 </td>
               </tr>
             )}
@@ -218,7 +218,7 @@ export default function ActivityLog({ session }) {
                   <td className="py-1 px-2 whitespace-nowrap">
                     {KIND_LABELS[row.kind] || row.kind}
                     <span className="faint">
-                      {row.direction === "in" ? " ↓ in" : " ↑ out"}
+                      {row.direction === "in" ? " in" : " out"}
                     </span>
                   </td>
                   <td className="py-1 px-2 whitespace-nowrap">
@@ -229,9 +229,9 @@ export default function ActivityLog({ session }) {
                   <td className="py-1 px-2 whitespace-nowrap muted">
                     {formatSpan(row.date_from, row.date_to)}
                   </td>
-                  <td className="py-1 px-2 muted">{row.entry_count ?? "—"}</td>
+                  <td className="py-1 px-2 muted">{row.entry_count ?? "-"}</td>
                   <td className="py-1 px-2">
-                    <div>{row.summary || "—"}</div>
+                    <div>{row.summary || "-"}</div>
                     {row.error && (
                       <div className="text-[var(--danger)]">{row.error}</div>
                     )}
@@ -242,7 +242,7 @@ export default function ActivityLog({ session }) {
                             Sent
                           </p>
                           <pre className="mt-1 max-h-64 overflow-auto rounded-lg bg-[var(--surface-2)] p-2 text-[10px] leading-relaxed">
-                            {JSON.stringify(row.request, null, 2) || "—"}
+                            {JSON.stringify(row.request, null, 2) || "-"}
                           </pre>
                         </div>
                         {row.response && (
@@ -262,7 +262,7 @@ export default function ActivityLog({ session }) {
                     )}
                   </td>
                   <td className="py-1 px-2 whitespace-nowrap muted">
-                    {row.user_email || SOURCE_LABELS[row.source] || "—"}
+                    {row.user_email || SOURCE_LABELS[row.source] || "-"}
                   </td>
                   <td className="py-1 px-2 whitespace-nowrap">
                     {(row.request || row.response) && (
@@ -285,7 +285,7 @@ export default function ActivityLog({ session }) {
       {total > 0 && (
         <div className="flex items-center justify-between gap-3">
           <p className="sub">
-            Showing {offset + 1}–{showingTo} of {total}
+            Showing {offset + 1}-{showingTo} of {total}
           </p>
           <div className="flex gap-2">
             <button

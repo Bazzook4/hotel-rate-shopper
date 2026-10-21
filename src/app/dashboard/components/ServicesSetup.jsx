@@ -161,7 +161,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
     await onChanged();
     setBusy(false);
     const errors = [...catErrors, ...svcErrors];
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -191,7 +191,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
     return immediate(
       "DELETE",
       { id: service.id },
-      `Retire “${service.name}”? It stays on past folios, with its taxes, but is no longer offered.`
+      `Retire "${service.name}"? It stays on past folios, with its taxes, but is no longer offered.`
     );
   }
 
@@ -201,8 +201,8 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
       "DELETE",
       { id: category.id, kind: "category" },
       n > 0
-        ? `Delete “${category.name}”? Its ${n} service${n === 1 ? "" : "s"} move to Uncategorised.`
-        : `Delete “${category.name}”?`
+        ? `Delete "${category.name}"? Its ${n} service${n === 1 ? "" : "s"} move to Uncategorised.`
+        : `Delete "${category.name}"?`
     );
   }
 
@@ -226,12 +226,12 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
           + Add category
         </button>
         {liveTaxes.length === 0 && (
-          <span className="chip chip-warn">No taxes yet — add them under Tax Setup</span>
+          <span className="chip chip-warn">No taxes yet. Add them under Tax Setup</span>
         )}
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter services…"
+          placeholder="Filter services..."
           className="ml-auto input w-56"
         />
       </Toolbar>
@@ -267,7 +267,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
                   <td className="cm-sticky" style={{ background: "var(--surface-2)" }}>
                     {c ? (
                       cat.input(c, "name", {
-                        placeholder: "Category name — Spa, Laundry…",
+                        placeholder: "Category name, e.g. Spa, Laundry",
                         invalid: !cat.value(c, "name")?.trim(),
                         autoFocus: isDraft(c.id),
                         style: { fontWeight: 600 },
@@ -308,7 +308,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
                         title="Delete category"
                         onClick={() => deleteCategory(c, group.services.length)}
                       >
-                        ✕
+                        x
                       </button>
                     )}
                   </td>
@@ -356,7 +356,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
                       {liveTaxes.map((t) => (
                         <td key={t.id} className="text-center">
                           {included ? (
-                            <span className="faint">—</span>
+                            <span className="faint">-</span>
                           ) : (
                             <input
                               type="checkbox"
@@ -381,7 +381,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
                             title={draft ? "Remove this new row" : "Retire service"}
                             onClick={() => retire(s)}
                           >
-                            ✕
+                            x
                           </button>
                         )}
                         {/* An ended tax still on the service is kept, but
@@ -424,7 +424,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
       </Grid>
 
       <p className="sub">
-        “Included” services come with the rate (breakfast on a BB plan) and show on
+        &quot;Included&quot; services come with the rate (breakfast on a BB plan) and show on
         the folio without being charged or taxed.
       </p>
     </div>

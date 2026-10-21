@@ -162,7 +162,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
   }, [load]);
 
   const planOptions = [{ id: "", label: "Any plan" }, ...ratePlans.map((p) => ({ id: p.id, label: p.plan_name }))];
-  const typeOptions = [{ id: "", label: "Choose…" }, ...roomTypes.map((rt) => ({ id: rt.id, label: rt.room_type_name }))];
+  const typeOptions = [{ id: "", label: "Choose..." }, ...roomTypes.map((rt) => ({ id: rt.id, label: rt.room_type_name }))];
 
   function blank(from = null) {
     const base = {
@@ -205,7 +205,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
     });
     await load();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -238,7 +238,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
     <div className="space-y-4">
       <SetupHeader
         section
-        title={`Contract rates — ${company.name}`}
+        title={`Contract rates: ${company.name}`}
         count={lines.length}
         sub="Fixed prices per night. Where lines overlap, the one covering the fewest nights wins. Nights no line covers are quoted at your public rate."
       >
@@ -256,7 +256,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
         >
           + Add rate line
         </button>
-        {roomTypes.length === 0 && <span className="sub">Add room types under Setup → Rooms first.</span>}
+        {roomTypes.length === 0 && <span className="sub">Add room types under Setup &gt; Rooms first.</span>}
       </Toolbar>
 
       <Grid>
@@ -282,7 +282,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
         <tbody>
           {loading && lines.length === 0 && (
             <tr>
-              <td colSpan={cols} className="cm-empty">Loading…</td>
+              <td colSpan={cols} className="cm-empty">Loading...</td>
             </tr>
           )}
           {!loading && all.length === 0 && (
@@ -333,7 +333,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
                     type="button"
                     className="btn btn-ghost text-xs"
                     onClick={() => grid.add(blank(row))}
-                    title="Copy this line — to add a weekend or season on top"
+                    title="Copy this line to add a weekend or season on top"
                     aria-label="Copy line"
                   >
                     ⧉
@@ -345,7 +345,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
                     title="Delete line"
                     aria-label="Delete line"
                   >
-                    ✕
+                    x
                   </button>
                 </td>
               </tr>
@@ -434,7 +434,7 @@ export default function Companies({ session }) {
     });
     await load();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -500,7 +500,7 @@ export default function Companies({ session }) {
             className="input w-56"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, GSTIN, contact…"
+            placeholder="Name, GSTIN, contact..."
           />
         </div>
       </Toolbar>
@@ -529,7 +529,7 @@ export default function Companies({ session }) {
         <tbody>
           {loading && companies.length === 0 && (
             <tr>
-              <td colSpan={COLS + 1} className="cm-empty">Loading…</td>
+              <td colSpan={COLS + 1} className="cm-empty">Loading...</td>
             </tr>
           )}
           {!loading && rows.length === 0 && (
@@ -563,7 +563,7 @@ export default function Companies({ session }) {
                 <td>{grid.input(c, "state")}</td>
                 <td>{grid.input(c, "postal_code")}</td>
                 <td className="cm-num">
-                  {agent ? grid.input(c, "commission_percent", { type: "number", min: 0, max: 100, step: "0.5" }) : <span className="sub">—</span>}
+                  {agent ? grid.input(c, "commission_percent", { type: "number", min: 0, max: 100, step: "0.5" }) : <span className="sub">-</span>}
                 </td>
                 <td className="cm-num">{grid.input(c, "credit_days", { type: "number", min: 0, step: 1 })}</td>
                 <td className="cm-num">{grid.input(c, "credit_limit", { type: "number", min: 0 })}</td>
@@ -589,7 +589,7 @@ export default function Companies({ session }) {
                     title="Delete"
                     aria-label={`Delete ${c.name || "company"}`}
                   >
-                    ✕
+                    x
                   </button>
                 </td>
               </tr>

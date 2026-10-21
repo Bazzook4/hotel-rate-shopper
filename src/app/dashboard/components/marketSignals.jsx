@@ -18,7 +18,7 @@ import { usePageState } from "./usePageState";
  * fails because of, a page the user may not even have.
  */
 
-const money = (v) => (v == null ? "—" : Math.round(v).toLocaleString("en-IN"));
+const money = (v) => (v == null ? "-" : Math.round(v).toLocaleString("en-IN"));
 
 async function getJSON(url) {
   try {
@@ -133,7 +133,7 @@ export function DateSignals({ date, market }) {
     market.keyCompetitor && `${market.keyCompetitor.name}: ${keyRate != null ? `₹${money(keyRate)}` : "no rate"}`,
     median != null && `Competitor median: ₹${money(median)}`,
     parity === "breach" && "Your channels disagree by more than 5% on this night",
-    parity === "drift" && "Your channels differ by 1–5% on this night",
+    parity === "drift" && "Your channels differ by 1 to 5% on this night",
   ]
     .filter(Boolean)
     .join("\n");
@@ -142,7 +142,7 @@ export function DateSignals({ date, market }) {
     <div className="mt-0.5 space-y-0.5" title={title}>
       {shown != null && (
         <div className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
-          {keyRate != null ? "★" : "comp"} {money(shown)}
+          {keyRate != null ? "key" : "comp"} {money(shown)}
         </div>
       )}
       {parity && (
@@ -264,10 +264,10 @@ export function SuggestionDialog({ open, propertyId, onClose, onDone }) {
     <div className="dialog-backdrop" onClick={onClose}>
       <div className="dialog card" role="dialog" aria-modal="true" aria-label="Suggested price" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-          {room.name} · {day}
+          {room.name}, {day}
         </h3>
         <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-          Now ₹{money(cell.current)} → suggested ₹{money(cell.recommended)}
+          Now ₹{money(cell.current)} to suggested ₹{money(cell.recommended)}
           {cell.boundedBy ? ` (held at your ${cell.boundedBy})` : ""}
         </p>
         {cell.reasons?.length > 0 && (
@@ -305,7 +305,7 @@ export function SuggestionDialog({ open, propertyId, onClose, onDone }) {
             onClick={() => send("applied")}
             disabled={busy || !(Number(rate) > 0)}
           >
-            {busy ? "Sending…" : adjusted ? `Send ₹${money(Number(rate))}` : "Accept"}
+            {busy ? "Sending..." : adjusted ? `Send ₹${money(Number(rate))}` : "Accept"}
           </button>
         </div>
       </div>

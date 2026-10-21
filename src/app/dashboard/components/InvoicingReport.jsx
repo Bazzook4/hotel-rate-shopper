@@ -110,7 +110,7 @@ function Register({ report, money, onOpen }) {
                 {whole.format(g.missing)} missing between {g.after} and {g.before}
               </li>
             ))}
-            {gaps.length > 20 && <li>…and {whole.format(gaps.length - 20)} more</li>}
+            {gaps.length > 20 && <li>...and {whole.format(gaps.length - 20)} more</li>}
           </ul>
         </div>
       )}
@@ -141,7 +141,7 @@ function Register({ report, money, onOpen }) {
                       )}
                     </td>
                     <td className="text-right tabular-nums">{whole.format(t.invoices)}</td>
-                    <td className="text-right tabular-nums">{t.base == null ? "–" : money(t.base)}</td>
+                    <td className="text-right tabular-nums">{t.base == null ? "-" : money(t.base)}</td>
                     <td className="text-right tabular-nums">{money(t.amount)}</td>
                   </tr>
                 ))}
@@ -193,17 +193,17 @@ function Register({ report, money, onOpen }) {
                       )}
                     </td>
                     <td className="whitespace-nowrap">{longDate(r.day)}</td>
-                    <td>{r.guest || "–"}</td>
+                    <td>{r.guest || "-"}</td>
                     <td>
                       <BookingLink reference={r.reference} reservationId={r.reservationId} tab="invoices" onOpen={onOpen} />
                     </td>
                     <td className="whitespace-nowrap">
-                      {longDate(r.checkIn)} – {longDate(r.checkOut)}
+                      {longDate(r.checkIn)} to {longDate(r.checkOut)}
                     </td>
                     <td className="text-right tabular-nums">{money(r.taxable)}</td>
                     {taxNames.map((n) => (
                       <td key={n} className="text-right tabular-nums">
-                        {r.taxes[n] ? money(r.taxes[n]) : "–"}
+                        {r.taxes[n] ? money(r.taxes[n]) : "-"}
                       </td>
                     ))}
                     <td
@@ -269,12 +269,12 @@ function BalanceTable({ rows: unsorted, money, onOpen, credit = false }) {
               <td>
                 <BookingLink reference={r.reference} reservationId={r.reservationId} tab="payments" onOpen={onOpen} />
               </td>
-              <td>{r.guest || "–"}</td>
+              <td>{r.guest || "-"}</td>
               <td className="whitespace-nowrap">
-                {longDate(r.checkIn)} – {longDate(r.checkOut)}
+                {longDate(r.checkIn)} to {longDate(r.checkOut)}
               </td>
               <td>{STATUS_LABEL[r.status] || r.status}</td>
-              {!credit && <td className="text-right tabular-nums">{r.age == null ? "–" : whole.format(r.age)}</td>}
+              {!credit && <td className="text-right tabular-nums">{r.age == null ? "-" : whole.format(r.age)}</td>}
               <td className="text-right tabular-nums">{money(r.total)}</td>
               <td className="text-right tabular-nums">{money(r.paid)}</td>
               <td
@@ -284,7 +284,7 @@ function BalanceTable({ rows: unsorted, money, onOpen, credit = false }) {
                 {money(Math.abs(r.balance))}
               </td>
               <td className="whitespace-nowrap">{r.lastPayment ? longDate(r.lastPayment) : "None"}</td>
-              <td>{r.invoice || "–"}</td>
+              <td>{r.invoice || "-"}</td>
             </tr>
           ))}
         </tbody>
@@ -412,7 +412,7 @@ function Uninvoiced({ report, money, onOpen }) {
                     <td>
                       <BookingLink reference={r.reference} reservationId={r.reservationId} tab="invoices" onOpen={onOpen} />
                     </td>
-                    <td>{r.guest || "–"}</td>
+                    <td>{r.guest || "-"}</td>
                     <td className="whitespace-nowrap">{longDate(r.checkOut)}</td>
                     <td>{r.channel}</td>
                     <td>
@@ -420,7 +420,7 @@ function Uninvoiced({ report, money, onOpen }) {
                         {r.kind === "none" ? "Never invoiced" : `Changed since ${r.invoice}`}
                       </span>
                     </td>
-                    <td className="text-right tabular-nums">{r.invoiced == null ? "–" : money(r.invoiced)}</td>
+                    <td className="text-right tabular-nums">{r.invoiced == null ? "-" : money(r.invoiced)}</td>
                     <td className="text-right tabular-nums">{money(r.total)}</td>
                     <td className="text-right tabular-nums">{money(r.balance)}</td>
                   </tr>

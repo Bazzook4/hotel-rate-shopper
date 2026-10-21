@@ -186,15 +186,15 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
             <h3 className="text-xl font-bold text-ink">Configure Rate Plans</h3>
             <p className="sub mt-1">Fine-tune pricing for all combinations of room types, occupancy, and meal plans
             </p>
-            <p className="text-xs faint mt-2">Hotel: <span className="text-ink font-medium">{hotel.hotelName}</span> •
-              {roomTypes.length} room types • {ratePlans.length} meal plans • {activeRows.length} rate plan variations
+            <p className="text-xs faint mt-2">Hotel: <span className="text-ink font-medium">{hotel.hotelName}</span>,
+              {roomTypes.length} room types, {ratePlans.length} meal plans, {activeRows.length} rate plan variations
             </p>
           </div>
           <button
             onClick={onBack}
             className="px-4 py-2 rounded-lg bg-[var(--surface)] hover:bg-[var(--surface-2)] border border-[var(--border)] muted text-sm font-medium transition-all"
           >
-            ← Back to Setup
+            Back to Setup
           </button>
         </div>
       </div>

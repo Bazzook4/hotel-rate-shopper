@@ -31,7 +31,7 @@ import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
 const num = (v) => (v === "" || v == null ? "" : Number(v));
 const signed = (n) => `${n > 0 ? "+" : ""}${Math.round(n * 10) / 10}`;
-const money = (n) => (n == null ? "—" : Math.round(n).toLocaleString("en-IN"));
+const money = (n) => (n == null ? "-" : Math.round(n).toLocaleString("en-IN"));
 
 function Section({ title, sub, children }) {
   return (
@@ -79,7 +79,7 @@ function NumIn({ value, onChange, width = 72, label, ...rest }) {
 function RemoveBtn({ onClick, label }) {
   return (
     <button type="button" className="btn btn-ghost" style={{ padding: "2px 8px" }} onClick={onClick} aria-label={label} title={label}>
-      ✕
+      x
     </button>
   );
 }
@@ -173,7 +173,7 @@ function TryIt({ rooms, strategy, scales, adjustments }) {
       </div>
       <p className="text-sm">
         <strong>
-          {money(base)} → {money(result.rate)}
+          {money(base)} to {money(result.rate)}
         </strong>{" "}
         <span className="muted">
           ({signed(change)}%, {daysOut} day{daysOut === 1 ? "" : "s"} out)
@@ -400,7 +400,7 @@ function OccupancyMatrix({ value, onChange }) {
                     <span>{labels[ci]} days</span>
                   ) : (
                     <>
-                      <span>{ci === 0 ? "0" : Number(value.cols[ci - 1]) + 1}–</span>
+                      <span>{ci === 0 ? "0" : Number(value.cols[ci - 1]) + 1}-</span>
                       <NumIn value={c} onChange={(v) => setCol(ci, v)} width={56} label="Last day of column" />
                     </>
                   )}
@@ -440,7 +440,7 @@ function OccupancyMatrix({ value, onChange }) {
         <button type="button" className="btn btn-secondary" onClick={addColumn} disabled={value.cols.length >= 8}>
           + Add column
         </button>
-        <span className="muted">·</span>
+        <span className="muted">|</span>
         <button type="button" className="btn btn-secondary" onClick={download}>
           Download
         </button>

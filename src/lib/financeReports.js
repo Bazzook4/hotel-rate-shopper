@@ -370,7 +370,7 @@ function topUpRow(t, emails) {
     method: t.method,
     methodLabel: PAYMENT_METHODS[t.method] || t.method,
     transaction: t.reference || null,
-    notes: `Wallet top-up${bonus > 0.009 ? ` · credit ${round(Number(t.credit))} incl. ${round(bonus)} bonus` : ''}${t.notes ? ` · ${t.notes}` : ''}`,
+    notes: `Wallet top-up${bonus > 0.009 ? `, credit ${round(Number(t.credit))} incl. ${round(bonus)} bonus` : ''}${t.notes ? `, ${t.notes}` : ''}`,
     amount: cash,
     walletTopUp: true,
     recordedBy: emails[t.recorded_by] || null,
@@ -549,10 +549,10 @@ export async function getStillOwing(propertyId, { today }) {
 /** How long a departed guest has owed, in the buckets a debtor list uses. */
 const AGE_BUCKETS = [
   { id: 'inHouse', label: 'In house' },
-  { id: 'd7', label: '0–7 days', upTo: 7 },
-  { id: 'd30', label: '8–30 days', upTo: 30 },
-  { id: 'd60', label: '31–60 days', upTo: 60 },
-  { id: 'd90', label: '61–90 days', upTo: 90 },
+  { id: 'd7', label: '0 to 7 days', upTo: 7 },
+  { id: 'd30', label: '8 to 30 days', upTo: 30 },
+  { id: 'd60', label: '31 to 60 days', upTo: 60 },
+  { id: 'd90', label: '61 to 90 days', upTo: 90 },
   { id: 'older', label: 'Over 90 days', upTo: Infinity },
 ];
 
@@ -894,7 +894,7 @@ export async function getNightAudit(propertyId, { date, tz = 0 }) {
       id: 'invoice',
       tone: 'warn',
       title: 'Checked out without an invoice',
-      hint: 'Issue the invoice from the stay’s Bill.',
+      hint: 'Issue the invoice from the stay\'s Bill.',
       rows: departedToday
         .filter((r) => folios.get(r.id).invoices.length === 0 && folios.get(r.id).totals.total > PENNY)
         .map((r) => ({ ...stayRow(r), amount: folios.get(r.id).totals.total })),
@@ -903,7 +903,7 @@ export async function getNightAudit(propertyId, { date, tz = 0 }) {
       id: 'zero',
       tone: 'warn',
       title: 'Nights charged at nothing',
-      hint: 'A night with no rate that is not a complimentary stay. Set the rate in the stay’s Bill, or mark the stay complimentary.',
+      hint: 'A night with no rate that is not a complimentary stay. Set the rate in the stay\'s Bill, or mark the stay complimentary.',
       rows: zeroNights,
     },
     {
@@ -938,7 +938,7 @@ export async function getNightAudit(propertyId, { date, tz = 0 }) {
         reservationId: p.reservationId,
         reference: p.reference,
         guest: p.guest,
-        detail: [p.methodLabel, p.voidReason, p.voidedBy && `by ${p.voidedBy}`].filter(Boolean).join(' · '),
+        detail: [p.methodLabel, p.voidReason, p.voidedBy && `by ${p.voidedBy}`].filter(Boolean).join(', '),
         amount: p.amount,
       })),
     },
@@ -951,7 +951,7 @@ export async function getNightAudit(propertyId, { date, tz = 0 }) {
         reservationId: inv.reservation_id,
         reference: inv.snapshot?.reference || null,
         guest: inv.snapshot?.guest_name || null,
-        detail: [inv.invoice_number, inv.void_reason].filter(Boolean).join(' · '),
+        detail: [inv.invoice_number, inv.void_reason].filter(Boolean).join(', '),
         amount: Number(inv.total_amount) || 0,
       })),
     },

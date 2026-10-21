@@ -34,7 +34,7 @@ import { useEscape } from "../../components/useEscape";
 
 const fmt = (n) =>
   n === null || n === undefined || !Number.isFinite(Number(n))
-    ? "—"
+    ? "-"
     : Math.round(Number(n)).toLocaleString("en-IN");
 
 const blank = (v) => v === null || v === undefined || v === "";
@@ -205,7 +205,7 @@ export default function RatePlanSetup({
         <input
           value={planFilter}
           onChange={(e) => setPlanFilter(e.target.value)}
-          placeholder="Filter rate plans…"
+          placeholder="Filter rate plans..."
           className="input w-56"
         />
         {(roomFilter || planFilter) && (
@@ -308,7 +308,7 @@ export default function RatePlanSetup({
                       <span>
                         From <strong>{master.plan_name}</strong>{" "}
                         <span className="muted">
-                          · {describeRule(plan.derive_method, plan.derive_value, plan.derive_value_2)}
+                         , {describeRule(plan.derive_method, plan.derive_value, plan.derive_value_2)}
                         </span>
                       </span>
                     ) : (
@@ -373,19 +373,19 @@ export default function RatePlanSetup({
                             </span>
                           ) : src.inherited ? (
                             <span className="muted">
-                              Follows plan · {roomRateName(src.planId, src.roomId)}
+                              Follows plan, {roomRateName(src.planId, src.roomId)}
                             </span>
                           ) : (
                             <span>
                               From <strong>{roomRateName(src.planId, src.roomId)}</strong>{" "}
-                              <span className="muted">· {describeRule(src.method, src.value, src.value2)}</span>
+                              <span className="muted">, {describeRule(src.method, src.value, src.value2)}</span>
                             </span>
                           )}
                           {src.manual && Object.keys(a?.occupancy_rules || {}).length > 0 && (
                             <span className="ml-2 chip chip-off" title="Adult counts worked out from the single rate">
                               {Object.entries(a.occupancy_rules)
                                 .map(([n, r]) => `${n}A = 1A ${describeRule(r.method, r.value, r.value2)}`)
-                                .join(" · ")}
+                                .join(", ")}
                             </span>
                           )}
                           {overrides.length > 0 && (
@@ -402,16 +402,16 @@ export default function RatePlanSetup({
                               title="No per-adult rates yet, so the room's base price is sold"
                               onClick={() => setDrawer({ kind: "room", plan, room })}
                             >
-                              Set rates · base {fmt(room.base_price)} in use
+                              Set rates, base {fmt(room.base_price)} in use
                             </button>
                           ) : (
                             <span>
                               {Object.entries(rates)
                                 .filter(([n]) => Number(n) <= base)
                                 .map(([n, v]) => `${n}A ${fmt(v)}`)
-                                .join(" · ")}
+                                .join(", ")}
                               {max > base && !blank(a?.extra_adult_rate) && (
-                                <span className="muted"> · +{fmt(a.extra_adult_rate)}/extra</span>
+                                <span className="muted">, +{fmt(a.extra_adult_rate)}/extra</span>
                               )}
                             </span>
                           )}
@@ -438,7 +438,7 @@ export default function RatePlanSetup({
                   <tr>
                     <td className="cm-sticky" style={{ paddingLeft: 40 }} colSpan={4}>
                       <span className="text-xs muted">
-                        No room types assigned — use ⋯ → Assign room type to start selling this plan.
+                        No room types assigned. Use ⋯ &gt; Assign room type to start selling this plan.
                       </span>
                     </td>
                   </tr>
@@ -518,12 +518,12 @@ function makeResolver(ratePlans, assignments, roomTypes) {
 function StayRules({ min, max, release, stopSell, own = {} }) {
   const part = (label, v, mine) => (
     <span style={mine ? { fontWeight: 600 } : undefined} className={mine ? undefined : "muted"}>
-      {label} {blank(v) ? "—" : v}
+      {label} {blank(v) ? "-" : v}
     </span>
   );
   return (
     <span className="text-xs whitespace-nowrap">
-      {part("Min", min, own.min)} · {part("Max", max, own.max)} · {part("Rel", release, own.release)}
+      {part("Min", min, own.min)}, {part("Max", max, own.max)}, {part("Rel", release, own.release)}
       {stopSell && (
         <span className="ml-2 chip chip-warn" style={own.stopSell ? { fontWeight: 700 } : undefined}>
           Stop sell
@@ -613,7 +613,7 @@ export function RowMenu({ title, items }) {
           <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide muted" style={{ borderBottom: "1px solid var(--border)" }}>
             {title}
             <button type="button" onClick={() => pick()} aria-label="Close">
-              ✕
+              x
             </button>
           </div>
           {items.map((it) => (
@@ -687,7 +687,7 @@ export function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", 
               Cancel
             </button>
             <button type="button" className="btn btn-primary" onClick={onSave} disabled={busy}>
-              {busy ? "Saving…" : saveLabel}
+              {busy ? "Saving..." : saveLabel}
             </button>
           </div>
         </div>
@@ -744,7 +744,7 @@ function LockField({ label, locked, inherited, onUnlock, onLock, children }) {
           onClick={locked ? onUnlock : onLock}
           className="btn btn-secondary px-2"
           style={{ height: 38, ...(locked ? { color: "var(--accent)" } : {}) }}
-          title={locked ? "Following the rate plan — unlock to set this room's own value" : "Lock to follow the rate plan again"}
+          title={locked ? "Following the rate plan. Unlock to set this room's own value" : "Lock to follow the rate plan again"}
           aria-label={locked ? `Unlock ${label}` : `Lock ${label}`}
         >
           <LockIcon open={!locked} />
@@ -1017,7 +1017,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
             <select className="input" value={form.meal_plan} onChange={(e) => set({ meal_plan: e.target.value })}>
               {MEAL_PLANS.map((m) => (
                 <option key={m.code} value={m.code}>
-                  {m.code} — {m.hint}
+                  {m.code}: {m.hint}
                 </option>
               ))}
             </select>
@@ -1133,7 +1133,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
               ))}
             </div>
             {!derived && newRooms.size > 0 && (
-              <p className="mt-1 text-xs faint">Set each room&rsquo;s per-adult rates from its row after creating the plan.</p>
+              <p className="mt-1 text-xs faint">Set each room&apos;s per-adult rates from its row after creating the plan.</p>
             )}
           </div>
         )}
@@ -1284,7 +1284,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
   const show = (v, none = "None") => (blank(v) ? none : String(v));
 
   const planSetupText = plan.derive_from_id
-    ? `Based on ${roomName(room.id)} / ${planName(plan.derive_from_id)} · ${describeRule(plan.derive_method, plan.derive_value, plan.derive_value_2)}`
+    ? `Based on ${roomName(room.id)} / ${planName(plan.derive_from_id)}, ${describeRule(plan.derive_method, plan.derive_value, plan.derive_value_2)}`
     : "Manually input daily rates";
 
   function problem() {
@@ -1379,7 +1379,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
   return (
     <Drawer
       title={isNew ? "Assign room type" : "Edit room rate"}
-      subtitle={`${room.room_type_name} · assigned to “${plan.plan_name}”`}
+      subtitle={`${room.room_type_name}, assigned to "${plan.plan_name}"`}
       onCancel={onClose}
       onSave={save}
       saveLabel={isNew ? "Assign" : "Save"}
@@ -1399,10 +1399,10 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
 
       <Section title="Occupancy">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Included occupancy" hint="Adults priced individually. Set under Setup → Rooms.">
+          <Field label="Included occupancy" hint="Adults priced individually. Set under Setup > Rooms.">
             <div className="input" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>{base}</div>
           </Field>
-          <Field label="Maximum occupancy" hint="Set under Setup → Rooms.">
+          <Field label="Maximum occupancy" hint="Set under Setup > Rooms.">
             <div className="input" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>{maxAdults}</div>
           </Field>
         </div>
@@ -1433,7 +1433,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
           </LockField>
         </div>
         <p className="text-xs faint">
-          Inclusions come from the plan: {plan.meal_plan || "—"} — {MEAL_PLANS.find((m) => m.code === plan.meal_plan)?.hint || "not set"}.
+          Inclusions come from the plan: {plan.meal_plan || "-"}: {MEAL_PLANS.find((m) => m.code === plan.meal_plan)?.hint || "not set"}.
         </p>
       </Section>
 
@@ -1564,7 +1564,7 @@ function AdultRates({ base, src, form, set, resolver, plan, room, sourceName }) 
       <div>
         <span className="label">Rates per adult *</span>
         <p className="mb-2 text-xs faint">
-          Enter the single, and either enter each further adult count or work it out from the single — then changing the single for a date in the Channel Manager moves the others with it.
+          Enter the single, and either enter each further adult count or work it out from the single. Then changing the single for a date in the Channel Manager moves the others with it.
         </p>
         <div className="overflow-x-auto card" style={{ padding: 0 }}>
           <table className="grid-table">
@@ -1633,7 +1633,7 @@ function AdultRates({ base, src, form, set, resolver, plan, room, sourceName }) 
     <div>
       <span className="label">Rate per adult, from the one it is based on</span>
       <p className="mb-2 text-xs faint">
-        Each adult count follows {sourceName} for the same number of adults. Give one its own rule — a single guest discount, say — and the others keep the main rule.
+        Each adult count follows {sourceName} for the same number of adults. Give one its own rule (a single guest discount, say) and the others keep the main rule.
       </p>
       <div className="overflow-x-auto card" style={{ padding: 0 }}>
         <table className="grid-table">
@@ -1662,7 +1662,7 @@ function AdultRates({ base, src, form, set, resolver, plan, room, sourceName }) 
                           setOverride(n, e.target.checked ? { method: src.method || "same", value: src.value ?? "", value2: src.value2 ?? "" } : null)
                         }
                       />
-                      {o ? "Own rule" : `Main rule (${describeRule(src.method, src.value, src.value2) || "—"})`}
+                      {o ? "Own rule" : `Main rule (${describeRule(src.method, src.value, src.value2) || "-"})`}
                     </label>
                     {o && (
                       <div className="mt-2">
@@ -1694,7 +1694,7 @@ function AssignDrawer({ plan, rooms, onClose, onAssign }) {
   return (
     <Drawer
       title="Assign multiple room types"
-      subtitle={`To “${plan.plan_name}”`}
+      subtitle={`To "${plan.plan_name}"`}
       onCancel={onClose}
       onSave={async () => {
         setBusy(true);
@@ -1706,7 +1706,7 @@ function AssignDrawer({ plan, rooms, onClose, onAssign }) {
       <Section title="Room types">
         <p className="text-xs faint">
           Each room rate starts by following the plan
-          {plan.derive_from_id ? " — derived, so it prices itself at once." : ". The plan is manual, so set each room's per-adult rates from its row afterwards."}
+          {plan.derive_from_id ? ". It is derived, so it prices itself at once." : ". The plan is manual, so set each room's per-adult rates from its row afterwards."}
         </p>
         <div className="space-y-2">
           {rooms.map((r) => (
@@ -1725,7 +1725,7 @@ function AssignDrawer({ plan, rooms, onClose, onAssign }) {
               />
               {r.room_type_name}
               <span className="text-xs faint">
-                {Math.max(1, Number(r.base_adults) || 0)} included · max {r.max_adults || "—"}
+                {Math.max(1, Number(r.base_adults) || 0)} included, max {r.max_adults || "-"}
               </span>
             </label>
           ))}

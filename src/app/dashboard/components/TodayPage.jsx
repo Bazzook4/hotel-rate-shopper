@@ -39,7 +39,7 @@ const KIND_LABEL = {
   reservation: "Incoming bookings",
 };
 
-const pct = (v) => (v == null ? "–" : `${one.format(v)}%`);
+const pct = (v) => (v == null ? "-" : `${one.format(v)}%`);
 
 /** A grey block the shape of what is loading, so the page does not jump when it arrives. */
 function Skeleton({ height = 16, width = "100%" }) {
@@ -82,7 +82,7 @@ function CardHead({ title, sub, page, linkLabel, onOpenPage, canOpen }) {
       </div>
       {page && canOpen(page) && (
         <button type="button" className="btn btn-ghost text-xs" onClick={() => onOpenPage(page)}>
-          {linkLabel} →
+          {linkLabel}
         </button>
       )}
     </div>
@@ -176,7 +176,7 @@ function SetupChecklist({ setup, onOpenPage, canOpen }) {
                 }
                 aria-label={s.done ? "Done" : "Not done"}
               >
-                {s.done ? "✓" : setup.steps.indexOf(s) + 1}
+                {s.done ? <Icon name="check" size={12} strokeWidth={2.4} /> : setup.steps.indexOf(s) + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <p
@@ -266,7 +266,7 @@ function NeedsAttention({ today, distribution, onOpenPage, canOpen, openBooking 
               />
               <span style={{ color: "var(--text)" }}>{r.guest}</span>
               <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {[r.room && `Room ${r.room}`, r.roomType].filter(Boolean).join(" · ")}
+                {[r.room && `Room ${r.room}`, r.roomType].filter(Boolean).join(", ")}
               </span>
             </li>
           ))}
@@ -374,7 +374,7 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
         </h4>
         {rows.length > DESK_ROWS && onSeeAll && (
           <button type="button" className="btn btn-ghost text-xs" onClick={onSeeAll}>
-            See all →
+            See all
           </button>
         )}
       </div>
@@ -400,7 +400,7 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
                 <span className="block truncate text-xs" style={{ color: "var(--text-muted)" }}>
                   {[r.rooms?.room_number ? `Room ${r.rooms.room_number}` : "No room yet", r.room_types?.room_type_name]
                     .filter(Boolean)
-                    .join(" · ")}
+                    .join(", ")}
                 </span>
                 {r.online_checkin && (
                   <span
@@ -417,7 +417,7 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
                 disabled={busyId !== null}
                 onClick={() => onAction(r)}
               >
-                {busyId === r.id ? "…" : action}
+                {busyId === r.id ? "..." : action}
               </button>
             </li>
           ))}
@@ -549,7 +549,7 @@ function Tonight({ today, onOpenPage, canOpen }) {
         <Tile
           label="Arrivals"
           value={whole.format(m.arrivals.expected)}
-          sub={`${whole.format(m.arrivals.arrived)} in · ${whole.format(m.arrivals.pending)} to come`}
+          sub={`${whole.format(m.arrivals.arrived)} in, ${whole.format(m.arrivals.pending)} to come`}
           page="reservations"
           view="arrivals"
           {...tile}
@@ -557,7 +557,7 @@ function Tonight({ today, onOpenPage, canOpen }) {
         <Tile
           label="Departures"
           value={whole.format(m.departures.expected)}
-          sub={`${whole.format(m.departures.departed)} out · ${whole.format(m.departures.pending)} to go`}
+          sub={`${whole.format(m.departures.departed)} out, ${whole.format(m.departures.pending)} to go`}
           page="reservations"
           view="departures"
           {...tile}
@@ -594,7 +594,7 @@ function MonthToDate({ month, onOpenPage, canOpen }) {
     <div className="card card-pad">
       <CardHead
         title="Month to date"
-        sub={`${longDate(month.start)} – ${longDate(month.end)}, compared with the same days last year`}
+        sub={`${longDate(month.start)} to ${longDate(month.end)}, compared with the same days last year`}
         page="performance"
         linkLabel="Booking performance"
         onOpenPage={onOpenPage}
@@ -640,12 +640,12 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
         <div>
           <h2 className="h1">Today</h2>
           <p className="sub">
-            {session?.propertyName ? `${session.propertyName} · ` : ""}
+            {session?.propertyName ? `${session.propertyName}, ` : ""}
             {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
         <button type="button" className="btn btn-secondary text-sm" onClick={reload} disabled={loading}>
-          <Icon name="refresh" size={16} /> {loading && report ? "Refreshing…" : "Refresh"}
+          <Icon name="refresh" size={16} /> {loading && report ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 

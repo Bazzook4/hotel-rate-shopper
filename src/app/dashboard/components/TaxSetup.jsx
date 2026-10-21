@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Icon from "../../components/Icon";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import { useToast } from "../../components/Toast";
 import {
@@ -140,7 +141,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
     });
     await onChanged();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -161,7 +162,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
     if (isDraft(tax.id)) return grid.removeDraft(tax.id);
     if (
       !(await dialog.confirm({
-        title: `Delete “${tax.name}”?`,
+        title: `Delete "${tax.name}"?`,
         message: "It disappears from every booking not yet invoiced, past ones too. To stop charging it from now on, use End instead.",
         confirmLabel: "Delete",
         danger: true,
@@ -191,7 +192,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
       ok = true;
     });
     if (!ok) return;
-    toast(`“${tax.name}” ended: charged up to ${lastNight}, not from ${today}`, {
+    toast(`"${tax.name}" ended: charged up to ${lastNight}, not from ${today}`, {
       undo: async () => {
         await sendJSON("/api/pms/taxes", "POST", { rules: [tax], property_id: propertyId });
         await onChanged();
@@ -206,7 +207,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
         message:
           "In force from 22 Sep 2025:\n" +
           "Nights up to ₹1,000: nil\n" +
-          "₹1,001 – ₹7,500: CGST 2.5% + SGST 2.5%\n" +
+          "₹1,001 to ₹7,500: CGST 2.5% + SGST 2.5%\n" +
           "Above ₹7,500: CGST 9% + SGST 9%\n\n" +
           "Please confirm the rates with your accountant.",
         confirmLabel: "Add GST",
@@ -303,7 +304,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
           + Indian GST preset
         </button>
         <span className="ml-auto text-xs muted">
-          Price bands are checked against each line&apos;s unit price — for the room,
+          Price bands are checked against each line&apos;s unit price; for the room,
           each night&apos;s rate. To change a rate, End the old rule and add a new one.
         </span>
       </Toolbar>
@@ -319,7 +320,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
             <th>Charged</th>
             <th>Who pays</th>
             <th title="Applies when the unit price is above this">Price above</th>
-            <th title="…and up to this">Up to</th>
+            <th title="...and up to this">Up to</th>
             <th title="Only the first N nights">First N nights</th>
             <th>From night</th>
             <th>To night</th>
@@ -347,7 +348,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
               >
                 <td className="cm-sticky">
                   {grid.input(t, "name", {
-                    placeholder: "CGST, City tax…",
+                    placeholder: "CGST, City tax...",
                     invalid: !m.name?.trim(),
                     autoFocus: draft,
                     style: { fontWeight: 600 },
@@ -382,10 +383,10 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
                 <td>{grid.input(t, "valid_from", { type: "date" })}</td>
                 <td>{grid.input(t, "valid_to", { type: "date" })}</td>
                 <td className="text-center">
-                  {percent ? grid.check(t, "is_inclusive") : <span className="faint">—</span>}
+                  {percent ? grid.check(t, "is_inclusive") : <span className="faint">-</span>}
                 </td>
                 <td className="text-center">
-                  {percent ? grid.check(t, "is_compound") : <span className="faint">—</span>}
+                  {percent ? grid.check(t, "is_compound") : <span className="faint">-</span>}
                 </td>
                 <td>
                   <div
@@ -407,14 +408,14 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
                           style={{ opacity: active ? 1 : 0.6, cursor: "pointer" }}
                           title={categoryName[s.category_id] || undefined}
                         >
-                          {active ? "✓ " : ""}
+                          {active && <Icon name="check" size={12} strokeWidth={2.4} />}
                           {s.name}
                         </button>
                       );
                     })}
                     {on.length === 0 && (
                       <span className="text-xs" style={{ color: "var(--warn)" }}>
-                        Nothing — charges nothing
+                        Nothing: charges nothing
                       </span>
                     )}
                   </div>
@@ -450,7 +451,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
                     onClick={() => remove(t)}
                     title={draft ? "Remove this new row" : "Delete tax"}
                   >
-                    ✕
+                    x
                   </button>
                 </td>
               </tr>
@@ -459,7 +460,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
           {rows.length === 0 && (
             <tr>
               <td colSpan={16} className="cm-empty">
-                No taxes set up — bookings are billed with no tax. Start from the
+                No taxes set up, so bookings are billed with no tax. Start from the
                 Indian GST preset, or add a rule.
               </td>
             </tr>
@@ -510,7 +511,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
               </select>
             </div>
             <div>
-              <label className="label">…costing (₹)</label>
+              <label className="label">...costing (₹)</label>
               <input
                 className="input"
                 type="number"
@@ -539,9 +540,9 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
                 <span style={{ color: "var(--text-muted)" }}>
                   {l.name}
                   <span style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
-                    {" "}
-                    · {l.detail}
-                    {l.inclusive ? " · included" : ""}
+                    
+                    , {l.detail}
+                    {l.inclusive ? ", included" : ""}
                   </span>
                 </span>
                 <span>{l.inclusive ? `(${money(l.amount)})` : money(l.amount)}</span>

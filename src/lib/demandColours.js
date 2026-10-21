@@ -73,7 +73,7 @@ export function levelFor(pct, thresholds) {
 /** "40–65%" style range for each level, for the key and the settings card. */
 export function levelRanges(thresholds) {
   const [a, b, c] = thresholds;
-  return { low: `under ${a}%`, normal: `${a}–${b}%`, good: `${b}–${c}%`, high: `${c}%+` };
+  return { low: `under ${a}%`, normal: `${a}-${b}%`, good: `${b}-${c}%`, high: `${c}%+` };
 }
 
 /** Dark or light text, whichever reads on the hotel's chosen colour. */
@@ -102,6 +102,6 @@ export function demandFor(prefs, sold, capacity) {
     level,
     background: bg,
     color: inkOn(bg),
-    title: `${sold} of ${capacity} sold · ${pct}% · ${label}`,
+    title: `${sold} of ${capacity} sold, ${pct}%, ${label}`,
   };
 }

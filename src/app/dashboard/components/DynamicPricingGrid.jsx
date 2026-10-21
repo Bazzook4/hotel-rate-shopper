@@ -22,7 +22,7 @@ function ageLabel(iso) {
 }
 
 function money(v) {
-  return v == null ? "—" : Math.round(v).toLocaleString("en-IN");
+  return v == null ? "-" : Math.round(v).toLocaleString("en-IN");
 }
 
 /**
@@ -37,7 +37,7 @@ function RateCell({ cell, selected, onToggle, onExplain }) {
   if (!cell) {
     return (
       <td className="text-center" style={{ color: "var(--text-faint)" }}>
-        —
+        -
       </td>
     );
   }
@@ -72,7 +72,7 @@ function RateCell({ cell, selected, onToggle, onExplain }) {
         <span style={{ color: "var(--text-muted)", textDecoration: "line-through", fontSize: "0.78rem" }}>
           {money(cell.current)}
         </span>
-        <span aria-hidden style={{ color: "var(--text-faint)" }}>→</span>
+        <span aria-hidden style={{ color: "var(--text-faint)" }}>to</span>
         <button
           type="button"
           onClick={() => onExplain(cell)}
@@ -112,7 +112,7 @@ function Explain({ cell, onClose }) {
     <div className="card card-pad space-y-2">
       <div className="flex items-center justify-between gap-3">
         <h4 className="h2">
-          {money(cell.current)} → {money(cell.recommended)}
+          {money(cell.current)} to {money(cell.recommended)}
           {change != null && (
             <span className="text-sm" style={{ marginLeft: 8, color: "var(--text-muted)" }}>
               {change > 0 ? "+" : ""}
@@ -311,7 +311,7 @@ export default function DynamicPricingGrid({ session }) {
     );
   }
 
-  if (loading && !data) return <p className="sub">Loading dynamic pricing…</p>;
+  if (loading && !data) return <p className="sub">Loading dynamic pricing...</p>;
 
   return (
     <div className="space-y-4">
@@ -338,7 +338,7 @@ export default function DynamicPricingGrid({ session }) {
         actions={
           <>
             <button type="button" className="btn btn-secondary" onClick={calculate} disabled={calculating}>
-              {calculating ? "Calculating…" : "Recalculate"}
+              {calculating ? "Calculating..." : "Recalculate"}
             </button>
             <button
               type="button"
@@ -354,7 +354,7 @@ export default function DynamicPricingGrid({ session }) {
               onClick={() => decide("accepted")}
               disabled={applying || selected.size === 0}
             >
-              {applying ? "Applying…" : `Apply selected${selected.size ? ` (${selected.size})` : ""}`}
+              {applying ? "Applying..." : `Apply selected${selected.size ? ` (${selected.size})` : ""}`}
             </button>
           </>
         }
@@ -420,7 +420,7 @@ export default function DynamicPricingGrid({ session }) {
                       {(room.floor != null || room.ceiling != null) && (
                         <div className="text-xs" style={{ color: "var(--text-muted)" }}>
                           {room.floor != null ? `floor ${money(room.floor)}` : ""}
-                          {room.floor != null && room.ceiling != null ? " · " : ""}
+                          {room.floor != null && room.ceiling != null ? ", " : ""}
                           {room.ceiling != null ? `ceiling ${money(room.ceiling)}` : ""}
                         </div>
                       )}
@@ -442,12 +442,12 @@ export default function DynamicPricingGrid({ session }) {
         )
       ) : (
         <div className="card card-pad">
-          <p className="sub">Add your room types under Setup → Rooms before running dynamic pricing.</p>
+          <p className="sub">Add your room types under Setup &gt; Rooms before running dynamic pricing.</p>
         </div>
       )}
 
       <p className="text-xs" style={{ color: "var(--text-faint)" }}>
-        {ageLabel(data?.calculatedAt)} · {pendingCount} awaiting a decision. Choose a rate to see why
+        {ageLabel(data?.calculatedAt)}, {pendingCount} awaiting a decision. Choose a rate to see why
         it was proposed, or a date heading to select the whole column. Applying writes the rate and
         publishes it through Rates &amp; Inventory.
       </p>

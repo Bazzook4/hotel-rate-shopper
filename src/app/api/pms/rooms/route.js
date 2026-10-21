@@ -160,7 +160,7 @@ export async function POST(req) {
       }
       if (Number(to) - Number(from) > 500) {
         return NextResponse.json(
-          { error: "That range is over 500 rooms — split it into smaller ranges." },
+          { error: "That range is over 500 rooms. Split it into smaller ranges." },
           { status: 400 }
         );
       }

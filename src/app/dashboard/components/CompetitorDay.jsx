@@ -3,13 +3,13 @@
 import { parseDateISO } from "@/lib/date";
 
 function money(value) {
-  if (value == null) return "—";
+  if (value == null) return "-";
   return Math.round(value).toLocaleString("en-IN");
 }
 
 /** When a lookup ran, so a fresh refresh can be told from an old one. */
 function checkedLabel(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return new Date(iso).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
@@ -93,8 +93,8 @@ export default function CompetitorDay({
           >
             {refreshing
               ? progress
-                ? `Checking… ${progress.done} of ${progress.total}`
-                : "Checking competitors…"
+                ? `Checking... ${progress.done} of ${progress.total}`
+                : "Checking competitors..."
               : "Refresh this day"}
           </button>
           <button type="button" className="btn" onClick={onClose}>
@@ -140,7 +140,7 @@ export default function CompetitorDay({
         <div className="card card-pad">
           <div className="label">Median competitor rate</div>
           <div style={{ fontSize: "1.4rem", fontWeight: 600 }}>
-            {median != null ? `₹${money(median)}` : "—"}
+            {median != null ? `₹${money(median)}` : "-"}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
             Across {rows.filter((r) => r.cell?.rate != null).length} of {rows.length} competitors
@@ -199,14 +199,14 @@ export default function CompetitorDay({
                     )}
                   </td>
                   <td>
-                    {cell?.roomName || <span style={{ color: "var(--text-faint)" }}>—</span>}
+                    {cell?.roomName || <span style={{ color: "var(--text-faint)" }}>-</span>}
                     {cell?.freeCancellation && (
                       <span className="chip chip-ok" style={{ marginLeft: 6 }}>
                         Free cancellation
                       </span>
                     )}
                   </td>
-                  <td>{cell?.channel || <span style={{ color: "var(--text-faint)" }}>—</span>}</td>
+                  <td>{cell?.channel || <span style={{ color: "var(--text-faint)" }}>-</span>}</td>
                   <td className="text-xs" style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                     {checkedLabel(cell?.checkedAt)}
                   </td>
@@ -229,7 +229,7 @@ export default function CompetitorDay({
       </div>
 
       <p className="text-xs" style={{ color: "var(--text-faint)" }}>
-        Rate: lowest across channels · {data.guests} guests · {data.nights} night
+        Rate: lowest across channels, {data.guests} guests, {data.nights} night
         {data.nights === 1 ? "" : "s"}. Google names the room only on some listings, so it can be
         blank where a rate is shown. Each rate links to the offer it came from, to check it
         against Google.

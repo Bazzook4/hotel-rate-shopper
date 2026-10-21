@@ -183,7 +183,7 @@ export default function ParityTrend({ data, ownChannelKey }) {
           p.ownRate == null ? null : (
             <circle key={p.date} cx={x(i)} cy={y(p.ownRate)} r="3.5" fill="var(--accent)">
               <title>{`${p.date}: you ${money(p.ownRate, currency)}${
-                p.low != null ? `, others ${money(p.low, currency)}–${money(p.high, currency)}` : ""
+                p.low != null ? `, others ${money(p.low, currency)}-${money(p.high, currency)}` : ""
               }`}</title>
             </circle>
           )

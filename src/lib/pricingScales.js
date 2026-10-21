@@ -173,7 +173,7 @@ export function columnFor(cols, daysOut) {
 export function columnLabels(cols) {
   let from = 0;
   return cols.map((c) => {
-    const label = c == null ? `${from}+` : from === Number(c) ? `${from}` : `${from}–${c}`;
+    const label = c == null ? `${from}+` : from === Number(c) ? `${from}` : `${from}-${c}`;
     from = c == null ? from : Number(c) + 1;
     return label;
   });
@@ -300,7 +300,7 @@ function cleanFollower(s, label) {
   const ignore = Number(s.ignore);
   const share = Number(s.share);
   if (ignore < 0 || share < 0 || share > 100) {
-    return { error: `${label}: the share must be 0–100% and the gap to ignore 0 or more.` };
+    return { error: `${label}: the share must be 0 to 100% and the gap to ignore 0 or more.` };
   }
   return { value: { ignore, share } };
 }
@@ -384,7 +384,7 @@ export function cleanAdjustments(input) {
   for (const r of a.orphan_gaps) {
     if (!isNum(r.nights) && !isNum(r.value)) continue;
     if (!isNum(r.nights) || Number(r.nights) < 1 || Number(r.nights) > 14 || !isNum(r.value)) {
-      return { error: "Each short-gap rule needs a gap of 1–14 nights and a %." };
+      return { error: "Each short-gap rule needs a gap of 1 to 14 nights and a %." };
     }
     if (Number(r.value) < -90 || Number(r.value) > 500) {
       return { error: "A rule must be between -90% and +500%." };

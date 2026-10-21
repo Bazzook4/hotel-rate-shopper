@@ -60,7 +60,7 @@ function describe(day) {
   }
   if (day.events?.length) parts.push(day.events.join(", "));
   if (day.minStay) parts.push("min stay set");
-  return parts.join(" · ");
+  return parts.join(", ");
 }
 
 export default function YearDemand({ propertyId, onPick }) {
@@ -103,7 +103,7 @@ export default function YearDemand({ propertyId, onPick }) {
   if (!layout) {
     return (
       <div className="card card-pad">
-        <p className="sub">Loading the year…</p>
+        <p className="sub">Loading the year...</p>
       </div>
     );
   }

@@ -53,7 +53,7 @@ export default function AdminPage() {
       <div className="flex min-h-screen items-center justify-center ">
         <div className="space-y-3 text-center">
           <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-          <p className="sub">Loading…</p>
+          <p className="sub">Loading...</p>
         </div>
       </div>
     );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Icon from "../../components/Icon";
 import {
   Grid,
   Messages,
@@ -27,7 +28,7 @@ import { useDialog } from "../../components/Dialog";
  *
  * Housekeeping status is deliberately absent. Whether a room is clean is
  * front-office work that changes hourly; this page is setup that changes when
- * the building does. It lives under Front Office → Housekeeping.
+ * the building does. It lives under Front Office > Housekeeping.
  */
 
 const EMPTY_RANGE = { room_type_id: "", prefix: "", from: "", to: "", floor: "" };
@@ -151,7 +152,7 @@ export default function RoomInventory({ session, section = false }) {
         naturalCompare(grid.value(a, "room_number"), grid.value(b, "room_number"))
     );
     setOrder(next.map((r) => r.id));
-    setNotice("Sorted by floor and number — Save to keep this order.");
+    setNotice("Sorted by floor and number. Save to keep this order.");
   }
 
   function addRow() {
@@ -205,7 +206,7 @@ export default function RoomInventory({ session, section = false }) {
 
     await load();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -230,7 +231,7 @@ export default function RoomInventory({ session, section = false }) {
       });
       setNotice(
         data.created === 0
-          ? "Those room numbers already exist — nothing to add."
+          ? "Those room numbers already exist, so there is nothing to add."
           : `Added ${data.created} room${data.created === 1 ? "" : "s"}.`
       );
       setRange((r) => ({ ...r, from: "", to: "" }));
@@ -244,7 +245,7 @@ export default function RoomInventory({ session, section = false }) {
 
   async function autoNumber() {
     const lines = auto.plan.map(
-      (s) => `${s.name}: ${s.prefix}${s.from} – ${s.prefix}${s.to}`
+      (s) => `${s.name}: ${s.prefix}${s.from} to ${s.prefix}${s.to}`
     );
     if (!(await dialog.confirm({ title: "Create these rooms now?", message: lines.join("\n"), confirmLabel: "Create rooms" }))) return;
     setError(null);
@@ -352,8 +353,8 @@ export default function RoomInventory({ session, section = false }) {
             disabled={busy || !auto.allowed}
             title={
               auto.allowed
-                ? "Number every room type that has no rooms yet: the first letters of its name, then 101… for the first type, 201… for the next"
-                : `Only for properties under ${AUTO_NUMBER_MAX_ROOMS} rooms — this one has ${auto.total}`
+                ? "Number every room type that has no rooms yet: the first letters of its name, then 101... for the first type, 201... for the next"
+                : `Only for properties under ${AUTO_NUMBER_MAX_ROOMS} rooms; this one has ${auto.total}`
             }
           >
             Auto-number rooms
@@ -398,7 +399,7 @@ export default function RoomInventory({ session, section = false }) {
             className="input w-40"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Room no…"
+            placeholder="Room no..."
           />
         </div>
       </Toolbar>
@@ -406,7 +407,7 @@ export default function RoomInventory({ session, section = false }) {
       {showRange && (
         <div className="card card-pad">
           <p className="sub mb-3">
-            Numbers a run of rooms at once — 101 to 120 on floor 1, say. Numbers
+            Numbers a run of rooms at once, say 101 to 120 on floor 1. Numbers
             that already exist are skipped. Added straight away.
           </p>
           <div
@@ -420,7 +421,7 @@ export default function RoomInventory({ session, section = false }) {
                 value={range.room_type_id}
                 onChange={(e) => setRange({ ...range, room_type_id: e.target.value })}
               >
-                <option value="">Choose…</option>
+                <option value="">Choose...</option>
                 {roomTypes.map((rt) => (
                   <option key={rt.id} value={rt.id}>
                     {rt.room_type_name}
@@ -476,7 +477,7 @@ export default function RoomInventory({ session, section = false }) {
           {loading && rooms.length === 0 && (
             <tr>
               <td colSpan={7} className="cm-empty">
-                Loading…
+                Loading...
               </td>
             </tr>
           )}
@@ -538,7 +539,7 @@ export default function RoomInventory({ session, section = false }) {
                         disabled={i <= 0}
                         title="Move up"
                       >
-                        ↑
+                        <Icon name="up" size={14} />
                       </button>
                       <button
                         type="button"
@@ -548,12 +549,12 @@ export default function RoomInventory({ session, section = false }) {
                         disabled={i === visible.length - 1}
                         title="Move down"
                       >
-                        ↓
+                        <Icon name="down" size={14} />
                       </button>
                     </div>
                   )}
                 </td>
-                <td>{grid.input(room, "floor", { placeholder: "—" })}</td>
+                <td>{grid.input(room, "floor", { placeholder: "-" })}</td>
                 <td className="cm-sticky">
                   {grid.input(room, "room_number", {
                     placeholder: "Room no.",
@@ -566,11 +567,11 @@ export default function RoomInventory({ session, section = false }) {
                   {grid.select(
                     room,
                     "room_type_id",
-                    draft ? [{ id: "", label: "Choose…" }, ...typeOptions] : typeOptions
+                    draft ? [{ id: "", label: "Choose..." }, ...typeOptions] : typeOptions
                   )}
                 </td>
                 <td className="text-center">{grid.check(room, "is_active")}</td>
-                <td>{grid.input(room, "notes", { placeholder: "Sea view, connects to 205…" })}</td>
+                <td>{grid.input(room, "notes", { placeholder: "Sea view, connects to 205..." })}</td>
                 <td className="text-center">
                   <button
                     type="button"
@@ -578,7 +579,7 @@ export default function RoomInventory({ session, section = false }) {
                     onClick={() => removeRoom(room)}
                     title={draft ? "Remove this new row" : "Delete room"}
                   >
-                    ✕
+                    x
                   </button>
                 </td>
               </tr>
@@ -589,8 +590,8 @@ export default function RoomInventory({ session, section = false }) {
 
       <p className="sub">
         {rooms.length} room{rooms.length === 1 ? "" : "s"}
-        {filtered ? ` · ${visible.length} shown` : ""}. The order here is the order
-        rooms appear on the calendar and the housekeeping board — drag a row by
+        {filtered ? `, ${visible.length} shown` : ""}. The order here is the order
+        rooms appear on the calendar and the housekeeping board. Drag a row by
         its handle, or use the arrows.
       </p>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Icon from "../../components/Icon";
 import { useParams } from "next/navigation";
 import { countryOptions } from "@/lib/countries";
 import {
@@ -145,7 +146,7 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
     <section className="card card-pad space-y-3">
       <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
         Guest {index + 1}
-        {index === 0 && <span className="sub font-normal"> · main guest</span>}
+        {index === 0 && <span className="sub font-normal">, main guest</span>}
       </h2>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Full name, as on the ID" required wide error={gapFor("full_name")}>
@@ -179,7 +180,7 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
           <>
             <Field label="Nationality" required wide>
               <select className="input w-full" value={person.nationality || ""} onChange={setNationality}>
-                {!person.nationality && <option value="">Choose…</option>}
+                {!person.nationality && <option value="">Choose...</option>}
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name}
@@ -205,7 +206,7 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
               <>
                 <Field label="Type of ID" required error={gapFor("id_type")}>
                   <select id={fieldId(index, "id_type")} className="input w-full" value={person.id_type} onChange={set("id_type")}>
-                    <option value="">Choose…</option>
+                    <option value="">Choose...</option>
                     {CHECKIN_ID_TYPES.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.label}
@@ -232,7 +233,7 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
             <ul className="space-y-1">
               {files.map((f) => (
                 <li key={f.id} className="flex items-center gap-2 text-sm">
-                  <span aria-hidden="true" style={{ color: "var(--accent-text)" }}>✓</span>
+                  <span aria-hidden="true" style={{ color: "var(--accent-text)" }}><Icon name="check" size={14} strokeWidth={2.4} /></span>
                   <span className="min-w-0 flex-1 truncate">{f.name}</span>
                   <button
                     type="button"
@@ -362,7 +363,7 @@ export default function OnlineCheckinPage() {
       const list = checkinGaps(guests, { prefs: view.prefs, country: view.hotel.country, consent });
       showGaps(list);
       if (list.length) {
-        setError(list.length === 1 ? "One thing is still missing — see above." : `${list.length} things are still missing — see above.`);
+        setError(list.length === 1 ? "One thing is still missing. See above." : `${list.length} things are still missing. See above.`);
         return;
       }
     }
@@ -395,7 +396,7 @@ export default function OnlineCheckinPage() {
   async function upload(index, picked) {
     if (!picked.length) return;
     setBusy(true);
-    setUploading({ index, text: "Uploading…" });
+    setUploading({ index, text: "Uploading..." });
     try {
       // What has been typed so far goes up with the photo.
       await request("/api/checkin", {
@@ -404,7 +405,7 @@ export default function OnlineCheckinPage() {
         body: JSON.stringify(payload({ submit: false })),
       });
       for (const [n, original] of picked.entries()) {
-        setUploading({ index, text: picked.length > 1 ? `Uploading ${n + 1} of ${picked.length}…` : "Uploading…" });
+        setUploading({ index, text: picked.length > 1 ? `Uploading ${n + 1} of ${picked.length}...` : "Uploading..." });
         const file = await shrink(original);
         const form = new FormData();
         form.set("token", token);
@@ -444,7 +445,7 @@ export default function OnlineCheckinPage() {
 
   return (
     <main className="mx-auto w-full max-w-xl space-y-4 px-4 py-6" style={{ minHeight: "100vh" }}>
-      {state === "loading" && <p className="sub text-center">Opening your check-in…</p>}
+      {state === "loading" && <p className="sub text-center">Opening your check-in...</p>}
 
       {(state === "gone" || state === "failed") && (
         <div className="card card-pad space-y-3 text-center">
@@ -483,10 +484,10 @@ export default function OnlineCheckinPage() {
               </div>
             </div>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              {b.guestName} · Booking {b.reference}
+              {b.guestName}, Booking {b.reference}
               <br />
-              {b.dayUse ? `Day use on ${day(b.checkIn)}` : `${day(b.checkIn)} → ${day(b.checkOut)}`}
-              {b.roomType ? ` · ${b.roomType}` : ""} · {b.adults} adult{b.adults === 1 ? "" : "s"}
+              {b.dayUse ? `Day use on ${day(b.checkIn)}` : `${day(b.checkIn)} to ${day(b.checkOut)}`}
+              {b.roomType ? `, ${b.roomType}` : ""}, {b.adults} adult{b.adults === 1 ? "" : "s"}
               {b.children ? `, ${b.children} child${b.children === 1 ? "" : "ren"}` : ""}
             </p>
           </header>
@@ -498,7 +499,7 @@ export default function OnlineCheckinPage() {
           ) : sent ? (
             <div className="card card-pad space-y-3">
               <p className="text-sm font-semibold" style={{ color: "var(--accent-text)" }}>
-                ✓ Thank you, your details are with the hotel.
+                Thank you, your details are with the hotel.
               </p>
               <p className="text-sm" style={{ color: "var(--text-muted)" }}>
                 At the front desk you will only need to show your ID. You can still change your details until you arrive.
@@ -556,7 +557,7 @@ export default function OnlineCheckinPage() {
                     rows={2}
                     value={requests}
                     onChange={(e) => setRequests(e.target.value)}
-                    placeholder="Early check-in, extra bed, dietary needs…"
+                    placeholder="Early check-in, extra bed, dietary needs..."
                   />
                 </Field>
               </section>
@@ -594,7 +595,7 @@ export default function OnlineCheckinPage() {
 
               <div className="flex flex-wrap gap-2">
                 <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? "Please wait…" : "Send to hotel"}
+                  {busy ? "Please wait..." : "Send to hotel"}
                 </button>
                 <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => save({ submit: false })}>
                   Save and finish later

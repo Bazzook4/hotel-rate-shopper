@@ -33,7 +33,7 @@ import GuestIdPhotos from "./GuestIdPhotos";
  */
 
 const ID_TYPES = [
-  { id: "", label: "—" },
+  { id: "", label: "-" },
   { id: "aadhaar", label: "Aadhaar" },
   { id: "passport", label: "Passport" },
   { id: "driving_licence", label: "Driving licence" },
@@ -53,7 +53,7 @@ const STATUS_LABELS = {
 const money = (v) => Math.round(Number(v) || 0).toLocaleString("en-IN");
 
 function formatDate(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(`${iso}T00:00:00Z`);
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
@@ -81,7 +81,7 @@ function GuestHistory({ propertyId, guestId, onOpen, colSpan }) {
   return (
     <tr>
       <td colSpan={colSpan} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
-        {state.loading && <span className="sub">Loading stays…</span>}
+        {state.loading && <span className="sub">Loading stays...</span>}
         {state.error && <span style={{ color: "var(--danger)" }}>{state.error}</span>}
         {state.reservations?.length === 0 && <span className="sub">No bookings on record.</span>}
         {state.reservations?.length > 0 && (
@@ -94,9 +94,9 @@ function GuestHistory({ propertyId, guestId, onOpen, colSpan }) {
                 onClick={() => onOpen(r.id)}
                 title="Open this booking"
               >
-                {r.reference} · {formatDate(r.check_in)} → {formatDate(r.check_out)}
-                {r.room_types?.room_type_name ? ` · ${r.room_types.room_type_name}` : ""}
-                {r.rooms?.room_number ? ` ${r.rooms.room_number}` : ""} ·{" "}
+                {r.reference}, {formatDate(r.check_in)} to {formatDate(r.check_out)}
+                {r.room_types?.room_type_name ? `, ${r.room_types.room_type_name}` : ""}
+                {r.rooms?.room_number ? ` ${r.rooms.room_number}` : ""},{" "}
                 {STATUS_LABELS[r.status] || r.status}
               </button>
             ))}
@@ -126,7 +126,7 @@ export default function Guests({ session }) {
   const [settings, setSettings] = useState(null);
   const { tiers, reload: reloadTiers } = useGuestTiers(propertyId);
   const { plans, reload: reloadPlans } = useWalletPlans(propertyId);
-  const tierOptions = [{ id: "", label: "—" }, ...tiers.map((t) => ({ id: t.id, label: t.name }))];
+  const tierOptions = [{ id: "", label: "-" }, ...tiers.map((t) => ({ id: t.id, label: t.name }))];
   const tierById = Object.fromEntries(tiers.map((t) => [t.id, t]));
 
   function toggle(g, what) {
@@ -138,7 +138,7 @@ export default function Guests({ session }) {
   }
 
   const countries = useMemo(
-    () => [{ id: "", label: "—" }, ...countryOptions().map((c) => ({ id: c.code, label: c.name }))],
+    () => [{ id: "", label: "-" }, ...countryOptions().map((c) => ({ id: c.code, label: c.name }))],
     []
   );
 
@@ -217,7 +217,7 @@ export default function Guests({ session }) {
     });
     await load();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -292,7 +292,7 @@ export default function Guests({ session }) {
             className="input w-64"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, phone or email…"
+            placeholder="Name, phone or email..."
           />
         </div>
       </Toolbar>
@@ -334,7 +334,7 @@ export default function Guests({ session }) {
           {loading && guests.length === 0 && (
             <tr>
               <td colSpan={COLS} className="cm-empty">
-                Loading…
+                Loading...
               </td>
             </tr>
           )}
@@ -386,7 +386,7 @@ export default function Guests({ session }) {
                   <td>{grid.input(g, "id_number")}</td>
                   <td>
                     {draft ? (
-                      "—"
+                      "-"
                     ) : (
                       <button
                         type="button"
@@ -399,10 +399,10 @@ export default function Guests({ session }) {
                       </button>
                     )}
                   </td>
-                  <td>{grid.input(g, "notes", { placeholder: "Preferences, VIP…" })}</td>
+                  <td>{grid.input(g, "notes", { placeholder: "Preferences, VIP..." })}</td>
                   <td className="cm-num">
                     {draft ? (
-                      "—"
+                      "-"
                     ) : (
                       <button
                         type="button"
@@ -415,19 +415,19 @@ export default function Guests({ session }) {
                       </button>
                     )}
                   </td>
-                  <td className="cm-num">{draft ? "—" : money(g.revenue)}</td>
+                  <td className="cm-num">{draft ? "-" : money(g.revenue)}</td>
                   <td>
                     {draft ? (
-                      "—"
+                      "-"
                     ) : g.next_stay ? (
-                      <span title="Booked to arrive">→ {formatDate(g.next_stay)}</span>
+                      <span title="Booked to arrive">Arrives {formatDate(g.next_stay)}</span>
                     ) : (
                       formatDate(g.last_stay)
                     )}
                   </td>
                   <td className="cm-num">
                     {draft ? (
-                      "—"
+                      "-"
                     ) : (
                       <button
                         type="button"
@@ -448,7 +448,7 @@ export default function Guests({ session }) {
                       title="Delete guest"
                       aria-label={`Delete ${g.full_name || "guest"}`}
                     >
-                      ✕
+                      x
                     </button>
                   </td>
                 </tr>

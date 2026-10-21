@@ -965,10 +965,10 @@ export default function TapeChart({ session }) {
                 onClick={(e) =>
                   setBookingMenu({ reservation: r, x: e.clientX, y: e.clientY })
                 }
-                title={isDayUse(r) ? `${r.check_in} · ${dayUseSummary(r)}` : `${r.check_in} → ${r.check_out}`}
+                title={isDayUse(r) ? `${r.check_in}, ${dayUseSummary(r)}` : `${r.check_in} to ${r.check_out}`}
               >
-                {r.guest_name} · {r.room_types?.room_type_name}
-                {isDayUse(r) ? ` · day use ${r.day_use_hours}h` : ""}
+                {r.guest_name}, {r.room_types?.room_type_name}
+                {isDayUse(r) ? `, day use ${r.day_use_hours}h` : ""}
               </button>
             ))}
           </div>
@@ -1029,18 +1029,18 @@ export default function TapeChart({ session }) {
           transition: "opacity 0.15s",
         }}
       >
-        {firstLoad && <p className="sub card-pad">Loading…</p>}
+        {firstLoad && <p className="sub card-pad">Loading...</p>}
 
         {!firstLoad && allRooms.length === 0 && (
           <p className="sub card-pad">
-            No rooms set up yet. Add them under Setup → Rooms — the chart needs actual
+            No rooms set up yet. Add them under Setup &gt; Rooms. The chart needs actual
             rooms to lay bookings out against.
           </p>
         )}
 
         {!firstLoad && allRooms.length > 0 && visibleRooms.length === 0 && (
           <p className="sub card-pad">
-            That room type has no rooms yet. Add them under Setup → Rooms, or pick
+            That room type has no rooms yet. Add them under Setup &gt; Rooms, or pick
             another type above.
           </p>
         )}
@@ -1161,7 +1161,7 @@ export default function TapeChart({ session }) {
                         zIndex: 2,
                         overflow: "hidden",
                       }}
-                      title={`${group.name} · ${group.rooms.length} room${group.rooms.length === 1 ? "" : "s"}`}
+                      title={`${group.name}, ${group.rooms.length} room${group.rooms.length === 1 ? "" : "s"}`}
                     >
                       <span style={{ width: 10, flexShrink: 0, color: "var(--text-faint)" }}>
                         {collapsed[group.id] ? "▸" : "▾"}
@@ -1189,7 +1189,7 @@ export default function TapeChart({ session }) {
                       const blocked = blockedByType[group.id]?.[d] || 0;
                       const total = group.rooms.length - blocked;
                       const full = total <= 0 || sold >= total;
-                      const blockedNote = blocked > 0 ? ` · ${blocked} out of order` : "";
+                      const blockedNote = blocked > 0 ? `, ${blocked} out of order` : "";
                       const typeRates = chart.rates?.[group.id];
                       const rate = typeRates?.nights?.[d];
                       return (
@@ -1197,9 +1197,9 @@ export default function TapeChart({ session }) {
                           key={d}
                           title={
                             rate != null
-                              ? `${sold} of ${total} sold${blockedNote} · ${formatMoney(rate)} for 2 adults${
+                              ? `${sold} of ${total} sold${blockedNote}, ${formatMoney(rate)} for 2 adults${
                                   typeRates.base_price_only
-                                    ? " (base price — no channel rate set)"
+                                    ? " (base price, no channel rate set)"
                                     : typeRates.plan_name
                                       ? ` on ${typeRates.plan_name}`
                                       : ""
@@ -1322,7 +1322,7 @@ export default function TapeChart({ session }) {
                               key={b.id}
                               onPointerDown={(e) => e.stopPropagation()}
                               onClick={() => setBlockEdit({ room, block: b })}
-                              title={`Out of order${b.reason ? ` — ${b.reason}` : ""}\n${b.start_date} → back ${b.end_date}`}
+                              title={`Out of order${b.reason ? `: ${b.reason}` : ""}\n${b.start_date}, back on ${b.end_date}`}
                               style={{
                                 position: "absolute",
                                 left: geo.left,
@@ -1344,7 +1344,7 @@ export default function TapeChart({ session }) {
                               }}
                             >
                               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                                Out of order{b.reason ? ` · ${b.reason}` : ""}
+                                Out of order{b.reason ? `, ${b.reason}` : ""}
                               </span>
                             </div>
                           );
@@ -1383,7 +1383,7 @@ export default function TapeChart({ session }) {
                                 }}
                               >
                                 {conflict ||
-                                  `${nights} night${nights === 1 ? "" : "s"} · ${nightLabel(range.check_in)} → ${nightLabel(range.check_out)}`}
+                                  `${nights} night${nights === 1 ? "" : "s"}, ${nightLabel(range.check_in)} to ${nightLabel(range.check_out)}`}
                               </div>
                             );
                           })()}
@@ -1403,8 +1403,8 @@ export default function TapeChart({ session }) {
                                   onPointerDown={(e) => beginDrag(e, r, "move")}
                                   title={
                                     geo.dayUse
-                                      ? `${r.guest_name} · ${r.reference}\n${r.check_in} · ${dayUseSummary(r)}`
-                                      : `${r.guest_name} · ${r.reference}\n${r.check_in} → ${r.check_out}`
+                                      ? `${r.guest_name}, ${r.reference}\n${r.check_in}, ${dayUseSummary(r)}`
+                                      : `${r.guest_name}, ${r.reference}\n${r.check_in} to ${r.check_out}`
                                   }
                                   style={{
                                     position: "absolute",
@@ -1645,7 +1645,7 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
       >
         <div style={{ fontWeight: 600 }}>
           {longer ? `Stay extended by ${noun}` : `Stay shortened by ${noun}`}
-          {reservation ? ` — ${reservation.guest_name}` : ""}
+          {reservation ? `: ${reservation.guest_name}` : ""}
         </div>
 
         <table className="grid-table w-full text-sm">
@@ -1657,8 +1657,8 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
                   {nightLabel(n.stay_date)}
                   {n.estimated && (
                     <span style={{ color: "var(--warn)", fontSize: "0.7rem" }}>
-                      {" "}
-                      · no rate set, stay average used
+                      
+                      , no rate set, stay average used
                     </span>
                   )}
                 </td>
@@ -1770,8 +1770,8 @@ function HousekeepingTag({ status, onToggle }) {
     <button
       type="button"
       onClick={onToggle}
-      title={`${label} — click to mark ${dirty ? "clean" : "dirty"}`}
-      aria-label={`${label} — mark ${dirty ? "clean" : "dirty"}`}
+      title={`${label}: click to mark ${dirty ? "clean" : "dirty"}`}
+      aria-label={`${label}: mark ${dirty ? "clean" : "dirty"}`}
       style={{ ...box, padding: 0, background: "none", border: "none", borderRadius: 4, cursor: "pointer" }}
     >
       <HousekeepingDot status={status} />
@@ -1864,7 +1864,7 @@ function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
       <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
         <div style={{ fontWeight: 600 }}>Room {room.room_number}</div>
         <div style={{ color: "var(--text-muted)" }}>
-          {nightLabel(range.check_in)} → {nightLabel(range.check_out)} · {nights} night
+          {nightLabel(range.check_in)} to {nightLabel(range.check_out)}, {nights} night
           {nights === 1 ? "" : "s"}
         </div>
         {conflict && <div style={{ color: "var(--danger)" }}>{conflict}</div>}
@@ -1902,16 +1902,16 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
         </div>
         <div style={{ color: "var(--text-muted)" }}>
           {r.reference}
-          {room ? ` · Room ${room.room_number}` : " · no room yet"}
+          {room ? `, Room ${room.room_number}` : ", no room yet"}
         </div>
         <div style={{ color: "var(--text-muted)" }}>
           {isDayUse(r) ? (
             <>
-              {nightLabel(r.check_in)} · {dayUseSummary(r)}
+              {nightLabel(r.check_in)}, {dayUseSummary(r)}
             </>
           ) : (
             <>
-              {nightLabel(r.check_in)} → {nightLabel(r.check_out)} · {nights} night
+              {nightLabel(r.check_in)} to {nightLabel(r.check_out)}, {nights} night
               {nights === 1 ? "" : "s"}
             </>
           )}
@@ -1927,7 +1927,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           disabled={room?.housekeeping === "dirty"}
           title={
             room?.housekeeping === "dirty"
-              ? `Room ${room.room_number} is dirty — mark it clean first`
+              ? `Room ${room.room_number} is dirty. Mark it clean first`
               : undefined
           }
           onClick={() => onChoose("checkin")}
@@ -1941,7 +1941,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
             key={a.id}
             label={a.id === "upgrade" && !room ? a.assign : a.label}
             disabled={locked}
-            title={locked ? "This stay is over — its room can no longer change" : undefined}
+            title={locked ? "This stay is over, so its room can no longer change" : undefined}
             onClick={() => onChoose(a.id)}
           />
         );
@@ -2010,10 +2010,10 @@ function RoomChangeDialog({ reservation: r, roomTypes, onChoose, onCancel }) {
       >
         <div>
           <div style={{ fontWeight: 600 }}>
-            {r.room_id ? "Upgrade / change room" : "Assign a room"} — {r.guest_name}
+            {r.room_id ? "Upgrade / change room" : "Assign a room"}: {r.guest_name}
           </div>
           <div className="sub" style={{ fontSize: "0.75rem" }}>
-            {nightLabel(r.check_in)} → {nightLabel(r.check_out)} · {nights} night
+            {nightLabel(r.check_in)} to {nightLabel(r.check_out)}, {nights} night
             {nights === 1 ? "" : "s"}
           </div>
         </div>
@@ -2030,7 +2030,7 @@ function RoomChangeDialog({ reservation: r, roomTypes, onChoose, onCancel }) {
                   style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--text-muted)" }}
                 >
                   {rt.name}
-                  {rt.id === r.room_type_id ? " · same type" : ""}
+                  {rt.id === r.room_type_id ? ", same type" : ""}
                 </div>
                 <div className="flex flex-wrap gap-1" style={{ marginTop: 4 }}>
                   {rt.rooms.map((room) => (

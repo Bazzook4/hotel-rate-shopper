@@ -57,7 +57,7 @@ export async function POST(req) {
       ...logBase,
       status: "skipped",
       source: "mock",
-      summary: `${message} — connection not live`,
+      summary: `${message} (connection not live)`,
       request: { multiplier, channels },
     });
     return NextResponse.json({ source: "mock", message });

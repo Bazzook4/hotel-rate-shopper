@@ -74,7 +74,7 @@ function ByMethod({ report, money }) {
                   as money when it was paid into the wallet. */}
               {byMethod.filter((m) => m.notMoney).map((m) => (
                 <tr key={m.method} style={{ color: "var(--text-muted)" }}>
-                  <td title="Not money received — already counted when paid into the wallet">{m.label} · not counted</td>
+                  <td title="Not money received; already counted when paid into the wallet">{m.label}, not counted</td>
                   <td className="text-right tabular-nums">{whole.format(m.count)}</td>
                   <td className="text-right tabular-nums">{money(m.received)}</td>
                   <td className="text-right tabular-nums">{money(m.refunded)}</td>
@@ -127,7 +127,7 @@ function ByDay({ report, money, methods }) {
                   <td className="text-right tabular-nums">{whole.format(d.count)}</td>
                   {methods.map((m) => (
                     <td key={m} className="text-right tabular-nums">
-                      {d.byMethod[m] ? money(d.byMethod[m]) : "–"}
+                      {d.byMethod[m] ? money(d.byMethod[m]) : "-"}
                     </td>
                   ))}
                   <td className="text-right font-medium tabular-nums">{money(d.net)}</td>
@@ -235,10 +235,10 @@ function PaymentList({ report, money, onOpen, methods }) {
                   <td>
                     <BookingLink reference={p.reference} reservationId={p.reservationId} tab="payments" onOpen={onOpen} />
                   </td>
-                  <td>{p.guest || "–"}</td>
+                  <td>{p.guest || "-"}</td>
                   <td>{p.methodLabel}</td>
-                  <td>{p.transaction || "–"}</td>
-                  <td>{p.recordedBy || "–"}</td>
+                  <td>{p.transaction || "-"}</td>
+                  <td>{p.recordedBy || "-"}</td>
                   <td className="text-right tabular-nums" style={{ color: p.amount < 0 ? "var(--danger)" : undefined }}>
                     {money(p.amount)}
                   </td>
@@ -278,11 +278,11 @@ function Voided({ report, money, onOpen }) {
                 <td>
                   <BookingLink reference={p.reference} reservationId={p.reservationId} tab="payments" onOpen={onOpen} />
                 </td>
-                <td>{p.guest || "–"}</td>
+                <td>{p.guest || "-"}</td>
                 <td>{p.methodLabel}</td>
                 <td className="whitespace-nowrap">{longDate(p.voidedAt)}</td>
-                <td>{p.voidedBy || "–"}</td>
-                <td>{p.voidReason || "–"}</td>
+                <td>{p.voidedBy || "-"}</td>
+                <td>{p.voidReason || "-"}</td>
                 <td className="text-right tabular-nums" style={{ textDecoration: "line-through" }}>
                   {money(p.amount)}
                 </td>

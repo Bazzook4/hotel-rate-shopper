@@ -112,7 +112,7 @@ const SOURCE_LABEL = {
   daily_rates: "live channel manager rate",
   derived: "derived from the master plan",
   rate_plan: "from the rate plan",
-  base_price: "room base price — not a channel rate",
+  base_price: "room base price, not a channel rate",
   day_use: "day-use price for this room type",
 };
 
@@ -126,7 +126,7 @@ const SOURCE_LABEL = {
  */
 function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   if (quoting) {
-    return <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>Pricing…</p>;
+    return <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>Pricing...</p>;
   }
 
   if (manual) {
@@ -163,7 +163,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   if (quote && quote.total == null) {
     return (
       <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: "var(--warn)" }}>
-        {quote.reason || "No rate configured — enter the total by hand."}
+        {quote.reason || "No rate configured. Enter the total by hand."}
       </p>
     );
   }
@@ -185,7 +185,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
     <>
     {uncovered && (
       <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: "var(--warn)" }}>
-        {quote.contract.company} has no contract rate for this room and plan on these dates — public rate quoted.
+        {quote.contract.company} has no contract rate for this room and plan on these dates, so the public rate is quoted.
       </p>
     )}
     <p
@@ -195,14 +195,14 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
       {quote.source === "contract"
         ? `${quote.contract.company} contract rate`
         : SOURCE_LABEL[quote.source] || "from configured rates"}
-      {quote.diagnosis && <> — {quote.diagnosis}</>}
+      {quote.diagnosis && <>: {quote.diagnosis}</>}
       {perNight != null && nights > 1 && (
-        <> · {perNight.toLocaleString("en-IN")}/night × {nights}</>
+        <>, {perNight.toLocaleString("en-IN")}/night x {nights}</>
       )}
       {quote.partial && (
         <span style={{ color: "var(--warn)" }}>
-          {" "}
-          · some nights have no rate set
+          
+          , some nights have no rate set
         </span>
       )}
     </p>
@@ -293,14 +293,14 @@ function GuestSuggestions({ items, active, onPick, status, term }) {
   if (status === "searching" && !items?.length) {
     return (
       <div className="card text-xs" style={{ ...box, color: "var(--text-muted)" }}>
-        Searching guests…
+        Searching guests...
       </div>
     );
   }
   if (status === "none") {
     return (
       <div className="card text-xs" style={{ ...box, color: "var(--text-muted)" }}>
-        No guest on record matches &ldquo;{term}&rdquo;. A new guest is added when you save.
+        No guest on record matches &quot;{term}&quot;. A new guest is added when you save.
       </div>
     );
   }
@@ -342,8 +342,8 @@ function GuestSuggestions({ items, active, onPick, status, term }) {
             {g.full_name}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {[g.phone, g.email].filter(Boolean).join(" · ") || "No contact details"}
-            {" · "}
+            {[g.phone, g.email].filter(Boolean).join(", ") || "No contact details"}
+            {", "}
             {g.stays ? `${g.stays} stay${g.stays === 1 ? "" : "s"}` : "no stays yet"}
             {g.last_stay ? `, last ${shortDate(g.last_stay)}` : ""}
           </div>
@@ -1102,7 +1102,7 @@ export default function BookingForm({
 
       {roomTypes.length === 0 && (
         <p className="sub" style={{ color: "var(--warn)" }}>
-          This property has no room types yet — add one under Setup → Rooms before
+          This property has no room types yet. Add one under Setup &gt; Rooms before
           taking bookings.
         </p>
       )}
@@ -1194,7 +1194,7 @@ export default function BookingForm({
             hint={
               planOptions.length
                 ? dayUseLabel(form.day_use_hours)
-                : "No day-use plan on this room type — add one in Rate Plans"
+                : "No day-use plan on this room type. Add one in Rate Plans"
             }
           >
             <select
@@ -1210,7 +1210,7 @@ export default function BookingForm({
               )}
               {planOptions.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.plan_name} · {dayUseLabel(p.day_use_hours)}
+                  {p.plan_name}, {dayUseLabel(p.day_use_hours)}
                 </option>
               ))}
             </select>
@@ -1222,7 +1222,7 @@ export default function BookingForm({
                 ? `Clashes with ${startClash.guest_name} (${dayUseWindowLabel(startClash)})`
                 : chosenStart != null && slotLength
                   ? `Until ${formatMinutes(chosenStart + slotLength)}${
-                      roomDayUses.length ? ` · ${roomDayUses.length} other day use${roomDayUses.length === 1 ? "" : "s"} in this room` : ""
+                      roomDayUses.length ? `, ${roomDayUses.length} other day use${roomDayUses.length === 1 ? "" : "s"} in this room` : ""
                     }`
                   : form.room_id
                     ? "No free time left in this room"
@@ -1235,7 +1235,7 @@ export default function BookingForm({
               onChange={(e) => set("day_use_start", e.target.value)}
               disabled={!slotLength}
             >
-              {!form.day_use_start && <option value="">Choose…</option>}
+              {!form.day_use_start && <option value="">Choose...</option>}
               {/* A stored time off the half-hour grid still shows. */}
               {chosenStart != null && !startOptions.includes(chosenStart) && (
                 <option value={form.day_use_start}>{formatMinutes(chosenStart)}</option>
@@ -1244,8 +1244,8 @@ export default function BookingForm({
                 const taken = slotTakenBy(t);
                 return (
                   <option key={t} value={toClock(t)} disabled={Boolean(taken)}>
-                    {formatMinutes(t)} – {formatMinutes(t + slotLength)}
-                    {taken ? ` · ${taken.guest_name}` : ""}
+                    {formatMinutes(t)} to {formatMinutes(t + slotLength)}
+                    {taken ? `, ${taken.guest_name}` : ""}
                   </option>
                 );
               })}
@@ -1286,7 +1286,7 @@ export default function BookingForm({
             value={form.room_type_id}
             onChange={(e) => set("room_type_id", e.target.value)}
           >
-            <option value="">Choose…</option>
+            <option value="">Choose...</option>
             {roomTypes.map((rt) => (
               <option key={rt.id} value={rt.id}>
                 {rt.room_type_name}
@@ -1316,7 +1316,7 @@ export default function BookingForm({
               value={form.company_id}
               onChange={(e) => set("company_id", e.target.value)}
             >
-              <option value="">None — guest booked direct</option>
+              <option value="">None (guest booked direct)</option>
               {[
                 ["company", "Companies"],
                 ["travel_agent", "Travel agents"],
@@ -1327,7 +1327,7 @@ export default function BookingForm({
                     {group.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
-                        {c.rate_lines ? " · contract" : ""}
+                        {c.rate_lines ? ", contract" : ""}
                       </option>
                     ))}
                   </optgroup>
@@ -1390,11 +1390,11 @@ export default function BookingForm({
               setManualTotal(true);
               set("total_amount", e.target.value);
             }}
-            placeholder={quoting ? "Pricing…" : "Whole stay"}
+            placeholder={quoting ? "Pricing..." : "Whole stay"}
           />
           {complimentary ? (
             <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
-              Complimentary — no room charge. Extras added later are still billed.
+              Complimentary: no room charge. Extras added later are still billed.
             </p>
           ) : (
             <PriceNote
@@ -1549,7 +1549,7 @@ export default function BookingForm({
           disabled={saving || roomTypes.length === 0}
           onClick={() => submit(false)}
         >
-          {saving ? "Saving…" : reservation ? "Save changes" : "Create booking"}
+          {saving ? "Saving..." : reservation ? "Save changes" : "Create booking"}
         </button>
         {!embedded && (
           <button className="btn btn-ghost text-sm" onClick={leave} disabled={saving}>

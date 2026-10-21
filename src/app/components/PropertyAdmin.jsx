@@ -241,7 +241,7 @@ export default function PropertyAdmin({ session }) {
       <div className="flex items-center justify-center py-20">
         <div className="space-y-3 text-center">
           <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-          <p className="sub">Loading properties…</p>
+          <p className="sub">Loading properties...</p>
         </div>
       </div>
     );
@@ -264,7 +264,7 @@ export default function PropertyAdmin({ session }) {
             href="/"
             className="btn btn-secondary"
           >
-            ← Dashboard
+            Back to Dashboard
           </Link>
           {canCreate && !form && (
             <button
@@ -308,7 +308,7 @@ export default function PropertyAdmin({ session }) {
         <div className="card card-pad space-y-2">
           <p className="text-sm text-ink">
             Onboarding link ready{invite.copied ? " and copied" : ""}. Send it to
-            the hotel — it works once and expires {formatDate(invite.expiresAt)}.
+            the hotel. It works once and expires {formatDate(invite.expiresAt)}.
           </p>
           <input
             readOnly
@@ -355,7 +355,7 @@ export default function PropertyAdmin({ session }) {
                 </label>
                 <div className="flex gap-2">
                   <button type="submit" disabled={busy || !!sharedFormProblem} className="btn btn-primary">
-                    {busy ? "Creating…" : "Create link"}
+                    {busy ? "Creating..." : "Create link"}
                   </button>
                   <button type="button" onClick={closeSharedForm} className="btn btn-ghost">
                     Cancel
@@ -366,7 +366,7 @@ export default function PropertyAdmin({ session }) {
                 <p className="text-xs text-[var(--danger)]">{sharedFormProblem.text}</p>
               ) : (
                 <p className="text-xs muted">
-                  One link many hotels can sign up through — for your website or a WhatsApp group.
+                  One link many hotels can sign up through, for your website or a WhatsApp group.
                   {sharedCaps &&
                     ` At most ${sharedCaps.perConnection} hotels a day from one internet connection, and ${sharedCaps.perDay} a day in all.`}
                 </p>
@@ -400,7 +400,7 @@ export default function PropertyAdmin({ session }) {
                     {link.url}
                   </span>
                   <span className="text-xs muted">
-                    {link.use_count} of {link.max_uses} hotels joined · open until {formatDate(link.expires_at)}
+                    {link.use_count} of {link.max_uses} hotels joined, open until {formatDate(link.expires_at)}
                   </span>
                   <span className="flex gap-2">
                     <button type="button" onClick={() => copyLink(link.url)} className="btn btn-secondary">
@@ -412,7 +412,7 @@ export default function PropertyAdmin({ session }) {
                       onClick={() => turnOffSharedLink(link)}
                       className="btn btn-secondary"
                     >
-                      {switchingOff === link.id ? "Switching off…" : "Switch off"}
+                      {switchingOff === link.id ? "Switching off..." : "Switch off"}
                     </button>
                   </span>
                 </li>
@@ -470,7 +470,7 @@ export default function PropertyAdmin({ session }) {
               onClick={() => save(form)}
               className="btn btn-primary"
             >
-              {busy ? "Saving…" : "Save"}
+              {busy ? "Saving..." : "Save"}
             </button>
             <button
               type="button"
@@ -508,12 +508,12 @@ export default function PropertyAdmin({ session }) {
                   )}
                 </td>
                 <td className="px-4 py-3 muted">
-                  {[p.city, p.state, p.country].filter(Boolean).join(", ") || "—"}
+                  {[p.city, p.state, p.country].filter(Boolean).join(", ") || "-"}
                 </td>
-                <td className="px-4 py-3 muted">{p.total_rooms ?? "—"}</td>
-                <td className="px-4 py-3 muted">{p.star_rating ?? "—"}</td>
+                <td className="px-4 py-3 muted">{p.total_rooms ?? "-"}</td>
+                <td className="px-4 py-3 muted">{p.star_rating ?? "-"}</td>
                 <td className="px-4 py-3 muted">
-                  {p.check_in_time || "—"} / {p.check_out_time || "—"}
+                  {p.check_in_time || "-"} / {p.check_out_time || "-"}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <button

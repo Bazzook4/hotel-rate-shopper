@@ -184,9 +184,9 @@ function Exceptions({ report, money, onOpen, propertyId, onChanged }) {
                           onOpen={onOpen}
                         />
                       </td>
-                      <td>{r.guest || "–"}</td>
+                      <td>{r.guest || "-"}</td>
                       <td>
-                        {[r.room, r.roomType].filter(Boolean).join(" · ") || "Not assigned"}
+                        {[r.room, r.roomType].filter(Boolean).join(", ") || "Not assigned"}
                         {r.detail && (
                           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
                             {r.detail}
@@ -194,7 +194,7 @@ function Exceptions({ report, money, onOpen, propertyId, onChanged }) {
                         )}
                       </td>
                       <td className="whitespace-nowrap">
-                        {r.checkIn ? `${longDate(r.checkIn)} – ${longDate(r.checkOut)}` : "–"}
+                        {r.checkIn ? `${longDate(r.checkIn)} to ${longDate(r.checkOut)}` : "-"}
                       </td>
                       {e.rows.some((x) => x.amount !== undefined) && (
                         <td className="text-right tabular-nums">{r.amount === undefined ? "" : money(r.amount)}</td>
@@ -210,7 +210,7 @@ function Exceptions({ report, money, onOpen, propertyId, onChanged }) {
                               disabled={busy !== null || (f.clean && !r.roomId)}
                               onClick={() => fix(e, r, f)}
                             >
-                              {busy === key ? "…" : f.label}
+                              {busy === key ? "..." : f.label}
                             </button>
                           );
                         })}
@@ -249,7 +249,7 @@ function Exceptions({ report, money, onOpen, propertyId, onChanged }) {
               {e.rows.map((r, i) => (
                 <li key={i} className="flex flex-wrap gap-x-3">
                   <BookingLink reference={r.reference} reservationId={r.reservationId} tab={FIX_TAB[e.id] || "details"} onOpen={onOpen} />
-                  <span>{r.guest || "–"}</span>
+                  <span>{r.guest || "-"}</span>
                   <span style={{ color: "var(--text-muted)" }}>{r.detail}</span>
                   <span className="tabular-nums">{money(r.amount)}</span>
                 </li>
@@ -281,7 +281,7 @@ function RoomsAndMovement({ report, money }) {
     <Section title="Rooms and movement" sub={`Tonight, the night of ${longDate(report.date)}`}>
       <Stats
         items={[
-          { label: "Occupancy", value: rooms.occupancy == null ? "–" : `${one.format(rooms.occupancy)}%`, sub: `${whole.format(rooms.occupied)} of ${whole.format(rooms.available)} rooms` },
+          { label: "Occupancy", value: rooms.occupancy == null ? "-" : `${one.format(rooms.occupancy)}%`, sub: `${whole.format(rooms.occupied)} of ${whole.format(rooms.available)} rooms` },
           { label: "Avg room rate (ADR)", value: money(rooms.adr), hint: "Room revenue per paid room tonight; complimentary rooms are left out" },
           { label: "Revenue per room (RevPAR)", value: money(rooms.revpar), hint: "Room revenue per room available tonight" },
           { label: "Guests in house", value: whole.format(movement.guests), sub: `${whole.format(movement.inHouse)} stays` },
@@ -432,10 +432,10 @@ function Collections({ report, money, onOpen }) {
                   <td>
                     <BookingLink reference={p.reference} reservationId={p.reservationId} tab="payments" onOpen={onOpen} />
                   </td>
-                  <td>{p.guest || "–"}</td>
+                  <td>{p.guest || "-"}</td>
                   <td>{p.methodLabel}</td>
-                  <td>{p.transaction || "–"}</td>
-                  <td>{p.recordedBy || "–"}</td>
+                  <td>{p.transaction || "-"}</td>
+                  <td>{p.recordedBy || "-"}</td>
                   <td className="text-right tabular-nums" style={{ color: p.amount < 0 ? "var(--danger)" : undefined }}>
                     {money(p.amount)}
                   </td>

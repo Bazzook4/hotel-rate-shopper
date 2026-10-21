@@ -61,7 +61,7 @@ export function occupancySignal({ occupancyPct, daysOut = 0, scale = DEFAULT_SCA
   const row = bandFor(scale.rows, pct);
   const move = Number(row?.pcts?.[col] ?? 0);
   const out = columnLabels(scale.cols)[col];
-  return { pct: move, note: `${pct.toFixed(0)}% sold, ${out} days out — ${describe(move)}` };
+  return { pct: move, note: `${pct.toFixed(0)}% sold, ${out} days out: ${describe(move)}` };
 }
 
 /** Plain words for a move, so a reason reads as a sentence. */

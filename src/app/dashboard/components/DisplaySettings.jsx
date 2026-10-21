@@ -104,7 +104,7 @@ export default function DisplaySettings({ propertyId }) {
   if (!demand) {
     return (
       <div className="card card-pad">
-        <p className="sub">Loading…</p>
+        <p className="sub">Loading...</p>
       </div>
     );
   }
@@ -209,7 +209,7 @@ export default function DisplaySettings({ propertyId }) {
             Reset
           </button>
           <button type="submit" className="btn btn-primary" style={small} disabled={busy}>
-            {busy ? "Saving…" : "Save"}
+            {busy ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

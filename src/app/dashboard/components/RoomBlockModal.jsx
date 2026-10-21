@@ -112,7 +112,7 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
         style={{ width: "100%", maxWidth: 440, background: "var(--surface)" }}
       >
         <div style={{ fontWeight: 600 }}>
-          {block ? "Out of order" : "Take out of order"} — Room {room.room_number}
+          {block ? "Out of order" : "Take out of order"}: Room {room.room_number}
         </div>
         <p className="sub" style={{ fontSize: "0.75rem" }}>
           The room cannot be booked or assigned for these nights, and the channel
@@ -147,7 +147,7 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
             className="input"
             value={form.reason}
             onChange={(e) => set("reason", e.target.value)}
-            placeholder="AC repair, repainting, plumbing…"
+            placeholder="AC repair, repainting, plumbing..."
           />
         </div>
 
@@ -172,7 +172,7 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
             Cancel
           </button>
           <button className="btn btn-primary text-sm" disabled={busy} onClick={save}>
-            {busy ? "Saving…" : block ? "Save" : "Take out of order"}
+            {busy ? "Saving..." : block ? "Save" : "Take out of order"}
           </button>
         </div>
       </div>

@@ -170,9 +170,18 @@ const PATHS = {
       <path d="M14 3v6h6M8 13h8M8 17h5" />
     </>
   ),
+  close: <path d="M6 6l12 12M18 6 6 18" />,
+  check: <path d="m5 12.5 4.5 4.5L19 7" />,
+  star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z" />,
+  up: <path d="m6 15 6-6 6 6" />,
+  down: <path d="m6 9 6 6 6-6" />,
+  back: <path d="M19 12H5M11 6l-6 6 6 6" />,
+  arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
+  arrowDown: <path d="M12 5v14M6 13l6 6 6-6" />,
+  download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
 };
 
-export default function Icon({ name, size = 18, className = "", strokeWidth = 1.6 }) {
+export default function Icon({ name, size = 18, className = "", strokeWidth = 1.6, filled = false }) {
   const path = PATHS[name];
   if (!path) return null;
   return (
@@ -180,7 +189,7 @@ export default function Icon({ name, size = 18, className = "", strokeWidth = 1.
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
+      fill={filled ? "currentColor" : "none"}
       stroke="currentColor"
       strokeWidth={strokeWidth}
       strokeLinecap="round"

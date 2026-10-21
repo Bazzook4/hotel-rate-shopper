@@ -30,7 +30,7 @@ function ageLabel(iso) {
 }
 
 function money(value) {
-  if (value == null) return "—";
+  if (value == null) return "-";
   return Math.round(value).toLocaleString("en-IN");
 }
 
@@ -88,12 +88,12 @@ function DayCell({ date, own, median, diff, inMonth, isToday, onOpen }) {
       >
         {own == null && median == null ? (
           <div className="text-xs" style={{ color: "var(--text-faint)", paddingTop: 10 }}>
-            —
+            -
           </div>
         ) : (
           <>
             <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-              {own != null ? money(own) : <span style={{ color: "var(--text-faint)" }}>—</span>}
+              {own != null ? money(own) : <span style={{ color: "var(--text-faint)" }}>-</span>}
             </div>
             <div className="text-xs" style={{ color: "var(--text-muted)" }}>
               {median != null ? `median ${money(median)}` : "no comp data"}
@@ -263,7 +263,7 @@ export default function CompetitorShopper({ session }) {
       // run, which read as current when they are not.
       if (!finished) {
         setError(
-          `Only ${done} of ${total} lookups completed before the refresh stopped. The rest still show their previous rates — refresh again to finish.`
+          `Only ${done} of ${total} lookups completed before the refresh stopped. The rest still show their previous rates. Refresh again to finish.`
         );
       } else if (last) {
         const range = last.from === last.to ? last.from : `${last.from} to ${last.to}`;
@@ -334,7 +334,7 @@ export default function CompetitorShopper({ session }) {
   }
 
   if (loading && !data) {
-    return <p className="sub">Loading competitor rates…</p>;
+    return <p className="sub">Loading competitor rates...</p>;
   }
 
   // Opening a day replaces the calendar rather than overlaying it: the detail
@@ -391,7 +391,7 @@ export default function CompetitorShopper({ session }) {
       {data && !data.configured && (
         <div className="card card-pad" style={{ borderColor: "var(--warn)" }}>
           <p className="text-sm" style={{ color: "var(--warn)" }}>
-            Add your Google Business URL in Property Setup first — Competitor Shopper uses it to
+            Add your Google Business URL in Property Setup first. Competitor Shopper uses it to
             find the hotels near you.
           </p>
         </div>
@@ -470,8 +470,8 @@ export default function CompetitorShopper({ session }) {
           >
             {refreshing
               ? progress
-                ? `Checking… ${progress.done} of ${progress.total}`
-                : "Checking competitors…"
+                ? `Checking... ${progress.done} of ${progress.total}`
+                : "Checking competitors..."
               : span === "day"
               ? "Refresh day"
               : "Refresh week"}
@@ -531,9 +531,9 @@ export default function CompetitorShopper({ session }) {
       )}
 
       <p className="text-xs" style={{ color: "var(--text-faint)" }}>
-        {ageLabel(data?.checkedAt)} · Choose any day to see it competitor by competitor. Your rate
+        {ageLabel(data?.checkedAt)}, Choose any day to see it competitor by competitor. Your rate
         comes from Rate Parity; the median is across the competitors you track. A refresh covers
-        one week, or one day — open a day to refresh just that night.
+        one week, or one day. Open a day to refresh just that night.
       </p>
     </div>
   );

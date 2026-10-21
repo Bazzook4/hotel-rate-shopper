@@ -105,7 +105,7 @@ export function describeScope(event, countryName = (c) => c) {
     ? [event.city, event.state].filter(Boolean).join(", ")
     : event.state || `All of ${countryName(event.country_code)}`;
   const types = event.property_types || [];
-  return types.length ? `${where} · ${types.map(propertyTypeLabel).join(", ")}` : where;
+  return types.length ? `${where}, ${types.map(propertyTypeLabel).join(", ")}` : where;
 }
 
 // ---------------------------------------------------------------------------

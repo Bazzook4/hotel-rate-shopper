@@ -131,7 +131,7 @@ export default function Workflow({ session }) {
       "Rules checked."
     );
 
-  if (!data) return <Loading label="Loading workflow rules…" />;
+  if (!data) return <Loading label="Loading workflow rules..." />;
 
   const rules = data.rules || [];
 
@@ -144,7 +144,7 @@ export default function Workflow({ session }) {
         sub="Close chosen channels automatically when a night fills up. A rule reopens only what it closed."
       >
         <button type="button" className="btn btn-secondary" onClick={runNow} disabled={busy || !rules.length}>
-          {busy ? "Working…" : "Run now"}
+          {busy ? "Working..." : "Run now"}
         </button>
         <button type="button" className="btn btn-primary" onClick={() => setDrawer({ rule: null })}>
           + Add rule
@@ -238,7 +238,7 @@ export default function Workflow({ session }) {
       )}
 
       <p className="text-xs faint">
-        What each rule closed and reopened is listed under Activity Log → Workflow.
+        What each rule closed and reopened is listed under Activity Log &gt; Workflow.
       </p>
 
       {drawer && (

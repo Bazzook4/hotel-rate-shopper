@@ -98,7 +98,7 @@ export default function PricingRecommendations({
 
           // Track which occupancies are missing configured prices
           if (configuredPrice === undefined) {
-            missingOccupancies.push(`×${i}`);
+            missingOccupancies.push(`x${i}`);
           }
 
           // Use configured price if available, otherwise use the highest configured price
@@ -106,7 +106,7 @@ export default function PricingRecommendations({
           const finalPrice = configuredPrice !== undefined ? configuredPrice : highestConfiguredPrice;
 
           occupancyTypes.push({
-            type: ` ×${i}`,
+            type: ` x${i}`,
             base_price: finalPrice
           });
         }
@@ -119,15 +119,15 @@ export default function PricingRecommendations({
         // Use max_adults to generate occupancy types
         for (let i = 1; i <= max_adultsValue; i++) {
           occupancyTypes.push({
-            type: ` ×${i}`,
+            type: ` x${i}`,
             base_price: room.base_price
           });
         }
       } else {
         // Default to ×1 and ×2
         occupancyTypes = [
-          { type: ' ×1', base_price: room.base_price },
-          { type: ' ×2', base_price: room.base_price }
+          { type: ' x1', base_price: room.base_price },
+          { type: ' x2', base_price: room.base_price }
         ];
       }
 
@@ -259,7 +259,7 @@ export default function PricingRecommendations({
         const roomKey = row.roomCategory;
 
         // Only include EP (base rates) to avoid duplication and show cleaner trends
-        if (row.mealPlan === 'EP' && row.occupancy === ' ×2') {
+        if (row.mealPlan === 'EP' && row.occupancy === ' x2') {
           if (!roomPrices[roomKey]) {
             roomPrices[roomKey] = [];
           }
@@ -552,7 +552,7 @@ export default function PricingRecommendations({
                   </ResponsiveContainer>
                 </div>
                 <p className="text-[9px] muted text-center mt-1">
-                  {chartRoomTypes[0]} - Double Occupancy ( ×2) EP rates
+                  {chartRoomTypes[0]} - Double Occupancy ( x2) EP rates
                 </p>
               </div>
 

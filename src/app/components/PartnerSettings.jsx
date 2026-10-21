@@ -59,7 +59,7 @@ export default function PartnerSettings() {
   }
 
   if (loading) {
-    return <p className="py-6 text-center sub">Loading partners…</p>;
+    return <p className="py-6 text-center sub">Loading partners...</p>;
   }
 
   return (
@@ -140,7 +140,7 @@ export default function PartnerSettings() {
                   value={form.api_password ?? ""}
                   onChange={(e) => setForm({ ...form, api_password: e.target.value })}
                   className={inputClass}
-                  placeholder={p.has_password ? "•••••• (unchanged)" : "Set a password"}
+                  placeholder={p.has_password ? "Saved. Leave blank to keep it" : "Set a password"}
                   autoComplete="new-password"
                 />
                 <span className="mt-1 block text-[10px] faint">
@@ -165,7 +165,7 @@ export default function PartnerSettings() {
                 onClick={() => save(form)}
                 className="btn btn-primary"
               >
-                {busy ? "Saving…" : "Save"}
+                {busy ? "Saving..." : "Save"}
               </button>
               <button
                 type="button"
@@ -185,8 +185,8 @@ export default function PartnerSettings() {
               <span className="text-sm text-ink">{p.name}</span>
               <span className="ml-2 text-xs muted">
                 {p.enabled ? "Enabled" : "Disabled"}
-                {p.partner_id ? ` · ${p.partner_id}` : ""}
-                {p.api_username ? ` · ${p.api_username}` : " · no credentials"}
+                {p.partner_id ? `, ${p.partner_id}` : ""}
+                {p.api_username ? `, ${p.api_username}` : ", no credentials"}
               </span>
             </div>
             <button

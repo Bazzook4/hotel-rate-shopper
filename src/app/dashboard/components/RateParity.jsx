@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Icon from "../../components/Icon";
 import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import DateToolbar from "./DateToolbar";
 import Dropdown from "../../components/Dropdown";
@@ -97,8 +98,8 @@ function RateCell({ cell }) {
         ) : (
           money(cell.rate, cell.currency)
         )}
-        {cell.status === "breach" && <span aria-hidden>↑</span>}
-        {cell.isLowest && <span aria-hidden>↓</span>}
+        {cell.status === "breach" && <Icon name="arrowUp" size={12} strokeWidth={2.2} />}
+        {cell.isLowest && <Icon name="arrowDown" size={12} strokeWidth={2.2} />}
       </span>
     </td>
   );
@@ -239,7 +240,7 @@ export default function RateParity({ session }) {
       // read as current when they are not.
       if (!finished) {
         setError(
-          `Only ${done} of ${total} nights were checked before the refresh stopped. The rest still show their previous rates — refresh again to finish.`
+          `Only ${done} of ${total} nights were checked before the refresh stopped. The rest still show their previous rates. Refresh again to finish.`
         );
       } else if (failed) {
         setNotice(
@@ -349,7 +350,7 @@ export default function RateParity({ session }) {
   const today = formatDateISO(new Date());
 
   if (loading && !data) {
-    return <p className="sub">Loading rate parity…</p>;
+    return <p className="sub">Loading rate parity...</p>;
   }
 
   return (
@@ -412,8 +413,8 @@ export default function RateParity({ session }) {
               <button type="button" className="btn btn-primary" onClick={refresh} disabled={refreshing}>
                 {refreshing
                   ? progress
-                    ? `Checking… ${progress.done} of ${progress.total} nights`
-                    : "Checking channels…"
+                    ? `Checking... ${progress.done} of ${progress.total} nights`
+                    : "Checking channels..."
                   : "Refresh"}
               </button>
             }
@@ -528,7 +529,7 @@ export default function RateParity({ session }) {
           )}
 
           <p className="text-xs" style={{ color: "var(--text-faint)" }}>
-            {ageLabel(data?.checkedAt)} · Rates are read from your hotel&apos;s Google listing and
+            {ageLabel(data?.checkedAt)}, Rates are read from your hotel&apos;s Google listing and
             compared against the cheapest channel for each night.
           </p>
         </>

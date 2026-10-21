@@ -262,8 +262,8 @@ export default function MealPlanConfig({ property, ratePlans, onPlansUpdated, lo
           <div className="p-3 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)]">
             <p className="text-xs text-[var(--accent-text)]">
               <strong>Tip:</strong>
-              <br/>• <strong>Flat Rate:</strong> Fixed cost added per adult (e.g., ₹250/adult → Single: +₹250, Double: +₹500)
-              <br/>• <strong>Multiplier:</strong> Percentage of base price (e.g., 1.25x → base ₹4000 becomes ₹5000)
+              <br/><strong>Flat Rate:</strong> Fixed cost added per adult (e.g., ₹250/adult gives Single: +₹250, Double: +₹500)
+              <br/><strong>Multiplier:</strong> Percentage of base price (e.g., 1.25x means base ₹4000 becomes ₹5000)
             </p>
           </div>
 

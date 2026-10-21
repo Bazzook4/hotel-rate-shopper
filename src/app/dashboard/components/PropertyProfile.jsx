@@ -51,7 +51,7 @@ export function ProfileFields({
   value,
   onChange,
   idPrefix = "profile",
-  typesHint = "Choose every one that fits — a resort that hosts weddings is both.",
+  typesHint = "Choose every one that fits: a resort that hosts weddings is both.",
 }) {
   const countries = useMemo(() => countryOptions(), []);
   const known = useKnownPlaces(value.country_code);
@@ -77,7 +77,7 @@ export function ProfileFields({
             value={value.country_code || ""}
             onChange={(e) => set({ country_code: e.target.value, state: "", city: "" })}
           >
-            <option value="">Choose…</option>
+            <option value="">Choose...</option>
             {countries.map((c) => (
               <option key={c.code} value={c.code}>
                 {c.name}
@@ -94,7 +94,7 @@ export function ProfileFields({
               value={value.state || ""}
               onChange={(e) => set({ state: e.target.value })}
             >
-              <option value="">Choose…</option>
+              <option value="">Choose...</option>
               {listedStates.map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -223,11 +223,11 @@ export default function PropertyProfile({ propertyId, onSaved, intro }) {
         <h3 className="h2">Property profile</h3>
         <p className="sub">
           {intro ||
-            "Where the hotel is and what kind it is. Events — festivals, holidays, conferences, wedding seasons — are matched to hotels by these, and feed Dynamic Pricing."}
+            "Where the hotel is and what kind it is. Events (festivals, holidays, conferences, wedding seasons) are matched to hotels by these, and feed Dynamic Pricing."}
         </p>
       </div>
 
-      {value ? <ProfileFields value={value} onChange={setValue} idPrefix={`profile-${propertyId || "own"}`} /> : <p className="sub">Loading…</p>}
+      {value ? <ProfileFields value={value} onChange={setValue} idPrefix={`profile-${propertyId || "own"}`} /> : <p className="sub">Loading...</p>}
 
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>
@@ -241,7 +241,7 @@ export default function PropertyProfile({ propertyId, onSaved, intro }) {
       )}
 
       <button type="submit" className="btn btn-primary" disabled={busy || !value}>
-        {busy ? "Saving…" : "Save"}
+        {busy ? "Saving..." : "Save"}
       </button>
     </form>
   );

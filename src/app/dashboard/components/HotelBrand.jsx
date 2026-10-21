@@ -173,7 +173,7 @@ export default function HotelBrand({ propertyId, onSaved }) {
             </button>
           </div>
         ) : (
-          <p className="sub">Loading…</p>
+          <p className="sub">Loading...</p>
         )}
       </div>
     );
@@ -220,7 +220,7 @@ export default function HotelBrand({ propertyId, onSaved }) {
                 disabled={Boolean(busy)}
                 onClick={() => fileRef.current?.click()}
               >
-                {busy === "logo" ? "Uploading…" : brand.logoUrl ? "Change logo" : "Upload logo"}
+                {busy === "logo" ? "Uploading..." : brand.logoUrl ? "Change logo" : "Upload logo"}
               </button>
               {brand.logoUrl && (
                 <button type="button" className="btn btn-ghost text-sm" disabled={Boolean(busy)} onClick={removeLogo}>
@@ -256,7 +256,7 @@ export default function HotelBrand({ propertyId, onSaved }) {
               placeholder="e.g. Sea Breeze Resort"
             />
             <button type="submit" className="btn btn-primary" disabled={Boolean(busy) || !changed}>
-              {busy === "name" ? "Saving…" : "Save"}
+              {busy === "name" ? "Saving..." : "Save"}
             </button>
           </div>
           {note("name")}

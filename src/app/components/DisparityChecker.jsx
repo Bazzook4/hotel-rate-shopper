@@ -38,14 +38,14 @@ function PriceRow({ row, lowest }) {
         </div>
       </td>
       <td className="p-3 text-sm">
-        {row.remarks?.join(" · ") || <span className="muted/70">—</span>}
+        {row.remarks?.join(", ") || <span className="muted/70">-</span>}
       </td>
       <td className="p-3 text-right h2 text-sm">
-        {row.priceText ?? (row.price != null ? `₹${row.price}` : "—")}
+        {row.priceText ?? (row.price != null ? `₹${row.price}` : "-")}
       </td>
       <td className="p-3 text-right text-sm">
         {diffPct == null || isLowest ? (
-          isLowest ? <span className="text-[var(--accent-text)]">—</span> : "—"
+          isLowest ? <span className="text-[var(--accent-text)]">-</span> : "-"
         ) : (
           <span className={diffPct >= 0 ? "text-[var(--danger)]" : "text-[var(--accent-text)]"}>
             {diffPct >= 0 ? "+" : ""}
@@ -64,10 +64,10 @@ function PriceRow({ row, lowest }) {
             rel="noopener noreferrer"
             className="text-sm font-semibold text-sky-300 transition hover:text-sky-200"
           >
-            View →
+            View
           </a>
         ) : (
-          <span className="sub/70">—</span>
+          <span className="sub/70">-</span>
         )}
       </td>
     </tr>
@@ -300,19 +300,19 @@ export default function DisparityChecker({ defaultHotelName }) {
             <div>
               <span className="muted/70">Lowest</span>{" "}
               <span className="text-[var(--accent-text)] font-semibold">
-                {stats.lowest != null ? `₹${stats.lowest}` : "—"}
+                {stats.lowest != null ? `₹${stats.lowest}` : "-"}
               </span>
             </div>
             <div>
               <span className="muted/70">Highest</span>{" "}
               <span className="text-[var(--danger)] font-semibold">
-                {stats.highest != null ? `₹${stats.highest}` : "—"}
+                {stats.highest != null ? `₹${stats.highest}` : "-"}
               </span>
             </div>
             <div>
               <span className="muted/70">Spread</span>{" "}
               <span className="text-[var(--text)] font-semibold">
-                {stats.disparityPct != null ? `${stats.disparityPct.toFixed(1)}%` : "—"}
+                {stats.disparityPct != null ? `${stats.disparityPct.toFixed(1)}%` : "-"}
               </span>
             </div>
           </div>

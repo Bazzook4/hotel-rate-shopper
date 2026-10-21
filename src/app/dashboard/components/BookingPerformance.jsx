@@ -119,7 +119,7 @@ function moneyFormatter(currency) {
   } catch {
     fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
   }
-  return (v) => (v == null ? "–" : fmt.format(v));
+  return (v) => (v == null ? "-" : fmt.format(v));
 }
 
 const whole = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
@@ -162,14 +162,14 @@ function kpiDefs(money) {
       better: "up",
     },
     { key: "adr", label: "Avg room rate (ADR)", hint: "Room revenue per paid room night; complimentary nights are left out", fmt: money, better: "up" },
-    { key: "occupancy", label: "Occupancy", fmt: (v) => (v == null ? "–" : `${one.format(v)}%`), better: "up", points: true, stayOnly: true },
+    { key: "occupancy", label: "Occupancy", fmt: (v) => (v == null ? "-" : `${one.format(v)}%`), better: "up", points: true, stayOnly: true },
     { key: "revpar", label: "Revenue per room (RevPAR)", hint: "Room revenue per room available", fmt: money, better: "up", stayOnly: true },
     { key: "roomNights", label: "Room nights", fmt: (v) => whole.format(v ?? 0), better: "up" },
     { key: "reservations", label: "Reservations", hint: "After cancellations", fmt: (v) => whole.format(v ?? 0), better: "up" },
-    { key: "alos", label: "Avg. length of stay", fmt: (v) => (v == null ? "–" : `${one.format(v)} nights`), better: "up" },
-    { key: "leadTime", label: "Avg. lead time", hint: "Days between booking and arrival", fmt: (v) => (v == null ? "–" : `${one.format(v)} days`), better: null },
+    { key: "alos", label: "Avg. length of stay", fmt: (v) => (v == null ? "-" : `${one.format(v)} nights`), better: "up" },
+    { key: "leadTime", label: "Avg. lead time", hint: "Days between booking and arrival", fmt: (v) => (v == null ? "-" : `${one.format(v)} days`), better: null },
     { key: "cancellations", label: "Cancellations", fmt: (v) => whole.format(v ?? 0), better: "down" },
-    { key: "cancellationRate", label: "Cancellation rate", fmt: (v) => (v == null ? "–" : `${one.format(v)}%`), better: "down", points: true },
+    { key: "cancellationRate", label: "Cancellation rate", fmt: (v) => (v == null ? "-" : `${one.format(v)}%`), better: "down", points: true },
     { key: "lostRevenue", label: "Revenue lost to cancellations", fmt: money, better: "down" },
   ];
 }
@@ -186,7 +186,7 @@ function KpiGrid({ report, money }) {
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
           Compared with {COMPARISONS.find((c) => c.id === report.compare)?.short || ""}
           {report.compare === "custom" ? "" : ", "}
-          {longDate(report.previous.start)} – {longDate(report.previous.end)}
+          {longDate(report.previous.start)} to {longDate(report.previous.end)}
         </p>
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-5 md:grid-cols-3 xl:grid-cols-4">
@@ -367,13 +367,13 @@ function MixSection({ report, money }) {
                         </div>
                       </td>
                       <td className="text-right tabular-nums">{money(r.adr)}</td>
-                      <td className="text-right tabular-nums">{r.alos == null ? "–" : one.format(r.alos)}</td>
+                      <td className="text-right tabular-nums">{r.alos == null ? "-" : one.format(r.alos)}</td>
                       <td className="text-right tabular-nums">
-                        {r.leadTime == null ? "–" : `${one.format(r.leadTime)} d`}
+                        {r.leadTime == null ? "-" : `${one.format(r.leadTime)} d`}
                       </td>
                       <td className="text-right tabular-nums">{whole.format(r.cancellations)}</td>
                       <td className="text-right tabular-nums">
-                        {r.cancellationRate == null ? "–" : `${one.format(r.cancellationRate)}%`}
+                        {r.cancellationRate == null ? "-" : `${one.format(r.cancellationRate)}%`}
                       </td>
                     </tr>
                   );
@@ -572,7 +572,7 @@ function SeasonalitySection({ report, money }) {
     ...(stay ? [["revpar", "Revenue per room"]] : []),
   ];
   const formats = {
-    occupancy: (v) => (v == null ? "–" : `${one.format(v)}%`),
+    occupancy: (v) => (v == null ? "-" : `${one.format(v)}%`),
     roomNights: (v) => whole.format(v ?? 0),
     roomRevenue: money,
     adr: money,
@@ -846,7 +846,7 @@ export default function BookingPerformance({ session }) {
                 }}
                 aria-label="From"
               />
-              <span style={{ color: "var(--text-muted)" }}>–</span>
+              <span style={{ color: "var(--text-muted)" }}>-</span>
               <input
                 type="date"
                 className="input"
@@ -889,7 +889,7 @@ export default function BookingPerformance({ session }) {
                   onChange={(e) => setCompareRange((r) => ({ ...r, start: e.target.value }))}
                   aria-label="Compare from"
                 />
-                <span style={{ color: "var(--text-muted)" }}>–</span>
+                <span style={{ color: "var(--text-muted)" }}>-</span>
                 <input
                   type="date"
                   className="input"
@@ -927,7 +927,7 @@ export default function BookingPerformance({ session }) {
 
       {loading && !report && (
         <div className="card card-pad text-sm" style={{ color: "var(--text-muted)" }}>
-          Loading the report…
+          Loading the report...
         </div>
       )}
 

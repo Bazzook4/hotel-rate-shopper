@@ -9,7 +9,7 @@ import { useEscape } from "../../components/useEscape";
  * Events on a date header, wherever someone decides about a night.
  *
  * The Calendar and the Channel Manager both show the events this hotel sees
- * -- the same list as Insights → Events and the same one Dynamic Pricing
+ * -- the same list as Insights > Events and the same one Dynamic Pricing
  * reads -- so a person setting a rate or taking a booking knows the town is
  * full that week without opening another page.
  *
@@ -68,7 +68,7 @@ export function useEventsByDate(propertyId, start, end) {
 function formatRange(start, end) {
   const fmt = (iso) =>
     new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+  return start === end ? fmt(start) : `${fmt(start)} to ${fmt(end)}`;
 }
 
 /**
@@ -184,8 +184,8 @@ export default function EventMarker({ events }) {
                     </span>
                   </div>
                   <div className="text-xs muted">
-                    {categoryLabel(e.category)} · {formatRange(e.start_date, e.end_date)}
-                    {e.property_id ? " · this hotel only" : ""}
+                    {categoryLabel(e.category)}, {formatRange(e.start_date, e.end_date)}
+                    {e.property_id ? ", this hotel only" : ""}
                   </div>
                   {e.notes && <div className="text-xs faint">{e.notes}</div>}
                 </li>

@@ -2665,7 +2665,7 @@ export async function deleteRoom(propertyId, id) {
     // Reservations hold rooms with `on delete set null`, so this is rare, but
     // any other reference should read as a reason rather than a code.
     if (error.code === '23503') {
-      throw new Error('This room is still referenced elsewhere — deactivate it instead.');
+      throw new Error('This room is still referenced elsewhere. Deactivate it instead.');
     }
     throw new Error(`Failed to delete room: ${error.message}`);
   }
@@ -3318,7 +3318,7 @@ function blockFields(row) {
 
 function blocksNotMigrated(error) {
   return notMigrated(error)
-    ? 'Out-of-order blocks need migration 027 — run it in the Supabase SQL editor first.'
+    ? 'Out-of-order blocks need migration 027. Run it in the Supabase SQL editor first.'
     : null;
 }
 
@@ -3375,7 +3375,7 @@ export async function createReservationGroup(row) {
 
   if (error) {
     if (notMigrated(error)) {
-      throw new Error('Group bookings need migration 027 — run it in the Supabase SQL editor first.');
+      throw new Error('Group bookings need migration 027. Run it in the Supabase SQL editor first.');
     }
     throw new Error(`Failed to create the group: ${error.message}`);
   }
@@ -3819,7 +3819,7 @@ export async function applyStayChange(id, updates, plan, pricing = 'adjust') {
       const count = plan.removed.length;
       await addReservationExtra(id, {
         extra_id: roomService?.id || null,
-        name: `Retained — shortened stay (${first === last ? first : `${first} to ${last}`})`,
+        name: `Retained: shortened stay (${first === last ? first : `${first} to ${last}`})`,
         unit_price: Number((retained / count).toFixed(2)),
         quantity: count,
         kind: 'extra',
@@ -4208,8 +4208,8 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
         const note = mappedType
           ? null
           : room.roomCode
-          ? `Adopted from ${row.channel || 'the channel manager'} — its room "${room.roomCode}" is not mapped under Integrations; confirm the room type.`
-          : `Adopted from ${row.channel || 'the channel manager'} — confirm the room type.`;
+          ? `Adopted from ${row.channel || 'the channel manager'}. Its room "${room.roomCode}" is not mapped under Integrations; confirm the room type.`
+          : `Adopted from ${row.channel || 'the channel manager'}. Confirm the room type.`;
 
         const created = await createReservation(
           {
@@ -4483,7 +4483,7 @@ export async function saveServiceCategory(row) {
 
   const { data, error } = await query.select('*').single();
   if (error) {
-    if (error.code === '23505') throw new Error(`There is already a “${row.name}” category.`);
+    if (error.code === '23505') throw new Error(`There is already a "${row.name}" category.`);
     throw new Error(`Failed to save the category: ${error.message}`);
   }
   return data;
@@ -4621,7 +4621,7 @@ export async function savePropertyExtra(row) {
   const { data, error } = await query.select('*').single();
   if (error) {
     if (error.code === '23505') {
-      throw new Error(`“${row.name}” is already on the list.`);
+      throw new Error(`"${row.name}" is already on the list.`);
     }
     throw new Error(`Failed to save extra: ${error.message}`);
   }
@@ -4924,7 +4924,7 @@ export async function createReservationInvoice(reservationId, userId = null) {
   // invoice shows how the total was reached; one line for the stay otherwise.
   const roomLines = folio.nightsMatch && folio.nights.length > 0
     ? folio.nights.map((n) => ({
-        description: `Accommodation — ${roomName}, night of ${n.stay_date}`,
+        description: `Accommodation: ${roomName}, night of ${n.stay_date}`,
         quantity: 1,
         unit_price: n.rate,
         amount: n.rate,
@@ -4932,7 +4932,7 @@ export async function createReservationInvoice(reservationId, userId = null) {
     : reservation.stay_kind === 'day_use'
       ? [
           {
-            description: `Day use — ${roomName}, ${dayUseLabel(reservation.day_use_hours)} on ${reservation.check_in}`,
+            description: `Day use: ${roomName}, ${dayUseLabel(reservation.day_use_hours)} on ${reservation.check_in}`,
             quantity: 1,
             unit_price: totals.room,
             amount: totals.room,
@@ -4940,7 +4940,7 @@ export async function createReservationInvoice(reservationId, userId = null) {
         ]
       : [
         {
-          description: `Accommodation — ${roomName} (${folio.nights.length} night${
+          description: `Accommodation: ${roomName} (${folio.nights.length} night${
             folio.nights.length === 1 ? '' : 's'
           })`,
           amount: totals.room,
@@ -5256,7 +5256,7 @@ export async function quoteDayUse({ property_id, room_type_id, rate_plan_id, che
       total: null,
       nights: [],
       source: null,
-      reason: 'This day-use plan has no rate for this room on this date — set it in Rates & Inventory, or type the price.',
+      reason: 'This day-use plan has no rate for this room on this date. Set it in Rates & Inventory, or type the price.',
     };
   }
   return { ...quote, nights: [], diagnosis: null };
@@ -5500,7 +5500,7 @@ export async function quoteReservation(
   let diagnosis = null;
   if (sources.has('base_price')) {
     if (!rate_plan_id) {
-      diagnosis = 'No rate plan chosen — pick one to use its channel rate.';
+      diagnosis = 'No rate plan chosen. Pick one to use its channel rate.';
     } else if (!plan) {
       diagnosis = 'That rate plan is no longer configured for this property.';
     } else if (!assignmentFor[`${rate_plan_id}|${room_type_id}`]) {

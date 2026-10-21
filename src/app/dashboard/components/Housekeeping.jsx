@@ -109,7 +109,7 @@ function priority(room) {
 }
 
 function timeAgo(iso) {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
   if (mins < 1) return "just now";
   if (mins < 60) return `${mins} min ago`;
@@ -411,7 +411,7 @@ export default function Housekeeping({ session }) {
             {lastChange.rooms.length === 1
               ? `Room ${lastChange.rooms[0].number}`
               : `${lastChange.rooms.length} rooms`}{" "}
-            → {t(STATUS[lastChange.status]?.label || lastChange.status)}
+            set to {t(STATUS[lastChange.status]?.label || lastChange.status)}
           </span>
           <button className="btn btn-secondary text-sm" onClick={undo}>
             {t("Undo")}
@@ -422,7 +422,7 @@ export default function Housekeeping({ session }) {
       {selected.size > 0 && (
         <div className="card card-pad flex flex-wrap items-center gap-2">
           <span className="text-sm" style={{ fontWeight: 600 }}>
-            {selected.size} selected — mark as
+            {selected.size} selected: mark as
           </span>
           {STATUSES.map((s) => (
             <button
@@ -471,14 +471,14 @@ export default function Housekeeping({ session }) {
             {loading && rooms.length === 0 && (
               <tr>
                 <td colSpan={6} className="sub">
-                  Loading…
+                  Loading...
                 </td>
               </tr>
             )}
             {!loading && rooms.length === 0 && (
               <tr>
                 <td colSpan={6} className="sub">
-                  No rooms yet — add them under Setup → Rooms.
+                  No rooms yet. Add them under Setup &gt; Rooms.
                 </td>
               </tr>
             )}
@@ -540,7 +540,7 @@ export default function Housekeeping({ session }) {
                       </select>
                     </div>
                     <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginTop: 2 }}>
-                      {t(occupancyLabel(room))} · {roomCode(room)}
+                      {t(occupancyLabel(room))}, {roomCode(room)}
                     </div>
                   </td>
                   <td className="text-sm">
@@ -548,17 +548,17 @@ export default function Housekeeping({ session }) {
                       <>
                         {guest.guest_name}
                         <span style={{ color: "var(--text-faint)" }}>
-                          {" "}
-                          · {guest.adults}A
+                          
+                          , {guest.adults}A
                           {guest.children ? ` ${guest.children}C` : ""}
                         </span>
                       </>
                     ) : (
-                      "—"
+                      "-"
                     )}
                   </td>
-                  <td>{room.room_types?.room_type_name || "—"}</td>
-                  <td>{room.floor || "—"}</td>
+                  <td>{room.room_types?.room_type_name || "-"}</td>
+                  <td>{room.floor || "-"}</td>
                   <td className="sub" style={{ fontSize: "0.75rem" }}>
                     {timeAgo(room.housekeeping_updated_at)}
                   </td>

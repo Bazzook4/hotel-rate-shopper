@@ -35,6 +35,7 @@ Grep for how the same thing is done on other pages before calling something inco
 ## Rules you must respect (from the product owner)
 
 - Report only. Nothing changes until the user approves item by item.
+- No "AI characters" in any text staff or guests see, and none in your own report: → ← ↑ ↓ ⇒ — – … · • curly quotes × ✓ ✔ ✕ ★ ☆ ≈ or emoji. Flag each one with file:line. Fixes: "Setup > Rooms" for menu paths, "to" for ranges ("12 Oct to 14 Oct"), "-" for an empty cell, "..." for the ellipsis, straight quotes, commas between short facts, and `<Icon>` (src/app/components/Icon.jsx) for close, tick, star, up/down and arrows. ESLint already fails on these in strings; src/lib/scraper is exempt because it parses Google's own text.
 - By design, don't propose removing: CM-style setup grids with batch save (`SetupGrid.jsx`); Rate Plan Setup's list + drawers; refresh-as-a-button on parity/competitor pages; payments void not delete, with a confirm; invite-only onboarding; 14/30-day windows and one grid-wide switch. If one of these looks wrong, put it under "Worth reconsidering", never in the main list.
 - Trained users go by where things are. Moving something needs a "What moved" note.
 - Balance the personas: Priya (front desk, queue, desktop) wants the action button now; Ramesh (housekeeping, phone, second-language English) needs icon + colour + word; Anil (small owner, often phone, hates change); Meera (revenue manager, wants density).

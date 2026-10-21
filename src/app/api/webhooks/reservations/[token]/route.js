@@ -82,7 +82,7 @@ export async function POST(req, { params }) {
       direction: "in",
       status: "skipped",
       source: "aiosell",
-      summary: "Reservation refused — reservations in is turned off",
+      summary: "Reservation refused: reservations in is turned off",
     });
     return NextResponse.json(
       { error: "Reservations are not enabled for this property." },
@@ -192,7 +192,7 @@ async function adoptAndPush(propertyId, integrationId, bookingId) {
       direction: "in",
       status: "failed",
       source: "pms",
-      summary: `Booking #${bookingId} could not be adopted — use Adopt on the Reservations page`,
+      summary: `Booking #${bookingId} could not be adopted. Use Adopt on the Reservations page`,
       error: err.message,
     });
   }

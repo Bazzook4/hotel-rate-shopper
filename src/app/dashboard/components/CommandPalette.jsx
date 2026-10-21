@@ -28,7 +28,7 @@ const STATUS_LABEL = {
 
 /** A stay's date, with the year only when it is not this one -- a search reaches back years. */
 function stayDate(iso) {
-  if (!iso) return "–";
+  if (!iso) return "-";
   return iso.slice(0, 4) === String(new Date().getFullYear()) ? shortDate(iso) : longDate(iso);
 }
 
@@ -213,10 +213,10 @@ export default function CommandPalette({ open, onClose, areas, session, onOpenPa
                         <Icon name="calendar" />
                         <span className="min-w-0 flex-1 truncate">
                           <span className="font-medium">{item.booking.guest_name}</span>
-                          <span style={{ color: "var(--text-muted)" }}> · {item.booking.reference}</span>
+                          <span style={{ color: "var(--text-muted)" }}>, {item.booking.reference}</span>
                         </span>
                         <span className="whitespace-nowrap text-xs" style={{ color: "var(--text-faint)" }}>
-                          {stayDate(item.booking.check_in)} – {stayDate(item.booking.check_out)} ·{" "}
+                          {stayDate(item.booking.check_in)} to {stayDate(item.booking.check_out)},{" "}
                           {STATUS_LABEL[item.booking.status] || item.booking.status}
                         </span>
                       </>
@@ -227,12 +227,12 @@ export default function CommandPalette({ open, onClose, areas, session, onOpenPa
 
               {searching && (
                 <p className="px-3 py-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                  Searching bookings…
+                  Searching bookings...
                 </p>
               )}
               {!searching && items.length === 0 && (
                 <p className="px-3 py-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                  Nothing matches “{query.trim()}”.
+                  Nothing matches &quot;{query.trim()}&quot;.
                   {canSeeBookings && query.trim().length < 2 ? " Type two letters or more to search bookings." : ""}
                 </p>
               )}
@@ -243,7 +243,7 @@ export default function CommandPalette({ open, onClose, areas, session, onOpenPa
               style={{ borderTop: "1px solid var(--border)", color: "var(--text-faint)" }}
             >
               <span>
-                <span className="kbd">↑</span> <span className="kbd">↓</span> move
+                <span className="kbd"><Icon name="arrowUp" size={10} strokeWidth={2.2} /></span> <span className="kbd"><Icon name="arrowDown" size={10} strokeWidth={2.2} /></span> move
               </span>
               <span>
                 <span className="kbd">Enter</span> open

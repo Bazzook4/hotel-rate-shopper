@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Icon from "../../components/Icon";
 import BookingModal from "./BookingModal";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { usePageState } from "./usePageState";
@@ -73,14 +74,14 @@ export function moneyFormatter(currency, { decimals = 0 } = {}) {
   } catch {
     fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: decimals });
   }
-  return (v) => (v == null ? "–" : fmt.format(v));
+  return (v) => (v == null ? "-" : fmt.format(v));
 }
 
 export const whole = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
 export const one = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
 
 export function longDate(iso) {
-  if (!iso) return "–";
+  if (!iso) return "-";
   return parseDateISO(iso.slice(0, 10)).toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short",
@@ -89,13 +90,13 @@ export function longDate(iso) {
 }
 
 export function shortDate(iso) {
-  if (!iso) return "–";
+  if (!iso) return "-";
   return parseDateISO(iso.slice(0, 10)).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
 /** A stored moment, in the desk's own clock. */
 export function timeOf(ts) {
-  if (!ts) return "–";
+  if (!ts) return "-";
   return new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -262,7 +263,7 @@ export function PeriodPicker({ id, label = "Dates", preset, range, onPreset, onR
             onChange={(e) => onRange({ ...range, start: e.target.value })}
             aria-label="From"
           />
-          <span style={{ color: "var(--text-muted)" }}>–</span>
+          <span style={{ color: "var(--text-muted)" }}>-</span>
           <input
             type="date"
             className="input"
@@ -351,7 +352,7 @@ export function Change({ now, before, better, points }) {
   // The arrow carries the direction, so the tint is never the only signal.
   return (
     <span className={`chip ${tone}`}>
-      {up ? "↑" : "↓"} {text}
+      <Icon name={up ? "arrowUp" : "arrowDown"} size={12} strokeWidth={2.2} /> {text}
     </span>
   );
 }
@@ -415,7 +416,7 @@ export function TableFrame({ children, tall = false }) {
 
 /** The booking reference as a link that opens the stay. */
 export function BookingLink({ reference, reservationId, tab, onOpen }) {
-  if (!reservationId) return <span>{reference || "–"}</span>;
+  if (!reservationId) return <span>{reference || "-"}</span>;
   return (
     <button
       type="button"
@@ -438,7 +439,7 @@ export function Status({ loading, error, report }) {
       )}
       {loading && !report && !error && (
         <div className="card card-pad text-sm" style={{ color: "var(--text-muted)" }}>
-          Loading the report…
+          Loading the report...
         </div>
       )}
     </>

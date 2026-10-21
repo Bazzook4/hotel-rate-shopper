@@ -145,7 +145,7 @@ export default function Integrations({ session }) {
       <div className="flex items-center justify-center py-20">
         <div className="space-y-3 text-center">
           <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-          <p className="sub">Loading integrations…</p>
+          <p className="sub">Loading integrations...</p>
         </div>
       </div>
     );
@@ -371,7 +371,7 @@ export default function Integrations({ session }) {
                                 {room.room_type_name}
                               </span>
                               <span className="block text-xs muted">
-                                up to {maxAdults} adult{maxAdults === 1 ? "" : "s"} ·{" "}
+                                up to {maxAdults} adult{maxAdults === 1 ? "" : "s"},{" "}
                                 {plans.length} rate plan{plans.length === 1 ? "" : "s"}
                               </span>
                             </td>
@@ -459,7 +459,7 @@ export default function Integrations({ session }) {
               onClick={save}
               className="btn btn-primary"
             >
-              {busy ? "Saving…" : "Save connection"}
+              {busy ? "Saving..." : "Save connection"}
             </button>
             <button
               type="button"
@@ -555,14 +555,14 @@ function ConnectedChannels({ scope }) {
           disabled={loading}
           className="btn btn-secondary shrink-0 text-xs"
         >
-          {loading ? "Checking…" : "Refresh"}
+          {loading ? "Checking..." : "Refresh"}
         </button>
       </div>
 
       {error && <p className="mt-2 text-xs text-[var(--warn)]">{error}</p>}
 
       {channels === null && loading && (
-        <p className="mt-2 text-xs faint">Asking Aiosell…</p>
+        <p className="mt-2 text-xs faint">Asking Aiosell...</p>
       )}
 
       {channels?.length === 0 && !error && (
@@ -591,7 +591,7 @@ function ConnectedChannels({ scope }) {
                       <span className="block font-mono text-xs faint">{c.slug}</span>
                     )}
                   </td>
-                  <td className="font-mono text-xs text-ink">{c.hotelCode || "—"}</td>
+                  <td className="font-mono text-xs text-ink">{c.hotelCode || "-"}</td>
                   <td>
                     <span className="flex flex-wrap gap-1">
                       {OPERATIONS.map(([op, label]) => (
@@ -606,7 +606,7 @@ function ConnectedChannels({ scope }) {
                     </span>
                   </td>
                   <td className="text-xs muted tabular-nums">
-                    {c.multiplier == null ? "—" : `${c.multiplier}×`}
+                    {c.multiplier == null ? "-" : `${c.multiplier}x`}
                   </td>
                 </tr>
               ))}

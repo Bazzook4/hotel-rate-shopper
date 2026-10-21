@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Icon from "../../components/Icon";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { confirmDiscard, useDialog } from "../../components/Dialog";
@@ -338,7 +339,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
       const taken = chosenRooms.filter((room) => roomBusy(room, form.check_in, form.check_out));
       if (taken.length > 0) {
         const many = taken.length > 1;
-        return `${many ? "Rooms" : "Room"} ${taken.map((r) => r.room_number).join(", ")} ${many ? "are" : "is"} taken on these dates — untick ${many ? "them" : "it"} or change the dates.`;
+        return `${many ? "Rooms" : "Room"} ${taken.map((r) => r.room_number).join(", ")} ${many ? "are" : "is"} taken on these dates. Untick ${many ? "them" : "it"} or change the dates.`;
       }
     }
     if (i === 2) {
@@ -445,7 +446,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
         >
           <span>
             New group booking
-            {form.name.trim() && <span style={{ fontWeight: 400 }}> — {form.name.trim()}</span>}
+            {form.name.trim() && <span style={{ fontWeight: 400 }}>: {form.name.trim()}</span>}
           </span>
           <button
             type="button"
@@ -453,7 +454,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
             aria-label="Close"
             style={{ background: "none", border: 0, color: "#fff", cursor: "pointer" }}
           >
-            ✕
+            x
           </button>
         </div>
 
@@ -482,7 +483,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                         color: done || on ? "#fff" : "var(--text-faint)",
                       }}
                     >
-                      {done ? "✓" : i + 1}
+                      {done ? <Icon name="check" size={12} strokeWidth={2.4} /> : i + 1}
                     </span>
                     <span className="truncate">{s.label}</span>
                   </button>
@@ -495,7 +496,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
               <div className="sub space-y-1" style={{ fontSize: "0.7rem", padding: "0 0.5rem" }}>
                 {nights > 0 && (
                   <p>
-                    {form.check_in} → {form.check_out}
+                    {form.check_in} to {form.check_out}
                     <br />
                     {nights} night{nights === 1 ? "" : "s"}
                   </p>
@@ -602,7 +603,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                     style={{ resize: "vertical" }}
                     value={form.notes}
                     onChange={(e) => set("notes", e.target.value)}
-                    placeholder="Rooming list to follow, billing to company, arrival by coach…"
+                    placeholder="Rooming list to follow, billing to company, arrival by coach..."
                   />
                 </div>
               </>
@@ -622,8 +623,8 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                         {rt.name}
                         {count > 0 && (
                           <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
-                            {" "}
-                            · {count} chosen
+                            
+                            , {count} chosen
                           </span>
                         )}
                       </div>
@@ -636,7 +637,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                               key={room.id}
                               type="button"
                               disabled={Boolean(taken) && !on}
-                              title={taken ? `Taken — ${taken}` : undefined}
+                              title={taken ? `Taken: ${taken}` : undefined}
                               onClick={() => toggle(room.id)}
                               className={`chip ${on ? "chip-ok" : "chip-off"}`}
                               style={{
@@ -648,7 +649,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                                 fontSize: "0.8rem",
                               }}
                             >
-                              {on ? "✓ " : ""}
+                              {on && <Icon name="check" size={12} strokeWidth={2.4} />}
                               {room.room_number}
                             </button>
                           );
@@ -664,7 +665,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
               <>
                 <p className="sub">
                   Set each room on its own. Guest names can be left blank and filled in
-                  when the rooming list arrives — the room is booked under the group name
+                  when the rooming list arrives. The room is booked under the group name
                   until then.
                 </p>
 
@@ -696,7 +697,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                       title="Rooms that take fewer get their own max"
                       onChange={(e) => setBulk((b) => ({ ...b, adults: e.target.value }))}
                     >
-                      <option value="">—</option>
+                      <option value="">-</option>
                       {Array.from({ length: bulkAdultCap }, (_, i) => i + 1).map((n) => (
                         <option key={n} value={n}>
                           {n}
@@ -710,7 +711,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                       className="cm-input"
                       type="number"
                       min="0"
-                      placeholder="—"
+                      placeholder="-"
                       value={bulk.children}
                       onChange={(e) => setBulk((b) => ({ ...b, children: e.target.value }))}
                     />
@@ -753,9 +754,9 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                             <td colSpan={6} style={{ fontWeight: 600, fontSize: "0.8rem" }}>
                               {rt.name}
                               <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
-                                {" "}
-                                · {rows.length} room{rows.length === 1 ? "" : "s"}
-                                {rt.max_adults ? ` · up to ${rt.max_adults} adults` : ""}
+                                
+                                , {rows.length} room{rows.length === 1 ? "" : "s"}
+                                {rt.max_adults ? `, up to ${rt.max_adults} adults` : ""}
                               </span>
                             </td>
                           </tr>,
@@ -832,7 +833,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                                     type="number"
                                     min="0"
                                     value={typed ? line.total_amount : quoted ?? ""}
-                                    placeholder={quoted === undefined ? "Pricing…" : "No rate"}
+                                    placeholder={quoted === undefined ? "Pricing..." : "No rate"}
                                     onChange={(e) => setLine(room.id, { total_amount: e.target.value })}
                                   />
                                   {typed && quoted != null && (
@@ -862,13 +863,13 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                       })}
                       <tr className="cm-group">
                         <td colSpan={5} style={{ fontWeight: 600 }}>
-                          Group total · {chosenRooms.length} room
-                          {chosenRooms.length === 1 ? "" : "s"} × {nights} night
+                          Group total, {chosenRooms.length} room
+                          {chosenRooms.length === 1 ? "" : "s"} x {nights} night
                           {nights === 1 ? "" : "s"}
                           {unpriced > 0 && (
                             <span style={{ fontWeight: 400, color: "var(--warn)" }}>
-                              {" "}
-                              · {unpriced} room{unpriced === 1 ? " has" : "s have"} no rate set
+                              
+                              , {unpriced} room{unpriced === 1 ? " has" : "s have"} no rate set
                             </span>
                           )}
                         </td>
@@ -912,7 +913,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                   disabled={busy}
                   onClick={() => go(step - 1)}
                 >
-                  ← Back
+                  Back
                 </button>
               )}
               <button className="btn btn-ghost text-sm ml-auto" disabled={busy} onClick={requestClose}>
@@ -920,7 +921,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
               </button>
               {step < STEPS.length - 1 ? (
                 <button type="button" className="btn btn-primary text-sm" onClick={() => go(step + 1)}>
-                  Next →
+                  Next
                 </button>
               ) : (
                 <button
@@ -929,7 +930,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                   onClick={() => submit(false)}
                 >
                   {busy
-                    ? "Booking…"
+                    ? "Booking..."
                     : `Book ${chosenRooms.length} room${chosenRooms.length === 1 ? "" : "s"}`}
                 </button>
               )}

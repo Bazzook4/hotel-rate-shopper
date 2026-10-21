@@ -38,7 +38,7 @@ function SignalAvailability({ active }) {
       <p className="text-sm" style={{ color: "var(--warn)" }}>
         {dormant.length} signal{dormant.length === 1 ? " has" : "s have"} no data yet:{" "}
         {dormant.map((s) => s.label).join(", ")}. They contribute nothing until the data exists, and
-        their weight is shared among the signals that do — so they start working on their own.
+        their weight is shared among the signals that do, so they start working on their own.
       </p>
     </div>
   );
@@ -126,7 +126,7 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
     }
   }
 
-  if (loading) return <p className="sub">Loading settings…</p>;
+  if (loading) return <p className="sub">Loading settings...</p>;
 
   const floorPct = strategy?.floor_pct ?? DEFAULT_FLOOR_PCT;
   const ceilingPct = strategy?.ceiling_pct ?? DEFAULT_CEILING_PCT;
@@ -150,7 +150,7 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
             Close
           </button>
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? "Saving..." : "Save changes"}
           </button>
         </div>
       </div>
@@ -207,7 +207,7 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
             {example && (
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 {example.name} has a base rate of {example.basePrice}, so it will never be priced below{" "}
-                {pctOf(example.basePrice, floorPct) ?? "—"}.
+                {pctOf(example.basePrice, floorPct) ?? "-"}.
               </p>
             )}
           </div>
@@ -272,7 +272,7 @@ export default function PricingSettings({ propertyId, onClose, activeSignals }) 
                       <tr key={r.roomTypeId}>
                         <td style={{ fontWeight: 500 }}>{r.name}</td>
                         <td style={{ color: "var(--text-muted)" }}>
-                          {r.basePrice != null ? r.basePrice : "—"}
+                          {r.basePrice != null ? r.basePrice : "-"}
                         </td>
                         <td>
                           <input

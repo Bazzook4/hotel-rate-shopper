@@ -14,6 +14,15 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-21",
+    title: "Plainer text across the app",
+    points: [
+      {
+        text: "Every page now uses plain punctuation. Dates read \"12 Oct to 14 Oct\", menu paths read \"Setup > Rooms\", an empty cell shows \"-\", and short facts are split by commas, such as \"2 nights, Deluxe\". Close, tick, star and move up or down buttons now show small drawn icons that look the same on every phone and computer. Nothing works differently.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-21",
     title: "Your hotel's name and logo on the guest's check-in page",
     points: [
       {
@@ -28,7 +37,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "Open a booking and go to Guests: under Online check-in, press Send on WhatsApp or Copy link to send the guest their own check-in link. On their phone they fill in their name, phone, address and ID, take a photo of the ID, and press Send to hotel. Foreign guests are asked for their passport and visa details. Each adult on the booking fills in their own part. The booking then shows \"Details in — review and accept\": look over the details beside the ID photos and press Accept into guest records, and they are saved on the guest's record with their ID. Today's arrivals and the Reservations list show where each guest's online check-in stands, and the booking confirmation on WhatsApp now carries the link too.",
+        text: "Open a booking and go to Guests: under Online check-in, press Send on WhatsApp or Copy link to send the guest their own check-in link. On their phone they fill in their name, phone, address and ID, take a photo of the ID, and press Send to hotel. Foreign guests are asked for their passport and visa details. Each adult on the booking fills in their own part. The booking then shows \"Details in, review and accept\": look over the details beside the ID photos and press Accept into guest records, and they are saved on the guest's record with their ID. Today's arrivals and the Reservations list show where each guest's online check-in stands, and the booking confirmation on WhatsApp now carries the link too.",
       },
       {
         page: "setup",
@@ -72,7 +81,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date, the day-use plan (for example Day Use 6h) and a start time, and the price is filled in from that plan. Start times are offered every half hour from 6:00 AM, shown with their end time (10:00 AM – 1:00 PM); times another day-use guest already has in that room are greyed out, and the first free time is picked for you. Two day uses can share a room one after the other, but not at the same time. Once you check the guest in, the hours run from check-in and the booking shows when they are due out. The room is taken off sale on the channels for that date when the day use is booked, and goes back on sale as soon as you check the guest out, so you can still sell it for the night.",
+        text: "You can now take day-use bookings: a room for a few hours on one day. In the booking form, set Stay to \"Day use (hours)\", pick the date, the day-use plan (for example Day Use 6h) and a start time, and the price is filled in from that plan. Start times are offered every half hour from 6:00 AM, shown with their end time (10:00 AM to 1:00 PM); times another day-use guest already has in that room are greyed out, and the first free time is picked for you. Two day uses can share a room one after the other, but not at the same time. Once you check the guest in, the hours run from check-in and the booking shows when they are due out. The room is taken off sale on the channels for that date when the day use is booked, and goes back on sale as soon as you check the guest out, so you can still sell it for the night.",
       },
       {
         page: "calendar",
@@ -104,11 +113,11 @@ export const RELEASE_NOTES = [
       },
       {
         page: "guests",
-        text: "Guests can now have a wallet. On the Guests page, click a guest's Wallet and press Add money — any amount, or on a wallet plan such as \"pay ₹10,000, get ₹11,000\". Set up your plans with the Wallet plans button. The wallet shows everything added and every bill it paid.",
+        text: "Guests can now have a wallet. On the Guests page, click a guest's Wallet and press Add money: any amount, or on a wallet plan such as \"pay ₹10,000, get ₹11,000\". Set up your plans with the Wallet plans button. The wallet shows everything added and every bill it paid.",
       },
       {
         page: "guests",
-        text: "Give guests a tier — Silver, Gold, VIP or your own names and colours. Set them up with the Tiers button on the Guests page, then pick a guest's tier in the Tier column. The tier shows as a badge on the booking form when that guest books.",
+        text: "Give guests a tier: Silver, Gold, VIP or your own names and colours. Set them up with the Tiers button on the Guests page, then pick a guest's tier in the Tier column. The tier shows as a badge on the booking form when that guest books.",
       },
       {
         page: "reservations",
@@ -148,7 +157,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "cm",
-        text: "The Channel Manager rates page is easier to read. A room that is not linked to its channel code is flagged once, on the room's own line, not on every rate. Each rate plan's lines are grouped together, and the note saying which plan a rate follows (such as \"↳ EP · +25%\") now sits under the plan name. Hover over a greyed rate to see how it is worked out.",
+        text: "The Channel Manager rates page is easier to read. A room that is not linked to its channel code is flagged once, on the room's own line, not on every rate. Each rate plan's lines are grouped together, and the note saying which plan a rate follows (such as \"↳ EP, +25%\") now sits under the plan name. Hover over a greyed rate to see how it is worked out.",
       },
       {
         page: "cm",

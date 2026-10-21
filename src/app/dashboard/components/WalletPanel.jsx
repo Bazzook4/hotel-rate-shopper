@@ -153,10 +153,10 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm">
-          <strong>{owner.name}</strong> — wallet holds{" "}
-          <strong style={{ color: "var(--accent-text)" }}>{wallet ? inr(wallet.balance) : "…"}</strong>
+          <strong>{owner.name}</strong>: wallet holds{" "}
+          <strong style={{ color: "var(--accent-text)" }}>{wallet ? inr(wallet.balance) : "..."}</strong>
           {wallet && wallet.credit > 0 && (
-            <span className="sub"> · {inr(wallet.cash)} paid in, {inr(wallet.credit)} credit given, {inr(wallet.spent)} spent</span>
+            <span className="sub">, {inr(wallet.cash)} paid in, {inr(wallet.credit)} credit given, {inr(wallet.spent)} spent</span>
           )}
         </span>
         <div className="ml-auto flex gap-2">
@@ -177,7 +177,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
               <option value="">Any amount</option>
               {activePlans.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} — pay {inr(p.pay_amount)}, get {inr(p.credit)}
+                  {p.name}: pay {inr(p.pay_amount)}, get {inr(p.credit)}
                 </option>
               ))}
             </select>
@@ -213,7 +213,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
             <input className="input" type="date" max={todayLocal()} value={form.received_on} onChange={(e) => setForm({ ...form, received_on: e.target.value })} />
           </label>
           <button type="button" className="btn btn-primary text-sm" disabled={busy || (!plan && !(Number(form.cash_amount) > 0))} onClick={topUp}>
-            {busy ? "Adding…" : plan ? `Take ${inr(plan.pay_amount)}` : "Add"}
+            {busy ? "Adding..." : plan ? `Take ${inr(plan.pay_amount)}` : "Add"}
           </button>
         </div>
       )}
@@ -246,11 +246,11 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
                 <td style={cell}>
                   {e.kind === "topup" && (
                     <>
-                      Added{e.plan ? ` on ${e.plan}` : ""} — {inr(e.cash)} paid by {METHOD_LABEL[e.method] || e.method}
+                      Added{e.plan ? ` on ${e.plan}` : ""}: {inr(e.cash)} paid by {METHOD_LABEL[e.method] || e.method}
                       {e.reference ? ` (${e.reference})` : ""}
                     </>
                   )}
-                  {e.kind === "adjust" && <>Adjusted — {e.notes}</>}
+                  {e.kind === "adjust" && <>Adjusted: {e.notes}</>}
                   {e.kind === "spend" && (
                     <>
                       Paid{" "}
@@ -261,10 +261,10 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
                       ) : (
                         e.booking
                       )}
-                      {e.guestName ? ` · ${e.guestName}` : ""}
+                      {e.guestName ? `, ${e.guestName}` : ""}
                     </>
                   )}
-                  {e.voided && e.voidReason ? ` · voided: ${e.voidReason}` : ""}
+                  {e.voided && e.voidReason ? `, voided: ${e.voidReason}` : ""}
                 </td>
                 <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap", color: e.credit < 0 ? "var(--danger)" : "var(--accent-text)" }}>
                   {e.credit < 0 ? "−" : "+"}

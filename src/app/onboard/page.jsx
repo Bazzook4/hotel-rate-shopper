@@ -92,14 +92,14 @@ export default function OnboardPage() {
         className="w-full max-w-lg space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
       >
         <div className="space-y-2 text-center">
-          <p className="text-xs uppercase tracking-[0.4em] text-ink/70">HMS · Online Hotelier</p>
+          <p className="text-xs uppercase tracking-[0.4em] text-ink/70">HMS | Online Hotelier</p>
           <h1 className="h1">Set up your hotel</h1>
           <p className="text-xs text-ink/70">
             Choose the email and password you will sign in with.
           </p>
         </div>
 
-        {linkState === "checking" && <p className="sub text-center">Checking your link…</p>}
+        {linkState === "checking" && <p className="sub text-center">Checking your link...</p>}
 
         {linkState === "gone" && (
           <div className="space-y-3 text-center">
@@ -197,7 +197,7 @@ export default function OnboardPage() {
             )}
 
             <button type="submit" disabled={loading} className="btn btn-primary w-full">
-              {loading ? "Creating your account…" : "Create account"}
+              {loading ? "Creating your account..." : "Create account"}
             </button>
           </>
         )}

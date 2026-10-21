@@ -45,7 +45,7 @@ const STATUS_CHIP = {
 };
 
 function money(value, currency) {
-  if (value == null) return "—";
+  if (value == null) return "-";
   // Anything without a symbol here shows its code, so a BDT booking is not
   // read as rupees.
   const symbol =
@@ -55,7 +55,7 @@ function money(value, currency) {
 
 function shortDate(iso) {
   const parsed = parseDateISO(iso);
-  if (!parsed) return "—";
+  if (!parsed) return "-";
   return parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
@@ -329,14 +329,14 @@ export default function Reservations({ session, initialView = null }) {
     // disabled -- this covers the case of a stale list left open overnight.
     if (reservation.check_in > today) {
       setError(
-        `${reservation.guest_name} arrives on ${shortDate(reservation.check_in)} — check-in opens that day.`
+        `${reservation.guest_name} arrives on ${shortDate(reservation.check_in)} ; check-in opens that day.`
       );
       return;
     }
 
     const assigned = reservation.room_id && rooms.find((r) => r.id === reservation.room_id);
     if (assigned?.housekeeping === "dirty") {
-      setError(`Room ${assigned.room_number} is dirty — mark it clean before checking ${reservation.guest_name} in.`);
+      setError(`Room ${assigned.room_number} is dirty. Mark it clean before checking ${reservation.guest_name} in.`);
       return;
     }
 
@@ -388,7 +388,7 @@ export default function Reservations({ session, initialView = null }) {
 
       setNotice(
         parts.length
-          ? `OTA bookings imported — ${parts.join(", ")}.${
+          ? `OTA bookings imported: ${parts.join(", ")}.${
               data.reasons?.length ? ` ${data.reasons.join("; ")}` : ""
             }`
           : "No new OTA bookings to import."
@@ -422,7 +422,7 @@ export default function Reservations({ session, initialView = null }) {
       } else {
         setError(
           `Booking #${bookingId} was not added${
-            data.reasons?.length ? ` — ${data.reasons.join("; ")}` : "."
+            data.reasons?.length ? `: ${data.reasons.join("; ")}` : "."
           }`
         );
       }
@@ -461,7 +461,7 @@ export default function Reservations({ session, initialView = null }) {
         <div>
           <h2 className="h1">Reservations</h2>
           <p className="sub">
-            {counts.arrivals} arriving today · {counts.departures} departing ·{" "}
+            {counts.arrivals} arriving today, {counts.departures} departing,{" "}
             {counts.inHouse} checked in
           </p>
         </div>
@@ -521,9 +521,9 @@ export default function Reservations({ session, initialView = null }) {
                 {pending.map((p) => (
                   <tr key={p.partner_booking_id}>
                     <td style={{ fontFamily: "monospace" }}>{p.partner_booking_id}</td>
-                    <td>{p.guest_name || "—"}</td>
+                    <td>{p.guest_name || "-"}</td>
                     <td>
-                      {p.check_in ? `${shortDate(p.check_in)} → ${shortDate(p.check_out)}` : "—"}
+                      {p.check_in ? `${shortDate(p.check_in)} to ${shortDate(p.check_out)}` : "-"}
                       {p.problem && (
                         <div style={{ color: "var(--danger)", fontSize: "0.75rem" }}>
                           {p.problem}
@@ -531,7 +531,7 @@ export default function Reservations({ session, initialView = null }) {
                       )}
                     </td>
                     <td className="text-right">{money(p.amount, p.currency)}</td>
-                    <td>{p.channel || "—"}</td>
+                    <td>{p.channel || "-"}</td>
                     <td>
                       {p.received_at
                         ? new Date(p.received_at).toLocaleString("en-GB", {
@@ -540,7 +540,7 @@ export default function Reservations({ session, initialView = null }) {
                             hour: "2-digit",
                             minute: "2-digit",
                           })
-                        : "—"}
+                        : "-"}
                     </td>
                     <td className="text-right">
                       <button
@@ -548,7 +548,7 @@ export default function Reservations({ session, initialView = null }) {
                         disabled={retrying !== null || loading}
                         onClick={() => retryOne(p.partner_booking_id)}
                       >
-                        {retrying === p.partner_booking_id ? "Retrying…" : "Retry"}
+                        {retrying === p.partner_booking_id ? "Retrying..." : "Retry"}
                       </button>
                     </td>
                   </tr>
@@ -596,11 +596,11 @@ export default function Reservations({ session, initialView = null }) {
           />
         </div>
 
-        {loading && visible.length === 0 && <p className="sub">Loading…</p>}
+        {loading && visible.length === 0 && <p className="sub">Loading...</p>}
 
         {!loading && visible.length === 0 && (
           <p className="sub">
-            No reservations here yet. Use “New booking” to put one in.
+            No reservations here yet. Use &quot;New booking&quot; to put one in.
           </p>
         )}
 
@@ -647,7 +647,7 @@ export default function Reservations({ session, initialView = null }) {
                         )}
                       </td>
                       <td>
-                        <div>{r.room_types?.room_type_name || "—"}</div>
+                        <div>{r.room_types?.room_type_name || "-"}</div>
                         <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
                           {r.rooms?.room_number
                             ? `Room ${r.rooms.room_number}`
@@ -655,9 +655,9 @@ export default function Reservations({ session, initialView = null }) {
                         </div>
                       </td>
                       <td>
-                        {isDayUse(r) ? shortDate(r.check_in) : `${shortDate(r.check_in)} → ${shortDate(r.check_out)}`}
+                        {isDayUse(r) ? shortDate(r.check_in) : `${shortDate(r.check_in)} to ${shortDate(r.check_out)}`}
                         <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
-                          {isDayUse(r) ? dayUseSummary(r) : `${nights} night${nights === 1 ? "" : "s"}`} · {r.adults}A
+                          {isDayUse(r) ? dayUseSummary(r) : `${nights} night${nights === 1 ? "" : "s"}`}, {r.adults}A
                           {r.children ? ` ${r.children}C` : ""}
                         </div>
                       </td>
@@ -684,9 +684,9 @@ export default function Reservations({ session, initialView = null }) {
                             disabled={busy || r.check_in > today || roomIsDirty(r)}
                             title={
                               r.check_in > today
-                                ? `Arrives ${shortDate(r.check_in)} — check-in opens that day`
+                                ? `Arrives ${shortDate(r.check_in)} ; check-in opens that day`
                                 : roomIsDirty(r)
-                                  ? "Room is dirty — mark it clean first"
+                                  ? "Room is dirty. Mark it clean first"
                                   : undefined
                             }
                             onClick={() => checkIn(r)}

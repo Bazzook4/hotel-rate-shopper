@@ -88,7 +88,7 @@ export function describeTax(tax, money = (v) => String(v)) {
   if (tax.max_nights) parts.push(`first ${tax.max_nights} night${tax.max_nights === 1 ? "" : "s"}`);
   if (tax.is_compound) parts.push("on top of earlier taxes");
   if (tax.is_inclusive) parts.push("included in the price");
-  return parts.join(" · ");
+  return parts.join(", ");
 }
 
 /**
@@ -240,7 +240,7 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
       inclusive,
       detail:
         tax.calc_type === "fixed"
-          ? `${value} × ${round2(amount / value)}`
+          ? `${value} x ${round2(amount / value)}`
           : `${value}% of ${base}`,
     });
   }

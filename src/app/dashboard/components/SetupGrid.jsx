@@ -64,7 +64,7 @@ export function Messages({ error, notice }) {
   );
 }
 
-export function Loading({ label = "Loading…" }) {
+export function Loading({ label = "Loading..." }) {
   return (
     <div className="flex items-center justify-center py-20">
       <div className="space-y-3 text-center">
@@ -90,7 +90,7 @@ export function SaveActions({ count, busy, onSave, onDiscard }) {
         onClick={onSave}
         disabled={busy || count === 0}
       >
-        {busy ? "Saving…" : count ? `Save ${count} change${count === 1 ? "" : "s"}` : "Save"}
+        {busy ? "Saving..." : count ? `Save ${count} change${count === 1 ? "" : "s"}` : "Save"}
       </button>
     </>
   );

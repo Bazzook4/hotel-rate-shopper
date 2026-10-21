@@ -130,14 +130,14 @@ function Person({ g, index, canSeeIds }) {
           <span className="font-semibold">{g.full_name}</span>
           {[id, g.nationality && countryName(g.nationality)].filter(Boolean).map((x) => (
             <span key={x} style={{ color: "var(--text-muted)" }}>
-              {" "}
-              · {x}
+              
+              , {x}
             </span>
           ))}
         </div>
         {details.length > 0 && (
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {details.join(" · ")}
+            {details.join(", ")}
           </div>
         )}
       </div>
@@ -149,7 +149,7 @@ function Person({ g, index, canSeeIds }) {
               href={f.url || undefined}
               target="_blank"
               rel="noreferrer"
-              title={`${f.name} — open full size`}
+              title={`${f.name}: open full size`}
               className="card"
               style={{ padding: 4, width: 120, display: "block" }}
             >
@@ -230,7 +230,7 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
     } catch {
       // Some browsers refuse after a wait; the link goes on screen instead.
       setShowLink(true);
-      toast("Couldn't copy — select the link below and copy it");
+      toast("Couldn't copy. Select the link below and copy it");
     }
   }
 
@@ -253,7 +253,7 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
     const next = await run(() => call("POST", { action: "accept", reservationId: reservation.id }));
     if (!next) return;
     setData(next);
-    toast("Accepted — details saved to the guest records");
+    toast("Accepted. Details saved to the guest records");
     onAccepted?.();
   }
 
@@ -317,7 +317,7 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
           {(c.arrivalTime || c.requests) && (
             <div className="text-xs" style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}>
               {c.arrivalTime && <span>Arriving around {c.arrivalTime}. </span>}
-              {c.requests && <span style={{ color: "var(--text-muted)" }}>“{c.requests}”</span>}
+              {c.requests && <span style={{ color: "var(--text-muted)" }}>&quot;{c.requests}&quot;</span>}
             </div>
           )}
         </div>
@@ -326,7 +326,7 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
       {c.status === "submitted" && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={accept}>
-            {busy ? "Saving…" : "Accept into guest records"}
+            {busy ? "Saving..." : "Accept into guest records"}
           </button>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             Check against the ID first; the guest can edit until you accept.

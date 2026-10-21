@@ -70,10 +70,10 @@ export default function HotelGstin({ propertyId }) {
         maxLength={20}
       />
       <button type="button" className="btn btn-primary text-sm" disabled={busy || !changed} onClick={save}>
-        {busy ? "Saving…" : "Save"}
+        {busy ? "Saving..." : "Save"}
       </button>
       <span className="text-xs" style={{ color: message && !message.ok ? "var(--danger)" : "var(--text-muted)" }}>
-        {message?.text || "Printed on every invoice — a company needs it to claim GST input credit."}
+        {message?.text || "Printed on every invoice. A company needs it to claim GST input credit."}
       </span>
     </div>
   );

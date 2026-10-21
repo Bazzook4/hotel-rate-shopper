@@ -93,7 +93,7 @@ export default function GoogleListingSetup({ propertyId, initialUrl, onSaved, co
 
       {saved?.googlePlaceQuery && (
         <p className="text-sm" style={{ color: "var(--accent-text)" }}>
-          Saved. Rates will be looked up for &ldquo;{saved.googlePlaceQuery}&rdquo;.
+          Saved. Rates will be looked up for &quot;{saved.googlePlaceQuery}&quot;.
         </p>
       )}
       {saved && !saved.configured && (
@@ -101,7 +101,7 @@ export default function GoogleListingSetup({ propertyId, initialUrl, onSaved, co
       )}
 
       <button type="submit" className="btn btn-primary" disabled={saving}>
-        {saving ? "Saving…" : compact ? "Save and continue" : "Save"}
+        {saving ? "Saving..." : compact ? "Save and continue" : "Save"}
       </button>
     </form>
   );

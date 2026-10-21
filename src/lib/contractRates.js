@@ -118,5 +118,5 @@ export function describeWhen(line) {
   const m = list(line.months);
   if (w) parts.push(w.sort((x, y) => x - y).map((d) => WEEKDAYS[d]).join(", "));
   if (m) parts.push(m.sort((x, y) => x - y).map((n) => MONTHS[n - 1]).join(", "));
-  return parts.join(" · ") || "Every day";
+  return parts.join(", ") || "Every day";
 }

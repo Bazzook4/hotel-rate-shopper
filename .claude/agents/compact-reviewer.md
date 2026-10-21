@@ -20,6 +20,7 @@ Flag, with file:line:
 ## Rules you must respect (from the product owner)
 
 - Use only the shared classes and CSS variables. No Tailwind palette colours (`bg-green-500` etc.). Tailwind layout utilities are fine.
+- No "AI characters" in any text staff or guests see, and none in your own report: → ← ↑ ↓ ⇒ — – … · • curly quotes × ✓ ✔ ✕ ★ ☆ ≈ or emoji. Flag each one with file:line. Fixes: "Setup > Rooms" for menu paths, "to" for ranges ("12 Oct to 14 Oct"), "-" for an empty cell, "..." for the ellipsis, straight quotes, commas between short facts, and `<Icon>` (src/app/components/Icon.jsx) for close, tick, star, up/down and arrows. ESLint already fails on these in strings; src/lib/scraper is exempt because it parses Google's own text.
 - Compact must not break phones. Taps stay at about 32px minimum, inputs stay 16px font below 768px (globals.css already forces this, so don't fight it), and nothing scrolls sideways.
 - Never rely on colour alone. A word or number stays beside it.
 - Don't move things trained users already know without saying so ("What moved").

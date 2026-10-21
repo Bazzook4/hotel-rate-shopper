@@ -76,7 +76,7 @@ export default function CheckinSettings({ propertyId }) {
   if (!prefs) {
     return (
       <div className="card card-pad">
-        <p className="sub">Loading…</p>
+        <p className="sub">Loading...</p>
       </div>
     );
   }
@@ -123,7 +123,7 @@ export default function CheckinSettings({ propertyId }) {
           </Check>
         </fieldset>
         <button type="submit" className="btn btn-primary sm:ml-auto" style={{ padding: "0.3rem 0.75rem" }} disabled={busy}>
-          {busy ? "Saving…" : "Save"}
+          {busy ? "Saving..." : "Save"}
         </button>
       </div>
 

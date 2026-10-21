@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import Icon from "./Icon";
 import { createPortal } from "react-dom";
 
 /**
@@ -116,7 +117,7 @@ export default function Dropdown({ label, value, options, onChange, ariaLabel, m
         aria-activedescendant={at ? `${id}-${active}` : undefined}
       >
         {label && <span className="dd-label">{label}</span>}
-        <span className="dd-value">{current?.label ?? "—"}</span>
+        <span className="dd-value">{current?.label ?? "-"}</span>
         <svg className="dd-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
           <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -144,7 +145,7 @@ export default function Dropdown({ label, value, options, onChange, ariaLabel, m
                 onClick={() => pick(i)}
               >
                 <span className="dd-check" aria-hidden>
-                  {o.value === value ? "✓" : ""}
+                  {o.value === value && <Icon name="check" size={14} strokeWidth={2.2} />}
                 </span>
                 {o.label}
               </li>

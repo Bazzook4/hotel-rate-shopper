@@ -178,7 +178,7 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
     });
     await load();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -303,13 +303,13 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
           </select>
         )}
         <span className="ml-auto text-xs muted">
-          {pickedName ? `${pickedName} · ` : ""}
-          {superAdmin ? "— means the page is above the property admins' rights" : "Pages your super admin has not given you are not listed"}
+          {pickedName ? `${pickedName}, ` : ""}
+          {superAdmin ? "A dash means the page is above the property admins' rights" : "Pages your super admin has not given you are not listed"}
         </span>
       </Toolbar>
 
       {loading ? (
-        <Loading label="Loading users…" />
+        <Loading label="Loading users..." />
       ) : !propertyId ? (
         <div className="card card-pad sub">Choose a property to manage its users.</div>
       ) : (
@@ -376,7 +376,7 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
                         return (
                           <td key={c.id} className="text-center" title={why || undefined} style={colStyle(c)}>
                             {why ? (
-                              <span className="faint">—</span>
+                              <span className="faint">-</span>
                             ) : (
                               grid.check(c, field(page.id), {
                                 disabled: !editable(c),

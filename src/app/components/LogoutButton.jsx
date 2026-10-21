@@ -27,7 +27,7 @@ export default function LogoutButton({ className = "" }) {
       disabled={loading}
       className={`w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold text-[var(--text)] transition hover:border-white/20 hover:bg-[var(--accent-soft)] disabled:opacity-50 ${className}`}
     >
-      {loading ? "Signing out…" : "Sign out"}
+      {loading ? "Signing out..." : "Sign out"}
     </button>
   );
 }

@@ -124,7 +124,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
       });
       onDone(
         `Recorded ${money(Number(amount))} from ${statement.company.name}` +
-          (result.unapplied > PENNY ? ` — ${money(result.unapplied)} kept in its wallet.` : ".")
+          (result.unapplied > PENNY ? `, ${money(result.unapplied)} kept in its wallet.` : ".")
       );
     } catch (err) {
       setError(err.message);
@@ -189,7 +189,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
                   <td>{b.guestName}</td>
                   <td style={{ color: b.overdueDays > 0 ? "var(--danger)" : undefined }}>
                     {shortDate(b.dueOn)}
-                    {b.overdueDays > 0 ? ` · ${b.overdueDays}d late` : ""}
+                    {b.overdueDays > 0 ? `, ${b.overdueDays}d late` : ""}
                   </td>
                   <td className="text-right tabular-nums">{money(b.balance)}</td>
                   <td className="text-right">
@@ -211,14 +211,14 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
           </table>
         </TableFrame>
       ) : (
-        <Empty>No bills owing — the whole amount goes into the company&apos;s wallet for the next bills.</Empty>
+        <Empty>No bills owing. The whole amount goes into the company&apos;s wallet for the next bills.</Empty>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm tabular-nums">
           Applied {money(applied)}
-          {left > PENNY && <> · <strong>{money(left)}</strong> kept in the wallet</>}
-          {left < -PENNY && <span style={{ color: "var(--danger)" }}> · {money(-left)} more than the credit</span>}
+          {left > PENNY && <>, <strong>{money(left)}</strong> kept in the wallet</>}
+          {left < -PENNY && <span style={{ color: "var(--danger)" }}>, {money(-left)} more than the credit</span>}
         </span>
         {touched && (
           <button type="button" className="btn btn-ghost text-xs" onClick={() => setTouched(false)}>
@@ -235,7 +235,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
             onClick={submit}
             disabled={busy || !(Number(amount) > 0) || left < -PENNY || (credit !== "" && Number(credit) < Number(amount))}
           >
-            {busy ? "Recording…" : "Record payment"}
+            {busy ? "Recording..." : "Record payment"}
           </button>
         </div>
       </div>
@@ -316,8 +316,8 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
 
   return (
     <Section
-      title={`Statement — ${c.name}`}
-      sub={terms.join(" · ")}
+      title={`Statement: ${c.name}`}
+      sub={terms.join(", ")}
       actions={
         <div className="flex flex-wrap gap-2">
           <label className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
@@ -356,7 +356,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
         items={[
           { label: "Owed", value: money(st.totals.receivable) },
           { label: "Overdue", value: money(st.totals.overdue), tone: st.totals.overdue > PENNY ? "danger" : undefined },
-          { label: "Still in house", value: money(st.totals.running), hint: "Bills of guests not yet checked out — still growing" },
+          { label: "Still in house", value: money(st.totals.running), hint: "Bills of guests not yet checked out, still growing" },
           { label: "Wallet / credit", value: money(st.totals.credit), hint: "Money in the company's wallet, not yet used on a bill" },
         ]}
       />
@@ -386,7 +386,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
                   </td>
                   <td>{s.guestName}</td>
                   <td>
-                    {shortDate(s.checkIn)} – {shortDate(s.checkOut)}
+                    {shortDate(s.checkIn)} to {shortDate(s.checkOut)}
                   </td>
                   <td>{s.invoiceNumber || <span style={{ color: "var(--text-faint)" }}>Not invoiced</span>}</td>
                   <td style={{ color: s.overdueDays > 0 ? "var(--danger)" : undefined }}>
@@ -396,7 +396,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
                       ? "Not arrived"
                       : s.balance <= PENNY
                       ? "Settled"
-                      : `${shortDate(s.dueOn)}${s.overdueDays > 0 ? ` · ${s.overdueDays}d late` : ""}`}
+                      : `${shortDate(s.dueOn)}${s.overdueDays > 0 ? `, ${s.overdueDays}d late` : ""}`}
                   </td>
                   <td className="text-right tabular-nums">{money(s.charges)}</td>
                   <td className="text-right tabular-nums">{money(s.paid)}</td>
@@ -408,7 +408,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
         </TableFrame>
       )}
 
-      <h4 className="text-sm font-semibold">Wallet — money received and bills paid</h4>
+      <h4 className="text-sm font-semibold">Wallet: money received and bills paid</h4>
       <WalletPanel
         key={`${companyId}-${st.totals.credit}-${st.totals.receivable}`}
         owner={{ type: "company", id: companyId, name: c.name }}
@@ -476,8 +476,8 @@ export default function CityLedger({ session }) {
                 { label: "Owed to you", value: money(t.receivable), sub: `${t.openStays} bill${t.openStays === 1 ? "" : "s"}` },
                 { label: "Overdue", value: money(t.overdue), tone: t.overdue > PENNY ? "danger" : undefined },
                 { label: "Due in the next 7 days", value: money(t.dueIn7) },
-                { label: "Due in 8–30 days", value: money(t.dueIn30) },
-                { label: "Still in house", value: money(t.running), hint: "Bills of guests not yet checked out — they join what is owed at check-out" },
+                { label: "Due in 8 to 30 days", value: money(t.dueIn30) },
+                { label: "Still in house", value: money(t.running), hint: "Bills of guests not yet checked out. They join what is owed at check-out" },
                 { label: "In company wallets", value: money(t.credit), hint: "Money companies sent that is not yet used on a bill" },
                 { label: "Received this month", value: money(t.receivedThisMonth) },
               ]}
@@ -527,8 +527,8 @@ export default function CityLedger({ session }) {
                             </span>
                           )}
                         </td>
-                        <td className="text-right tabular-nums">{r.creditDays ?? "–"}</td>
-                        <td className="text-right tabular-nums">{r.running > PENNY ? money(r.running) : "–"}</td>
+                        <td className="text-right tabular-nums">{r.creditDays ?? "-"}</td>
+                        <td className="text-right tabular-nums">{r.running > PENNY ? money(r.running) : "-"}</td>
                         <td className="text-right tabular-nums font-medium">{money(r.receivable)}</td>
                         {report.buckets.map((b) => (
                           <td
@@ -536,11 +536,11 @@ export default function CityLedger({ session }) {
                             className="text-right tabular-nums"
                             style={{ color: b.id !== "notDue" && r.buckets[b.id] > PENNY ? "var(--danger)" : undefined }}
                           >
-                            {r.buckets[b.id] > PENNY ? money(r.buckets[b.id]) : "–"}
+                            {r.buckets[b.id] > PENNY ? money(r.buckets[b.id]) : "-"}
                           </td>
                         ))}
-                        <td className="text-right tabular-nums">{r.credit > PENNY ? money(r.credit) : "–"}</td>
-                        <td>{r.lastReceipt ? `${shortDate(r.lastReceipt.receivedOn)} · ${money(r.lastReceipt.amount)}` : "–"}</td>
+                        <td className="text-right tabular-nums">{r.credit > PENNY ? money(r.credit) : "-"}</td>
+                        <td>{r.lastReceipt ? `${shortDate(r.lastReceipt.receivedOn)}, ${money(r.lastReceipt.amount)}` : "-"}</td>
                         <td className="text-right">
                           <button
                             type="button"

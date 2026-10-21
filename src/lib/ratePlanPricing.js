@@ -92,7 +92,7 @@ export function describeRule(method, value, value2) {
     const sign = v < 0 ? "−" : "+";
     const mag = Math.abs(v).toLocaleString("en-IN");
     if (kind === "percent") return `${sign}${mag}%`;
-    if (kind === "factor") return `×${v}`;
+    if (kind === "factor") return `x${v}`;
     return `${sign}${mag}`;
   });
   return parts.join(" then ");

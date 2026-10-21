@@ -50,7 +50,7 @@ export const CHECKIN_STATUS_LABELS = {
   none: "Not sent",
   sent: "Link sent",
   opened: "Guest opened it",
-  submitted: "Details in — review and accept",
+  submitted: "Details in, review and accept",
   accepted: "Accepted",
 };
 
@@ -58,8 +58,8 @@ export const CHECKIN_STATUS_LABELS = {
 export const CHECKIN_SHORT_LABELS = {
   sent: "Online check-in sent",
   opened: "Online check-in opened",
-  submitted: "Online details in — review",
-  accepted: "✓ Online details accepted",
+  submitted: "Online details in, review",
+  accepted: "Online details accepted",
 };
 
 /** How many guests are asked for their details on a booking. */

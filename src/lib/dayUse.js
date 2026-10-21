@@ -125,7 +125,7 @@ export function dayUseWindow(reservation) {
 /** "10:00 AM – 1:00 PM", or "" with no booked time. */
 export function dayUseWindowLabel(reservation) {
   const w = dayUseWindow(reservation);
-  return w ? `${formatMinutes(w.start)} – ${formatMinutes(w.end)}` : "";
+  return w ? `${formatMinutes(w.start)} to ${formatMinutes(w.end)}` : "";
 }
 
 /** Whether two slots ({ start, end }) share any minute. */
@@ -175,10 +175,10 @@ export function clockTime(date) {
 export function dayUseSummary(reservation, now = new Date()) {
   if (!isDayUse(reservation)) return "";
   const slot = dayUseWindowLabel(reservation);
-  const base = `Day use · ${dayUseLabel(reservation.day_use_hours)}${slot ? ` · ${slot}` : ""}`;
+  const base = `Day use, ${dayUseLabel(reservation.day_use_hours)}${slot ? `, ${slot}` : ""}`;
   const due = dayUseDueOut(reservation);
   if (!due) return base;
   const inAt = clockTime(new Date(reservation.checked_in_at));
   const overdue = reservation.status === "in_house" && now > due;
-  return `${base} · in ${inAt} · due out ${clockTime(due)}${overdue ? " (overdue)" : ""}`;
+  return `${base}, in ${inAt}, due out ${clockTime(due)}${overdue ? " (overdue)" : ""}`;
 }

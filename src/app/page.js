@@ -505,7 +505,7 @@ export default function V2Dashboard() {
               OH
             </span>
             <span className="hidden text-sm font-semibold sm:inline" style={{ color: "var(--text)" }}>
-              HMS<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> · Online Hotelier</span>
+              HMS<span style={{ color: "var(--text-muted)", fontWeight: 400 }}> | Online Hotelier</span>
             </span>
           </div>
 
@@ -653,7 +653,7 @@ export default function V2Dashboard() {
                 className="flex h-9 w-9 items-center justify-center rounded text-lg md:hidden"
                 style={{ color: "var(--text-muted)" }}
               >
-                ×
+                <Icon name="close" size={18} />
               </button>
               <button
                 type="button"
@@ -763,7 +763,7 @@ export default function V2Dashboard() {
                         borderTopColor: "var(--accent)",
                       }}
                     />
-                    <p className="sub">Loading dashboard…</p>
+                    <p className="sub">Loading dashboard...</p>
                   </div>
                 </div>
               ) : !areas.length ? (

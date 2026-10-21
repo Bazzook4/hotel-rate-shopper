@@ -173,7 +173,7 @@ export async function POST(req) {
         }
         if (body.rate === "" || !Number.isFinite(rate) || rate < 0) {
           return NextResponse.json(
-            { error: "Enter what the night costs — zero or more." },
+            { error: "Enter what the night costs: zero or more." },
             { status: 400 }
           );
         }

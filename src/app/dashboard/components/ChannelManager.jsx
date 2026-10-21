@@ -50,7 +50,7 @@ function maxOf(a, b) {
  */
 function planCodeChip(plan) {
   // A plan with no name is shown by its code, which says it all.
-  if (!plan.name || !plan.label || plan.label === "—") return null;
+  if (!plan.name || !plan.label || plan.label === "-") return null;
   const said = new Set(plan.name.toUpperCase().split(/\W+/));
   const missing = plan.label.split(" ").filter((w) => !said.has(w.toUpperCase()));
   return missing.length > 0 ? missing.join(" ") : null;
@@ -1044,7 +1044,7 @@ export default function ChannelManager({ session }) {
         setPublishAfterFill(true);
       } else {
         setNotice(
-          `Filled ${parts.join(" and ")} for ${bulk.from} → ${bulk.to}. Nothing is sent until you Publish.`
+          `Filled ${parts.join(" and ")} for ${bulk.from} to ${bulk.to}. Nothing is sent until you Publish.`
         );
       }
     } catch (err) {
@@ -1223,7 +1223,7 @@ export default function ChannelManager({ session }) {
       setResyncOpen(false);
       await load();
       setNotice(
-        `Resent ${sent.join(" and ")} for ${resyncFrom} → ${resyncTo}. Nothing was changed.`
+        `Resent ${sent.join(" and ")} for ${resyncFrom} to ${resyncTo}. Nothing was changed.`
       );
     } catch (err) {
       setNotice(err.message);
@@ -1240,7 +1240,7 @@ export default function ChannelManager({ session }) {
       <div className="flex items-center justify-center py-20">
         <div className="text-center space-y-3">
           <div className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--accent)]" />
-          <p className="sub">Loading channels…</p>
+          <p className="sub">Loading channels...</p>
         </div>
       </div>
     );
@@ -1325,7 +1325,7 @@ export default function ChannelManager({ session }) {
             className="btn btn-primary"
           >
             {busy
-              ? "Publishing…"
+              ? "Publishing..."
               : dirty
               ? `Publish ${dirty} change${dirty === 1 ? "" : "s"}`
               : "Publish"}
@@ -1346,9 +1346,9 @@ export default function ChannelManager({ session }) {
             <h3 className="text-sm font-semibold text-ink">Resync to Aiosell</h3>
             <p className="mt-1 text-xs muted">
               Resends the rates this grid shows for these dates, including
-              dates priced only by the plan&rsquo;s rack rate, and the rooms
+              dates priced only by the plan&apos;s rack rate, and the rooms
               free on each night as the PMS counts them. Nothing is changed
-              here — use it when the channel manager has drifted out of step.
+              here. Use it when the channel manager has drifted out of step.
             </p>
           </div>
 
@@ -1411,7 +1411,7 @@ export default function ChannelManager({ session }) {
               disabled={resyncBusy || busy}
               className="btn btn-primary"
             >
-              {resyncBusy ? "Resending…" : "Resend"}
+              {resyncBusy ? "Resending..." : "Resend"}
             </button>
             <button
               type="button"
@@ -1440,7 +1440,7 @@ export default function ChannelManager({ session }) {
             <p className="mt-1 text-xs muted">
               Sets a rate or restriction on every date in the range at once.
               Blank fields are left as they are. The changes appear in the grid
-              for you to check — nothing is sent until you Publish. Derived
+              for you to check. Nothing is sent until you Publish. Derived
               rates follow their source, as they do in the cells.
             </p>
           </div>
@@ -1501,7 +1501,7 @@ export default function ChannelManager({ session }) {
             {bulkOccupancies.map((occ) => (
               <label key={occ} className="flex flex-col gap-1">
                 <span className="text-xs muted">
-                  Rate · {occ} adult{occ === 1 ? "" : "s"}
+                  Rate for {occ} adult{occ === 1 ? "" : "s"}
                 </span>
                 <input
                   type="number"
@@ -1604,7 +1604,7 @@ export default function ChannelManager({ session }) {
               disabled={bulkBusy || busy}
               className="btn btn-primary"
             >
-              {bulkBusy ? "Filling…" : "Apply & publish"}
+              {bulkBusy ? "Filling..." : "Apply & publish"}
             </button>
             <button
               type="button"
@@ -1673,7 +1673,7 @@ export default function ChannelManager({ session }) {
                 id="cm-filter"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Search room type or plan…"
+                placeholder="Search room type or plan..."
                 className="input"
               />
             </ToolbarField>
@@ -1700,7 +1700,7 @@ export default function ChannelManager({ session }) {
         <div className="card card-pad text-center">
           <p className="sub">No room types set up yet.</p>
           <p className="mt-1 text-xs muted">
-            Add room types under Setup → Rooms and plans under Rate Plan Setup, then
+            Add room types under Setup &gt; Rooms and plans under Rate Plan Setup, then
             give each its channel manager code under Integrations.
           </p>
         </div>
@@ -1871,7 +1871,7 @@ export default function ChannelManager({ session }) {
                   colSpan={dates.length + 1}
                   className="px-4 py-8 text-center sub"
                 >
-                  No room types match “{filter}”.
+                  No room types match &quot;{filter}&quot;.
                 </td>
               </tr>
             )}
@@ -1993,7 +1993,7 @@ function ExpandableRoom({
                   name says only what the desk has to fix. */}
               {!room.partnerCode && (
                 <span className="cm-room-sub block text-xs" style={{ color: "var(--warn)" }}>
-                  <span className="cm-room-sep muted"> · </span>
+                  <span className="cm-room-sep muted">, </span>
                   not mapped
                 </span>
               )}
@@ -2009,7 +2009,7 @@ function ExpandableRoom({
             <td
               key={d}
               className="px-3 py-2.5 text-center"
-              title={a ? `${a.sold} sold of ${a.capacity} · ${a.free} free` : undefined}
+              title={a ? `${a.sold} sold of ${a.capacity}, ${a.free} free` : undefined}
               style={{
                 background: full ? "var(--warn-soft)" : "var(--surface-2)",
                 borderBottom: "1px solid var(--border-strong)",
@@ -2031,7 +2031,7 @@ function ExpandableRoom({
                   </span>
                 </>
               ) : (
-                <span className="muted">{room.count ?? "—"}</span>
+                <span className="muted">{room.count ?? "-"}</span>
               )}
             </td>
           );
@@ -2062,7 +2062,7 @@ function ExpandableRoom({
                     title="Worked out from this rate on each date; not typed here"
                   >
                     ↳ {plan.derived.from}
-                    {plan.derived.rule ? ` · ${plan.derived.rule}` : ""}
+                    {plan.derived.rule ? `, ${plan.derived.rule}` : ""}
                   </span>
                 ) : null;
                 return (
@@ -2145,11 +2145,11 @@ function ExpandableRoom({
                           occ.fromSingle && !plan.derived ? `Worked out as ${occ.fromSingle}` : null,
                         ]
                           .filter(Boolean)
-                          .join(" · ")}
+                          .join(", ")}
                         style={occUnmapped ? { color: "var(--warn)" } : undefined}
                       >
                         {occ.occupancy} adult{occ.occupancy === 1 ? "" : "s"}
-                        {occUnmapped && " · not mapped"}
+                        {occUnmapped && ", not mapped"}
                       </span>
                     )}
                     </span>
@@ -2195,11 +2195,11 @@ function ExpandableRoom({
                                 style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
                                 title={
                                   plan.derived
-                                    ? `Derived from ${plan.derived.from}${plan.derived.rule ? ` · ${plan.derived.rule}` : ""}. Change it there, or in Rate Plan Setup.`
+                                    ? `Derived from ${plan.derived.from}${plan.derived.rule ? `, ${plan.derived.rule}` : ""}. Change it there, or in Rate Plan Setup.`
                                     : `Worked out as ${occ.fromSingle}. Change the 1-adult rate, or the rule in Rate Plan Setup.`
                                 }
                               >
-                                {r === null ? "—" : Math.round(r)}
+                                {r === null ? "-" : Math.round(r)}
                               </div>
                             </td>
                           );
@@ -2371,7 +2371,7 @@ function ChannelRow({
               color: "var(--text-muted)",
             }}
           >
-            {value === null ? "—" : value.toLocaleString("en-IN")}
+            {value === null ? "-" : value.toLocaleString("en-IN")}
           </td>
         );
       })}
@@ -2397,11 +2397,11 @@ function ChannelStopNote({ byChannel, edited }) {
   ]
     .filter(Boolean)
     .join("; ");
-  // One channel is named ("✕ Agoda"); more are counted, the title listing them.
+  // One channel is named ("Agoda off"); more are counted, the title listing them.
   const [[only, stop]] = entries;
   const short =
     entries.length === 1
-      ? `${stop ? "✕" : "✓"} ${name(only).split(" ")[0]}`
+      ? `${name(only).split(" ")[0]} ${stop ? "off" : "on"}`
       : `${entries.length} ch`;
   return (
     <span
@@ -2498,7 +2498,7 @@ function RestrictionCell({
         min="1"
         step="1"
         value={value ?? ""}
-        placeholder={inherited ?? "—"}
+        placeholder={inherited ?? "-"}
         onChange={(e) =>
           onChange(key, field, e.target.value === "" ? null : Number(e.target.value))
         }

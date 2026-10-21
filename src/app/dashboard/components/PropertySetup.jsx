@@ -117,7 +117,7 @@ export default function PropertySetup({ session, only = "rooms", onSaved }) {
     await send(`/api/setup/roomTypes?id=${encodeURIComponent(id)}`, "DELETE");
   }
 
-  if (loading && !loaded) return <Loading label="Loading property setup…" />;
+  if (loading && !loaded) return <Loading label="Loading property setup..." />;
 
   if (error) {
     return (
@@ -209,7 +209,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
     });
     await onReload();
     setBusy(false);
-    if (errors.length) setError(errors.join(" · "));
+    if (errors.length) setError(errors.join(". "));
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
@@ -236,7 +236,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter room types…"
+          placeholder="Filter room types..."
           className="ml-auto input w-56"
         />
       </Toolbar>
@@ -272,7 +272,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
                     autoFocus: draft,
                   })}
                 </td>
-                <td>{grid.input(r, "description", { placeholder: "—" })}</td>
+                <td>{grid.input(r, "description", { placeholder: "-" })}</td>
                 <td>{grid.input(r, "number_of_rooms", { type: "number", min: 0 })}</td>
                 <td>{grid.input(r, "base_price", { type: "number", min: 0 })}</td>
                 <td>{grid.input(r, "base_adults", { type: "number", min: 1 })}</td>
@@ -286,7 +286,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
                       draft ? grid.removeDraft(r.id) : onDelete(r.id, r.room_type_name)
                     }
                   >
-                    ✕
+                    x
                   </button>
                 </td>
               </tr>
@@ -295,7 +295,7 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
           {rows.length === 0 && (
             <tr>
               <td colSpan={7} className="cm-empty">
-                {roomTypes.length ? `No room types match “${filter}”.` : "No room types yet."}
+                {roomTypes.length ? `No room types match "${filter}".` : "No room types yet."}
               </td>
             </tr>
           )}

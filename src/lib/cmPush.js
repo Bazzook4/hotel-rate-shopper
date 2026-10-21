@@ -177,7 +177,7 @@ export async function pushToChannelManager({
       ...logBase,
       status: "skipped",
       source: "mock",
-      summary: `${message} — connection not live`,
+      summary: `${message} (connection not live)`,
       request: { updates },
     });
     return { status: 200, body: { source: "mock", message } };

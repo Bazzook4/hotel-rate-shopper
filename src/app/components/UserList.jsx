@@ -59,7 +59,7 @@ export default function UserList({ session, refreshKey = 0 }) {
       )}
 
       {loading ? (
-        <p className="py-6 text-center sub">Loading users…</p>
+        <p className="py-6 text-center sub">Loading users...</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
@@ -84,13 +84,13 @@ export default function UserList({ session, refreshKey = 0 }) {
                           : "chip chip-off"
                       }
                     >
-                      {u.status || "—"}
+                      {u.status || "-"}
                     </span>
                   </td>
                   <td className="px-3 py-2 muted">
                     {u.properties?.length
                       ? u.properties.map((p) => p.name || p.id).join(", ")
-                      : "—"}
+                      : "-"}
                   </td>
                 </tr>
               ))}
