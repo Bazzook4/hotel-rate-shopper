@@ -13,6 +13,20 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-21",
+    title: "Online check-in: guests send their details and ID before they arrive",
+    points: [
+      {
+        page: "reservations",
+        text: "Open a booking and go to Guests: under Online check-in, press Send on WhatsApp or Copy link to send the guest their own check-in link. On their phone they fill in their name, phone, address and ID, take a photo of the ID, and press Send to hotel. Foreign guests are asked for their passport and visa details. Each adult on the booking fills in their own part. The booking then shows \"Details in — review and accept\": look over the details beside the ID photos and press Accept into guest records, and they are saved on the guest's record with their ID. Today's arrivals and the Reservations list show where each guest's online check-in stands, and the booking confirmation on WhatsApp now carries the link too.",
+      },
+      {
+        page: "setup",
+        text: "Property Setup has a new Online check-in card: turn it off, ask for ID from every adult or only the main guest, and choose whether a photo of the ID, the address, and passport and visa details from foreign guests are required. Links that were never accepted are deleted with their ID photos a day after the stay ends.",
+      },
+    ],
+  },
+  {
     date: "2026-10-18",
     title: "A booking you are typing is no longer lost by accident",
     points: [

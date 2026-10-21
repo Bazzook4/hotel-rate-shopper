@@ -10,6 +10,12 @@ import { confirmDiscard, useDialog } from "../../components/Dialog";
 import { useBackdropClose, useEscape } from "../../components/useEscape";
 import { useFrontDesk, whatsappLink } from "./frontDesk";
 import { toCountryCode } from "@/lib/countries";
+import OnlineCheckinPanel, {
+  CheckinChip,
+  offersOnlineCheckin,
+  onlineCheckinUrl,
+  useOnlineCheckin,
+} from "./OnlineCheckin";
 
 /**
  * One booking, opened from the tape chart or any list.
@@ -177,6 +183,17 @@ export default function BookingModal({
 
   const reservation = folio?.reservation;
 
+  // The guest's online check-in. Reloaded when the stay moves on, since a
+  // guest who has arrived can no longer change what they sent.
+  const checkin = useOnlineCheckin(isNew ? null : reservationId);
+  const reloadCheckin = checkin.reload;
+  const stayStatus = reservation?.status;
+  useEffect(() => {
+    if (stayStatus) reloadCheckin();
+  }, [stayStatus, reloadCheckin]);
+  const showCheckin = offersOnlineCheckin(checkin.data, reservation);
+  const checkinStatus = checkin.data?.checkin?.status;
+
   /**
    * The group this stay was booked under, with its other rooms, so the desk
    * handling one room of a wedding can see the rest of the party.
@@ -285,6 +302,11 @@ export default function BookingModal({
         propertyName: session?.propertyName,
         countryCode: toCountryCode(session?.propertyCountry),
         balance: folio?.totals?.balance,
+        // An unanswered online check-in link goes out with the confirmation.
+        checkinUrl:
+          checkin.data?.checkin && !checkin.data.checkin.closed && checkinStatus !== "accepted"
+            ? onlineCheckinUrl(checkin.data)
+            : null,
       })
     : null;
 
@@ -422,6 +444,17 @@ export default function BookingModal({
               </button>
             )}
 
+            {showCheckin && (
+              <CheckinChip
+                status={checkinStatus}
+                onClick={async () => {
+                  if (tab === "guests" || !(await leaveDetails())) return;
+                  setTab("guests");
+                  setIntent(null);
+                }}
+              />
+            )}
+
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {whatsapp ? (
                 <a className="btn btn-secondary text-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">
@@ -539,6 +572,16 @@ export default function BookingModal({
                 onSavingChange={setSaving}
               />
             </>
+          )}
+
+          {!firstLoad && !isNew && tab === "guests" && folio && showCheckin && (
+            <OnlineCheckinPanel
+              reservation={reservation}
+              data={checkin.data}
+              setData={checkin.setData}
+              session={session}
+              onAccepted={folioChanged}
+            />
           )}
 
           {!firstLoad && !isNew && tab === "guests" && folio && (

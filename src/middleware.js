@@ -9,6 +9,10 @@ const PUBLIC_PATHS = new Set([
   "/api/auth/logout",
   // Vercel's daily cron has no session; the route checks CRON_SECRET itself.
   "/api/workflow/cron",
+  // A guest's online check-in. The link in the request is the key, checked
+  // by the routes themselves.
+  "/api/checkin",
+  "/api/checkin/files",
 ]);
 
 export async function middleware(request) {
@@ -30,6 +34,7 @@ export async function middleware(request) {
     // session. The secret in the path authenticates them.
     const isPublic =
       PUBLIC_PATHS.has(pathname) ||
+      pathname.startsWith("/checkin/") ||
       pathname.startsWith("/api/auth/") ||
       pathname.startsWith("/api/webhooks/");
 

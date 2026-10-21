@@ -76,6 +76,10 @@ const GoogleListingSetup = dynamic(() => import("./dashboard/components/GoogleLi
   ssr: false,
   loading: PageLoading,
 });
+const CheckinSettings = dynamic(() => import("./dashboard/components/CheckinSettings"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const DisplaySettings = dynamic(() => import("./dashboard/components/DisplaySettings"), {
   ssr: false,
   loading: PageLoading,
@@ -843,12 +847,13 @@ export default function V2Dashboard() {
                       <div>
                         <h2 className="h1">Property Setup</h2>
                         <p className="sub">
-                          Your hotel&apos;s profile, its Google listing and how its screens look.
+                          Your hotel&apos;s profile, its Google listing, how its screens look and online check-in.
                         </p>
                       </div>
                       <PropertyProfile propertyId={scopedSession?.propertyId} />
                       <GoogleListingSetup propertyId={scopedSession?.propertyId} />
                       <DisplaySettings propertyId={scopedSession?.propertyId} />
+                      <CheckinSettings propertyId={scopedSession?.propertyId} />
                     </div>
                   )}
 

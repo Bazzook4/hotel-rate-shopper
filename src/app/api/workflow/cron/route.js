@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listPropertiesWithWorkflows } from "@/lib/database";
 import { runWorkflows } from "@/lib/workflow";
+import { purgeStaleCheckins } from "@/lib/onlineCheckin";
 
 /**
  * The daily check of every property's workflow rules (vercel.json, 06:00
@@ -22,5 +23,15 @@ export async function GET(req) {
   for (const propertyId of properties) {
     results.push({ propertyId, ...(await runWorkflows(propertyId)) });
   }
-  return NextResponse.json({ checked: results.length, results });
+
+  // Online check-in links whose stay is over without the desk accepting
+  // them are deleted with the ID copies sent through them.
+  let checkinsPurged = 0;
+  try {
+    checkinsPurged = await purgeStaleCheckins();
+  } catch (err) {
+    console.error("Old check-in links not purged:", err.message);
+  }
+
+  return NextResponse.json({ checked: results.length, results, checkinsPurged });
 }

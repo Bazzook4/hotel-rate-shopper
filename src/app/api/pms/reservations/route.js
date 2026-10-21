@@ -17,6 +17,7 @@ import {
   listRatePlans,
 } from "@/lib/database";
 import { toCountryCode } from "@/lib/countries";
+import { checkinStatuses } from "@/lib/onlineCheckin";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { dayUseWindow, isDayUsePlan, validDayUseHours, validDayUseStart } from "@/lib/dayUse";
 
@@ -259,7 +260,12 @@ export async function GET(req) {
       leavingOn: isDate(params.get("leavingOn")) ? params.get("leavingOn") : null,
       search: params.get("search"),
     });
-    return NextResponse.json({ reservations });
+    // Where each booking's online check-in stands, for the arrivals lists.
+    // A booking with no link has none.
+    const checkins = await checkinStatuses(reservations.map((r) => r.id)).catch(() => ({}));
+    return NextResponse.json({
+      reservations: reservations.map((r) => (checkins[r.id] ? { ...r, online_checkin: checkins[r.id] } : r)),
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

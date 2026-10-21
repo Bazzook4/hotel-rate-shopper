@@ -199,28 +199,38 @@ export function useFrontDesk(propertyId) {
 }
 
 /**
- * A WhatsApp link that opens a chat with the guest, the confirmation already
- * written. Guests in India expect it there, and the desk was copying it out
- * by hand. A ten-digit number with no country code is taken as the hotel's
- * own country's (only India's code is known here; elsewhere the number must
- * be stored with its +code). Null when there is no usable number.
+ * The guest's number as WhatsApp wants it. A ten-digit number with no
+ * country code is taken as the hotel's own country's (only India's code is
+ * known here; elsewhere the number must be stored with its +code). Null when
+ * there is no usable number.
  */
-export function whatsappLink(r, { propertyName, countryCode, balance } = {}) {
-  const raw = String(r?.guest_phone || "").trim();
+function whatsappNumber(phone, countryCode) {
+  const raw = String(phone || "").trim();
   let digits = raw.replace(/\D/g, "");
   if (!digits) return null;
   if (!raw.startsWith("+") && digits.length === 10 && (!countryCode || countryCode === "IN")) {
     digits = `91${digits}`;
   }
-  if (digits.length < 8) return null;
+  return digits.length < 8 ? null : digits;
+}
 
-  const day = (iso) =>
-    new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      timeZone: "UTC",
-    });
+const day = (iso) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+
+/**
+ * A WhatsApp link that opens a chat with the guest, the confirmation already
+ * written. Guests in India expect it there, and the desk was copying it out
+ * by hand. With `checkinUrl`, the guest's online check-in link goes at the
+ * end. Null when there is no usable number.
+ */
+export function whatsappLink(r, { propertyName, countryCode, balance, checkinUrl } = {}) {
+  const digits = whatsappNumber(r?.guest_phone, countryCode);
+  if (!digits) return null;
   const nights = Math.round((new Date(`${r.check_out}T00:00:00Z`) - new Date(`${r.check_in}T00:00:00Z`)) / 86400000);
   const lines = [
     `Dear ${r.guest_name},`,
@@ -241,8 +251,25 @@ export function whatsappLink(r, { propertyName, countryCode, balance } = {}) {
     `Guests: ${r.adults} adult${r.adults === 1 ? "" : "s"}${r.children ? `, ${r.children} child${r.children === 1 ? "" : "ren"}` : ""}`,
     r.total_amount != null ? `Total: ${money(r.total_amount, r.currency)}` : null,
     balance > 0 ? `To pay: ${money(balance, r.currency)}` : null,
+    ...(checkinUrl ? ["", "Save time at check-in: fill in your details and upload your ID here:", checkinUrl] : []),
     "",
     "We look forward to welcoming you.",
   ].filter((l) => l !== null);
+  return `https://wa.me/${digits}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+/** A WhatsApp chat with the guest, the online check-in link already written. */
+export function whatsappCheckinLink(r, { propertyName, countryCode, url }) {
+  const digits = whatsappNumber(r?.guest_phone, countryCode);
+  if (!digits) return null;
+  const lines = [
+    `Dear ${r.guest_name},`,
+    "",
+    `Save time when you arrive at ${propertyName || "our hotel"} on ${day(r.check_in)}: please fill in your details and upload a photo of your ID before you come.`,
+    "",
+    url,
+    "",
+    `Booking: ${r.reference}`,
+  ];
   return `https://wa.me/${digits}?text=${encodeURIComponent(lines.join("\n"))}`;
 }

@@ -14,7 +14,7 @@ import { useDialog } from "../../components/Dialog";
 const LONG_SIDE = 2000;
 
 /** A photo as a JPEG no longer than LONG_SIDE; a PDF, or anything the browser cannot draw, as it is. */
-async function shrink(file) {
+export async function shrink(file) {
   if (!file.type.startsWith("image/")) return file;
   const url = URL.createObjectURL(file);
   try {

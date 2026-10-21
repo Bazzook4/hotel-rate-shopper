@@ -15,12 +15,12 @@ export const MAX_ID_PHOTOS = 6;
 export const MAX_ID_PHOTO_BYTES = 4 * 1024 * 1024;
 export const ID_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
-const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+export const EXT = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'application/pdf': 'pdf' };
 
 let bucketSeen = false;
 
 /** The bucket, made here if the SQL that makes it has not been pasted yet. */
-async function ensureBucket(supabase) {
+export async function ensureBucket(supabase) {
   if (bucketSeen) return;
   const { data } = await supabase.storage.getBucket(BUCKET);
   if (!data) {
@@ -130,4 +130,68 @@ export async function removeAllGuestIdPhotos(propertyId, guestId) {
   } catch (err) {
     console.error('Guest ID files not removed:', guestId, err.message);
   }
+}
+
+// ------------------------------------------------------------------
+// Files a guest sent through online check-in (migration 053)
+// ------------------------------------------------------------------
+
+/**
+ * Stores a file a guest uploaded through their check-in link. It is kept
+ * apart from the guest records, under <property>/checkin/<link>/, until the
+ * desk accepts it. Returns the entry to list on the check-in.
+ */
+export async function storeCheckinFile(propertyId, checkinId, file) {
+  const supabase = getSupabaseAdmin();
+  await ensureBucket(supabase);
+  const path = `${propertyId}/checkin/${checkinId}/${crypto.randomUUID()}.${EXT[file.type]}`;
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type });
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+  return {
+    path,
+    name: String(file.name || 'ID').slice(0, 120),
+    type: file.type,
+    size: file.size,
+    uploaded_at: new Date().toISOString(),
+  };
+}
+
+/** Removes stored files. Never fatal: a file left behind is logged. */
+export async function removeStoredFiles(paths) {
+  if (!paths?.length) return;
+  const { error } = await getSupabaseAdmin().storage.from(BUCKET).remove(paths);
+  if (error) console.error('ID files left in storage:', paths.length, error.message);
+}
+
+/** Short-lived links to view files, by path. */
+export async function signedFileLinks(paths) {
+  if (!paths?.length) return new Map();
+  const { data, error } = await getSupabaseAdmin()
+    .storage.from(BUCKET)
+    .createSignedUrls(paths, LINK_SECONDS);
+  if (error) throw new Error(`Could not open the ID files: ${error.message}`);
+  return new Map((data || []).map((d) => [d.path, d.signedUrl]));
+}
+
+/**
+ * Moves files from a check-in into the guest's own ID folder and lists them
+ * on the guest. Returns the entries at their new paths. The desk's own limit
+ * of MAX_ID_PHOTOS is for uploads at the desk; files the guest sent are all
+ * kept.
+ */
+export async function adoptIdFiles(propertyId, guestId, files) {
+  if (!files?.length) return [];
+  const supabase = getSupabaseAdmin();
+  const photos = (await loadPhotos(supabase, propertyId, guestId)) || [];
+  const moved = [];
+  for (const f of files) {
+    const to = `${propertyId}/${guestId}/${f.path.split('/').pop()}`;
+    const { error } = await supabase.storage.from(BUCKET).move(f.path, to);
+    if (error) throw new Error(`Could not move an ID file to the guest: ${error.message}`);
+    moved.push({ ...f, path: to });
+  }
+  await savePhotos(supabase, propertyId, guestId, [...photos, ...moved]);
+  return moved;
 }

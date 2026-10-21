@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Icon from "../../components/Icon";
 import { useFrontDesk } from "./frontDesk";
+import { CHECKIN_SHORT_LABELS } from "@/lib/onlineCheckinShared";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import {
   BookingLink,
@@ -401,6 +402,14 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
                     .filter(Boolean)
                     .join(" · ")}
                 </span>
+                {r.online_checkin && (
+                  <span
+                    className="block text-xs"
+                    style={r.online_checkin === "submitted" ? { color: "var(--warn)", fontWeight: 600 } : { color: "var(--text-muted)" }}
+                  >
+                    {CHECKIN_SHORT_LABELS[r.online_checkin]}
+                  </span>
+                )}
               </button>
               <button
                 type="button"

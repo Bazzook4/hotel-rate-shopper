@@ -10,6 +10,7 @@ import { useFrontDesk } from "./frontDesk";
 import { useDialog } from "../../components/Dialog";
 import { usePageState } from "./usePageState";
 import { dayUseSummary, isDayUse } from "@/lib/dayUse";
+import { CHECKIN_SHORT_LABELS } from "@/lib/onlineCheckinShared";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -630,6 +631,18 @@ export default function Reservations({ session, initialView = null }) {
                         {r.guest_phone && (
                           <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
                             {r.guest_phone}
+                          </div>
+                        )}
+                        {r.online_checkin && (
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              ...(r.online_checkin === "submitted"
+                                ? { color: "var(--warn)", fontWeight: 600 }
+                                : { color: "var(--text-faint)" }),
+                            }}
+                          >
+                            {CHECKIN_SHORT_LABELS[r.online_checkin]}
                           </div>
                         )}
                       </td>

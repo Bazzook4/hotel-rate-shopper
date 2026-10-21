@@ -132,3 +132,86 @@ export async function recordScrape(propertyId) {
 /** The message both refresh screens show when a property is over its cap. */
 export const SCRAPE_LIMIT_MESSAGE =
   "This property has reached its rate refresh limit for now. Rates already fetched are saved; try again in an hour.";
+
+/**
+ * Sign-ups through shareable onboarding links. Every sign-up makes a
+ * property that can run paid pages, so a link left on a website must not be
+ * a way to make hundreds. Per network address: Indian mobile networks put
+ * many phones behind one address, so this counts only completed sign-ups
+ * and leaves room for a hotel group adding its hotels. Across all shareable
+ * links: a ceiling on a bad day, whatever the addresses. The link's own
+ * `max_uses` caps it too.
+ */
+export const SIGNUP_MAX_PER_IP_PER_DAY = 5;
+export const SIGNUP_MAX_PER_DAY = 20;
+const SIGNUP_ALL_KEY = "signup:all";
+const signupIpKey = (ip) => `signup:ip:${ip}`;
+
+/**
+ * Whether another sign-up through a shareable link may go ahead: null when
+ * it may, else "ip" or "all" for the cap that is full.
+ *
+ * Checked before and recorded after, so two requests sent at the same
+ * moment can both pass; the bot traps and the link's own cap bound that.
+ *
+ * Fails closed: a hotel that cannot sign up can ask for a one-hotel link,
+ * which these caps do not apply to.
+ */
+export async function signupBlockedBy(ip) {
+  const [byIp, all] = await Promise.all([
+    countSince(signupIpKey(ip), DAY),
+    countSince(SIGNUP_ALL_KEY, DAY),
+  ]);
+  if (byIp >= SIGNUP_MAX_PER_IP_PER_DAY) return "ip";
+  if (all >= SIGNUP_MAX_PER_DAY) return "all";
+  return null;
+}
+
+/** Only completed sign-ups are counted. */
+export async function recordSignup(ip) {
+  try {
+    await Promise.all([record(signupIpKey(ip)), record(SIGNUP_ALL_KEY)]);
+  } catch (err) {
+    console.error("Recording a sign-up failed:", err.message);
+  }
+}
+
+/**
+ * The guest's online check-in page has no sign-in, only the link. Per
+ * network address: every save and upload is counted, and so is every link
+ * that does not exist, so nobody can try links in bulk or fill the storage
+ * from one place. Generous, since a family fills in several guests from one
+ * hotel Wi-Fi.
+ */
+const CHECKIN_MAX_PER_HOUR = 150;
+const CHECKIN_BAD_LINK_MAX_PER_HOUR = 20;
+const checkinKey = (ip) => `checkin:ip:${ip}`;
+const checkinBadKey = (ip) => `checkin:bad:${ip}`;
+
+/**
+ * Whether this address may use a check-in link right now.
+ *
+ * Fails open, like sign-in: a guest at the gate must not be locked out
+ * because the ledger cannot be read. The link itself still has to be right.
+ */
+export async function checkinAllowed(ip) {
+  try {
+    const [used, bad] = await Promise.all([
+      countSince(checkinKey(ip), HOUR),
+      countSince(checkinBadKey(ip), HOUR),
+    ]);
+    return used < CHECKIN_MAX_PER_HOUR && bad < CHECKIN_BAD_LINK_MAX_PER_HOUR;
+  } catch (err) {
+    console.error("Check-in rate limit unavailable:", err.message);
+    return true;
+  }
+}
+
+/** A save or an upload; `badLink` for a link that does not exist. */
+export async function recordCheckinUse(ip, { badLink = false } = {}) {
+  try {
+    await record(badLink ? checkinBadKey(ip) : checkinKey(ip));
+  } catch (err) {
+    console.error("Recording a check-in request failed:", err.message);
+  }
+}
