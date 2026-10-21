@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as ChartTooltip, Legend, ResponsiveContainer } from 'recharts';
 import Tooltip from './Tooltip';
+import Select from "@/app/components/Select";
 
 export default function PricingRecommendations({
   data,
@@ -812,14 +813,14 @@ export default function PricingRecommendations({
             <div className="flex items-center justify-between mb-4">
               <h4 className="h2">Weekly Pricing Table</h4>
               <div className="flex items-center gap-3">
-                <select
+                <Select
                   value={roomNameDisplay}
                   onChange={(e) => setRoomNameDisplay(e.target.value)}
                   className="px-3 py-1.5 rounded-lg bg-[var(--surface-2)] border border-white/20 text-ink text-xs font-medium focus:outline-none focus:border-[var(--accent)]"
                 >
                   <option value="abbreviation">Abbreviations</option>
                   <option value="full">Full Names</option>
-                </select>
+                </Select>
                 <button
                   onClick={copyEntireTableToClipboard}
                   className="btn btn-primary text-sm"

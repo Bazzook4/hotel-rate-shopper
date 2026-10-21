@@ -1817,19 +1817,7 @@ function MenuShell({ x, y, onClose, children }) {
         onPointerDown={onClose}
         style={{ position: "fixed", inset: 0, zIndex: 40 }}
       />
-      <div
-        className="card"
-        style={{
-          position: "fixed",
-          left,
-          top,
-          zIndex: 41,
-          width: 220,
-          padding: "0.35rem",
-          background: "var(--surface)",
-          boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
-        }}
-      >
+      <div role="menu" className="pop" style={{ position: "fixed", left, top, zIndex: 41, width: 220 }}>
         {children}
       </div>
     </>
@@ -1839,8 +1827,9 @@ function MenuShell({ x, y, onClose, children }) {
 function MenuItem({ label, disabled, title, onClick }) {
   return (
     <button
-      className="btn btn-ghost text-sm"
-      style={{ width: "100%", justifyContent: "flex-start" }}
+      type="button"
+      role="menuitem"
+      className="pop-item"
       disabled={disabled}
       title={title}
       onClick={onClick}
@@ -1861,13 +1850,13 @@ function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
 
   return (
     <MenuShell x={x} y={y} onClose={onClose}>
-      <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
-        <div style={{ fontWeight: 600 }}>Room {room.room_number}</div>
-        <div style={{ color: "var(--text-muted)" }}>
+      <div className="pop-head">
+        <div className="pop-title">Room {room.room_number}</div>
+        <div className="pop-sub">
           {nightLabel(range.check_in)} to {nightLabel(range.check_out)}, {nights} night
           {nights === 1 ? "" : "s"}
         </div>
-        {conflict && <div style={{ color: "var(--danger)" }}>{conflict}</div>}
+        {conflict && <div className="pop-sub" style={{ color: "var(--danger)" }}>{conflict}</div>}
       </div>
       {SELECTION_ACTIONS.filter((a) => !a.singleDay || nights === 1).map((a) => (
         <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
@@ -1896,15 +1885,15 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
 
   return (
     <MenuShell x={x} y={y} onClose={onClose}>
-      <div style={{ padding: "0.35rem 0.5rem 0.45rem", fontSize: "0.75rem" }}>
-        <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div className="pop-head">
+        <div className="pop-title" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
           {r.guest_name}
         </div>
-        <div style={{ color: "var(--text-muted)" }}>
+        <div className="pop-sub">
           {r.reference}
           {room ? `, Room ${room.room_number}` : ", no room yet"}
         </div>
-        <div style={{ color: "var(--text-muted)" }}>
+        <div className="pop-sub">
           {isDayUse(r) ? (
             <>
               {nightLabel(r.check_in)}, {dayUseSummary(r)}

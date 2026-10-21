@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useRef, useState } from "react";
+import DatePicker from "../../components/DatePicker";
 import Icon from "../../components/Icon";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 
@@ -18,8 +19,8 @@ import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
  * the control (Dropdown, ToolbarField), never on a line above it.
  *
  * ‹ › move one day and « » a whole window, so a desk can nudge the grid a
- * night at a time or page through it. The date itself opens the native
- * picker for a jump further out. In `unit="month"` the arrows move a month
+ * night at a time or page through it. The date itself opens the app's
+ * calendar (DatePicker) for a jump further out. In `unit="month"` the arrows move a month
  * and there is no page jump, since a month is already the page.
  *
  * `value` is the first date shown, as an ISO string. `min` stops the arrows
@@ -38,7 +39,9 @@ export default function DateToolbar({
   onClearAll,
   actions,
 }) {
-  const pickerRef = useRef(null);
+  const dateBtn = useRef(null);
+  const [picking, setPicking] = useState(false);
+  const closePicker = useCallback(() => setPicking(false), []);
   const today = unit === "month" ? `${todayUTC().slice(0, 7)}-01` : todayUTC();
   const parsed = parseDateISO(value);
 
@@ -52,18 +55,6 @@ export default function DateToolbar({
       go(formatDateISO(new Date(parsed.getFullYear(), parsed.getMonth() + amount, 1)));
     } else {
       go(formatDateISO(addDays(parsed, amount)));
-    }
-  }
-
-  function openPicker() {
-    const input = pickerRef.current;
-    if (!input) return;
-    // showPicker is the only way to open the calendar from another element;
-    // older Safari lacks it, where focusing the input is the best on offer.
-    try {
-      input.showPicker();
-    } catch {
-      input.focus();
     }
   }
 
@@ -98,25 +89,16 @@ export default function DateToolbar({
             ‹
           </button>
           <button
+            ref={dateBtn}
             type="button"
             className="seg-date"
-            onClick={openPicker}
+            onClick={() => setPicking((p) => !p)}
+            aria-haspopup="dialog"
+            aria-expanded={picking}
             title="Pick a date"
           >
             <Icon name="calendar" size={15} />
             {label}
-            <input
-              ref={pickerRef}
-              type={unit === "month" ? "month" : "date"}
-              tabIndex={-1}
-              aria-hidden
-              className="seg-picker"
-              value={unit === "month" ? value?.slice(0, 7) ?? "" : value ?? ""}
-              min={unit === "month" ? min?.slice(0, 7) : min}
-              onChange={(e) =>
-                e.target.value && go(unit === "month" ? `${e.target.value}-01` : e.target.value)
-              }
-            />
           </button>
           <button
             type="button"
@@ -178,6 +160,17 @@ export default function DateToolbar({
       )}
 
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
+
+      {picking && (
+        <DatePicker
+          anchor={dateBtn}
+          value={value}
+          min={min}
+          unit={unit}
+          onChange={go}
+          onClose={closePicker}
+        />
+      )}
     </div>
   );
 }

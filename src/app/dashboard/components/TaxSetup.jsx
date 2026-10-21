@@ -22,6 +22,7 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import Select from "@/app/components/Select";
 
 /**
  * Taxes and fees: the rules services are taxed by.
@@ -499,7 +500,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
             </div>
             <div>
               <label className="label">Plus a service</label>
-              <select className="input" value={preview.serviceId} onChange={setP("serviceId")}>
+              <Select className="input" value={preview.serviceId} onChange={setP("serviceId")}>
                 <option value="">None</option>
                 {taxable
                   .filter((s) => !s.is_room)
@@ -508,7 +509,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
                       {s.name}
                     </option>
                   ))}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="label">...costing (₹)</label>
@@ -523,10 +524,10 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
             </div>
             <div>
               <label className="label">Guest</label>
-              <select className="input" value={preview.residency} onChange={setP("residency")}>
+              <Select className="input" value={preview.residency} onChange={setP("residency")}>
                 <option value="domestic">Domestic</option>
                 <option value="international">International</option>
-              </select>
+              </Select>
             </div>
           </div>
 

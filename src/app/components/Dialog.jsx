@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useEscape } from "./useEscape";
+import Select from "@/app/components/Select";
 
 /**
  * The app's own confirm, prompt and pick-one dialogs, in place of the
@@ -80,7 +81,7 @@ function DialogBox({ request, onDone }) {
         {kind === "choose" && (
           <div className="mt-3">
             {label && <label className="label">{label}</label>}
-            <select
+            <Select
               ref={fieldRef}
               className="input w-full"
               value={value}
@@ -91,7 +92,7 @@ function DialogBox({ request, onDone }) {
                   {o.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         )}
         <div className="mt-4 flex justify-end gap-2">

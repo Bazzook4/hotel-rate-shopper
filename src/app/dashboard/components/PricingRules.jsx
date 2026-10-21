@@ -17,6 +17,8 @@ import {
   rulesFor,
 } from "@/lib/pricingScales";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * Scales & rules: what each signal does with what it reads, and the
@@ -87,7 +89,7 @@ function RemoveBtn({ onClick, label }) {
 function PresetPicker({ scaleKey, scale, onPick }) {
   const current = presetOf(scaleKey, scale);
   return (
-    <select
+    <Select
       className="input"
       style={{ width: "auto" }}
       aria-label="Start from"
@@ -102,7 +104,7 @@ function PresetPicker({ scaleKey, scale, onPick }) {
       <option value="custom" disabled>
         Custom
       </option>
-    </select>
+    </Select>
   );
 }
 
@@ -150,26 +152,26 @@ function TryIt({ rooms, strategy, scales, adjustments }) {
         Try it
       </p>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <select className="input" style={{ width: "auto" }} value={room.roomTypeId} onChange={(e) => setRoomId(e.target.value)} aria-label="Room">
+        <Select className="input" style={{ width: "auto" }} value={room.roomTypeId} onChange={(e) => setRoomId(e.target.value)} aria-label="Room">
           {priced.map((r) => (
             <option key={r.roomTypeId} value={r.roomTypeId}>
               {r.name}
             </option>
           ))}
-        </select>
+        </Select>
         <span>on</span>
-        <input type="date" className="input" style={{ width: "auto" }} min={today} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Night" />
+        <DateField className="input" style={{ width: "auto" }} min={today} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} aria-label="Night" />
         <span>with</span>
         <NumIn value={occ} onChange={setOcc} width={64} label="Occupancy %" min={0} max={100} />
         <span>% sold,</span>
-        <select className="input" style={{ width: "auto" }} value={gap} onChange={(e) => setGap(e.target.value)} aria-label="Gap">
+        <Select className="input" style={{ width: "auto" }} value={gap} onChange={(e) => setGap(e.target.value)} aria-label="Gap">
           <option value="">not a gap</option>
           {[1, 2, 3, 4, 5].map((n) => (
             <option key={n} value={n}>
               in a {n}-night gap
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <p className="text-sm">
         <strong>
@@ -222,13 +224,13 @@ function RuleTable({ columns, rows, onChange, blank, addLabel, empty }) {
                 {columns.map((c) => (
                   <td key={c.field}>
                     {c.options ? (
-                      <select className="cm-input" value={r[c.field] || c.options[0].value} onChange={(e) => update(i, c.field, e.target.value)} aria-label={c.label}>
+                      <Select className="cm-input" value={r[c.field] || c.options[0].value} onChange={(e) => update(i, c.field, e.target.value)} aria-label={c.label}>
                         {c.options.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     ) : (
                       <NumIn value={r[c.field]} onChange={(v) => update(i, c.field, v)} label={c.label} />
                     )}

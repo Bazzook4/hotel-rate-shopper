@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Select from "@/app/components/Select";
 
 /**
  * The pieces every setup page is built from, so they all read like the
@@ -284,7 +285,7 @@ export function useGrid(rows, extra = 0) {
   /** A select bound to one field; `options` are [{ id, label }]. */
   function select(row, field, options, props = {}) {
     return (
-      <select
+      <Select
         className={cellClass(edited(row, field))}
         value={value(row, field) ?? ""}
         onChange={(e) => change(row, field, e.target.value)}
@@ -295,7 +296,7 @@ export function useGrid(rows, extra = 0) {
             {o.label}
           </option>
         ))}
-      </select>
+      </Select>
     );
   }
 

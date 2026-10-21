@@ -15,6 +15,7 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import Select from "@/app/components/Select";
 
 /**
  * Users and what each may open, as one grid: a row per page, grouped by
@@ -280,7 +281,7 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
           + Add user
         </button>
         {pickProperty && superAdmin && (
-          <select
+          <Select
             className="input w-auto text-sm"
             value={propertyId || ""}
             onChange={async (e) => {
@@ -300,7 +301,7 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <span className="ml-auto text-xs muted">
           {pickedName ? `${pickedName}, ` : ""}

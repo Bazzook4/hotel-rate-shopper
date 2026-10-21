@@ -181,7 +181,7 @@ body {
    * a Mac that is a grey double-chevron box that matches nothing else here.
    * With the native look off, a select takes its height from its padding as
    * a text input does, so the two line up. Toolbars use the Dropdown
-   * component instead. */
+   * component instead; forms use Select, which draws its own. */
   select.input {
     -webkit-appearance: none;
     appearance: none;
@@ -191,11 +191,13 @@ body {
     background-repeat: no-repeat;
     background-position: right 0.7rem center;
   }
-  select.input:hover:not(:disabled) { border-color: var(--text-faint); }
+  select.input:hover:not(:disabled),
+  .sel:hover:not(:disabled) { border-color: var(--text-faint); }
   /* The booking form sets selects, dates and text boxes side by side; a
    * date input still draws taller in Safari, so the row is held to one height. */
   .booking-form input.input,
-  .booking-form select.input { height: 2.375rem; }
+  .booking-form select.input,
+  .booking-form .sel.input { height: 2.375rem; }
   .booking-form .input:disabled { opacity: 0.6; }
 
   /* Ruled data table.
@@ -380,14 +382,6 @@ body {
     justify-content: center;
     font-weight: 500;
   }
-  /* The native picker is kept in the page so showPicker() can anchor to it,
-   * but it is drawn by the button above it. */
-  .seg-picker {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    pointer-events: none;
-  }
 
   /* The toolbar dropdown (components/Dropdown.jsx): one outlined button the
    * height of a .seg, its label muted inside it, and a list in app colours. */
@@ -438,6 +432,187 @@ body {
   .dd-active { background: var(--surface-2); }
   .dd-option[aria-selected="true"] { color: var(--accent-text); font-weight: 500; }
   .dd-check { width: 1rem; color: var(--accent); }
+
+  /* Every popup the app draws -- a dropdown's list, a row's action menu,
+   * the tape chart's click menu, the calendar -- is one panel: the same
+   * edge, corners and shadow as .dd-list, rows in the app's text colour
+   * that tint on hover. Only .dd-list keeps its own rules above, since
+   * Dropdown also sets its max height and scroll. */
+  .pop {
+    z-index: 70;
+    padding: 0.25rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.14);
+  }
+  .pop-head {
+    padding: 0.4rem 0.6rem 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.8125rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .pop-title { font-weight: 600; color: var(--text); }
+  .pop-sub { font-size: 0.75rem; color: var(--text-muted); }
+  .pop-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.875rem;
+    text-align: left;
+    color: var(--text);
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .pop-item:hover:not(:disabled),
+  .pop-item:focus-visible { outline: none; background: var(--surface-2); }
+  .pop-item:disabled { color: var(--text-faint); cursor: not-allowed; }
+  .pop-item.pop-danger { color: var(--danger); }
+  .pop-item.pop-sub-item { padding-left: 1.6rem; }
+  .pop-sep { height: 1px; margin: 0.25rem 0; background: var(--border); }
+
+  /* The form select (components/Select.jsx): a button that keeps the class
+   * it is given (.input, .cm-input) with its own chevron drawn inside, so no
+   * class's background can wipe it. Every label sits in one grid cell, only
+   * the chosen one showing, so at width: auto it is as wide as its longest
+   * option. */
+  .sel {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .sel-chevron { flex-shrink: 0; margin-left: auto; color: var(--text-faint); transition: transform 0.15s; }
+  .sel[aria-expanded="true"] { border-color: var(--accent); }
+  .sel[aria-expanded="true"] .sel-chevron { transform: rotate(180deg); }
+  .sel:focus-visible { outline: none; border-color: var(--accent); }
+  .sel:disabled { cursor: not-allowed; opacity: 0.6; }
+  .sel-sizer { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; width: 100%; }
+  .sel-sizer > span { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; }
+  .sel-ghost { visibility: hidden; }
+  .sel-list {
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    max-width: min(26rem, calc(100vw - 16px));
+    padding: 0;
+    overflow: hidden;
+  }
+  .sel-options {
+    margin: 0;
+    padding: 0.25rem;
+    list-style: none;
+    overflow-y: auto;
+  }
+  .sel-search {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.65rem;
+    color: var(--text-faint);
+    border-bottom: 1px solid var(--border);
+  }
+  .sel-search input {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.875rem;
+    color: var(--text);
+    background: transparent;
+    border: 0;
+    outline: none;
+  }
+  .sel-search input::placeholder { color: var(--text-faint); }
+  .sel-group {
+    padding: 0.5rem 0.6rem 0.2rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-faint);
+  }
+  .sel-empty { padding: 0.5rem 0.6rem; font-size: 0.875rem; color: var(--text-muted); }
+  .dd-option[aria-disabled="true"] { color: var(--text-faint); cursor: not-allowed; }
+
+  /* The date box (components/DateField.jsx): a text box with the calendar
+   * button inside its right edge. */
+  .df { position: relative; display: block; min-width: 0; }
+  .df > .df-input { width: 100%; padding-right: 2rem; }
+  .df-btn {
+    position: absolute;
+    top: 50%;
+    right: 0.3rem;
+    display: inline-flex;
+    padding: 0.25rem;
+    color: var(--text-faint);
+    border-radius: 6px;
+    transform: translateY(-50%);
+  }
+  .df-btn:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
+
+  /* The calendar (components/DatePicker.jsx), drawn in a .pop. */
+  .cal { z-index: 200; width: 17.5rem; padding: 0.5rem; }
+  .cal-title {
+    padding: 0.3rem 0.6rem;
+    font-weight: 600;
+    color: var(--text);
+    border-radius: 6px;
+  }
+  .cal-title:hover:not(:disabled) { background: var(--surface-2); }
+  .cal-title:disabled { cursor: default; }
+  .cal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.35rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .cal-nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    color: var(--text-muted);
+    border-radius: 6px;
+  }
+  .cal-nav:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+  .cal-nav:disabled { opacity: 0.35; cursor: not-allowed; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .cal-grid.cal-months { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .cal-dow {
+    padding: 0.25rem 0;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-align: center;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .cal-day {
+    height: 2.1rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    border-radius: 6px;
+    border: 1px solid transparent;
+  }
+  .cal-months .cal-day { height: 2.5rem; }
+  .cal-day:hover:not(:disabled) { background: var(--surface-2); }
+  .cal-day.cal-out { color: var(--text-faint); }
+  .cal-day.cal-today { border-color: var(--border-strong); font-weight: 600; }
+  .cal-day.cal-focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .cal-day.cal-on,
+  .cal-day.cal-on:hover { background: var(--accent); color: var(--surface); font-weight: 600; }
+  .cal-day:disabled { color: var(--text-faint); opacity: 0.45; cursor: not-allowed; }
 
   /* A toolbar field: its label inline before the control, not on a line of
    * its own above it, so the whole toolbar fits on one row. */
@@ -666,7 +841,7 @@ body {
   /* The date button's fixed width is what pushed the stepper past a
    * phone's edge; its label is short enough to size itself. */
   .seg > .seg-date { min-width: 0; }
-  .dd, .dd-option { font-size: 16px; }
+  .dd, .dd-option, .sel-search input { font-size: 16px; }
 
   .cm-name-col { min-width: 0; }
 
@@ -721,6 +896,8 @@ body {
   .btn,
   .dd,
   .seg > button { min-height: 2.5rem; }
+  .dd-option { min-height: 2.75rem; }
+  .cal-day { height: 2.5rem; }
 }
 
 /* Occupancy colours card (DisplaySettings): small controls inside each

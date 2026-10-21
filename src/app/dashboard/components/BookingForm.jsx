@@ -21,6 +21,8 @@ import {
   toClock,
   windowsOverlap,
 } from "@/lib/dayUse";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * Entering or editing a booking.
@@ -1170,19 +1172,18 @@ export default function BookingForm({
           </div>
         </Field>
         <Field label="Stay">
-          <select
+          <Select
             className="input"
             value={form.stay_kind}
             onChange={(e) => set("stay_kind", e.target.value)}
           >
             <option value="overnight">Overnight</option>
             <option value="day_use">Day use (hours)</option>
-          </select>
+          </Select>
         </Field>
         <Field label={dayUse ? "Date" : "Check in"}>
-          <input
+          <DateField
             className="input"
-            type="date"
             value={form.check_in}
             onChange={(e) => set("check_in", e.target.value)}
           />
@@ -1197,7 +1198,7 @@ export default function BookingForm({
                 : "No day-use plan on this room type. Add one in Rate Plans"
             }
           >
-            <select
+            <Select
               className="input"
               value={form.rate_plan_id}
               onChange={(e) => {
@@ -1213,7 +1214,7 @@ export default function BookingForm({
                   {p.plan_name}, {dayUseLabel(p.day_use_hours)}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field
             label="Start time"
@@ -1229,7 +1230,7 @@ export default function BookingForm({
                     : "Pick a room to see its free times"
             }
           >
-            <select
+            <Select
               className="input"
               value={form.day_use_start}
               onChange={(e) => set("day_use_start", e.target.value)}
@@ -1249,7 +1250,7 @@ export default function BookingForm({
                   </option>
                 );
               })}
-            </select>
+            </Select>
           </Field>
           </>
         ) : (
@@ -1257,9 +1258,8 @@ export default function BookingForm({
             label="Check out"
             hint={nights ? `${nights} night${nights === 1 ? "" : "s"}` : "Pick a later date"}
           >
-            <input
+            <DateField
               className="input"
-              type="date"
               value={form.check_out}
               min={form.check_in}
               onChange={(e) => set("check_out", e.target.value)}
@@ -1267,7 +1267,7 @@ export default function BookingForm({
           </Field>
         )}
         <Field label="Adults" hint={form.room_type_id ? `Up to ${maxAdults}` : undefined}>
-          <select
+          <Select
             className="input"
             value={String(form.adults)}
             onChange={(e) => set("adults", Number(e.target.value))}
@@ -1278,10 +1278,10 @@ export default function BookingForm({
                 {n > maxAdults ? ` (over the ${maxAdults} this room takes)` : ""}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Room type">
-          <select
+          <Select
             className="input"
             value={form.room_type_id}
             onChange={(e) => set("room_type_id", e.target.value)}
@@ -1292,10 +1292,10 @@ export default function BookingForm({
                 {rt.room_type_name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Room">
-          <select
+          <Select
             className="input"
             value={form.room_id}
             onChange={(e) => set("room_id", e.target.value)}
@@ -1307,11 +1307,11 @@ export default function BookingForm({
                 {r.room_number}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         {companyChoices.length > 0 && (
           <Field label="Company / agent" wide={!company}>
-            <select
+            <Select
               className="input"
               value={form.company_id}
               onChange={(e) => set("company_id", e.target.value)}
@@ -1333,7 +1333,7 @@ export default function BookingForm({
                   </optgroup>
                 ) : null;
               })}
-            </select>
+            </Select>
           </Field>
         )}
         {company && (
@@ -1347,14 +1347,14 @@ export default function BookingForm({
                 : undefined
             }
           >
-            <select
+            <Select
               className="input"
               value={form.bill_to}
               onChange={(e) => set("bill_to", e.target.value)}
             >
               <option value="guest">Guest</option>
               <option value="company">{company.kind === "company" ? "Company" : "Agent"}</option>
-            </select>
+            </Select>
           </Field>
         )}
       </Section>
@@ -1362,7 +1362,7 @@ export default function BookingForm({
       <Section title="Price">
         {!dayUse && (
           <Field label="Rate plan" wide>
-            <select
+            <Select
               className="input"
               value={form.rate_plan_id}
               onChange={(e) => {
@@ -1376,7 +1376,7 @@ export default function BookingForm({
                   {p.plan_name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
         )}
         <Field label={dayUse ? "Total amount (day use)" : "Total amount (whole stay)"} wide>
@@ -1431,7 +1431,7 @@ export default function BookingForm({
       {more && (
         <Section title="More details">
           <Field label="Country">
-            <select
+            <Select
               className="input"
               value={form.guest_country}
               onChange={(e) => set("guest_country", e.target.value)}
@@ -1442,19 +1442,19 @@ export default function BookingForm({
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           {/* Decides which taxes apply -- some levies are for foreign
               guests only, and some exemptions are too. */}
           <Field label="Guest is">
-            <select
+            <Select
               className="input"
               value={form.guest_residency}
               onChange={(e) => set("guest_residency", e.target.value)}
             >
               <option value="domestic">Domestic</option>
               <option value="international">International</option>
-            </select>
+            </Select>
           </Field>
           <Field label="Children">
             <input
@@ -1466,7 +1466,7 @@ export default function BookingForm({
             />
           </Field>
           <Field label="Booking method">
-            <select
+            <Select
               className="input"
               value={form.source}
               onChange={(e) => set("source", e.target.value)}
@@ -1476,32 +1476,32 @@ export default function BookingForm({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           {/* Complimentary stays occupy a room like any other but are owed
               nothing; revenue reports leave them out of ADR. */}
           <Field label="Booking type">
-            <select
+            <Select
               className="input"
               value={form.booking_type}
               onChange={(e) => set("booking_type", e.target.value)}
             >
               <option value="standard">Standard</option>
               <option value="complimentary">Complimentary</option>
-            </select>
+            </Select>
           </Field>
           {/* An inquiry holds the room like a confirmed booking, but is left
               out of revenue until it is confirmed. */}
           {!reservation && (
             <Field label="Status">
-              <select
+              <Select
                 className="input"
                 value={form.status}
                 onChange={(e) => set("status", e.target.value)}
               >
                 <option value="confirmed">Confirmed</option>
                 <option value="inquiry">Inquiry</option>
-              </select>
+              </Select>
             </Field>
           )}
         <Field label="Notes" wide>

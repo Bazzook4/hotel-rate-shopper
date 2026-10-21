@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * One wallet: what it holds, adding money (on a plan, or any amount with
@@ -173,14 +175,14 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
         <div className="flex flex-wrap items-end gap-2">
           <label>
             <span className="label">Plan</span>
-            <select className="input" style={{ width: "auto" }} value={form.plan_id} onChange={(e) => setForm({ ...form, plan_id: e.target.value })}>
+            <Select className="input" style={{ width: "auto" }} value={form.plan_id} onChange={(e) => setForm({ ...form, plan_id: e.target.value })}>
               <option value="">Any amount</option>
               {activePlans.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}: pay {inr(p.pay_amount)}, get {inr(p.credit)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {!plan && (
             <>
@@ -196,13 +198,13 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
           )}
           <label>
             <span className="label">Method</span>
-            <select className="input" style={{ width: "auto" }} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
+            <Select className="input" style={{ width: "auto" }} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
               {METHODS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span className="label">Reference</span>
@@ -210,7 +212,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
           </label>
           <label>
             <span className="label">Received on</span>
-            <input className="input" type="date" max={todayLocal()} value={form.received_on} onChange={(e) => setForm({ ...form, received_on: e.target.value })} />
+            <DateField className="input" max={todayLocal()} value={form.received_on} onChange={(e) => setForm({ ...form, received_on: e.target.value })} />
           </label>
           <button type="button" className="btn btn-primary text-sm" disabled={busy || (!plan && !(Number(form.cash_amount) > 0))} onClick={topUp}>
             {busy ? "Adding..." : plan ? `Take ${inr(plan.pay_amount)}` : "Add"}

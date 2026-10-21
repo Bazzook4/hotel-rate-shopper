@@ -24,6 +24,7 @@ import {
 } from "./reportKit";
 import { usePageState } from "./usePageState";
 import { useFrontDesk } from "./frontDesk";
+import DateField from "@/app/components/DateField";
 
 /**
  * The night audit: the close of one business day.
@@ -512,7 +513,7 @@ export default function NightAudit({ session }) {
             <label className="label" htmlFor="audit-date">
               Business date
             </label>
-            <input id="audit-date" type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateField id="audit-date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div className="flex gap-2">
             <button type="button" className="btn btn-secondary text-sm" onClick={() => step(-1)} aria-label="Previous day">

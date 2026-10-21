@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Select from "@/app/components/Select";
 
 /**
  * The channel-manager activity log.
@@ -165,7 +166,7 @@ export default function ActivityLog({ session }) {
           </button>
         ))}
 
-        <select
+        <Select
           value={status}
           onChange={(e) => changeStatus(e.target.value)}
           className="input ml-auto w-auto"
@@ -174,7 +175,7 @@ export default function ActivityLog({ session }) {
           <option value="success">Sent</option>
           <option value="failed">Failed</option>
           <option value="skipped">Not sent</option>
-        </select>
+        </Select>
       </div>
 
       <div className="card overflow-x-auto">

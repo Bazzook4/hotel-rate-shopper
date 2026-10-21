@@ -13,6 +13,7 @@ import {
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
 import { WEEKDAYS, MONTHS } from "@/lib/contractRates";
+import Select from "@/app/components/Select";
 
 /**
  * Companies & agents: who books for a guest, may be billed, and may have a
@@ -491,11 +492,11 @@ export default function Companies({ session }) {
           + Add company or agent
         </button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select className="input" style={{ width: "auto" }} value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+          <Select className="input" style={{ width: "auto" }} value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
             <option value="">Companies and agents</option>
             <option value="company">Companies</option>
             <option value="travel_agent">Travel agents</option>
-          </select>
+          </Select>
           <input
             className="input w-56"
             value={search}

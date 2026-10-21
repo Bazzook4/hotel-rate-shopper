@@ -15,6 +15,8 @@ import Icon from "../../components/Icon";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { Change } from "./reportKit";
 import { usePageState } from "./usePageState";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * Booking performance: what the reservations in the PMS add up to.
@@ -824,20 +826,19 @@ export default function BookingPerformance({ session }) {
             <label className="label" htmlFor="perf-period">
               Time period
             </label>
-            <select id="perf-period" className="input" value={preset} onChange={(e) => choosePreset(e.target.value)}>
+            <Select id="perf-period" className="input" value={preset} onChange={(e) => choosePreset(e.target.value)}>
               {PRESETS.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
             <span className="label">{basis === "booked" ? "Booked between" : "Stay dates"}</span>
             <div className="flex items-center gap-2">
-              <input
-                type="date"
+              <DateField
                 className="input"
                 value={range.start}
                 onChange={(e) => {
@@ -847,8 +848,7 @@ export default function BookingPerformance({ session }) {
                 aria-label="From"
               />
               <span style={{ color: "var(--text-muted)" }}>-</span>
-              <input
-                type="date"
+              <DateField
                 className="input"
                 value={range.end}
                 onChange={(e) => {
@@ -864,7 +864,7 @@ export default function BookingPerformance({ session }) {
             <label className="label" htmlFor="perf-compare">
               Compare with
             </label>
-            <select
+            <Select
               id="perf-compare"
               className="input"
               value={compare}
@@ -875,23 +875,21 @@ export default function BookingPerformance({ session }) {
                   {c.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {compare === "custom" && (
             <div>
               <span className="label">Comparison dates</span>
               <div className="flex items-center gap-2">
-                <input
-                  type="date"
+                <DateField
                   className="input"
                   value={compareRange.start}
                   onChange={(e) => setCompareRange((r) => ({ ...r, start: e.target.value }))}
                   aria-label="Compare from"
                 />
                 <span style={{ color: "var(--text-muted)" }}>-</span>
-                <input
-                  type="date"
+                <DateField
                   className="input"
                   value={compareRange.end}
                   onChange={(e) => setCompareRange((r) => ({ ...r, end: e.target.value }))}

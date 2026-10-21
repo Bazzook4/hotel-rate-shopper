@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
+import Select from "@/app/components/Select";
 
 /**
  * The tabs hanging off a booking: guests, inclusions, payments, invoices.
@@ -96,7 +97,7 @@ function WalletPay({ wallets, owing, currency, reservationId, propertyId, busy, 
           </div>
         </div>
         {usable.length > 1 && (
-          <select
+          <Select
             className="input"
             style={{ width: "auto" }}
             value={which}
@@ -111,7 +112,7 @@ function WalletPay({ wallets, owing, currency, reservationId, propertyId, busy, 
                 {w.type === "company" ? `${w.name} (company)` : `${w.name} (guest)`}
               </option>
             ))}
-          </select>
+          </Select>
         )}
         <input
           className="input"
@@ -339,7 +340,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                 </div>
                 <div>
                   <label className="label">Gender</label>
-                  <select
+                  <Select
                     className="input"
                     value={guest.gender || ""}
                     onChange={(e) => setGuest({ ...guest, gender: e.target.value })}
@@ -348,7 +349,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                     <option value="other">Other</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
               <label className="flex items-center gap-2 text-sm">
@@ -590,7 +591,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
             >
               <div>
                 <label className="label">Service *</label>
-                <select
+                <Select
                   className="input"
                   autoFocus={intent === "inclusions"}
                   value={line.extra_id}
@@ -617,7 +618,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                       ))}
                     </optgroup>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="label">Description</label>
@@ -655,7 +656,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
               </div>
               <div>
                 <label className="label">Night</label>
-                <select
+                <Select
                   className="input"
                   value={line.stay_date}
                   onChange={(e) => setLine({ ...line, stay_date: e.target.value })}
@@ -666,7 +667,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                       {nightLabel(n.stay_date)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="flex items-end">
                 <button
@@ -832,7 +833,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
               </div>
               <div>
                 <label className="label">Method</label>
-                <select
+                <Select
                   className="input"
                   value={payment.method}
                   onChange={(e) => setPayment({ ...payment, method: e.target.value })}
@@ -842,7 +843,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                       {m.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
                 <label className="label">Reference</label>

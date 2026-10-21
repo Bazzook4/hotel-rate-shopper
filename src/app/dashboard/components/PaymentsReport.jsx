@@ -21,6 +21,7 @@ import {
   whole,
 } from "./reportKit";
 import { SortTh, useSort } from "./useSort";
+import Select from "@/app/components/Select";
 
 /**
  * Payments: the money taken over a period, for the cash-up and the bank.
@@ -200,14 +201,14 @@ function PaymentList({ report, money, onOpen, methods }) {
       title="Every payment"
       sub="Negative amounts are refunds"
       actions={
-        <select className="input" style={{ width: 180 }} value={method} onChange={(e) => setMethod(e.target.value)} aria-label="Method">
+        <Select className="input" style={{ width: 180 }} value={method} onChange={(e) => setMethod(e.target.value)} aria-label="Method">
           <option value="all">All methods</option>
           {methods.map((m) => (
             <option key={m} value={m}>
               {report.methods[m] || m}
             </option>
           ))}
-        </select>
+        </Select>
       }
     >
       {rows.length === 0 ? (

@@ -11,6 +11,14 @@ import {
   isForeignGuest,
 } from "@/lib/onlineCheckinShared";
 import { shrink } from "../../dashboard/components/GuestIdPhotos";
+import Select from "@/app/components/Select";
+
+/** Arrival times on the half hour, kept as "14:30" as the time box sent. */
+const ARRIVAL_TIMES = Array.from({ length: 48 }, (_, i) => {
+  const h = Math.floor(i / 2);
+  const m = i % 2 ? "30" : "00";
+  return { value: `${String(h).padStart(2, "0")}:${m}`, label: `${h % 12 || 12}:${m} ${h < 12 ? "am" : "pm"}` };
+});
 
 /**
  * The guest's online check-in: opened from the link the hotel sent, on the
@@ -179,14 +187,14 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
         {needsId && (
           <>
             <Field label="Nationality" required wide>
-              <select className="input w-full" value={person.nationality || ""} onChange={setNationality}>
+              <Select className="input w-full" value={person.nationality || ""} onChange={setNationality}>
                 {!person.nationality && <option value="">Choose...</option>}
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             {foreign ? (
               <>
@@ -205,14 +213,14 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
             ) : (
               <>
                 <Field label="Type of ID" required error={gapFor("id_type")}>
-                  <select id={fieldId(index, "id_type")} className="input w-full" value={person.id_type} onChange={set("id_type")}>
+                  <Select id={fieldId(index, "id_type")} className="input w-full" value={person.id_type} onChange={set("id_type")}>
                     <option value="">Choose...</option>
                     {CHECKIN_ID_TYPES.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="ID number" required error={gapFor("id_number")}>
                   {input("id_number", { ...codeInput, inputMode: person.id_type === "aadhaar" ? "numeric" : undefined })}
@@ -549,7 +557,18 @@ export default function OnlineCheckinPage() {
 
               <section className="card card-pad grid grid-cols-2 gap-3">
                 <Field label="Expected arrival time">
-                  <input className="input w-full" type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} />
+                  <Select className="input w-full" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)}>
+                    <option value="">Not sure yet</option>
+                    {/* A time saved before the list, off the half hour, still shows. */}
+                    {arrivalTime && !ARRIVAL_TIMES.some((t) => t.value === arrivalTime) && (
+                      <option value={arrivalTime}>{arrivalTime}</option>
+                    )}
+                    {ARRIVAL_TIMES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
                 </Field>
                 <Field label="Anything we should know?" wide>
                   <textarea

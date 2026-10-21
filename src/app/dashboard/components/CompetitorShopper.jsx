@@ -7,6 +7,7 @@ import Dropdown from "../../components/Dropdown";
 import ManageCompetitors from "./ManageCompetitors";
 import CompetitorDay from "./CompetitorDay";
 import { MAX_COMPETITORS } from "@/lib/competitors";
+import DateField from "@/app/components/DateField";
 
 /** A refresh fills one week of the month; paging then refreshing walks across. */
 const REFRESH_DAYS = 7;
@@ -449,9 +450,8 @@ export default function CompetitorShopper({ session }) {
               htmlFor="comp-week"
               width={160}
             >
-              <input
+              <DateField
                 id="comp-week"
-                type="date"
                 className="input"
                 value={weekStart}
                 min={data?.start}

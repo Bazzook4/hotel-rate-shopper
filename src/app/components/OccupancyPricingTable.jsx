@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Select from "@/app/components/Select";
 
 export default function OccupancyPricingTable({ roomTypes, onSave }) {
   const [pricingMode, setPricingMode] = useState("occupancy"); // "flat_room", "occupancy", or "per_adult"const [baseRoomId, setBaseRoomId] = useState(null);
@@ -344,7 +345,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     </td>
                     <td className="py-2 px-3">
                       {!isBaseRoom && (
-                        <select
+                        <Select
                           value={roomData.calcType?.[1] || 'manual'}
                           onChange={(e) => handleCalcTypeChange(room.id, 1, e.target.value)}
                           className="px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-xs"
@@ -352,7 +353,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                           <option value="manual">Manual</option>
                           <option value="fixed">Fixed +/-</option>
                           <option value="ratio">Ratio</option>
-                        </select>
+                        </Select>
                       )}
                     </td>
                     <td className="py-2 px-3">
@@ -410,7 +411,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                     </td>
                     <td className="py-2 px-3">
                       {!isBaseRoom && (
-                        <select
+                        <Select
                           value={roomData.calcType || 'manual'}
                           onChange={(e) => handleCalcTypeChange(room.id, 'all', e.target.value)}
                           className="px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-xs"
@@ -418,7 +419,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                           <option value="manual">Manual</option>
                           <option value="fixed">Fixed +/-</option>
                           <option value="ratio">Ratio</option>
-                        </select>
+                        </Select>
                       )}
                     </td>
                     <td className="py-2 px-3">
@@ -482,7 +483,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                   </td>
                   <td className="py-2 px-3">
                     {!isBaseRoom && (
-                      <select
+                      <Select
                         value={roomData.calcType?.[adultCount] || 'manual'}
                         onChange={(e) => handleCalcTypeChange(room.id, adultCount, e.target.value)}
                         className="px-2 py-1 rounded bg-[var(--surface-2)] border border-white/20 text-ink text-xs"
@@ -490,7 +491,7 @@ export default function OccupancyPricingTable({ roomTypes, onSave }) {
                         <option value="manual">Manual</option>
                         <option value="fixed">Fixed +/-</option>
                         <option value="ratio">Ratio</option>
-                      </select>
+                      </Select>
                     )}
                   </td>
                   <td className="py-2 px-3">

@@ -18,6 +18,8 @@ import {
 } from "./reportKit";
 import { SortTh, useSort } from "./useSort";
 import WalletPanel, { useWalletPlans } from "./WalletPanel";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * City Ledger: what companies and travel agents owe for stays billed to
@@ -146,17 +148,17 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
         </label>
         <label>
           <span className="label">Received on</span>
-          <input className="input" type="date" value={receivedOn} max={todayLocal()} onChange={(e) => setReceivedOn(e.target.value)} />
+          <DateField className="input" value={receivedOn} max={todayLocal()} onChange={(e) => setReceivedOn(e.target.value)} />
         </label>
         <label>
           <span className="label">Method</span>
-          <select className="input" value={method} onChange={(e) => setMethod(e.target.value)}>
+          <Select className="input" value={method} onChange={(e) => setMethod(e.target.value)}>
             {METHODS.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span className="label">Reference</span>

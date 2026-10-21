@@ -5,6 +5,7 @@ import { Grid, Loading, Messages, SetupHeader, sendJSON } from "./SetupGrid";
 import { Drawer, Field, RowMenu, Section } from "./RatePlanSetup";
 import { useDialog } from "../../components/Dialog";
 import Hint from "../../components/Hint";
+import Select from "@/app/components/Select";
 
 /**
  * Workflow: rules that stop sell on chosen channels when a night fills up.
@@ -372,7 +373,7 @@ function RuleDrawer({ rule, data, onClose, onSave }) {
 
       <Section title="When">
         <Field label="Watch" hint="A whole-hotel rule reads the night's totals and closes every room type.">
-          <select
+          <Select
             className="input w-full"
             value={form.room_type_id}
             onChange={(e) => set({ room_type_id: e.target.value })}
@@ -383,17 +384,17 @@ function RuleDrawer({ rule, data, onClose, onSave }) {
                 {r.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Counts">
-            <select className="input" value={form.metric} onChange={(e) => set({ metric: e.target.value })}>
+            <Select className="input" value={form.metric} onChange={(e) => set({ metric: e.target.value })}>
               {METRIC_OPTIONS.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label={m.unit ? "At (%)" : "At"}>
             <input

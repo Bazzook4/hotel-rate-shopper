@@ -5,6 +5,8 @@ import Icon from "../../components/Icon";
 import BookingModal from "./BookingModal";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { usePageState } from "./usePageState";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * The pieces the Insights reports share: the period picker and its presets,
@@ -245,27 +247,25 @@ export function PeriodPicker({ id, label = "Dates", preset, range, onPreset, onR
         <label className="label" htmlFor={`${id}-period`}>
           Time period
         </label>
-        <select id={`${id}-period`} className="input" value={preset} onChange={(e) => onPreset(e.target.value)}>
+        <Select id={`${id}-period`} className="input" value={preset} onChange={(e) => onPreset(e.target.value)}>
           {PRESETS.filter((p) => !p.id.startsWith("next")).map((p) => (
             <option key={p.id} value={p.id}>
               {p.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       <div>
         <span className="label">{label}</span>
         <div className="flex items-center gap-2">
-          <input
-            type="date"
+          <DateField
             className="input"
             value={range.start}
             onChange={(e) => onRange({ ...range, start: e.target.value })}
             aria-label="From"
           />
           <span style={{ color: "var(--text-muted)" }}>-</span>
-          <input
-            type="date"
+          <DateField
             className="input"
             value={range.end}
             onChange={(e) => onRange({ ...range, end: e.target.value })}

@@ -11,6 +11,8 @@ import { CHANNEL_LABELS } from "@/lib/channels";
 import { usePageState } from "./usePageState";
 import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 
 
@@ -1266,8 +1268,7 @@ export default function ChannelManager({ session }) {
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
               <span className="text-xs muted">From</span>
-              <input
-                type="date"
+              <DateField
                 value={resyncFrom}
                 onChange={(e) => setResyncFrom(e.target.value)}
                 className="input"
@@ -1275,8 +1276,7 @@ export default function ChannelManager({ session }) {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs muted">To</span>
-              <input
-                type="date"
+              <DateField
                 value={resyncTo}
                 onChange={(e) => setResyncTo(e.target.value)}
                 className="input"
@@ -1359,8 +1359,7 @@ export default function ChannelManager({ session }) {
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1">
               <span className="text-xs muted">From</span>
-              <input
-                type="date"
+              <DateField
                 value={bulk.from}
                 onChange={(e) => setBulk((b) => ({ ...b, from: e.target.value }))}
                 className="input"
@@ -1368,8 +1367,7 @@ export default function ChannelManager({ session }) {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs muted">To</span>
-              <input
-                type="date"
+              <DateField
                 value={bulk.to}
                 onChange={(e) => setBulk((b) => ({ ...b, to: e.target.value }))}
                 className="input"
@@ -1452,7 +1450,7 @@ export default function ChannelManager({ session }) {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs muted">Stop sell</span>
-              <select
+              <Select
                 value={bulk.stopSell}
                 onChange={(e) => setBulk((b) => ({ ...b, stopSell: e.target.value }))}
                 className="input"
@@ -1463,7 +1461,7 @@ export default function ChannelManager({ session }) {
                 {bulk.channels.length > 0 && (
                   <option value="follow">Same as all channels</option>
                 )}
-              </select>
+              </Select>
             </label>
           </div>
 

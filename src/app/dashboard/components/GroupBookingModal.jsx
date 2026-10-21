@@ -6,6 +6,8 @@ import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { confirmDiscard, useDialog } from "../../components/Dialog";
 import { useBackdropClose, useEscape } from "../../components/useEscape";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * Booking several rooms at once for one party, as a three-step wizard.
@@ -530,7 +532,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                   </div>
                   <div>
                     <label className="label">Source</label>
-                    <select
+                    <Select
                       className="input"
                       value={form.source}
                       onChange={(e) => set("source", e.target.value)}
@@ -540,7 +542,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                           {o.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div />
 
@@ -573,18 +575,16 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
 
                   <div>
                     <label className="label">Check in</label>
-                    <input
+                    <DateField
                       className="input"
-                      type="date"
                       value={form.check_in}
                       onChange={(e) => set("check_in", e.target.value)}
                     />
                   </div>
                   <div>
                     <label className="label">Check out</label>
-                    <input
+                    <DateField
                       className="input"
-                      type="date"
                       min={form.check_in}
                       value={form.check_out}
                       onChange={(e) => set("check_out", e.target.value)}
@@ -676,7 +676,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                 >
                   <div style={{ minWidth: 180 }}>
                     <label className="label">Rate plan for all</label>
-                    <select
+                    <Select
                       className="cm-input"
                       value={bulk.rate_plan_id}
                       onChange={(e) => setBulk((b) => ({ ...b, rate_plan_id: e.target.value }))}
@@ -687,11 +687,11 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                           {p.plan_name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div style={{ width: 90 }}>
                     <label className="label">Adults</label>
-                    <select
+                    <Select
                       className="cm-input"
                       value={bulk.adults}
                       title="Rooms that take fewer get their own max"
@@ -703,7 +703,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                           {n}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                   <div style={{ width: 90 }}>
                     <label className="label">Children</label>
@@ -786,7 +786,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                                   />
                                 </td>
                                 <td>
-                                  <select
+                                  <Select
                                     className="cm-input"
                                     value={line.rate_plan_id}
                                     onChange={(e) =>
@@ -802,10 +802,10 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                                         {p.plan_name}
                                       </option>
                                     ))}
-                                  </select>
+                                  </Select>
                                 </td>
                                 <td>
-                                  <select
+                                  <Select
                                     className={`cm-input ${tooMany ? "is-invalid" : ""}`}
                                     title={tooMany ? `${rt.name} takes up to ${rt.max_adults} adults` : undefined}
                                     value={String(line.adults)}
@@ -816,7 +816,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                                         {n}
                                       </option>
                                     ))}
-                                  </select>
+                                  </Select>
                                 </td>
                                 <td>
                                   <input

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DEFAULT_CHECKIN_PREFS } from "@/lib/onlineCheckinShared";
+import Select from "@/app/components/Select";
 
 /**
  * What the hotel asks of guests on online check-in, for Property Setup: on
@@ -102,7 +103,7 @@ export default function CheckinSettings({ propertyId }) {
           <legend className="sr-only">What guests are asked for</legend>
           <label className="flex items-center gap-1.5 text-sm">
             ID from
-            <select
+            <Select
               className="input"
               style={{ width: "auto", padding: "0.25rem 0.5rem" }}
               value={prefs.idFrom}
@@ -110,7 +111,7 @@ export default function CheckinSettings({ propertyId }) {
             >
               <option value="all">every adult</option>
               <option value="booker">the main guest only</option>
-            </select>
+            </Select>
           </label>
           <Check checked={prefs.idPhoto} onChange={(v) => set({ idPhoto: v })}>
             Photo of ID required

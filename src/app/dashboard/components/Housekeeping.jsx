@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatDateISO } from "@/lib/date";
 import Icon from "../../components/Icon";
 import { usePageState } from "./usePageState";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * The housekeeping board: every room, whether it is clean, and whether
@@ -311,8 +313,7 @@ export default function Housekeeping({ session }) {
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <input
-            type="date"
+          <DateField
             className="input"
             value={date}
             onChange={(e) => e.target.value && setDate(e.target.value)}
@@ -325,7 +326,7 @@ export default function Housekeeping({ session }) {
           <button className="btn btn-ghost text-sm" onClick={load}>
             Refresh
           </button>
-          <select
+          <Select
             className="input"
             style={{ width: "auto" }}
             value={lang}
@@ -337,7 +338,7 @@ export default function Housekeeping({ session }) {
                 {l.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -382,7 +383,7 @@ export default function Housekeeping({ session }) {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <select
+        <Select
           className="input"
           style={{ width: "auto" }}
           value={floorFilter}
@@ -394,7 +395,7 @@ export default function Housekeeping({ session }) {
               {t("Floor")} {f}
             </option>
           ))}
-        </select>
+        </Select>
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -525,9 +526,9 @@ export default function Housekeeping({ session }) {
                           {t("Arrival")}
                         </span>
                       )}
-                      <select
+                      <Select
                         className="input"
-                        style={{ width: "auto", padding: "0.25rem 1.6rem 0.25rem 0.4rem", fontSize: "0.8rem", backgroundPosition: "right 0.45rem center" }}
+                        style={{ width: "auto", padding: "0.25rem 0.45rem", fontSize: "0.8rem" }}
                         value={room.housekeeping}
                         onChange={(e) => mark([room.id], e.target.value)}
                         aria-label={`Change room ${room.room_number}`}
@@ -537,7 +538,7 @@ export default function Housekeeping({ session }) {
                             {t(s.label)}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                     <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginTop: 2 }}>
                       {t(occupancyLabel(room))}, {roomCode(room)}

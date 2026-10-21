@@ -176,6 +176,7 @@ const PATHS = {
   up: <path d="m6 15 6-6 6 6" />,
   down: <path d="m6 9 6 6 6-6" />,
   right: <path d="m9 6 6 6-6 6" />,
+  left: <path d="m15 6-6 6 6 6" />,
   more: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,

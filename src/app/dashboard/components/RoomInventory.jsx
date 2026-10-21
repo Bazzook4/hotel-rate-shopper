@@ -14,6 +14,7 @@ import {
 } from "./SetupGrid";
 import { AUTO_NUMBER_MAX_ROOMS, planAutoNumbering } from "@/lib/roomNumbering";
 import { useDialog } from "../../components/Dialog";
+import Select from "@/app/components/Select";
 
 /**
  * Room Number Setup: the physical rooms, one row each.
@@ -371,7 +372,7 @@ export default function RoomInventory({ session, section = false }) {
           Sort by floor &amp; number
         </button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select
+          <Select
             className="input"
             style={{ width: "auto" }}
             value={typeFilter}
@@ -383,8 +384,8 @@ export default function RoomInventory({ session, section = false }) {
                 {rt.room_type_name}
               </option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             className="input"
             style={{ width: "auto" }}
             value={floorFilter}
@@ -396,7 +397,7 @@ export default function RoomInventory({ session, section = false }) {
                 Floor {f}
               </option>
             ))}
-          </select>
+          </Select>
           <input
             className="input w-40"
             value={search}
@@ -418,7 +419,7 @@ export default function RoomInventory({ session, section = false }) {
           >
             <div>
               <label className="label">Room type</label>
-              <select
+              <Select
                 className="input"
                 value={range.room_type_id}
                 onChange={(e) => setRange({ ...range, room_type_id: e.target.value })}
@@ -429,7 +430,7 @@ export default function RoomInventory({ session, section = false }) {
                     {rt.room_type_name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             {[
               ["floor", "Floor", "optional", "text"],

@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "Tidier menus, lists and calendars",
+    points: [
+      {
+        page: "calendar",
+        text: "The menu that opens when you click empty nights or a booking on the Calendar is cleaner and easier to read, and matches the other menus in the app.",
+      },
+      {
+        page: "calendar",
+        text: "Every date box in the app now opens the same new calendar. Weeks start on Monday, today is ringed and the chosen day is filled. Click the month name to jump to another month or year. You can also type a date, such as 21/10/2026 or 21 Oct, or use the arrow keys and Enter.",
+      },
+      {
+        page: "reservations",
+        text: "Every list you pick from, on every page, now opens in the same style as the rest of the app. Long lists, such as countries or services, have a search box at the top: start typing to find what you need.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "Rates are set in Rate Plans, with a step by step start",
     points: [
       {

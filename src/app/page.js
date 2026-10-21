@@ -13,6 +13,7 @@ import Hint from "./components/Hint";
 import CommandPalette from "./dashboard/components/CommandPalette";
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
 import { useEscape } from "./components/useEscape";
+import Select from "@/app/components/Select";
 
 /**
  * Each page is fetched the first time it is opened, not with the dashboard.
@@ -533,7 +534,7 @@ export default function V2Dashboard() {
             {/* A super admin picks the property; everyone else sees theirs named.
                 Either way this is the one place it is set. */}
             {session?.canSwitchProperties && properties.length > 1 ? (
-              <select
+              <Select
                 value={propertyId}
                 onChange={(e) => {
                   setPropertyId(e.target.value);
@@ -554,7 +555,7 @@ export default function V2Dashboard() {
                     {p.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               scopedSession?.propertyName && (
                 <span className="mr-2 min-w-0 truncate text-sm" style={{ color: "var(--text-muted)" }}>

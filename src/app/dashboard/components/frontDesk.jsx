@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { useEscape } from "../../components/useEscape";
 import { dayUseLabel, dayUseWindowLabel } from "@/lib/dayUse";
+import Select from "@/app/components/Select";
 
 /**
  * Check-in and check-out as one shared action, so the Today page, the
@@ -92,13 +93,13 @@ function SettleDialog({ request, onDone }) {
           </div>
           <div>
             <label className="label">Paid by</label>
-            <select className="input w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
+            <Select className="input w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
               {METHODS.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap justify-end gap-2">

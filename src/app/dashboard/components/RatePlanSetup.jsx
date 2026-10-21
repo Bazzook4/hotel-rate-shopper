@@ -19,6 +19,8 @@ import { Grid, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
 import Icon from "../../components/Icon";
 import { useEscape } from "../../components/useEscape";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * Rate Plan Setup, laid out the way SiteMinder lays it out.
@@ -191,7 +193,7 @@ export default function RatePlanSetup({
       <Messages error={error} notice={notice} />
 
       <Toolbar>
-        <select
+        <Select
           value={roomFilter}
           onChange={(e) => setRoomFilter(e.target.value)}
           className="input w-48"
@@ -203,7 +205,7 @@ export default function RatePlanSetup({
               {r.room_type_name}
             </option>
           ))}
-        </select>
+        </Select>
         <input
           value={planFilter}
           onChange={(e) => setPlanFilter(e.target.value)}
@@ -609,12 +611,12 @@ export function RowMenu({ title, items }) {
         <div
           ref={box}
           role="menu"
-          className="card"
-          style={{ position: "fixed", top: at.top, left: at.left, width: at.width, zIndex: 60, padding: 0 }}
+          className="pop"
+          style={{ position: "fixed", top: at.top, left: at.left, width: at.width, zIndex: 60 }}
         >
-          <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide muted" style={{ borderBottom: "1px solid var(--border)" }}>
-            {title}
-            <button type="button" onClick={() => pick()} aria-label="Close">
+          <div className="pop-head flex items-center justify-between">
+            <span className="pop-title">{title}</span>
+            <button type="button" className="cal-nav" style={{ width: "1.5rem", height: "1.5rem" }} onClick={() => pick()} aria-label="Close">
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -625,28 +627,24 @@ export function RowMenu({ title, items }) {
                 role="menuitem"
                 disabled={it.disabled}
                 onClick={() => (it.submenu ? setSub(sub === it.label ? null : it.label) : pick(it.onClick))}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--surface-2)] disabled:opacity-50"
-                style={{ color: it.danger ? "var(--danger)" : "var(--text)" }}
+                className={`pop-item${it.danger ? " pop-danger" : ""}`}
               >
                 {it.label}
                 {it.submenu && <span className="muted"><Icon name={sub === it.label ? "down" : "right"} size={14} /></span>}
               </button>
-              {it.submenu && sub === it.label && (
-                <div style={{ background: "var(--surface-2)" }}>
-                  {it.submenu.map((s) => (
-                    <button
-                      key={s.label}
-                      type="button"
-                      role="menuitem"
-                      disabled={s.disabled}
-                      onClick={() => pick(s.onClick)}
-                      className="block w-full py-1.5 pl-7 pr-3 text-left text-sm hover:bg-[var(--surface)] disabled:opacity-60"
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {it.submenu && sub === it.label &&
+                it.submenu.map((s) => (
+                  <button
+                    key={s.label}
+                    type="button"
+                    role="menuitem"
+                    disabled={s.disabled}
+                    onClick={() => pick(s.onClick)}
+                    className="pop-item pop-sub-item"
+                  >
+                    {s.label}
+                  </button>
+                ))}
             </div>
           ))}
         </div>,
@@ -800,7 +798,7 @@ function SignedValue({ kind, value, onChange }) {
   }
   return (
     <div className="flex gap-2">
-      <select
+      <Select
         className="input"
         style={{ flex: "0 0 7.5rem" }}
         value={down ? "down" : "up"}
@@ -812,7 +810,7 @@ function SignedValue({ kind, value, onChange }) {
       >
         <option value="up">Increase</option>
         <option value="down">Decrease</option>
-      </select>
+      </Select>
       <div className="relative flex-1">
         <input
           type="number"
@@ -843,7 +841,7 @@ function RuleEditor({ method, value, value2, onChange, compact = false }) {
   return (
     <div className={compact ? "space-y-2" : "space-y-3"}>
       {!compact && <span className="label">Adjust daily rates by *</span>}
-      <select
+      <Select
         className="input"
         value={method || ""}
         onChange={(e) => onChange({ method: e.target.value, value: "", value2: "" })}
@@ -855,7 +853,7 @@ function RuleEditor({ method, value, value2, onChange, compact = false }) {
             {r.label}
           </option>
         ))}
-      </select>
+      </Select>
       {rule?.steps.map((kind, i) => (
         <div key={i}>
           {rule.steps.length > 1 && (
@@ -1053,7 +1051,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
             </Field>
           </div>
           <Field label="Sells" hint={dayUse ? "Hours from check-in. The room goes back on sale when the guest checks out." : null}>
-            <select
+            <Select
               className="input"
               value={form.sells}
               onChange={(e) =>
@@ -1065,7 +1063,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
             >
               <option value="nights">Nights</option>
               <option value="day_use">Day use (hours)</option>
-            </select>
+            </Select>
           </Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1082,19 +1080,19 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
             </Field>
           )}
           <Field label="Inclusions (meal plan)">
-            <select className="input" value={form.meal_plan} onChange={(e) => set({ meal_plan: e.target.value })}>
+            <Select className="input" value={form.meal_plan} onChange={(e) => set({ meal_plan: e.target.value })}>
               {MEAL_PLANS.map((m) => (
                 <option key={m.code} value={m.code}>
                   {m.code}: {m.hint}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <Field label="Terms">
-            <select className="input" value={form.refundable ? "ref" : "nr"} onChange={(e) => set({ refundable: e.target.value === "ref" })}>
+            <Select className="input" value={form.refundable ? "ref" : "nr"} onChange={(e) => set({ refundable: e.target.value === "ref" })}>
               <option value="ref">Refundable</option>
               <option value="nr">Non-refundable</option>
-            </select>
+            </Select>
           </Field>
         </div>
         <Field label="Description">
@@ -1139,13 +1137,13 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
             <div className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Based on *">
-                  <select className="input" value={form.derive_from_id} onChange={(e) => set({ derive_from_id: e.target.value })}>
+                  <Select className="input" value={form.derive_from_id} onChange={(e) => set({ derive_from_id: e.target.value })}>
                     {masters.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.plan_name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Minimum rate">
                   <input type="number" min="0" className="input" value={form.min_rate} onChange={(e) => set({ min_rate: e.target.value })} placeholder="None" />
@@ -1464,10 +1462,10 @@ function PlanSendStep({ plan, propertyId, subtitle, onLater, onSent }) {
       </p>
       <div className="grid grid-cols-2 gap-3">
         <Field label="From">
-          <input type="date" className="input" value={from} min={today} onChange={(e) => setFrom(e.target.value)} autoFocus />
+          <DateField className="input" value={from} min={today} onChange={(e) => setFrom(e.target.value)} autoFocus />
         </Field>
         <Field label="To">
-          <input type="date" className="input" value={to} min={from} max={lastDay} onChange={(e) => setTo(e.target.value)} />
+          <DateField className="input" value={to} min={from} max={lastDay} onChange={(e) => setTo(e.target.value)} />
         </Field>
       </div>
     </Drawer>
@@ -1753,7 +1751,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
             {form.rate_mode === "derived" && (
               <div className="space-y-3 pl-6">
                 <Field label="Based on *">
-                  <select
+                  <Select
                     className="input"
                     value={form.derive_from_plan_id ? `${form.derive_from_plan_id}|${form.derive_from_room_id}` : ""}
                     onChange={(e) => {
@@ -1767,7 +1765,7 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
                         {s.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Field>
                 <RuleEditor
                   method={form.derive_method}

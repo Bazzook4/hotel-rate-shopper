@@ -17,6 +17,8 @@ import {
 } from "@/lib/eventTags";
 import { useDialog } from "../../components/Dialog";
 import Hint from "../../components/Hint";
+import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
 
 /**
  * Events: festivals, holidays, conferences and seasons that move demand.
@@ -159,18 +161,18 @@ export default function Events({ session }) {
         ))}
 
       <Toolbar>
-        <select className="input" value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-label="Window">
+        <Select className="input" value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-label="Window">
           {WINDOWS.map((w) => (
             <option key={w.months} value={w.months}>
               {w.label}
             </option>
           ))}
-        </select>
+        </Select>
         {data.canPublish && (
-          <select className="input" value={view} onChange={(e) => setView(e.target.value)} aria-label="Which events">
+          <Select className="input" value={view} onChange={(e) => setView(e.target.value)} aria-label="Which events">
             <option value="hotel">What this hotel sees</option>
             <option value="public">Every shared event</option>
-          </select>
+          </Select>
         )}
         {view === "hotel" && data.profile && !gaps.length && (
           <span className="text-xs muted">
@@ -362,13 +364,13 @@ function EventDrawer({ event, profile, canPublish, defaultScope, onClose, onSave
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Kind">
-          <select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
+          <Select className="input w-full" value={form.category} onChange={(e) => set({ category: e.target.value })}>
             {EVENT_CATEGORIES.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="Impact on demand">
           <div className="flex gap-2">
@@ -389,16 +391,14 @@ function EventDrawer({ event, profile, canPublish, defaultScope, onClose, onSave
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Starts">
-          <input
-            type="date"
+          <DateField
             className="input w-full"
             value={form.start_date}
             onChange={(e) => set({ start_date: e.target.value })}
           />
         </Field>
         <Field label="Ends" hint="Leave empty for a one-day event.">
-          <input
-            type="date"
+          <DateField
             className="input w-full"
             value={form.end_date}
             min={form.start_date || undefined}

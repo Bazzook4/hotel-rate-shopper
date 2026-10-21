@@ -4,6 +4,7 @@ import { useState } from "react";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
 import { useEscape } from "../../components/useEscape";
+import DateField from "@/app/components/DateField";
 
 /**
  * Taking one room out of order for some nights, or changing and ending that.
@@ -122,18 +123,16 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
         <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
           <div>
             <label className="label">First night out</label>
-            <input
+            <DateField
               className="input"
-              type="date"
               value={form.start_date}
               onChange={(e) => set("start_date", e.target.value)}
             />
           </div>
           <div>
             <label className="label">Back in service on</label>
-            <input
+            <DateField
               className="input"
-              type="date"
               min={form.start_date}
               value={form.end_date}
               onChange={(e) => set("end_date", e.target.value)}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { countryOptions } from "@/lib/countries";
 import { PROPERTY_TYPES, profileGaps } from "@/lib/eventTags";
 import { citySuggestions, guessCountry, placesFor, stateOptions } from "@/lib/places";
+import Select from "@/app/components/Select";
 
 /**
  * Where the hotel is and what kind of hotel it is.
@@ -74,7 +75,7 @@ export function ProfileFields({
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="label">Country</span>
-          <select
+          <Select
             className="input w-full"
             value={value.country_code || ""}
             onChange={(e) => set({ country_code: e.target.value, state: "", city: "" })}
@@ -85,13 +86,13 @@ export function ProfileFields({
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="block">
           <span className="label">{regionLabel}</span>
           {listedStates.length ? (
-            <select
+            <Select
               className="input w-full"
               value={value.state || ""}
               onChange={(e) => set({ state: e.target.value })}
@@ -102,7 +103,7 @@ export function ProfileFields({
                   {s}
                 </option>
               ))}
-            </select>
+            </Select>
           ) : (
             <>
               <input
