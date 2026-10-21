@@ -14,6 +14,54 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "A simpler bill on every booking",
+    points: [
+      {
+        page: "reservations",
+        text: "The Bill tab on a booking now reads like the printed bill: the room, each service, taxes, the total, what was paid and what is still owed, each shown once.",
+      },
+      {
+        page: "reservations",
+        text: "Add service, Collect payment and Issue invoice are now buttons at the top of the bill. Each opens a short form on the side.",
+      },
+      {
+        page: "reservations",
+        text: "Collect payment always starts with the amount owed. Pick Cash, UPI, Card or another method with one tap. Refunds have their own button, so there is no minus sign to type.",
+      },
+      {
+        page: "reservations",
+        text: "Issue invoice shows the bill first, then issues and downloads the PDF in one step. To change what a night costs, use Night rates on the room line.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
+    title: "Walk-ins get a room, and dirty rooms no longer block check-in",
+    points: [
+      {
+        page: "today",
+        text: "A walk-in now starts with a free clean room already picked. Change it if the guest wants another, then press Save and check in.",
+      },
+      {
+        page: "today",
+        text: "A room still marked dirty no longer stops a check-in. If the room is ready, choose Check in and mark clean. Housekeeping shows who marked it clean.",
+      },
+      {
+        page: "today",
+        text: "The Collect button now shows how much the guest owes, a refund when they paid too much, Company bill when a company pays, or Paid. Arrivals and departures are now at the top of Today.",
+      },
+      {
+        page: "calendar",
+        text: "The Calendar and Reservations pages now have the Walk-in button too.",
+      },
+      {
+        page: "reservations",
+        text: "When you pick a room for a new booking, the list shows which rooms are taken on those dates and which are dirty.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "Fewer clicks at the front desk",
     points: [
       {

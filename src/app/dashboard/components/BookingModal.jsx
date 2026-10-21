@@ -21,9 +21,9 @@ import OnlineCheckinPanel, {
  * One booking, opened from the tape chart or any list.
  *
  * Three tabs, split by what is needed at the same moment: the booking itself,
- * who is staying, and the bill. Charges, payments and invoices are one Bill
- * because they answer one question -- what does this guest owe -- and are
- * read together at check-out. The status, room, balance and the next desk
+ * who is staying, and the bill. The Bill is one statement read like the
+ * printed folio, with Add service, Collect payment and Issue invoice as buttons
+ * that open a drawer. The status, room, balance and the next desk
  * action sit above the tabs, so they are in view whichever tab is open. A
  * new booking shows only Details: there is nothing to bill until it exists.
  */
@@ -34,13 +34,8 @@ const TABS = [
   { id: "bill", label: "Bill" },
 ];
 
-/** The Bill's parts, top to bottom, and the old tab ids that now open them. */
-const BILL_SECTIONS = [
-  { id: "inclusions", label: "Charges", jump: "+ Add service" },
-  { id: "payments", label: "Payments", jump: "Collect payment" },
-  { id: "invoices", label: "Invoices", jump: "Invoice" },
-];
-const BILL_IDS = new Set(BILL_SECTIONS.map((x) => x.id));
+/** The jobs callers can open a booking for, each one a drawer on the Bill. */
+const BILL_IDS = new Set(["inclusions", "payments", "invoices"]);
 
 const STATUS_LABELS = {
   inquiry: "Inquiry",
@@ -76,12 +71,10 @@ export default function BookingModal({
   const isNew = !reservationId;
 
   // Opened from the tape chart's menu, a booking starts on the tab for the job
-  // it was opened for; the add form there is ready until the desk moves away.
-  // Callers still ask for "payments" or "invoices"; those open the Bill at
-  // that part.
+  // it was opened for. Adding a service, taking a payment or issuing an
+  // invoice opens the Bill with that job's drawer already open.
   const [tab, setTab] = useState(isNew ? "details" : BILL_IDS.has(initialTab) ? "bill" : initialTab);
   const [intent, setIntent] = useState(isNew ? null : initialTab);
-  const sectionRefs = useRef({});
   const [folio, setFolio] = useState(null);
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
@@ -95,12 +88,6 @@ export default function BookingModal({
 
   const propertyId = session?.propertyId || null;
   const desk = useFrontDesk(propertyId);
-
-  // Bring the part of the Bill the desk asked for into view.
-  useEffect(() => {
-    if (tab !== "bill" || !BILL_IDS.has(intent)) return;
-    sectionRefs.current[intent]?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [tab, intent, folio]);
 
   const loadFolio = useCallback(async () => {
     if (isNew) return;
@@ -565,7 +552,7 @@ export default function BookingModal({
                 onSaved={async (message, warning, saved) => {
                   if (saved?.checkIn) {
                     try {
-                      const data = await desk.checkIn(saved.reservation);
+                      const data = await desk.checkIn(saved.reservation, { roomSeenDirty: saved.roomSeenDirty });
                       toast(
                         data
                           ? `${saved.reservation.guest_name} checked in`
@@ -610,53 +597,15 @@ export default function BookingModal({
           )}
 
           {!firstLoad && !isNew && tab === "bill" && folio && (
-            <div className="space-y-5">
-              <div className="flex flex-wrap gap-2">
-                {BILL_SECTIONS.map((x) => (
-                  <button
-                    key={x.id}
-                    type="button"
-                    className={`btn text-sm ${x.id === "payments" && folio.totals?.balance > 0 ? "btn-primary" : "btn-secondary"}`}
-                    onClick={() => setIntent(x.id)}
-                  >
-                    {x.jump}
-                  </button>
-                ))}
-              </div>
-              {BILL_SECTIONS.map((x) => (
-                <section
-                  key={x.id}
-                  ref={(el) => {
-                    sectionRefs.current[x.id] = el;
-                  }}
-                  className="space-y-2"
-                  style={{ scrollMarginTop: 12 }}
-                >
-                  <h4
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.04em",
-                      color: "var(--text-muted)",
-                    }}
-                  >
-                    {x.label}
-                  </h4>
-                  {/* Keyed by whether it was jumped to, so its form starts
-                      focused (and a payment starts at what is owed). */}
-                  <FolioTabs
-                    key={`${x.id}-${intent === x.id}`}
-                    tab={x.id}
-                    folio={folio}
-                    extras={extras}
-                    reservationId={reservationId}
-                    intent={intent === x.id ? x.id : null}
-                    onChanged={folioChanged}
-                  />
-                </section>
-              ))}
-            </div>
+            <FolioTabs
+              tab="bill"
+              folio={folio}
+              extras={extras}
+              reservationId={reservationId}
+              intent={intent}
+              onIntentDone={() => setIntent(null)}
+              onChanged={folioChanged}
+            />
           )}
         </div>
 

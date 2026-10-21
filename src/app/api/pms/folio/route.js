@@ -158,7 +158,7 @@ export async function POST(req) {
         const amount = Number(body.payment?.amount);
         if (!Number.isFinite(amount) || amount === 0) {
           return NextResponse.json(
-            { error: "Enter an amount. Use a negative figure for a refund." },
+            { error: "Enter an amount more than zero." },
             { status: 400 }
           );
         }
