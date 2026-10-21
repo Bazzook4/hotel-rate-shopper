@@ -7,12 +7,22 @@ import {
   createRatePlanWithDerivation,
   updateRatePlanDerivation,
   deleteRatePlan,
+  getRatePlan,
   getUserPropertyId,
+  syncRoomBasePrices,
   listRatePlanRooms,
   listRoomTypes,
 } from "@/lib/database";
 import { eligibleMasters, findDerivationLoop, ruleProblem } from "@/lib/ratePlanPricing";
 import { validDayUseHours } from "@/lib/dayUse";
+
+/** Room base prices follow the rate plans; a failure here must not undo the save. */
+async function syncBasePrices(propertyId) {
+  if (!propertyId) return;
+  await syncRoomBasePrices(propertyId).catch((err) =>
+    console.error("Room base price sync failed:", err.message)
+  );
+}
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -191,14 +201,16 @@ export async function PATCH(req) {
   }
 
   try {
-    return NextResponse.json({ ratePlan: await updateRatePlanDerivation(id, body) });
+    const ratePlan = await updateRatePlanDerivation(id, body);
+    await syncBasePrices(ratePlan?.property_id || propertyId);
+    return NextResponse.json({ ratePlan });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
 export async function DELETE(req) {
-  const { error } = await guard(req);
+  const { error, session } = await guard(req);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");
@@ -207,7 +219,13 @@ export async function DELETE(req) {
   }
 
   try {
+    // The id alone names the plan, so check it is one of this user's.
+    const plan = await getRatePlan(id);
+    if (!plan || !(await resolvePropertyId(session, plan.property_id))) {
+      return NextResponse.json({ error: "Rate plan not found" }, { status: 404 });
+    }
     await deleteRatePlan(id);
+    await syncBasePrices(plan.property_id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

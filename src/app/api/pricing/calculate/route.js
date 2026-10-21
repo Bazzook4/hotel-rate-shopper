@@ -31,6 +31,7 @@ import {
 } from "@/lib/pricingSignals";
 import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
+import { roomBasePrice } from "@/lib/ratePlanPricing";
 
 const DEFAULT_DAYS = 14;
 const MAX_DAYS = 60;
@@ -151,7 +152,7 @@ export async function POST(req) {
     for (const date of dates) {
       const currentRate =
         overrideByCell[`${room.id}|${date}`] ??
-        (room.base_price != null ? Number(room.base_price) : null);
+        roomBasePrice(room);
       if (!currentRate) continue;
 
       // Signals and rules work from the rate without last run's rules in it.

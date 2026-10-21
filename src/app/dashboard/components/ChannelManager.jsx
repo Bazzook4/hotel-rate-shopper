@@ -6,7 +6,7 @@ import DateToolbar, { ToolbarField } from "./DateToolbar";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import { DateSignals, SuggestionDialog, SuggestionRow, useMarketSignals } from "./marketSignals";
 import Dropdown from "../../components/Dropdown";
-import { gridOwnRateAt, roomRateResolver } from "@/lib/ratePlanPricing";
+import { cellPricer, datesBetween, isoDate, ratesToUpdates, storedRateRows } from "@/lib/cmRates";
 import { CHANNEL_LABELS } from "@/lib/channels";
 import { usePageState } from "./usePageState";
 import { DemandKey, useDemandPrefs } from "./DemandColours";
@@ -16,10 +16,6 @@ import { demandFor } from "@/lib/demandColours";
 
 // Each OTA's own brand colour, so these stay fixed rather than following
 // the theme palette.
-
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
-}
 
 function buildDates(start, days) {
   const out = [];
@@ -68,31 +64,6 @@ function minOf(a, b) {
   if (a === null || a === undefined) return b ?? null;
   if (b === null || b === undefined) return a;
   return Math.min(a, b);
-}
-
-/**
- * Group rate rows into one update per date, in the shape the push route
- * translates.
- *
- * The room comes from the row itself rather than from the plan, so a rate
- * priced in one room is never sent against another.
- */
-function ratesToUpdates(rows) {
-  const byDate = {};
-  for (const row of rows) {
-    if (!row.room_type_id) continue;
-    (byDate[row.stay_date] ||= []).push({
-      roomCode: row.room_type_id,
-      rateplanCode: row.rate_plan_id,
-      occupancy: row.occupancy,
-      rate: Number(row.rate),
-    });
-  }
-  return Object.entries(byDate).map(([date, entries]) => ({
-    startDate: date,
-    endDate: date,
-    rates: entries,
-  }));
 }
 
 /**
@@ -225,29 +196,6 @@ async function sendRestrictions(cells, rooms, channels, propertyId) {
     if (!res.ok) throw new Error(last?.error || "Restriction push failed");
   }
   return last;
-}
-
-/**
- * Prices any cell on any date the way the server does, over the grid's own
- * per-date values: an unsaved edit, else the stored rate, else the room
- * rate's standing rate. A derived room rate follows its source on the same
- * date, so typing a master's Friday moves every plan derived from it on
- * Friday before anything is saved. Null for a grid from before the server
- * sent its pricing setup.
- */
-function cellPricer(grid, edits) {
-  const p = grid?.pricing;
-  if (!p) return null;
-  const stored = grid.dailyRates || {};
-  return roomRateResolver({
-    ...p,
-    ownRateAt: gridOwnRateAt(p.assignments, p.roomTypes),
-    dailyAt: (planId, roomId, occupancy, date) => {
-      const k = `${planId}|${roomId}|${occupancy}|${date}`;
-      const v = edits?.[k] ?? stored[k]?.rate;
-      return v === "" || v === null || v === undefined ? null : v;
-    },
-  });
 }
 
 /**
@@ -1090,14 +1038,7 @@ export default function ChannelManager({ session }) {
 
       // Every date in the range, since a resync now sends a rate for dates
       // that have no stored row of their own.
-      const resyncDates = [];
-      for (
-        let d = new Date(`${resyncFrom}T00:00:00Z`);
-        isoDate(d) <= resyncTo;
-        d.setUTCDate(d.getUTCDate() + 1)
-      ) {
-        resyncDates.push(isoDate(d));
-      }
+      const resyncDates = datesBetween(resyncFrom, resyncTo);
 
       // An empty selection means everything, so a resync with no boxes
       // ticked still does the obvious thing.
@@ -1106,41 +1047,11 @@ export default function ChannelManager({ session }) {
       const planWanted = (id) =>
         resyncPlans.length === 0 || resyncPlans.includes(id);
 
-      // Walk the grid itself rather than the stored rows, so a date that was
-      // never explicitly priced still sends the rate the grid shows for it:
-      // the plan's rack rate, resolved for that room and adult count. The
-      // fallback order matches what a cell displays, so what goes out is
-      // what is on screen.
-      const rateRows = [];
-      if (resyncWhat.rates) {
-        const storedRates = json.dailyRates || {};
-        // Stored values only -- a resync sends what is saved, not edits.
-        const stored = cellPricer(json, {});
-        for (const room of json.rooms || []) {
-          if (!roomWanted(room.id)) continue;
-          for (const plan of room.plans || []) {
-            if (!planWanted(plan.id)) continue;
-            for (const occ of plan.occupancies || []) {
-              for (const stay_date of resyncDates) {
-                const key = `${plan.id}|${room.id}|${occ.occupancy}|${stay_date}`;
-                const rate = stored
-                  ? stored.rate(plan.id, room.id, occ.occupancy, stay_date)
-                  : storedRates[key]?.rate ?? occ.resolvedRate ?? plan.resolvedRate ?? null;
-                // A plan with no rate anywhere in the chain has nothing to
-                // send; pushing a null would blank it on the channel.
-                if (rate === null || rate === undefined || rate === "") continue;
-                rateRows.push({
-                  rate_plan_id: plan.id,
-                  room_type_id: room.id,
-                  occupancy: occ.occupancy,
-                  stay_date,
-                  rate,
-                });
-              }
-            }
-          }
-        }
-      }
+      // A date never explicitly priced still sends the rate the grid shows
+      // for it: the plan's rack rate, resolved for that room and adult count.
+      const rateRows = resyncWhat.rates
+        ? storedRateRows(json, resyncDates, { roomWanted, planWanted })
+        : [];
 
       // Stored restrictions only, with each channel's own stop sell.
       const restrictionRows = resyncWhat.restrictions

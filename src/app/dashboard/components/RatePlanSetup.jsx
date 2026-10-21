@@ -14,6 +14,7 @@ import {
   ruleById,
   ruleProblem,
 } from "@/lib/ratePlanPricing";
+import { isoDate, sendPlanRates } from "@/lib/cmRates";
 import { Grid, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
 import { useEscape } from "../../components/useEscape";
@@ -399,10 +400,10 @@ export default function RatePlanSetup({
                             <button
                               type="button"
                               className="chip chip-warn"
-                              title="No per-adult rates yet, so the room's base price is sold"
+                              title="No per-adult rates yet, so this room is not sold on this plan"
                               onClick={() => setDrawer({ kind: "room", plan, room })}
                             >
-                              Set rates, base {fmt(room.base_price)} in use
+                              Set rates
                             </button>
                           ) : (
                             <span>
@@ -658,15 +659,30 @@ export function RowMenu({ title, items }) {
 /* Drawer and its fields                                                */
 /* ------------------------------------------------------------------ */
 
-export function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", busy, error, children }) {
-  useEscape(onCancel);
+export function Drawer({
+  title,
+  subtitle,
+  onCancel,
+  onSave,
+  saveLabel = "Save",
+  busyLabel = "Saving...",
+  cancelLabel = "Cancel",
+  busy,
+  error,
+  children,
+}) {
+  // Closing mid-save would drop the request's outcome on the floor.
+  const cancel = () => {
+    if (!busy) onCancel();
+  };
+  useEscape(cancel);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
       <button
         type="button"
         aria-label="Close"
-        onClick={onCancel}
+        onClick={cancel}
         className="flex-1"
         style={{ background: "rgba(15, 23, 42, 0.45)" }}
       />
@@ -683,16 +699,16 @@ export function Drawer({ title, subtitle, onCancel, onSave, saveLabel = "Save", 
             {subtitle && <p className="sub truncate">{subtitle}</p>}
           </div>
           <div className="flex flex-shrink-0 gap-2">
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>
-              Cancel
+            <button type="button" className="btn btn-secondary" onClick={cancel} disabled={busy}>
+              {cancelLabel}
             </button>
             <button type="button" className="btn btn-primary" onClick={onSave} disabled={busy}>
-              {busy ? "Saving..." : saveLabel}
+              {busy ? busyLabel : saveLabel}
             </button>
           </div>
         </div>
         {error && (
-          <div className="px-5 py-2 text-sm" style={{ color: "var(--danger)", background: "var(--danger-soft)" }}>
+          <div role="alert" className="px-5 py-2 text-sm" style={{ color: "var(--danger)", background: "var(--danger-soft)" }}>
             {error}
           </div>
         )}
@@ -872,13 +888,21 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
     release_period: orBlank(plan?.release_period),
     stop_sell: Boolean(plan?.stop_sell),
     min_rate: orBlank(plan?.min_rate),
-    is_master: Boolean(plan?.is_master),
+    // The first plan is the main plan: room base prices are read from it.
+    is_master: plan ? Boolean(plan.is_master) : !ratePlans.some((p) => p.is_master),
     derive_from_id: plan?.derive_from_id ?? "",
     derive_method: plan?.derive_method ?? "",
     derive_value: orBlank(plan?.derive_value),
     derive_value_2: orBlank(plan?.derive_value_2),
   }));
-  const [newRooms, setNewRooms] = useState(() => new Set());
+  // A new plan sells in every room unless some are unticked.
+  const [newRooms, setNewRooms] = useState(() => new Set(plan ? [] : roomTypes.map((r) => r.id)));
+  // Once a new plan is created the drawer walks on to its rates, then to
+  // sending them: { id, name, roomIds, step: "rates" | "send" }.
+  const [created, setCreated] = useState(null);
+  // Set as soon as a new plan is stored, so a retry after a room fails to
+  // save updates that plan instead of creating a second one.
+  const [newId, setNewId] = useState(null);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   // A day-use plan sells hours of one day, so stay lengths in nights mean
   // nothing on it.
@@ -947,15 +971,26 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
     };
     try {
       if (isNew) {
-        const json = await sendJSON("/api/setup/ratePlans", "POST", {
-          ...body,
-          property_id: propertyId || undefined,
-        });
-        const id = json?.ratePlan?.id;
+        let id = newId;
+        if (id) {
+          await sendJSON("/api/setup/ratePlans", "PATCH", { id, property_id: propertyId || undefined, ...body });
+        } else {
+          const json = await sendJSON("/api/setup/ratePlans", "POST", {
+            ...body,
+            property_id: propertyId || undefined,
+          });
+          id = json?.ratePlan?.id;
+          setNewId(id);
+        }
         for (const roomId of newRooms) {
           await saveRoomRate({ rate_plan_id: id, room_type_id: roomId });
         }
-        await onSaved(`Added ${body.plan_name}.`);
+        if (newRooms.size === 0) {
+          await onSaved(`Added ${body.plan_name}. Assign room types to start selling it.`);
+        } else {
+          // A plan based on another already has its rates, shown on step 1.
+          setCreated({ id, name: body.plan_name, roomIds: [...newRooms], derived, step: derived ? "send" : "rates" });
+        }
       } else {
         await sendJSON("/api/setup/ratePlans", "PATCH", {
           id: plan.id,
@@ -971,13 +1006,36 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
     }
   }
 
+  if (created) {
+    const steps = created.derived ? 2 : 3;
+    const later = (msg) => onSaved(`Added ${created.name}. ${msg}`);
+    return created.step === "rates" ? (
+      <PlanRatesStep
+        plan={created}
+        rooms={roomTypes.filter((r) => created.roomIds.includes(r.id))}
+        subtitle={`${created.name}, step 2 of ${steps}: rates`}
+        saveRoomRate={saveRoomRate}
+        onLater={() => later("Set its rates from each room's row.")}
+        onDone={() => setCreated((c) => ({ ...c, step: "send" }))}
+      />
+    ) : (
+      <PlanSendStep
+        plan={created}
+        propertyId={propertyId}
+        subtitle={`${created.name}, step ${steps} of ${steps}: send to channels`}
+        onLater={() => later("Send its rates later with Resync in the Channel Manager.")}
+        onSent={(days) => onSaved(`Added ${created.name} and sent its rates for ${days} days to channels.`)}
+      />
+    );
+  }
+
   return (
     <Drawer
       title={isNew ? "Add rate plan" : "Edit rate plan"}
       subtitle={isNew ? null : plan.plan_name}
       onCancel={onClose}
       onSave={save}
-      saveLabel={isNew ? "Create" : "Save"}
+      saveLabel={isNew && !derived && newRooms.size > 0 ? "Next: rates" : isNew ? "Create" : "Save"}
       busy={busy}
       error={error}
     >
@@ -1032,31 +1090,6 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
         <Field label="Description" hint="For your own reference. Guests never see this.">
           <textarea className="input" rows={2} value={form.description} onChange={(e) => set({ description: e.target.value })} />
         </Field>
-      </Section>
-
-      <Section title="Restrictions">
-        <p className="text-xs faint">Defaults for every room rate on this plan. A room rate can unlock and change any of them.</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {!dayUse && (
-            <>
-              <Field label="Default minimum stay">
-                <input type="number" min="1" className="input" value={form.min_stay} onChange={(e) => set({ min_stay: e.target.value })} placeholder="None" />
-              </Field>
-              <Field label="Default maximum stay">
-                <input type="number" min="1" className="input" value={form.max_stay} onChange={(e) => set({ max_stay: e.target.value })} placeholder="None" />
-              </Field>
-            </>
-          )}
-          <Field label="Release period" hint="Days before arrival the plan closes.">
-            <input type="number" min="0" className="input" value={form.release_period} onChange={(e) => set({ release_period: e.target.value })} placeholder="None" />
-          </Field>
-          <Field label="Default stop sell">
-            <label className="flex h-[38px] items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.stop_sell} onChange={(e) => set({ stop_sell: e.target.checked })} />
-              Yes
-            </label>
-          </Field>
-        </div>
       </Section>
 
       <Section title="Pricing details">
@@ -1133,7 +1166,7 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
               ))}
             </div>
             {!derived && newRooms.size > 0 && (
-              <p className="mt-1 text-xs faint">Set each room&apos;s per-adult rates from its row after creating the plan.</p>
+              <p className="mt-1 text-xs faint">You enter their rates on the next step.</p>
             )}
           </div>
         )}
@@ -1170,6 +1203,258 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
           </div>
         )}
       </Section>
+
+      <Section title="Restrictions">
+        <p className="text-xs faint">Defaults for every room rate on this plan. A room rate can unlock and change any of them.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {!dayUse && (
+            <>
+              <Field label="Default minimum stay">
+                <input type="number" min="1" className="input" value={form.min_stay} onChange={(e) => set({ min_stay: e.target.value })} placeholder="None" />
+              </Field>
+              <Field label="Default maximum stay">
+                <input type="number" min="1" className="input" value={form.max_stay} onChange={(e) => set({ max_stay: e.target.value })} placeholder="None" />
+              </Field>
+            </>
+          )}
+          <Field label="Release period" hint="Days before arrival the plan closes.">
+            <input type="number" min="0" className="input" value={form.release_period} onChange={(e) => set({ release_period: e.target.value })} placeholder="None" />
+          </Field>
+          <Field label="Default stop sell">
+            <label className="flex h-[38px] items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.stop_sell} onChange={(e) => set({ stop_sell: e.target.checked })} />
+              Yes
+            </label>
+          </Field>
+        </div>
+      </Section>
+    </Drawer>
+  );
+}
+
+/**
+ * Step 2 of a new plan: each room's rates, typed once here rather than room
+ * by room afterwards. Adults up to the room's base adults are priced one by
+ * one; each adult above that pays the extra adult rate.
+ */
+function PlanRatesStep({ plan, rooms, subtitle, saveRoomRate, onLater, onDone }) {
+  const dialog = useDialog();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const baseOf = (r) => Math.max(1, Number(r.base_adults) || 0);
+  const hasExtra = (r) => (Number(r.max_adults) || 0) > baseOf(r);
+  const widest = Math.max(1, ...rooms.map(baseOf));
+  const [rates, setRates] = useState(() =>
+    Object.fromEntries(rooms.map((r) => [r.id, { adults: {}, extra_adult_rate: "", extra_child_rate: "" }]))
+  );
+  const setRoom = (id, patch) => setRates((all) => ({ ...all, [id]: { ...all[id], ...patch } }));
+
+  function problem() {
+    for (const r of rooms) {
+      const row = rates[r.id];
+      for (let n = 1; n <= baseOf(r); n++) {
+        const v = row.adults[n];
+        const who = `${n} adult${n === 1 ? "" : "s"} in ${r.room_type_name}`;
+        if (blank(v)) return `Enter the rate for ${who}.`;
+        // A 0 would be sent to the OTAs as a free room.
+        if (!(Number(v) > 0)) return `The rate for ${who} must be more than 0.`;
+      }
+      if ([row.extra_adult_rate, row.extra_child_rate].some((v) => !blank(v) && !(Number(v) >= 0))) {
+        return `Extra adult and extra child rates in ${r.room_type_name} must be zero or more.`;
+      }
+    }
+    return "";
+  }
+
+  async function save() {
+    const p = problem();
+    if (p) return setError(p);
+    setBusy(true);
+    setError("");
+    try {
+      for (const r of rooms) {
+        const row = rates[r.id];
+        await saveRoomRate({
+          rate_plan_id: plan.id,
+          room_type_id: r.id,
+          adult_rates: Object.fromEntries(
+            Object.entries(row.adults).filter(([n, v]) => Number(n) <= baseOf(r) && !blank(v)).map(([n, v]) => [n, Number(v)])
+          ),
+          extra_adult_rate: hasExtra(r) ? numOrNull(row.extra_adult_rate) : null,
+          extra_child_rate: numOrNull(row.extra_child_rate),
+        });
+      }
+      onDone();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  const cell = { width: 80, padding: "4px 6px" };
+  const head = { padding: "0.55rem 0.5rem", whiteSpace: "normal" };
+  const typed = rooms.some((r) => {
+    const row = rates[r.id];
+    return [...Object.values(row.adults), row.extra_adult_rate, row.extra_child_rate].some((v) => !blank(v));
+  });
+
+  async function skip() {
+    if (typed) {
+      const yes = await dialog.confirm({
+        title: "Discard the rates you typed?",
+        message: "The plan is kept. You can set its rates later from each room's row.",
+        confirmLabel: "Discard",
+        cancelLabel: "Keep editing",
+      });
+      if (!yes) return;
+    }
+    onLater();
+  }
+
+  return (
+    <Drawer
+      title="Add rate plan"
+      subtitle={subtitle}
+      onCancel={skip}
+      cancelLabel="Set later"
+      onSave={save}
+      saveLabel="Next: send"
+      busy={busy}
+      error={error}
+    >
+      <p className="text-sm muted">
+        Rate per night. Each adult above a room&apos;s base adults pays the extra adult rate.
+      </p>
+      <div className="overflow-x-auto card" style={{ padding: 0 }}>
+        <table className="grid-table">
+          <thead>
+            <tr>
+              <th className="cm-sticky" style={head}>Room</th>
+              {Array.from({ length: widest }, (_, i) => (
+                <th key={i} className="text-right" style={head}>
+                  {i + 1} adult{i ? "s" : ""}
+                </th>
+              ))}
+              <th className="text-right" style={head}>Extra adult</th>
+              <th className="text-right" style={head}>Extra child</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rooms.map((r, ri) => {
+              const row = rates[r.id];
+              const input = (value, onChange, label, autoFocus = false) => (
+                <input
+                  type="number"
+                  min="0"
+                  inputMode="decimal"
+                  className="input text-right"
+                  aria-label={`${r.room_type_name} ${label}`}
+                  value={value}
+                  onChange={(e) => onChange(e.target.value)}
+                  autoFocus={autoFocus}
+                />
+              );
+              return (
+                <tr key={r.id}>
+                  <td className="cm-sticky">{r.room_type_name}</td>
+                  {Array.from({ length: widest }, (_, i) => (
+                    <td key={i} style={cell}>
+                      {i + 1 <= baseOf(r) ? (
+                        input(
+                          row.adults[i + 1] ?? "",
+                          (v) => setRoom(r.id, { adults: { ...row.adults, [i + 1]: v } }),
+                          `${i + 1} adult rate`,
+                          ri === 0 && i === 0
+                        )
+                      ) : (
+                        <span className="faint">-</span>
+                      )}
+                    </td>
+                  ))}
+                  <td style={cell}>
+                    {hasExtra(r) ? (
+                      input(row.extra_adult_rate, (v) => setRoom(r.id, { extra_adult_rate: v }), "extra adult rate")
+                    ) : (
+                      <span className="faint">-</span>
+                    )}
+                  </td>
+                  <td style={cell}>{input(row.extra_child_rate, (v) => setRoom(r.id, { extra_child_rate: v }), "extra child rate")}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Drawer>
+  );
+}
+
+/** The longest span a new plan's rates are sent for in one go. */
+const SEND_MAX_DAYS = 366;
+
+/**
+ * Last step of a new plan: send its rates to the channels, since saving a
+ * plan stores its rates but the OTAs only know what they are sent. Goes out
+ * exactly as a Channel Manager resync of this plan would.
+ */
+function PlanSendStep({ plan, propertyId, subtitle, onLater, onSent }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const today = isoDate(new Date());
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(() => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 364);
+    return isoDate(d);
+  });
+  const days = from && to ? Math.round((Date.parse(to) - Date.parse(from)) / 86400000) + 1 : 0;
+  const lastDay = from ? isoDate(new Date(Date.parse(from) + (SEND_MAX_DAYS - 1) * 86400000)) : undefined;
+
+  async function send() {
+    if (!(days >= 1)) return setError("The end date is before the start date.");
+    if (days > SEND_MAX_DAYS) return setError(`Send at most ${SEND_MAX_DAYS} days at a time.`);
+    setBusy(true);
+    setError("");
+    try {
+      const count = await sendPlanRates({ planId: plan.id, from, to, propertyId });
+      if (count === 0) {
+        setError("This plan has no rates to send yet. Set its rates first, or send them later.");
+        setBusy(false);
+        return;
+      }
+      onSent(days);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Drawer
+      title="Add rate plan"
+      subtitle={subtitle}
+      onCancel={onLater}
+      cancelLabel="Send later"
+      onSave={send}
+      busyLabel="Sending..."
+      saveLabel={days >= 1 ? `Send ${days} day${days === 1 ? "" : "s"}` : "Send"}
+      busy={busy}
+      error={error}
+    >
+      <p className="text-sm muted">
+        {plan.derived
+          ? "The plan's rates are worked out from the plan it is based on."
+          : "The plan's rates are saved."}{" "}
+        The channels only sell it once its rates are sent.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="From">
+          <input type="date" className="input" value={from} min={today} onChange={(e) => setFrom(e.target.value)} autoFocus />
+        </Field>
+        <Field label="To">
+          <input type="date" className="input" value={to} min={from} max={lastDay} onChange={(e) => setTo(e.target.value)} />
+        </Field>
+      </div>
     </Drawer>
   );
 }
@@ -1408,35 +1693,6 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
         </div>
       </Section>
 
-      <Section title="Restrictions">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <LockField label="Default minimum stay" inherited={show(plan.min_stay)} {...lock("min_stay", plan.min_stay)}>
-            <input type="number" min="1" className="input" value={orBlank(form.min_stay)} onChange={(e) => set({ min_stay: e.target.value })} />
-          </LockField>
-          <LockField label="Default maximum stay" inherited={show(plan.max_stay, "Max. allowed booking nights")} {...lock("max_stay", plan.max_stay)}>
-            <input type="number" min="1" className="input" value={orBlank(form.max_stay)} onChange={(e) => set({ max_stay: e.target.value })} />
-          </LockField>
-          <LockField label="Release period" inherited={show(plan.release_period)} {...lock("release_period", plan.release_period)}>
-            <input type="number" min="0" className="input" value={orBlank(form.release_period)} onChange={(e) => set({ release_period: e.target.value })} />
-          </LockField>
-          <LockField
-            label="Default stop sell"
-            inherited={plan.stop_sell ? "Yes" : "No"}
-            locked={form.stop_sell === null}
-            onUnlock={() => set({ stop_sell: Boolean(plan.stop_sell) })}
-            onLock={() => set({ stop_sell: null })}
-          >
-            <label className="flex h-[38px] items-center gap-2 text-sm">
-              <input type="checkbox" checked={Boolean(form.stop_sell)} onChange={(e) => set({ stop_sell: e.target.checked })} />
-              Yes
-            </label>
-          </LockField>
-        </div>
-        <p className="text-xs faint">
-          Inclusions come from the plan: {plan.meal_plan || "-"}: {MEAL_PLANS.find((m) => m.code === plan.meal_plan)?.hint || "not set"}.
-        </p>
-      </Section>
-
       <Section title="Pricing details">
         <div style={{ maxWidth: 280 }}>
           <LockField label="Minimum rate" inherited={show(plan.min_rate)} {...lock("min_rate", plan.min_rate)}>
@@ -1540,6 +1796,35 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
             </Field>
           </div>
         </div>
+      </Section>
+
+      <Section title="Restrictions">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <LockField label="Default minimum stay" inherited={show(plan.min_stay)} {...lock("min_stay", plan.min_stay)}>
+            <input type="number" min="1" className="input" value={orBlank(form.min_stay)} onChange={(e) => set({ min_stay: e.target.value })} />
+          </LockField>
+          <LockField label="Default maximum stay" inherited={show(plan.max_stay, "Max. allowed booking nights")} {...lock("max_stay", plan.max_stay)}>
+            <input type="number" min="1" className="input" value={orBlank(form.max_stay)} onChange={(e) => set({ max_stay: e.target.value })} />
+          </LockField>
+          <LockField label="Release period" inherited={show(plan.release_period)} {...lock("release_period", plan.release_period)}>
+            <input type="number" min="0" className="input" value={orBlank(form.release_period)} onChange={(e) => set({ release_period: e.target.value })} />
+          </LockField>
+          <LockField
+            label="Default stop sell"
+            inherited={plan.stop_sell ? "Yes" : "No"}
+            locked={form.stop_sell === null}
+            onUnlock={() => set({ stop_sell: Boolean(plan.stop_sell) })}
+            onLock={() => set({ stop_sell: null })}
+          >
+            <label className="flex h-[38px] items-center gap-2 text-sm">
+              <input type="checkbox" checked={Boolean(form.stop_sell)} onChange={(e) => set({ stop_sell: e.target.checked })} />
+              Yes
+            </label>
+          </LockField>
+        </div>
+        <p className="text-xs faint">
+          Inclusions come from the plan: {plan.meal_plan || "-"}: {MEAL_PLANS.find((m) => m.code === plan.meal_plan)?.hint || "not set"}.
+        </p>
       </Section>
     </Drawer>
   );

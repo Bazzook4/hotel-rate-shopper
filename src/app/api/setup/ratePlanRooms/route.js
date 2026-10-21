@@ -10,8 +10,17 @@ import {
   listRatePlans,
   listRoomTypes,
   getUserPropertyId,
+  syncRoomBasePrices,
 } from "@/lib/database";
 import { findDerivationLoop, ruleProblem } from "@/lib/ratePlanPricing";
+
+/** Room base prices follow the rate plans; a failure here must not undo the save. */
+async function syncBasePrices(propertyId) {
+  if (!propertyId) return;
+  await syncRoomBasePrices(propertyId).catch((err) =>
+    console.error("Room base price sync failed:", err.message)
+  );
+}
 
 /**
  * The property this request may act on, or null.
@@ -125,6 +134,7 @@ export async function PUT(req) {
 
   try {
     const saved = await saveRatePlanRooms(propertyId, ratePlanId, rooms);
+    await syncBasePrices(propertyId);
     return NextResponse.json({ assigned: saved.length });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -273,6 +283,7 @@ export async function PATCH(req) {
       ...row,
       base_adults: room?.base_adults,
     });
+    await syncBasePrices(propertyId);
     return NextResponse.json({ roomRate: saved });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -291,6 +302,7 @@ export async function DELETE(req) {
 
   try {
     await deleteRatePlanRoom(propertyId, ratePlanId, roomTypeId);
+    await syncBasePrices(propertyId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

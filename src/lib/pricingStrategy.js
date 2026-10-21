@@ -8,6 +8,8 @@
  * should not have to.
  */
 
+import { roomBasePrice } from "./ratePlanPricing";
+
 /** Daily move caps behind the three boldness choices. */
 export const BOLDNESS = {
   cautious: { label: "Cautious", maxChangePct: 10 },
@@ -34,7 +36,7 @@ export const DEFAULT_CEILING_PCT = 250;
  * Setup carries its bounds with it.
  */
 export function effectiveBounds(room, boundRow, strategy) {
-  const base = room?.base_price != null ? Number(room.base_price) : null;
+  const base = roomBasePrice(room);
   const floorPct = Number(strategy?.floor_pct ?? DEFAULT_FLOOR_PCT);
   const ceilingPct = Number(strategy?.ceiling_pct ?? DEFAULT_CEILING_PCT);
 

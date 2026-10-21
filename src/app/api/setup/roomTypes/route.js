@@ -9,6 +9,7 @@ import {
   updateRoomType,
   deleteRoomType,
   getUserPropertyId,
+  syncRoomBasePrices,
 } from "@/lib/database";
 import { syncInventoryForward } from "@/lib/inventorySync";
 import { capProblem, roomCap } from "@/lib/roomCap";
@@ -103,7 +104,7 @@ export async function POST(req) {
     );
     if (tooMany) return NextResponse.json({ error: tooMany }, { status: 400 });
 
-    const roomType = await createRoomType({ ...body, property_id: propertyId });
+    const roomType = await createRoomType({ ...body, base_price: 0, property_id: propertyId });
     return NextResponse.json({ roomType });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -121,7 +122,8 @@ export async function PATCH(req) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { id, ...updates } = body || {};
+  // Rooms are priced in Rate Plans, so a typed base price is not taken.
+  const { id, base_price: _ignored, ...updates } = body || {};
   if (!id) {
     return NextResponse.json({ error: "Room type id is required" }, { status: 400 });
   }
@@ -143,6 +145,12 @@ export async function PATCH(req) {
     }
 
     const roomType = await updateRoomType(id, updates);
+    // Base adults decide which adult count the base price is read at.
+    if ("base_adults" in updates) {
+      await syncRoomBasePrices(current.property_id).catch((err) =>
+        console.error("Room base price sync failed:", err.message)
+      );
+    }
 
     // The count is the capacity of a room type with no numbered rooms, so
     // editing it changes what every future night can sell.

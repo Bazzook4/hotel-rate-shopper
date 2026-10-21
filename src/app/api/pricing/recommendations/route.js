@@ -10,6 +10,7 @@ import { effectiveBounds } from "@/lib/pricingStrategy";
 import { resolvePropertyId } from "@/lib/propertyScope";
 import { addDays, clampToToday, formatDateISO, parseDateISO } from "@/lib/date";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
+import { roomBasePrice } from "@/lib/ratePlanPricing";
 
 const DEFAULT_DAYS = 14;
 
@@ -60,7 +61,7 @@ export async function GET(req) {
     return {
       roomTypeId: room.id,
       name: room.room_type_name,
-      basePrice: room.base_price == null ? null : Number(room.base_price),
+      basePrice: roomBasePrice(room),
       floor: b.floor_rate,
       ceiling: b.ceiling_rate,
       cells: {},

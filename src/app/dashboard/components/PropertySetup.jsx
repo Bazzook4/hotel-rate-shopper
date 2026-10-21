@@ -156,7 +156,6 @@ const BLANK_ROOM_TYPE = {
   room_type_name: "",
   description: "",
   number_of_rooms: "",
-  base_price: "",
   base_adults: "2",
   max_adults: "",
 };
@@ -180,7 +179,7 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
       r.room_type_name?.toLowerCase().includes(filter.toLowerCase())
   );
 
-  const numberFields = ["number_of_rooms", "base_price", "base_adults", "max_adults"];
+  const numberFields = ["number_of_rooms", "base_adults", "max_adults"];
   function clean(row) {
     const out = {};
     for (const [k, v] of Object.entries(row)) {
@@ -212,7 +211,6 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
         if (!d.room_type_name?.trim()) throw new Error("Name is required");
         return sendJSON("/api/setup/roomTypes", "POST", {
           ...clean(d),
-          base_price: Number(d.base_price) || 0,
           number_of_rooms: Number(d.number_of_rooms) || 0,
           property_id: propertyId || undefined,
         });
@@ -229,7 +227,7 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
       <SetupHeader
         title="Rooms"
         count={roomTypes.length}
-        sub="The room types you sell, how many of each, and their base price."
+        sub="The room types you sell and how many of each. Prices are set in Rate Plans."
       >
         {/* Counted from the room types, not the numbered rooms, which show
             their own count in the section below. */}
@@ -267,7 +265,6 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
             </th>
             <th style={{ minWidth: 220 }}>Description</th>
             <th style={{ width: 100 }}>Rooms</th>
-            <th style={{ width: 120 }}>Base price</th>
             <th style={{ width: 100 }} title="Adults the room is priced for">
               Base adults
             </th>
@@ -292,7 +289,6 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
                 </td>
                 <td>{grid.input(r, "description", { placeholder: "-" })}</td>
                 <td>{grid.input(r, "number_of_rooms", { type: "number", min: 0 })}</td>
-                <td>{grid.input(r, "base_price", { type: "number", min: 0 })}</td>
                 <td>{grid.input(r, "base_adults", { type: "number", min: 1 })}</td>
                 <td>{grid.input(r, "max_adults", { type: "number", min: 1 })}</td>
                 <td className="text-center">
@@ -312,7 +308,7 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={7} className="cm-empty">
+              <td colSpan={6} className="cm-empty">
                 {roomTypes.length ? `No room types match "${filter}".` : "No room types yet."}
               </td>
             </tr>

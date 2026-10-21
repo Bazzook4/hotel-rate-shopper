@@ -16,6 +16,7 @@ import {
   describeRule,
   gridOwnRateAt,
   plansForRoom,
+  roomBasePrice,
   roomRateResolver,
 } from "@/lib/ratePlanPricing";
 import { planLabel } from "@/lib/mealPlans";
@@ -179,7 +180,7 @@ export async function GET(req) {
         partnerCode: codeByRoom[room.id] || null,
         count: room.number_of_rooms,
         maxAdults,
-        basePrice: Number(room.base_price),
+        basePrice: roomBasePrice(room),
         plans: plans.map((p) => ({
           id: p.id,
           name: p.plan_name,

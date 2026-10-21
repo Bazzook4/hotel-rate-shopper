@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "Rates are set in Rate Plans, with a step by step start",
+    points: [
+      {
+        page: "rooms",
+        text: "The Rooms page no longer asks for a price. Rooms only say how many you have and how many adults they take. Every rate is now entered in Rate Plans.",
+      },
+      {
+        page: "rateplans",
+        text: "Adding a rate plan now takes you through it: first the plan, then the rate for each room, then sending those rates to your channels for the next year. You can stop after any step and finish later. The first plan you add becomes your main plan.",
+      },
+      {
+        page: "rateplans",
+        text: "In the rate plan drawer, Pricing details now comes before Restrictions.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "Room count set at sign-up",
     points: [
       {

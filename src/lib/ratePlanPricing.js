@@ -17,6 +17,8 @@
  * resulting rates to channels.
  */
 
+import { isDayUsePlan } from "./dayUse";
+
 /**
  * The rules a rate can be derived by, in the order the setup page lists them.
  * `steps` says which values the rule needs: the two-step rules apply the
@@ -350,9 +352,60 @@ export function gridOwnRateAt(assignments, roomTypes) {
     if (Number.isFinite(own)) return own;
     const full = num(a?.full_rate);
     if (Number.isFinite(full)) return full;
-    const price = num(roomById[roomId]?.base_price);
-    return Number.isFinite(price) ? price : null;
+    return roomBasePrice(roomById[roomId]);
   };
+}
+
+/**
+ * A room's base price, or null while it has none.
+ *
+ * Rooms are not priced on Room Setup: the base price is the main plan's rate
+ * at base adults, written by syncRoomBasePrices, and 0 means no main plan
+ * has priced the room yet -- never a rate to sell or push.
+ */
+export function roomBasePrice(room) {
+  const price = num(room?.base_price);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+/**
+ * Each room's base price as the rate plans set it: { roomId: rate | null }.
+ *
+ * The rate at base adults on the first plan that prices the room, main
+ * plans first. Day-use plans are skipped, since a few hours' price is not
+ * what a night is worth. Only typed and derived rates count -- the old base
+ * price is never read back, so a cleared rate does not linger.
+ */
+export function baseRatesFromPlans({ ratePlans, assignments, roomTypes }) {
+  const own = {};
+  for (const a of assignments || []) own[key(a.rate_plan_id, a.room_type_id)] = a;
+  const resolver = roomRateResolver({
+    ratePlans,
+    assignments,
+    roomTypes,
+    ownRateAt: (planId, roomId, adults) => {
+      const a = own[key(planId, roomId)];
+      const typed = num(a?.adult_rates?.[adults] ?? a?.adult_rates?.[String(adults)]);
+      if (Number.isFinite(typed)) return typed;
+      const full = num(a?.full_rate);
+      return Number.isFinite(full) ? full : null;
+    },
+  });
+  const nightly = (ratePlans || []).filter((p) => !isDayUsePlan(p));
+  const ordered = [...nightly.filter((p) => p.is_master), ...nightly.filter((p) => !p.is_master)];
+  const out = {};
+  for (const room of roomTypes || []) {
+    out[room.id] = null;
+    for (const plan of ordered) {
+      if (!own[key(plan.id, room.id)]) continue;
+      const rate = resolver.rate(plan.id, room.id, resolver.baseAdultsOf(room.id));
+      if (Number.isFinite(rate) && rate > 0) {
+        out[room.id] = Math.round(rate * 100) / 100;
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 /**

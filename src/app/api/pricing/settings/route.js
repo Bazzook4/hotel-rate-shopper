@@ -16,6 +16,7 @@ import {
   DEFAULT_SCALES,
   DEFAULT_ADJUSTMENTS,
 } from "@/lib/pricingScales";
+import { roomBasePrice } from "@/lib/ratePlanPricing";
 
 /** Defaults are stored as null, so a property on them follows any improvement. */
 function orNull(value, defaults) {
@@ -50,7 +51,7 @@ export async function GET(req) {
     rooms: roomTypes.map((r) => ({
       roomTypeId: r.id,
       name: r.room_type_name,
-      basePrice: r.base_price == null ? null : Number(r.base_price),
+      basePrice: roomBasePrice(r),
       floor: boundsByRoom.get(r.id)?.floor_rate ?? null,
       ceiling: boundsByRoom.get(r.id)?.ceiling_rate ?? null,
     })),

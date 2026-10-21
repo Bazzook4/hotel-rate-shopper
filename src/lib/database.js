@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
-import { roomRateResolver } from '@/lib/ratePlanPricing';
+import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals } from '@/lib/taxes';
 import { toCountryCode } from '@/lib/countries';
 import { contractNights } from '@/lib/contractRates';
@@ -362,7 +362,8 @@ export async function createRoomType({ property_id, room_type_name, base_price, 
     room_type_id: roomTypeId,
     property_id: property_id,
     room_type_name: room_type_name,
-    base_price: Number(base_price),
+    // Rooms are priced in Rate Plans; syncRoomBasePrices fills this in.
+    base_price: Number(base_price) || 0,
     number_of_rooms: Number(number_of_rooms),
     base_adults: base_adults ? Number(base_adults) : null,
     max_adults: max_adults ? Number(max_adults) : null,
@@ -515,6 +516,19 @@ export async function updateRatePlan(id, updates) {
     throw new Error(`Failed to update rate plan: ${error.message}`);
   }
 
+  return data;
+}
+
+export async function getRatePlan(id) {
+  const { data, error } = await supabase
+    .from('rate_plans')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to get rate plan: ${error.message}`);
+  }
   return data;
 }
 
@@ -1910,6 +1924,36 @@ export async function upsertRatePlanRoom(propertyId, row) {
     throw new Error(`Failed to save room rate: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * Write each room's base price from the rate plans: the main plan's rate at
+ * base adults (see baseRatesFromPlans), or 0 while no plan prices the room.
+ *
+ * Dynamic pricing, quotes and the grid read room_types.base_price, but it is
+ * never typed -- rates are entered in Rate Plans only -- so every save that
+ * can move it calls this. Returns how many rooms changed.
+ */
+export async function syncRoomBasePrices(propertyId) {
+  const [ratePlans, roomTypes, assignments] = await Promise.all([
+    listRatePlans(propertyId),
+    listRoomTypes(propertyId),
+    listRatePlanRooms(propertyId),
+  ]);
+  const rates = baseRatesFromPlans({ ratePlans, assignments, roomTypes });
+  let changed = 0;
+  for (const room of roomTypes) {
+    const next = rates[room.id] ?? 0;
+    if (Number(room.base_price) === next) continue;
+    const { error } = await supabase
+      .from('room_types')
+      .update({ base_price: next })
+      .eq('id', room.id)
+      .eq('property_id', propertyId);
+    if (error) throw new Error(`Failed to update base price: ${error.message}`);
+    changed += 1;
+  }
+  return changed;
 }
 
 /** Take one room off a rate plan. */
@@ -5439,8 +5483,8 @@ export async function quoteReservation(
     }
 
     // No plan chosen, or nothing configured for it: the room's own price.
-    if (rate == null && room && Number.isFinite(Number(room.base_price))) {
-      rate = Number(room.base_price);
+    if (rate == null && roomBasePrice(room) != null) {
+      rate = roomBasePrice(room);
       sources.add('base_price');
     }
 
