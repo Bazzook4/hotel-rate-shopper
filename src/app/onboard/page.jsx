@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EMPTY_PROFILE, ProfileFields } from "../dashboard/components/PropertyProfile";
 import { profileGaps } from "@/lib/eventTags";
 import { guessCountry } from "@/lib/places";
@@ -18,6 +18,10 @@ export default function OnboardPage() {
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Bot traps the server checks: when the form opened, and a field only a
+  // script would fill.
+  const startedAt = useRef(0);
+  const [trap, setTrap] = useState("");
 
   useEffect(() => {
     // A first guess from the browser, after mount so the server render and
@@ -34,6 +38,7 @@ export default function OnboardPage() {
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (data.propertyName) setPropertyName(data.propertyName);
+        startedAt.current = Date.now();
         setLinkState("open");
       })
       .catch(() => setLinkState("gone"));
@@ -56,7 +61,15 @@ export default function OnboardPage() {
       const res = await fetch("/api/auth/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, propertyName, email, password, profile }),
+        body: JSON.stringify({
+          token,
+          propertyName,
+          email,
+          password,
+          profile,
+          website: trap,
+          startedAt: startedAt.current,
+        }),
         credentials: "include",
       });
       if (!res.ok) {
@@ -91,7 +104,7 @@ export default function OnboardPage() {
         {linkState === "gone" && (
           <div className="space-y-3 text-center">
             <p className="text-sm text-[var(--danger)]">
-              This onboarding link has expired or has already been used.
+              This onboarding link has expired, is full, or was switched off.
             </p>
             <p className="text-xs text-ink/70">
               Ask us for a new one, or <a href="/login" className="underline">sign in</a> if
@@ -103,6 +116,21 @@ export default function OnboardPage() {
         {linkState === "open" && (
           <>
             <div className="space-y-4">
+              {/* Hidden from people; a form-filling script fills it in. The
+                  odd name and autocomplete keep browsers from autofilling it. */}
+              <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+                <label>
+                  Leave this empty
+                  <input
+                    type="text"
+                    name="hp_company_url"
+                    value={trap}
+                    onChange={(e) => setTrap(e.target.value)}
+                    tabIndex={-1}
+                    autoComplete="new-password"
+                  />
+                </label>
+              </div>
               <label className="block space-y-2 text-left">
                 <span className={labelClass}>Hotel name</span>
                 <input

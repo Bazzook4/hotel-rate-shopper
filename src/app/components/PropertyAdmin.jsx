@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useDialog } from "./Dialog";
 
 const inputClass =
   "input mt-1";
@@ -39,6 +40,27 @@ function Field({ field, value, onChange }) {
   );
 }
 
+const formatDate = (iso) =>
+  new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+/** Copy to the clipboard; false when the browser would not. */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** What is wrong with a shareable link's numbers, if anything. */
+function sharedLinkProblem({ maxUses, days }) {
+  const whole = (v, lo, hi) => /^\d+$/.test(String(v).trim()) && +v >= lo && +v <= hi;
+  if (!whole(maxUses, 2, 200)) return { field: "maxUses", text: "Hotels must be a whole number from 2 to 200." };
+  if (!whole(days, 1, 90)) return { field: "days", text: "Days open must be a whole number from 1 to 90." };
+  return null;
+}
+
 export default function PropertyAdmin({ session }) {
   const [properties, setProperties] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,8 +72,101 @@ export default function PropertyAdmin({ session }) {
   const [form, setForm] = useState(null);
   // The last onboarding link issued, shown once so it can be copied.
   const [invite, setInvite] = useState(null);
+  // Shareable links still open, and the form for a new one (null = closed).
+  // Their messages show in their own card, next to what was done.
+  const [sharedLinks, setSharedLinks] = useState([]);
+  const [sharedCaps, setSharedCaps] = useState(null);
+  const [sharedForm, setSharedForm] = useState(null);
+  const [sharedMsg, setSharedMsg] = useState(null); // { text, error }
+  const [sharedLoadFailed, setSharedLoadFailed] = useState(false);
+  const [switchingOff, setSwitchingOff] = useState(null);
+  const sharedButtonRef = useRef(null);
+  const dialog = useDialog();
 
   const canCreate = session?.isSuperAdmin === true;
+
+  const loadSharedLinks = useCallback(async () => {
+    if (!canCreate) return;
+    try {
+      const res = await fetch("/api/onboarding/invites");
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error);
+      setSharedLinks(json.links || []);
+      setSharedCaps(json.caps || null);
+      setSharedLoadFailed(false);
+    } catch (err) {
+      setSharedLoadFailed(err.message || true);
+    }
+  }, [canCreate]);
+
+  useEffect(() => {
+    loadSharedLinks();
+  }, [loadSharedLinks]);
+
+  const sharedFormProblem = sharedForm && sharedLinkProblem(sharedForm);
+
+  function closeSharedForm() {
+    setSharedForm(null);
+    sharedButtonRef.current?.focus();
+  }
+
+  async function createSharedLink(e) {
+    e.preventDefault();
+    if (sharedFormProblem) return;
+    setBusy(true);
+    setSharedMsg(null);
+    try {
+      const res = await fetch("/api/onboarding/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shared: true, ...sharedForm }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Could not create the link.");
+      const copied = await copyText(json.url);
+      const made = `Link for ${json.maxUses} hotels, open until ${formatDate(json.expiresAt)}`;
+      setSharedMsg({
+        text: copied ? `${made}, copied.` : `${made}. Select it below and copy it.`,
+      });
+      closeSharedForm();
+      await loadSharedLinks();
+    } catch (err) {
+      setSharedMsg({ text: err.message, error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function turnOffSharedLink(link) {
+    const ok = await dialog.confirm({
+      title: "Switch this link off?",
+      message: "Nobody else can sign up through it. Hotels already signed up keep their accounts.",
+      confirmLabel: "Switch off",
+      danger: true,
+    });
+    if (!ok) return;
+    setSwitchingOff(link.id);
+    setSharedMsg(null);
+    try {
+      const res = await fetch(`/api/onboarding/invites?id=${link.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Could not switch the link off.");
+      setSharedMsg({ text: "Link switched off." });
+    } catch (err) {
+      setSharedMsg({ text: err.message, error: true });
+    } finally {
+      setSwitchingOff(null);
+      await loadSharedLinks();
+    }
+  }
+
+  async function copyLink(url) {
+    setSharedMsg(
+      (await copyText(url))
+        ? { text: "Link copied." }
+        : { text: "Could not copy. Select the link and copy it.", error: true }
+    );
+  }
 
   async function createInvite() {
     setBusy(true);
@@ -64,8 +179,8 @@ export default function PropertyAdmin({ session }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Could not create link");
-      setInvite(json);
-      navigator.clipboard?.writeText(json.url)?.catch(() => {});
+      setSharedForm(null);
+      setInvite({ ...json, copied: await copyText(json.url) });
     } catch (err) {
       setNotice(err.message);
     } finally {
@@ -144,7 +259,7 @@ export default function PropertyAdmin({ session }) {
             Property details and settings.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href="/"
             className="btn btn-secondary"
@@ -164,6 +279,22 @@ export default function PropertyAdmin({ session }) {
           {canCreate && !form && (
             <button
               type="button"
+              disabled={busy}
+              ref={sharedButtonRef}
+              onClick={() => {
+                setInvite(null);
+                setSharedMsg(null);
+                setSharedForm(sharedForm ? null : { maxUses: "25", days: "30" });
+              }}
+              aria-expanded={!!sharedForm}
+              className="btn btn-secondary"
+            >
+              Shareable link
+            </button>
+          )}
+          {canCreate && !form && (
+            <button
+              type="button"
               onClick={() => setForm({ name: "" })}
               className="btn btn-primary"
             >
@@ -176,8 +307,8 @@ export default function PropertyAdmin({ session }) {
       {invite && (
         <div className="card card-pad space-y-2">
           <p className="text-sm text-ink">
-            Onboarding link ready. Send it to the hotel — it works once and
-            expires {new Date(invite.expiresAt).toLocaleDateString()}.
+            Onboarding link ready{invite.copied ? " and copied" : ""}. Send it to
+            the hotel — it works once and expires {formatDate(invite.expiresAt)}.
           </p>
           <input
             readOnly
@@ -185,6 +316,109 @@ export default function PropertyAdmin({ session }) {
             onFocus={(e) => e.target.select()}
             className="input"
           />
+        </div>
+      )}
+
+      {(sharedForm || sharedLinks.length > 0 || sharedMsg || sharedLoadFailed) && (
+        <div className="card overflow-hidden">
+          {sharedForm && (
+            <form
+              onSubmit={createSharedLink}
+              onKeyDown={(e) => e.key === "Escape" && closeSharedForm()}
+              className="space-y-2 px-4 py-3"
+            >
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex items-center gap-2 label">
+                  Hotels
+                  <input
+                    type="number"
+                    min={2}
+                    max={200}
+                    autoFocus
+                    value={sharedForm.maxUses}
+                    onChange={(e) => setSharedForm({ ...sharedForm, maxUses: e.target.value })}
+                    aria-invalid={sharedFormProblem?.field === "maxUses"}
+                    className="input w-20"
+                  />
+                </label>
+                <label className="flex items-center gap-2 label">
+                  Days open
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={sharedForm.days}
+                    onChange={(e) => setSharedForm({ ...sharedForm, days: e.target.value })}
+                    aria-invalid={sharedFormProblem?.field === "days"}
+                    className="input w-20"
+                  />
+                </label>
+                <div className="flex gap-2">
+                  <button type="submit" disabled={busy || !!sharedFormProblem} className="btn btn-primary">
+                    {busy ? "Creating…" : "Create link"}
+                  </button>
+                  <button type="button" onClick={closeSharedForm} className="btn btn-ghost">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+              {sharedFormProblem ? (
+                <p className="text-xs text-[var(--danger)]">{sharedFormProblem.text}</p>
+              ) : (
+                <p className="text-xs muted">
+                  One link many hotels can sign up through — for your website or a WhatsApp group.
+                  {sharedCaps &&
+                    ` At most ${sharedCaps.perConnection} hotels a day from one internet connection, and ${sharedCaps.perDay} a day in all.`}
+                </p>
+              )}
+            </form>
+          )}
+
+          {sharedMsg && (
+            <p
+              role="status"
+              className={`px-4 py-2 text-xs ${sharedMsg.error ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "muted"}`}
+            >
+              {sharedMsg.text}
+            </p>
+          )}
+
+          {sharedLoadFailed && (
+            <p className="flex items-center gap-2 bg-[var(--danger-soft)] px-4 py-2 text-xs text-[var(--danger)]">
+              {typeof sharedLoadFailed === "string" ? sharedLoadFailed : "Could not load shareable links."}
+              <button type="button" onClick={loadSharedLinks} className="btn btn-secondary text-xs">
+                Try again
+              </button>
+            </p>
+          )}
+
+          {sharedLinks.length > 0 && (
+            <ul className="divide-y divide-[var(--border)] border-t border-[var(--border)] text-sm">
+              {sharedLinks.map((link) => (
+                <li key={link.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2">
+                  <span className="min-w-0 flex-1 basis-60 truncate select-all text-xs text-ink" title={link.url}>
+                    {link.url}
+                  </span>
+                  <span className="text-xs muted">
+                    {link.use_count} of {link.max_uses} hotels joined · open until {formatDate(link.expires_at)}
+                  </span>
+                  <span className="flex gap-2">
+                    <button type="button" onClick={() => copyLink(link.url)} className="btn btn-secondary">
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      disabled={switchingOff === link.id}
+                      onClick={() => turnOffSharedLink(link)}
+                      className="btn btn-secondary"
+                    >
+                      {switchingOff === link.id ? "Switching off…" : "Switch off"}
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

@@ -8,6 +8,7 @@ import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
+import { DialogProvider } from "../components/Dialog";
 import { isAnyAdmin, isSuperAdmin } from "@/lib/permissions";
 
 export default function AdminPage() {
@@ -61,47 +62,49 @@ export default function AdminPage() {
   if (!session) return null;
 
   return (
-    <main className="relative min-h-screen ">
-      <div className="mx-auto max-w-6xl space-y-4 p-4">
-        <div className="flex items-center justify-between">
-          <h1 className="h1">Admin</h1>
-          <ThemeToggle />
-        </div>
-        {isSuperAdmin(session) && <SchemaStatus />}
-        <div className="flex gap-2">
-          {[
-            ["properties", "Properties"],
-            ["users", "Users"],
-            ...(isSuperAdmin(session) ? [["partners", "Partners"]] : []),
-          ].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={`rounded-xl px-3 py-1.5 text-sm transition ${
-                tab === id
-                  ? "bg-[var(--accent-soft)] text-ink"
-                  : "muted hover:bg-[var(--surface-2)] hover:text-ink"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {tab === "properties" && <PropertyAdmin session={session} />}
-        {tab === "users" && (
-          <div className="space-y-4">
-            <UserRights
-              session={session}
-              propertyId={isSuperAdmin(session) ? null : session.propertyId}
-              pickProperty={isSuperAdmin(session)}
-            />
-            {isSuperAdmin(session) && <UserList session={session} />}
+    <DialogProvider>
+      <main className="relative min-h-screen ">
+        <div className="mx-auto max-w-6xl space-y-4 p-4">
+          <div className="flex items-center justify-between">
+            <h1 className="h1">Admin</h1>
+            <ThemeToggle />
           </div>
-        )}
-        {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
-      </div>
-    </main>
+          {isSuperAdmin(session) && <SchemaStatus />}
+          <div className="flex gap-2">
+            {[
+              ["properties", "Properties"],
+              ["users", "Users"],
+              ...(isSuperAdmin(session) ? [["partners", "Partners"]] : []),
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`rounded-xl px-3 py-1.5 text-sm transition ${
+                  tab === id
+                    ? "bg-[var(--accent-soft)] text-ink"
+                    : "muted hover:bg-[var(--surface-2)] hover:text-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {tab === "properties" && <PropertyAdmin session={session} />}
+          {tab === "users" && (
+            <div className="space-y-4">
+              <UserRights
+                session={session}
+                propertyId={isSuperAdmin(session) ? null : session.propertyId}
+                pickProperty={isSuperAdmin(session)}
+              />
+              {isSuperAdmin(session) && <UserList session={session} />}
+            </div>
+          )}
+          {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
+        </div>
+      </main>
+    </DialogProvider>
   );
 }

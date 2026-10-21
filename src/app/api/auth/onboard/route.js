@@ -6,11 +6,18 @@ import { ROLES } from "@/lib/permissions";
 import { getDefaultAdminModules } from "@/lib/rights";
 import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/lib/onboarding";
 import { savePropertyProfile, validateProfile } from "@/lib/events";
+import { clientIp, recordSignup, signupBlockedBy } from "@/lib/rateLimit";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Nobody fills in a hotel's name, place, email and password this fast.
+const MIN_FILL_MS = 5000;
 
-const GONE = { error: "This onboarding link has expired or has already been used." };
+const GONE = { error: "This onboarding link has expired, is full, or was switched off." };
+const CAPPED = {
+  ip: "Several hotels have already signed up from this internet connection today. Try again tomorrow, or ask us for a link of your own.",
+  all: "Sign-ups through this link are paused for today. Try again tomorrow, or ask us for a link of your own.",
+};
 
 /** Whether a link is still good, and the hotel name it was issued for. */
 export async function GET(request) {
@@ -30,6 +37,16 @@ export async function POST(request) {
   const propertyName = body?.propertyName?.trim() || "";
   const email = body?.email?.trim().toLowerCase() || "";
   const password = body?.password ?? "";
+
+  // Bot traps: a field people cannot see, and a form sent too soon after it
+  // opened. Told nothing useful, so a script has nothing to tune against.
+  const filledFor = Date.now() - Number(body?.startedAt || 0);
+  if (body?.website || !(filledFor >= MIN_FILL_MS)) {
+    return NextResponse.json(
+      { error: "Could not create your account. Please try again." },
+      { status: 400 }
+    );
+  }
 
   if (!propertyName) {
     return NextResponse.json({ error: "Hotel name is required" }, { status: 400 });
@@ -55,6 +72,20 @@ export async function POST(request) {
       { error: "An account with that email already exists. Sign in instead." },
       { status: 409 }
     );
+  }
+
+  // A shareable link is capped per network address and per day; a one-hotel
+  // link was sent to one hotel and needs no cap.
+  const open = await findOpenInvite(token).catch(() => null);
+  if (!open) return NextResponse.json(GONE, { status: 410 });
+  const shared = open.max_uses > 1;
+  const ip = clientIp(request);
+  if (shared) {
+    const blockedBy = await signupBlockedBy(ip).catch((err) => {
+      console.error("Sign-up limit unavailable:", err.message);
+      return "all";
+    });
+    if (blockedBy) return NextResponse.json({ error: CAPPED[blockedBy] }, { status: 429 });
   }
 
   const invite = await claimInvite(token).catch(() => null);
@@ -92,7 +123,8 @@ export async function POST(request) {
     const modules = await getDefaultAdminModules();
     await setUserModules(user.id, modules);
 
-    await completeInvite(invite.id, { userId: user.id, propertyId: property.id });
+    await completeInvite(invite, { userId: user.id, propertyId: property.id });
+    if (shared) await recordSignup(ip);
 
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, propertyId: property.id, propertyName: property.name },
