@@ -1,4 +1,5 @@
 {
+  "regions": ["bom1"],
   "crons": [
     { "path": "/api/workflow/cron", "schedule": "30 0 * * *" }
   ]
