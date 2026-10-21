@@ -28,6 +28,7 @@ export default function PropertySetup({ session, only = "rooms", onSaved }) {
   const propertyId = session?.propertyId || "";
 
   const [roomTypes, setRoomTypes] = useState([]);
+  const [roomCap, setRoomCap] = useState(null);
   const [ratePlans, setRatePlans] = useState([]);
   const [loading, setLoading] = useState(true);
   // Set once the first load lands. Every save reloads the page's data, and
@@ -66,6 +67,7 @@ export default function PropertySetup({ session, only = "rooms", onSaved }) {
       if (!r.ok) throw new Error(rj?.error || "Could not load room types");
       if (!p.ok) throw new Error(pj?.error || "Could not load rate plans");
       setRoomTypes(rj.roomTypes || []);
+      setRoomCap(rj.roomCap ?? null);
       setRatePlans(pj.ratePlans || []);
 
       const aj = a && a.ok ? await a.json().catch(() => null) : null;
@@ -134,6 +136,7 @@ export default function PropertySetup({ session, only = "rooms", onSaved }) {
     <RoomTypesPanel
       propertyId={propertyId}
       roomTypes={roomTypes}
+      roomCap={roomCap}
       onReload={reload}
       onDelete={removeRoom}
       notice={notice}
@@ -162,12 +165,13 @@ const BLANK_ROOM_TYPE = {
  * Room types as a grid: one row per type, every field edited in place, all
  * saved together.
  */
-function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: outerNotice }) {
+function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, notice: outerNotice }) {
   const grid = useGrid(roomTypes);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [filter, setFilter] = useState("");
+  const declared = roomTypes.reduce((sum, rt) => sum + (Number(rt.number_of_rooms) || 0), 0);
 
   const rows = [...roomTypes, ...grid.drafts].filter(
     (r) =>
@@ -193,6 +197,13 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
     const saved = grid.count;
     const errors = await grid.save({
       label: (r) => r.room_type_name || "New room type",
+      // Rooms going down first, so moving rooms between types stays in the
+      // hotel's total.
+      order: (a, ca, b, cb) => {
+        const change = (row, c) =>
+          "number_of_rooms" in c ? Number(c.number_of_rooms) - Number(row.number_of_rooms || 0) : 0;
+        return change(a, ca) - change(b, cb);
+      },
       update: (row, changes, next) => {
         if (!next.room_type_name?.trim()) throw new Error("Name is required");
         return sendJSON("/api/setup/roomTypes", "PATCH", { id: row.id, ...clean(changes) });
@@ -218,8 +229,15 @@ function RoomTypesPanel({ propertyId, roomTypes, onReload, onDelete, notice: out
       <SetupHeader
         title="Rooms"
         count={roomTypes.length}
-        sub="The room types you sell, how many of each, and their base price. Room numbers are below."
+        sub="The room types you sell, how many of each, and their base price."
       >
+        {/* Counted from the room types, not the numbered rooms, which show
+            their own count in the section below. */}
+        {roomCap && (
+          <span className="text-sm muted" title="Rooms across all room types, out of the hotel's total">
+            {declared} of {roomCap} rooms on room types
+          </span>
+        )}
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
       </SetupHeader>
 

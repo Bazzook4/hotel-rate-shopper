@@ -232,10 +232,19 @@ export function useGrid(rows, extra = 0) {
    * Send every pending edit and new row. Rows that save are cleared; rows
    * that fail keep their edits and are reported, so one bad value does not
    * throw away the rest of the work.
+   *
+   * `order` sorts the edits as (row, changes) pairs, for a limit checked one
+   * row at a time: rooms moved between types must free a place before
+   * taking one.
    */
-  async function save({ update, create, label = (r) => r.name || "Row" }) {
+  async function save({ update, create, label = (r) => r.name || "Row", order }) {
     const errors = [];
-    for (const [id, changes] of Object.entries(edits.edits)) {
+    const pending = Object.entries(edits.edits);
+    if (order) {
+      const rowOf = (id) => rows.find((r) => r.id === id) || {};
+      pending.sort(([a, ca], [b, cb]) => order(rowOf(a), ca, rowOf(b), cb));
+    }
+    for (const [id, changes] of pending) {
       const row = rows.find((r) => r.id === id);
       if (!row) {
         edits.drop(id);

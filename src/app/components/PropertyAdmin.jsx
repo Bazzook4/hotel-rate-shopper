@@ -10,7 +10,17 @@ const inputClass =
 const FIELDS = [
   { key: "name", label: "Property name", required: true },
   { key: "star_rating", label: "Star rating", type: "number", min: 1, max: 5 },
-  { key: "total_rooms", label: "Total rooms", type: "number", min: 0 },
+  // Caps the rooms the hotel can set up, so only a super admin changes it.
+  {
+    key: "total_rooms",
+    label: "Total rooms",
+    type: "number",
+    min: 1,
+    max: 1000,
+    superOnly: true,
+    note: "Set at sign-up. Ask Online Hotelier support to change it.",
+    superNote: "Caps the rooms the hotel can set up. Leave blank for no limit.",
+  },
   { key: "phone", label: "Phone" },
   { key: "email", label: "Email", type: "email" },
   { key: "website", label: "Website" },
@@ -23,7 +33,7 @@ const FIELDS = [
   { key: "check_out_time", label: "Check-out time", type: "time" },
 ];
 
-function Field({ field, value, onChange }) {
+function Field({ field, value, onChange, readOnly = false }) {
   return (
     <label className="block label">
       {field.label}
@@ -34,8 +44,12 @@ function Field({ field, value, onChange }) {
         max={field.max}
         value={value ?? ""}
         onChange={(e) => onChange(field.key, e.target.value)}
+        disabled={readOnly}
         className={inputClass}
       />
+      {(readOnly ? field.note : field.superNote) && (
+        <span className="mt-1 block text-xs faint">{readOnly ? field.note : field.superNote}</span>
+      )}
     </label>
   );
 }
@@ -443,6 +457,7 @@ export default function PropertyAdmin({ session }) {
               <Field
                 key={f.key}
                 field={f}
+                readOnly={f.superOnly && !canCreate}
                 value={form[f.key]}
                 onChange={(k, v) => setForm({ ...form, [k]: v })}
               />

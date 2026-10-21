@@ -51,7 +51,9 @@ export function ProfileFields({
   value,
   onChange,
   idPrefix = "profile",
-  typesHint = "Choose every one that fits: a resort that hosts weddings is both.",
+  typesHint = "Optional. Choose every one that fits: a resort that hosts weddings is both.",
+  // Sign-up leaves the kind out; it can be added under Property Setup.
+  showTypes = true,
 }) {
   const countries = useMemo(() => countryOptions(), []);
   const known = useKnownPlaces(value.country_code);
@@ -136,26 +138,28 @@ export function ProfileFields({
         </label>
       </div>
 
-      <div>
-        <span className="label">Kind of property</span>
-        <p className="mb-2 text-xs faint">{typesHint}</p>
-        <div className="flex flex-wrap gap-2">
-          {PROPERTY_TYPES.map((t) => {
-            const on = value.property_types.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggleType(t.id)}
-                className={on ? "btn btn-primary text-sm" : "btn btn-secondary text-sm"}
-              >
-                {t.label}
-              </button>
-            );
-          })}
+      {showTypes && (
+        <div>
+          <span className="label">Kind of property</span>
+          <p className="mb-2 text-xs faint">{typesHint}</p>
+          <div className="flex flex-wrap gap-2">
+            {PROPERTY_TYPES.map((t) => {
+              const on = value.property_types.includes(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleType(t.id)}
+                  className={on ? "btn btn-primary text-sm" : "btn btn-secondary text-sm"}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

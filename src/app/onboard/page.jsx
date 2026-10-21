@@ -6,12 +6,15 @@ import { profileGaps } from "@/lib/eventTags";
 import { guessCountry } from "@/lib/places";
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
+// Matches the server's limit in api/auth/onboard.
+const MAX_ROOMS = 1000;
 
 export default function OnboardPage() {
   const [token, setToken] = useState("");
   // "checking" until the link is validated, then "open" or "gone".
   const [linkState, setLinkState] = useState("checking");
   const [propertyName, setPropertyName] = useState("");
+  const [totalRooms, setTotalRooms] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -51,6 +54,10 @@ export default function OnboardPage() {
       setError("Passwords do not match");
       return;
     }
+    if (!/^\d+$/.test(totalRooms.trim()) || +totalRooms < 1 || +totalRooms > MAX_ROOMS) {
+      setError(`Total rooms must be a whole number from 1 to ${MAX_ROOMS}.`);
+      return;
+    }
     const gaps = profileGaps(profile);
     if (gaps.length) {
       setError(`Still needed: ${gaps.join(", ")}.`);
@@ -64,6 +71,7 @@ export default function OnboardPage() {
         body: JSON.stringify({
           token,
           propertyName,
+          totalRooms: Number(totalRooms),
           email,
           password,
           profile,
@@ -131,24 +139,46 @@ export default function OnboardPage() {
                   />
                 </label>
               </div>
-              <label className="block space-y-2 text-left">
-                <span className={labelClass}>Hotel name</span>
-                <input
-                  type="text"
-                  value={propertyName}
-                  onChange={(e) => setPropertyName(e.target.value)}
-                  required
-                  autoComplete="organization"
-                  className="input"
-                />
-              </label>
+              <div className="grid gap-4 sm:grid-cols-[1fr_8rem] sm:gap-3">
+                <label className="block space-y-2 text-left">
+                  <span className={labelClass}>Hotel name</span>
+                  <input
+                    type="text"
+                    value={propertyName}
+                    onChange={(e) => setPropertyName(e.target.value)}
+                    required
+                    autoComplete="organization"
+                    className="input"
+                  />
+                </label>
+
+                <label className="block space-y-2 text-left">
+                  <span className={labelClass}>Total rooms</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={MAX_ROOMS}
+                    step={1}
+                    value={totalRooms}
+                    onChange={(e) => setTotalRooms(e.target.value)}
+                    required
+                    className="input"
+                  />
+                </label>
+                <p className="text-xs text-ink/70 sm:col-span-2">
+                  Total rooms: every room the hotel has. You can set up this many; ask us if you add rooms later.
+                </p>
+              </div>
 
               <div className="space-y-2 text-left">
-                <span className={labelClass}>Where and what kind</span>
-                <p className="text-xs text-ink/70">
-                  So we can show you the festivals, holidays and events that fill hotels like yours.
-                </p>
-                <ProfileFields value={profile} onChange={setProfile} idPrefix="onboard" />
+                <span className={labelClass}>Where (for local events)</span>
+                <ProfileFields
+                  value={profile}
+                  onChange={setProfile}
+                  idPrefix="onboard"
+                  showTypes={false}
+                />
               </div>
 
               <label className="block space-y-2 text-left">

@@ -47,6 +47,7 @@ export default function RoomInventory({ session, section = false }) {
 
   const [rooms, setRooms] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
+  const [roomCap, setRoomCap] = useState(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -81,6 +82,7 @@ export default function RoomInventory({ session, section = false }) {
       if (!roomsRes.ok) throw new Error(roomData.error || "Could not load rooms");
       setRooms(roomData.rooms || []);
       setRoomTypes(typeData.roomTypes || []);
+      setRoomCap(typeData.roomCap ?? null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -299,7 +301,7 @@ export default function RoomInventory({ session, section = false }) {
       <SetupHeader
         title="Room numbers"
         section={section}
-        count={rooms.length}
+        count={roomCap ? `${rooms.length} of ${roomCap} rooms numbered` : rooms.length}
         sub="Each room's floor, number and type, in calendar order."
       >
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={discard} />

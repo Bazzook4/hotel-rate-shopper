@@ -57,8 +57,8 @@ export function validateProfile(input) {
   const state = normaliseState(country_code, input?.state);
   const city = normaliseCity(country_code, input?.city);
   if (!city) return { error: "Give the city or town the hotel is in." };
+  // Optional: with none, the hotel sees the events that name no kind.
   const property_types = cleanPropertyTypes(input?.property_types);
-  if (!property_types.length) return { error: "Choose at least one kind of property." };
   return { profile: { country_code, state: state || null, city, property_types } };
 }
 

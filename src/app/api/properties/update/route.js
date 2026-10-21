@@ -16,12 +16,17 @@ const EDITABLE = [
   "website",
   "description",
   "star_rating",
-  "total_rooms",
   "check_in_time",
   "check_out_time",
   // Printed on every invoice; a company needs it to claim GST input credit.
   "gstin",
 ];
+/**
+ * Columns only a super admin may change. The total number of rooms caps how
+ * many rooms the hotel can set up (lib/roomCap.js), so the hotel cannot raise
+ * it itself.
+ */
+const SUPER_ADMIN_ONLY = ["total_rooms"];
 
 export async function PATCH(req) {
   const session = await getSessionFromRequest(req);
@@ -62,6 +67,11 @@ export async function PATCH(req) {
   for (const key of EDITABLE) {
     if (key in rest) updates[key] = rest[key];
   }
+  if (isSuperAdmin(session)) {
+    for (const key of SUPER_ADMIN_ONLY) {
+      if (key in rest) updates[key] = rest[key];
+    }
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No editable fields supplied" }, { status: 400 });
@@ -93,11 +103,13 @@ export async function PATCH(req) {
     updates.star_rating = stars;
   }
 
+  // Blank means no cap on the rooms the hotel can set up (lib/roomCap.js).
+  if (updates.total_rooms === "") updates.total_rooms = null;
   if ("total_rooms" in updates && updates.total_rooms !== null) {
     const rooms = Number(updates.total_rooms);
-    if (!Number.isInteger(rooms) || rooms < 0) {
+    if (!Number.isInteger(rooms) || rooms < 1 || rooms > 1000) {
       return NextResponse.json(
-        { error: "Total rooms must be zero or more" },
+        { error: "Total rooms must be a whole number from 1 to 1000, or blank for no limit" },
         { status: 400 }
       );
     }

@@ -13,6 +13,7 @@ import {
 } from "@/lib/database";
 import { syncInventoryForward } from "@/lib/inventorySync";
 import { AUTO_NUMBER_MAX_ROOMS, planAutoNumbering } from "@/lib/roomNumbering";
+import { capProblem, newRoomsInRange, roomCap } from "@/lib/roomCap";
 
 /**
  * The physical rooms a property owns.
@@ -120,6 +121,9 @@ export async function POST(req) {
           { status: 400 }
         );
       }
+      const adding = plan.reduce((sum, s) => sum + (s.to - s.from + 1), 0);
+      const tooMany = capProblem(await roomCap(propertyId), current.length, current.length + adding);
+      if (tooMany) return NextResponse.json({ error: tooMany }, { status: 400 });
 
       let created = 0;
       for (const step of plan) {
@@ -164,6 +168,10 @@ export async function POST(req) {
           { status: 400 }
         );
       }
+      const current = await listRooms(propertyId);
+      const adding = newRoomsInRange(current, { from, to, prefix: prefix || "" });
+      const tooMany = capProblem(await roomCap(propertyId), current.length, current.length + adding);
+      if (tooMany) return NextResponse.json({ error: tooMany }, { status: 400 });
 
       const rooms = await createRoomRange({
         property_id: propertyId,
@@ -180,6 +188,9 @@ export async function POST(req) {
     if (!body.room_number?.trim()) {
       return NextResponse.json({ error: "Room number is required" }, { status: 400 });
     }
+    const count = (await listRooms(propertyId)).length;
+    const tooMany = capProblem(await roomCap(propertyId), count, count + 1);
+    if (tooMany) return NextResponse.json({ error: tooMany }, { status: 400 });
 
     const room = await createRoom({
       property_id: propertyId,

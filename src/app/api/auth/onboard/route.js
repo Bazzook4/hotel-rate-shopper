@@ -12,6 +12,8 @@ const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Nobody fills in a hotel's name, place, email and password this fast.
 const MIN_FILL_MS = 5000;
+// Caps the rooms the hotel can set up (lib/roomCap.js).
+const MAX_ROOMS = 1000;
 
 const GONE = { error: "This onboarding link has expired, is full, or was switched off." };
 const CAPPED = {
@@ -37,6 +39,7 @@ export async function POST(request) {
   const propertyName = body?.propertyName?.trim() || "";
   const email = body?.email?.trim().toLowerCase() || "";
   const password = body?.password ?? "";
+  const totalRooms = Number(body?.totalRooms);
 
   // Bot traps: a field people cannot see, and a form sent too soon after it
   // opened. Told nothing useful, so a script has nothing to tune against.
@@ -50,6 +53,12 @@ export async function POST(request) {
 
   if (!propertyName) {
     return NextResponse.json({ error: "Hotel name is required" }, { status: 400 });
+  }
+  if (!Number.isInteger(totalRooms) || totalRooms < 1 || totalRooms > MAX_ROOMS) {
+    return NextResponse.json(
+      { error: `Total rooms must be a whole number from 1 to ${MAX_ROOMS}.` },
+      { status: 400 }
+    );
   }
   const { profile, error: profileError } = validateProfile(body?.profile);
   if (profileError) {
@@ -98,7 +107,7 @@ export async function POST(request) {
   try {
     const { data, error } = await supabase
       .from("properties")
-      .insert({ name: propertyName, email })
+      .insert({ name: propertyName, email, total_rooms: totalRooms })
       .select()
       .single();
     if (error) throw new Error(`Failed to create property: ${error.message}`);

@@ -4,12 +4,22 @@ import { isSuperAdmin } from "@/lib/permissions";
 import {
   canManageSetup,
   listRoomTypes,
+  getRoomType,
   createRoomType,
   updateRoomType,
   deleteRoomType,
   getUserPropertyId,
 } from "@/lib/database";
 import { syncInventoryForward } from "@/lib/inventorySync";
+import { capProblem, roomCap } from "@/lib/roomCap";
+
+/** Rooms declared across a property's room types, leaving one out. */
+async function declaredRooms(propertyId, exceptId = null) {
+  const types = await listRoomTypes(propertyId);
+  return types
+    .filter((rt) => rt.id !== exceptId)
+    .reduce((sum, rt) => sum + (Number(rt.number_of_rooms) || 0), 0);
+}
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -52,7 +62,8 @@ export async function GET(req) {
   }
 
   try {
-    return NextResponse.json({ roomTypes: await listRoomTypes(propertyId) });
+    const [roomTypes, cap] = await Promise.all([listRoomTypes(propertyId), roomCap(propertyId)]);
+    return NextResponse.json({ roomTypes, roomCap: cap });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -84,6 +95,14 @@ export async function POST(req) {
   }
 
   try {
+    const before = await declaredRooms(propertyId);
+    const tooMany = capProblem(
+      await roomCap(propertyId),
+      before,
+      before + Number(body.number_of_rooms)
+    );
+    if (tooMany) return NextResponse.json({ error: tooMany }, { status: 400 });
+
     const roomType = await createRoomType({ ...body, property_id: propertyId });
     return NextResponse.json({ roomType });
   } catch (err) {
@@ -108,6 +127,21 @@ export async function PATCH(req) {
   }
 
   try {
+    // The id alone names the room type, so check it is one of this user's.
+    const current = await getRoomType(id);
+    if (!current || !(await resolvePropertyId(session, current.property_id))) {
+      return NextResponse.json({ error: "Room type not found" }, { status: 404 });
+    }
+    if ("number_of_rooms" in updates) {
+      const others = await declaredRooms(current.property_id, id);
+      const tooMany = capProblem(
+        await roomCap(current.property_id),
+        others + (Number(current.number_of_rooms) || 0),
+        others + (Number(updates.number_of_rooms) || 0)
+      );
+      if (tooMany) return NextResponse.json({ error: tooMany }, { status: 400 });
+    }
+
     const roomType = await updateRoomType(id, updates);
 
     // The count is the capacity of a room type with no numbered rooms, so

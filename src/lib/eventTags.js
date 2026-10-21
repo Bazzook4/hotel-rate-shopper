@@ -78,7 +78,6 @@ export function profileGaps(profile) {
   const gaps = [];
   if (!profile?.country_code) gaps.push("country");
   if (!profile?.city) gaps.push("city");
-  if (!profile?.property_types?.length) gaps.push("property type");
   return gaps;
 }
 

@@ -13,6 +13,16 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-22",
+    title: "Room count set at sign-up",
+    points: [
+      {
+        page: "setup",
+        text: "New hotels now give their total number of rooms when they sign up, and are no longer asked what kind of property they are. Room Setup and Room numbers show how many of those rooms are used, and will not let you add more than the total. If your hotel has more rooms than that, ask Online Hotelier support to raise it. The kind of property is still under Property Setup if you want to add it.",
+      },
+    ],
+  },
+  {
     date: "2026-10-21",
     title: "Plainer text across the app",
     points: [

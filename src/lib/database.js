@@ -397,6 +397,20 @@ export async function listRoomTypes(propertyId) {
   return data || [];
 }
 
+export async function getRoomType(id) {
+  const { data, error } = await supabase
+    .from('room_types')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to get room type: ${error.message}`);
+  }
+
+  return data;
+}
+
 export async function updateRoomType(id, updates) {
   // Sanitize numeric fields
   const sanitizedUpdates = { ...updates };
