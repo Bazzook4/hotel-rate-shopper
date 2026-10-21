@@ -17,6 +17,7 @@ import {
 import { isoDate, sendPlanRates } from "@/lib/cmRates";
 import { Grid, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import Icon from "../../components/Icon";
 import { useEscape } from "../../components/useEscape";
 
 /**
@@ -30,7 +31,7 @@ import { useEscape } from "../../components/useEscape";
  * alone takes a deeper cut than its double.
  *
  * The list is for finding and reading; changes go through a drawer from the
- * row's ⋯ menu, since a room rate holds more than one row can show.
+ * row's actions menu, since a room rate holds more than one row can show.
  */
 
 const fmt = (n) =>
@@ -263,7 +264,7 @@ export default function RatePlanSetup({
                         aria-expanded={open}
                         aria-label={open ? "Collapse" : "Expand"}
                       >
-                        {open ? "▾" : "▸"}
+                        <Icon name={open ? "down" : "right"} size={14} />
                       </button>
                       <button
                         type="button"
@@ -439,7 +440,7 @@ export default function RatePlanSetup({
                   <tr>
                     <td className="cm-sticky" style={{ paddingLeft: 40 }} colSpan={4}>
                       <span className="text-xs muted">
-                        No room types assigned. Use ⋯ &gt; Assign room type to start selling this plan.
+                        No room types assigned. Use the row menu &gt; Assign room type to start selling this plan.
                       </span>
                     </td>
                   </tr>
@@ -535,7 +536,7 @@ function StayRules({ min, max, release, stopSell, own = {} }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* ⋯ menu                                                               */
+/* Row actions menu                                                     */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -601,7 +602,7 @@ export function RowMenu({ title, items }) {
         aria-expanded={Boolean(at)}
         aria-label={title}
       >
-        ⋯
+        <Icon name="more" size={18} />
       </button>
       {at &&
         createPortal(
@@ -614,7 +615,7 @@ export function RowMenu({ title, items }) {
           <div className="flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide muted" style={{ borderBottom: "1px solid var(--border)" }}>
             {title}
             <button type="button" onClick={() => pick()} aria-label="Close">
-              x
+              <Icon name="close" size={14} />
             </button>
           </div>
           {items.map((it) => (
@@ -628,7 +629,7 @@ export function RowMenu({ title, items }) {
                 style={{ color: it.danger ? "var(--danger)" : "var(--text)" }}
               >
                 {it.label}
-                {it.submenu && <span className="muted">{sub === it.label ? "▾" : "›"}</span>}
+                {it.submenu && <span className="muted"><Icon name={sub === it.label ? "down" : "right"} size={14} /></span>}
               </button>
               {it.submenu && sub === it.label && (
                 <div style={{ background: "var(--surface-2)" }}>
@@ -686,9 +687,14 @@ export function Drawer({
         className="flex-1"
         style={{ background: "rgba(15, 23, 42, 0.45)" }}
       />
-      <div
+      {/* A form, so Enter in any field presses the main button. */}
+      <form
         className="flex h-full w-full flex-col"
         style={{ maxWidth: 620, background: "var(--surface)", borderLeft: "1px solid var(--border)" }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!busy) onSave();
+        }}
       >
         <div
           className="flex items-start justify-between gap-3 px-5 py-4"
@@ -702,7 +708,7 @@ export function Drawer({
             <button type="button" className="btn btn-secondary" onClick={cancel} disabled={busy}>
               {cancelLabel}
             </button>
-            <button type="button" className="btn btn-primary" onClick={onSave} disabled={busy}>
+            <button type="submit" className="btn btn-primary" disabled={busy}>
               {busy ? busyLabel : saveLabel}
             </button>
           </div>
@@ -713,7 +719,7 @@ export function Drawer({
           </div>
         )}
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">{children}</div>
-      </div>
+      </form>
     </div>
   );
 }
@@ -1040,10 +1046,12 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
       error={error}
     >
       <Section title="General information">
-        <Field label="Rate plan name *">
-          <input className="input" value={form.plan_name} onChange={(e) => set({ plan_name: e.target.value })} placeholder="Dinner Bed & Breakfast" autoFocus={isNew} />
-        </Field>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="sm:col-span-2">
+            <Field label="Rate plan name *">
+              <input className="input" value={form.plan_name} onChange={(e) => set({ plan_name: e.target.value })} placeholder="Dinner Bed & Breakfast" autoFocus={isNew} />
+            </Field>
+          </div>
           <Field label="Sells" hint={dayUse ? "Hours from check-in. The room goes back on sale when the guest checks out." : null}>
             <select
               className="input"
@@ -1059,6 +1067,8 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
               <option value="day_use">Day use (hours)</option>
             </select>
           </Field>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
           {dayUse && (
             <Field label="Hours *">
               <input
@@ -1087,66 +1097,74 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
             </select>
           </Field>
         </div>
-        <Field label="Description" hint="For your own reference. Guests never see this.">
-          <textarea className="input" rows={2} value={form.description} onChange={(e) => set({ description: e.target.value })} />
+        <Field label="Description">
+          <input className="input" value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Notes for staff. Guests never see this." />
         </Field>
       </Section>
 
       <Section title="Pricing details">
-        <Field label="Minimum rate" hint="A rate based on another plan never goes below this. Leave blank for none.">
-          <input type="number" min="0" className="input" value={form.min_rate} onChange={(e) => set({ min_rate: e.target.value })} placeholder="None" style={{ maxWidth: 220 }} />
-        </Field>
-
-        <div className="card space-y-3 p-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="radio" name="plan-rate-setup" checked={!derived} onChange={() => set({ derive_from_id: "" })} />
-            Manually input daily rates
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="radio"
-              name="plan-rate-setup"
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="seg" role="group" aria-label="How the rates are set">
+            <button type="button" className={!derived ? "seg-on" : ""} aria-pressed={!derived} onClick={() => set({ derive_from_id: "" })}>
+              Enter rates
+            </button>
+            <button
+              type="button"
+              className={derived ? "seg-on" : ""}
+              aria-pressed={derived}
               disabled={masters.length === 0}
-              checked={derived}
-              onChange={() => set({ derive_from_id: masters[0]?.id || "", is_master: false })}
-            />
-            Base the rates on another rate plan
-          </label>
-          {masters.length === 0 && <p className="pl-6 text-xs faint">Needs another rate plan to base it on.</p>}
-
-          {derived ? (
-            <div className="space-y-3 pl-6">
-              <Field label="Based on *">
-                <select className="input" value={form.derive_from_id} onChange={(e) => set({ derive_from_id: e.target.value })}>
-                  {masters.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.plan_name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <RuleEditor
-                method={form.derive_method}
-                value={form.derive_value}
-                value2={form.derive_value_2}
-                onChange={(r) => set({ derive_method: r.method, derive_value: r.value, derive_value_2: r.value2 })}
-              />
-              <p className="text-xs faint">
-                Each room follows the same room on the main plan, adult by adult: single follows single, double follows double. A room rate can still follow something else or set its own rule.
-              </p>
-            </div>
-          ) : (
-            <label className="flex items-center gap-2 pl-6 text-sm muted">
+              title={masters.length === 0 ? "Needs another rate plan to base it on" : undefined}
+              onClick={() => set({ derive_from_id: masters[0]?.id || "", is_master: false })}
+            >
+              Based on a plan
+            </button>
+          </div>
+          {!derived && (
+            <label className="flex items-center gap-2 text-sm muted">
               <input type="checkbox" checked={form.is_master} onChange={(e) => set({ is_master: e.target.checked })} />
               Main plan (other plans can be based on it)
             </label>
           )}
         </div>
 
+        {/* Minimum rate only floors rates worked out from another plan, so it
+            sits with those settings; a manual plan with one keeps it shown. */}
+        {!derived && !blank(form.min_rate) && (
+          <Field label="Minimum rate" hint="Rooms on this plan that are based on another plan never go below this.">
+            <input type="number" min="0" className="input" value={form.min_rate} onChange={(e) => set({ min_rate: e.target.value })} placeholder="None" style={{ maxWidth: 220 }} />
+          </Field>
+        )}
+
+        {derived && (
+            <div className="space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Based on *">
+                  <select className="input" value={form.derive_from_id} onChange={(e) => set({ derive_from_id: e.target.value })}>
+                    {masters.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.plan_name}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Minimum rate">
+                  <input type="number" min="0" className="input" value={form.min_rate} onChange={(e) => set({ min_rate: e.target.value })} placeholder="None" />
+                </Field>
+              </div>
+              <RuleEditor
+                method={form.derive_method}
+                value={form.derive_value}
+                value2={form.derive_value_2}
+                onChange={(r) => set({ derive_method: r.method, derive_value: r.value, derive_value_2: r.value2 })}
+              />
+              <p className="text-xs faint">Each room follows the same room and adult count on the plan it is based on. Rates never go below the minimum.</p>
+            </div>
+        )}
+
         {isNew && roomTypes.length > 0 && (
           <div>
             <span className="label">Sell in these room types</span>
-            <div className="grid gap-1 sm:grid-cols-2">
+            <div className="grid gap-1 grid-cols-2 sm:grid-cols-3">
               {roomTypes.map((r) => (
                 <label key={r.id} className="flex items-center gap-2 text-sm">
                   <input
@@ -1165,9 +1183,6 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
                 </label>
               ))}
             </div>
-            {!derived && newRooms.size > 0 && (
-              <p className="mt-1 text-xs faint">You enter their rates on the next step.</p>
-            )}
           </div>
         )}
 
@@ -1205,27 +1220,27 @@ function PlanDrawer({ plan, propertyId, ratePlans, roomTypes, assignments, onClo
       </Section>
 
       <Section title="Restrictions">
-        <p className="text-xs faint">Defaults for every room rate on this plan. A room rate can unlock and change any of them.</p>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <p className="text-xs faint">
+          Defaults for every room on this plan; a room can unlock and change any of them. Release is the days before arrival the plan closes.
+        </p>
+        <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-4">
           {!dayUse && (
             <>
-              <Field label="Default minimum stay">
+              <Field label="Min stay">
                 <input type="number" min="1" className="input" value={form.min_stay} onChange={(e) => set({ min_stay: e.target.value })} placeholder="None" />
               </Field>
-              <Field label="Default maximum stay">
+              <Field label="Max stay">
                 <input type="number" min="1" className="input" value={form.max_stay} onChange={(e) => set({ max_stay: e.target.value })} placeholder="None" />
               </Field>
             </>
           )}
-          <Field label="Release period" hint="Days before arrival the plan closes.">
+          <Field label="Release (days)">
             <input type="number" min="0" className="input" value={form.release_period} onChange={(e) => set({ release_period: e.target.value })} placeholder="None" />
           </Field>
-          <Field label="Default stop sell">
-            <label className="flex h-[38px] items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.stop_sell} onChange={(e) => set({ stop_sell: e.target.checked })} />
-              Yes
-            </label>
-          </Field>
+          <label className="flex h-[38px] items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.stop_sell} onChange={(e) => set({ stop_sell: e.target.checked })} />
+            Stop sell
+          </label>
         </div>
       </Section>
     </Drawer>

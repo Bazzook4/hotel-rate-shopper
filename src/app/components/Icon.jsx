@@ -175,6 +175,8 @@ const PATHS = {
   star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z" />,
   up: <path d="m6 15 6-6 6 6" />,
   down: <path d="m6 9 6 6 6-6" />,
+  right: <path d="m9 6 6 6-6 6" />,
+  more: <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3" />,
   back: <path d="M19 12H5M11 6l-6 6 6 6" />,
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
   arrowDown: <path d="M12 5v14M6 13l6 6 6-6" />,

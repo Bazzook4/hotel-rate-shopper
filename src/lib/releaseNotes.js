@@ -26,7 +26,7 @@ export const RELEASE_NOTES = [
       },
       {
         page: "rateplans",
-        text: "In the rate plan drawer, Pricing details now comes before Restrictions.",
+        text: "The rate plan form is shorter and fits on one screen. Pricing details now comes before Restrictions, the four restriction boxes sit on one line, \"Enter rates\" or \"Based on a plan\" is one switch, and Minimum rate shows with the based-on settings it applies to. Press Enter to save.",
       },
     ],
   },
