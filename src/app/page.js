@@ -169,15 +169,23 @@ const NOTES_SEEN_KEY = "hms.whatsNewSeen";
 // Page ids that moved, so an old bookmark still lands on the right page.
 const MOVED_PAGES = { pmssetup: "rooms" };
 
+/** Which job someone's rights say they do: owner, desk, housekeeping or other. */
+function jobProfile(canSee) {
+  if (canSee("performance") || canSee("nightaudit")) return "owner";
+  if (canSee("calendar") || canSee("reservations")) return "desk";
+  if (canSee("housekeeping")) return "housekeeping";
+  return "other";
+}
+
 /**
- * Where someone opens when they have not chosen: the owner or manager on
- * Today (it carries the front desk too), the desk on the Calendar, and
- * housekeeping on Housekeeping.
+ * Where someone opens when they have not chosen: the owner and the desk on
+ * Today, whose arrivals and departures carry Check in, Check out and Walk-in,
+ * and housekeeping on Housekeeping.
  */
 function defaultStartPage(canSee) {
-  if (canSee("performance") || canSee("nightaudit")) return "today";
-  if (canSee("calendar")) return "calendar";
-  if (canSee("housekeeping")) return "housekeeping";
+  const profile = jobProfile(canSee);
+  if (profile === "owner" || profile === "desk") return "today";
+  if (profile === "housekeeping") return "housekeeping";
   return "";
 }
 
@@ -350,8 +358,7 @@ export default function V2Dashboard() {
   useEffect(() => {
     if (sessionLoading || !active || !session) return;
     const canSee = (id) => areas.some((a) => a.pages.some((p) => p.id === id));
-    const profile =
-      { today: "owner", calendar: "desk", housekeeping: "housekeeping" }[defaultStartPage(canSee)] || "other";
+    const profile = jobProfile(canSee);
     fetch("/api/usage", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

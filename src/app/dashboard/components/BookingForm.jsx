@@ -23,6 +23,7 @@ import {
 } from "@/lib/dayUse";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import Icon from "@/app/components/Icon";
 
 /**
  * Entering or editing a booking.
@@ -438,6 +439,10 @@ export default function BookingForm({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  // Set by "Save and check in", and kept through "Book anyway" after a clash.
+  const checkInAfter = useRef(false);
+  const arrivesToday =
+    !reservation && form.status !== "inquiry" && [localToday(), todayUTC()].includes(form.check_in);
 
   /**
    * Whether the desk has changed anything since the form opened (or last
@@ -1076,11 +1081,14 @@ export default function BookingForm({
       if (!res.ok) throw new Error(data.error || "Could not save the booking");
 
       setTouched(false);
-      onSaved(
+      // Awaited, so the form stays locked while the check-in that may follow
+      // asks for a room: a second click would otherwise book the guest twice.
+      await onSaved(
         reservation
           ? `Booking ${data.reservation.reference} updated.`
           : `Booking ${data.reservation.reference} created for ${data.reservation.guest_name}.`,
-        inventoryWarning(data)
+        inventoryWarning(data),
+        { reservation: data.reservation, checkIn: !reservation && checkInAfter.current }
       );
     } catch (err) {
       setError(err.message);
@@ -1121,6 +1129,8 @@ export default function BookingForm({
                 style={{ flex: 1, minWidth: 0 }}
                 ref={nameBox}
                 {...guestBox("guest_name")}
+                // A walk-in starts on the guest's name: the rest is filled in.
+                autoFocus={!reservation && prefill?.source === "walkin"}
                 placeholder="Full name"
               />
               {!linked && (
@@ -1420,7 +1430,7 @@ export default function BookingForm({
         onClick={() => setMore((v) => !v)}
         aria-expanded={more}
       >
-        {more ? "▾" : "▸"} More details
+        <Icon name={more ? "down" : "right"} size={14} /> More details
         {!more && (
           <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
             country, children, booking method{reservation ? "" : ", inquiry"}, notes
@@ -1543,14 +1553,29 @@ export default function BookingForm({
         </div>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
-          className="btn btn-primary text-sm"
+          className={`btn text-sm ${arrivesToday && form.source === "walkin" ? "btn-secondary" : "btn-primary"}`}
           disabled={saving || roomTypes.length === 0}
-          onClick={() => submit(false)}
+          onClick={() => {
+            checkInAfter.current = false;
+            submit(false);
+          }}
         >
-          {saving ? "Saving..." : reservation ? "Save changes" : "Create booking"}
+          {saving && !checkInAfter.current ? "Saving..." : reservation ? "Save changes" : "Create booking"}
         </button>
+        {arrivesToday && (
+          <button
+            className={`btn text-sm ${form.source === "walkin" ? "btn-primary" : "btn-secondary"}`}
+            disabled={saving || roomTypes.length === 0}
+            onClick={() => {
+              checkInAfter.current = true;
+              submit(false);
+            }}
+          >
+            {saving && checkInAfter.current ? "Saving..." : "Save and check in"}
+          </button>
+        )}
         {!embedded && (
           <button className="btn btn-ghost text-sm" onClick={leave} disabled={saving}>
             Cancel

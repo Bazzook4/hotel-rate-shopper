@@ -562,7 +562,21 @@ export default function BookingModal({
                 rooms={rooms}
                 ratePlans={ratePlans}
                 embedded
-                onSaved={async (_message, warning) => {
+                onSaved={async (message, warning, saved) => {
+                  if (saved?.checkIn) {
+                    try {
+                      const data = await desk.checkIn(saved.reservation);
+                      toast(
+                        data
+                          ? `${saved.reservation.guest_name} checked in`
+                          : `${message} Not checked in yet.`
+                      );
+                    } catch (err) {
+                      toast(`The booking is saved, but not checked in: ${err.message}`, { tone: "error" });
+                    }
+                  } else if (isNew) {
+                    toast(message);
+                  }
                   onChanged?.(warning);
                   if (isNew) onClose();
                   else await loadFolio();

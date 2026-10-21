@@ -14,6 +14,28 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "Fewer clicks at the front desk",
+    points: [
+      {
+        page: "today",
+        text: "What moved: front desk staff now open on Today instead of the Calendar. Today lists who is arriving and leaving, with Check in and Check out next to each guest. The Calendar is still one click away in the menu, and you can pin it as your start page if you prefer.",
+      },
+      {
+        page: "today",
+        text: "New Walk-in button at the top of Today. It opens a booking for tonight, already marked as a walk-in. Fill in the guest and press Save and check in to book and check in together.",
+      },
+      {
+        page: "today",
+        text: "Each guest on Today now has a Collect button, which goes straight to taking a payment.",
+      },
+      {
+        page: "reservations",
+        text: "Any new booking that arrives today has a Save and check in button, so you no longer have to find the guest again to check them in.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "Tidier menus, lists and calendars",
     points: [
       {

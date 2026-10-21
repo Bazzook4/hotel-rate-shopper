@@ -365,7 +365,7 @@ function NeedsAttention({ today, distribution, onOpenPage, canOpen, openBooking 
 /** How many of each list are shown before "See all". */
 const DESK_ROWS = 8;
 
-function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking, empty }) {
+function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, openBooking, empty }) {
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -385,12 +385,12 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
           {rows.slice(0, DESK_ROWS).map((r) => (
             <li
               key={r.id}
-              className="flex items-center gap-3 py-2"
+              className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2"
               style={{ borderTop: "1px solid var(--border)" }}
             >
               <button
                 type="button"
-                className="min-w-0 flex-1 text-left"
+                className="min-w-0 flex-1 basis-40 text-left"
                 onClick={() => openBooking(r.id, "details")}
                 title="Open booking"
               >
@@ -413,11 +413,19 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
               </button>
               <button
                 type="button"
+                className="btn btn-secondary ml-auto text-xs"
+                onClick={() => openBooking(r.id, "payments")}
+                title={`Take a payment from ${r.guest_name}`}
+              >
+                <Icon name="money" size={14} /> Collect
+              </button>
+              <button
+                type="button"
                 className="btn btn-primary text-xs"
                 disabled={busyId !== null}
                 onClick={() => onAction(r)}
               >
-                {busyId === r.id ? "..." : action}
+                {busyId === r.id ? busyLabel : action}
               </button>
             </li>
           ))}
@@ -429,7 +437,8 @@ function DeskList({ title, rows, action, busyId, onAction, onSeeAll, openBooking
 
 /**
  * Who is arriving and leaving today, each with its Check in or Check out
- * right here: the desk's commonest jobs without leaving the home page.
+ * and a Collect for payment right here: the desk's commonest jobs without
+ * leaving the home page.
  */
 function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, onChanged }) {
   const desk = useFrontDesk(propertyId);
@@ -497,6 +506,7 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
           title="Arriving today"
           rows={arrivals}
           action="Check in"
+          busyLabel="Checking in..."
           busyId={busyId}
           onAction={(r) => run(r, desk.checkIn)}
           onSeeAll={seeAll("arrivals")}
@@ -507,6 +517,7 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
           title="Leaving today"
           rows={departures}
           action="Check out"
+          busyLabel="Checking out..."
           busyId={busyId}
           onAction={(r) => run(r, desk.checkOut)}
           onSeeAll={seeAll("departures")}
@@ -626,13 +637,22 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
   // Held until the header has settled on a property: asked before then, the
   // server answers for the user's own, and a second, slow answer follows.
   const { report, loading, error, reload } = useReport("/api/today", propertyId ? {} : null, propertyId);
-  const { openBooking, modal } = useBookingOpener(session, reload);
+  const { openBooking, newBooking, modal } = useBookingOpener(session, reload);
 
   const today = report?.today?.error ? null : report?.today;
   const distribution = report?.distribution?.error ? null : report?.distribution;
   const setup = report?.setup?.error ? null : report?.setup;
   const month = report?.month?.error ? null : report?.month;
   const hasAttention = report && (report.today || report.distribution);
+  // A walk-in: today's dates on the hotel's clock, one night, booked as a
+  // walk-in, with "Save and check in" as the form's main button.
+  const canBook = today && (canOpen("reservations") || canOpen("calendar"));
+  const walkIn = () =>
+    newBooking({
+      source: "walkin",
+      check_in: today.date,
+      check_out: new Date(Date.parse(`${today.date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10),
+    });
 
   return (
     <div className="space-y-4">
@@ -644,9 +664,16 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
             {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
-        <button type="button" className="btn btn-secondary text-sm" onClick={reload} disabled={loading}>
-          <Icon name="refresh" size={16} /> {loading && report ? "Refreshing..." : "Refresh"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn btn-secondary text-sm" onClick={reload} disabled={loading}>
+            <Icon name="refresh" size={16} /> {loading && report ? "Refreshing..." : "Refresh"}
+          </button>
+          {canBook && (
+            <button type="button" className="btn btn-primary text-sm" onClick={walkIn}>
+              <Icon name="plus" size={16} /> Walk-in
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <PartError title="Today" error={error} />}

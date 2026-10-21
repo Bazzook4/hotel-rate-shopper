@@ -35,7 +35,7 @@ async function postStatus(id, status, roomId) {
   const res = await fetch("/api/pms/reservations/status", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status, ...(roomId ? { room_id: roomId } : {}) }),
+    body: JSON.stringify({ id, status, tz: new Date().getTimezoneOffset(), ...(roomId ? { room_id: roomId } : {}) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Could not update the booking");
@@ -150,7 +150,7 @@ export function useFrontDesk(propertyId) {
       const ready = free.filter((x) => x.housekeeping !== "dirty");
       if (!ready.length) {
         throw new Error(
-          `Every free room of that type is dirty (${free.map((x) => x.room_number).join(", ")}. Mark one clean first.`
+          `Every free room of that type is dirty (${free.map((x) => x.room_number).join(", ")}). Mark one clean first.`
         );
       }
 

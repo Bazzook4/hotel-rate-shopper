@@ -205,18 +205,22 @@ export function useBookingOpener(session, onChanged) {
     [services, propertyId]
   );
 
+  /** A new booking, its form already holding `prefill` (a walk-in, say). */
+  const newBooking = useCallback((prefill) => setOpen({ reservationId: null, tab: "details", prefill }), []);
+
   const modal = open ? (
     <BookingModal
       session={session}
       reservationId={open.reservationId}
       initialTab={open.tab}
+      prefill={open.prefill}
       extras={services || []}
       onClose={() => setOpen(null)}
       onChanged={() => onChanged?.()}
     />
   ) : null;
 
-  return { openBooking, modal };
+  return { openBooking, newBooking, modal };
 }
 
 // ------------------------------------------------------------------

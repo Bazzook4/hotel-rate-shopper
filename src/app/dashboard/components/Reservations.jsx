@@ -446,13 +446,28 @@ export default function Reservations({ session, initialView = null }) {
     setFormOpen(true);
   }
 
-  async function afterSave(message, warning) {
+  async function afterSave(message, warning, saved) {
     setFormOpen(false);
     setEditing(null);
     setNotice(message);
+    let problem = warning;
+    if (saved?.checkIn) {
+      setNotice(`${message} Checking in...`);
+      try {
+        const data = await desk.checkIn(saved.reservation);
+        if (data) {
+          setNotice(`${message} Checked in.`);
+          problem = problem || inventoryWarning(data);
+        } else {
+          setNotice(`${message} Not checked in yet.`);
+        }
+      } catch (err) {
+        problem = `The booking is saved, but not checked in: ${err.message}`;
+      }
+    }
     await load();
     // After the reload, which clears errors, so the warning stays up.
-    if (warning) setError(warning);
+    if (problem) setError(problem);
   }
 
   return (

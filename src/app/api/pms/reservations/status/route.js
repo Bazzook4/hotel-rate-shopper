@@ -8,7 +8,7 @@ import {
   setReservationStatus,
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
-import { todayUTC } from "@/lib/date";
+import { localToday, normaliseTz } from "@/lib/financeReports";
 import { holdsInventory } from "@/lib/dayUse";
 
 /**
@@ -54,7 +54,7 @@ export async function POST(req) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { id, status, room_id } = body || {};
+  const { id, status, room_id, tz } = body || {};
   if (!id) {
     return NextResponse.json({ error: "Reservation id is required" }, { status: 400 });
   }
@@ -92,7 +92,9 @@ export async function POST(req) {
     // nothing downstream can tell that it was a mis-click rather than a stay
     // that really started early. A late arrival is a different matter and is
     // allowed: the guest is standing there, the date has simply passed.
-    if (status === "in_house" && current.check_in > todayUTC()) {
+    // "Today" is the desk's own, so a walk-in after midnight in India is not
+    // refused for arriving on what is still yesterday in UTC.
+    if (status === "in_house" && current.check_in > localToday(normaliseTz(tz))) {
       return NextResponse.json(
         {
           error: `This booking arrives on ${current.check_in}. Move the dates if the guest is arriving early.`,
