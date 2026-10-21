@@ -463,8 +463,25 @@ export default function OnlineCheckinPage() {
       {state === "ready" && view && (
         <>
           <header className="space-y-1">
-            <p className="sub text-xs uppercase tracking-wide">Online check-in</p>
-            <h1 className="h1">{view.hotel.name}</h1>
+            <div className="flex items-center gap-3">
+              {view.hotel.logoUrl && (
+                <img
+                  src={view.hotel.logoUrl}
+                  alt=""
+                  width={96}
+                  height={44}
+                  // A logo that will not load leaves just the name, not a gap.
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                  style={{ height: 44, width: "auto", maxWidth: 96, objectFit: "contain", flexShrink: 0 }}
+                />
+              )}
+              <div className="min-w-0">
+                <h1 className="h1" style={{ overflowWrap: "break-word" }}>
+                  {view.hotel.name}
+                </h1>
+                <p className="sub text-xs uppercase tracking-wide">Online check-in</p>
+              </div>
+            </div>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               {b.guestName} · Booking {b.reference}
               <br />

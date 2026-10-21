@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-21",
+    title: "Your hotel's name and logo on the guest's check-in page",
+    points: [
+      {
+        page: "setup",
+        text: "Property Setup has a new Hotel name & logo card at the top. Upload your logo (PNG, JPG or WebP) and check the hotel name: guests now see both at the top of their online check-in page. The name is the same one printed on your invoices, so change it here if it is not how guests know you.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-21",
     title: "Online check-in: guests send their details and ID before they arrive",
     points: [
       {

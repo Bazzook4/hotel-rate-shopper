@@ -84,6 +84,10 @@ const DisplaySettings = dynamic(() => import("./dashboard/components/DisplaySett
   ssr: false,
   loading: PageLoading,
 });
+const HotelBrand = dynamic(() => import("./dashboard/components/HotelBrand"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const PropertyProfile = dynamic(() => import("./dashboard/components/PropertyProfile"), {
   ssr: false,
   loading: PageLoading,
@@ -847,9 +851,17 @@ export default function V2Dashboard() {
                       <div>
                         <h2 className="h1">Property Setup</h2>
                         <p className="sub">
-                          Your hotel&apos;s profile, its Google listing, how its screens look and online check-in.
+                          Your hotel&apos;s name and logo, its profile, its Google listing, how its screens look and online check-in.
                         </p>
                       </div>
+                      <HotelBrand
+                        propertyId={scopedSession?.propertyId}
+                        onSaved={({ name }) =>
+                          setProperties((list) =>
+                            list.map((p) => (p.id === scopedSession?.propertyId ? { ...p, name } : p))
+                          )
+                        }
+                      />
                       <PropertyProfile propertyId={scopedSession?.propertyId} />
                       <GoogleListingSetup propertyId={scopedSession?.propertyId} />
                       <DisplaySettings propertyId={scopedSession?.propertyId} />

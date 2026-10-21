@@ -153,7 +153,8 @@ export async function findCheckinByToken(token) {
       .select("id, property_id, reference, guest_id, guest_name, guest_phone, guest_email, check_in, check_out, status, adults, children, stay_kind, room_types(room_type_name)")
       .eq("id", row.reservation_id)
       .maybeSingle(),
-    supabase.from("properties").select("id, name, country").eq("id", row.property_id).maybeSingle(),
+    // Every column, so a property without display choices (migration 044) still opens.
+    supabase.from("properties").select("*").eq("id", row.property_id).maybeSingle(),
   ]);
   if (!reservation || !property) return null;
   return { row, reservation, property, prefs: await getCheckinPrefs(property.id) };
@@ -202,7 +203,7 @@ export function guestView({ row, reservation, property, prefs }) {
     return { ...fields, files: files.map(fileForGuest) };
   });
   return {
-    hotel: { name: property.name, country: toCountryCode(property.country) || null },
+    hotel: { name: property.name, logoUrl: property.display_prefs?.logoUrl || null, country: toCountryCode(property.country) || null },
     booking: {
       reference: reservation.reference,
       guestName: reservation.guest_name,
