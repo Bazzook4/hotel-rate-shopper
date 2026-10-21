@@ -3,9 +3,12 @@
 import { Children, Fragment, isValidElement, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "./Icon";
+import usePopupClose, { isTouch, placeBelowOrAbove } from "./usePopupClose";
 
 /** Lists longer than this get a search box at the top. */
 const SEARCH_FROM = 10;
+/** Lists longer than this are not all laid out to size the button. */
+const SIZE_FROM = 30;
 
 /**
  * The app's form select, in place of the browser's own.
@@ -24,9 +27,12 @@ const SEARCH_FROM = 10;
  * option, as a native select is, so it does not jump when the choice
  * changes.
  *
- * A list longer than ten has a search box. Keyboard: Enter, Space or the
- * arrows open; arrows, Home, End move; typing jumps to a match (or filters,
- * with a search box); Enter picks; Escape or Tab closes.
+ * A list longer than ten has a search box; on a phone it waits for a tap,
+ * so the keyboard does not cover the list on opening. Keyboard: Enter,
+ * Space or the arrows open; arrows, Home, End move; typing on a closed
+ * short list changes the choice as a native one does, and on an open one
+ * jumps to a match (or filters, with a search box); Enter picks; Escape or
+ * Tab closes.
  */
 export default function Select({
   ref,
@@ -54,7 +60,9 @@ export default function Select({
   const list = useRef(null);
   const search = useRef(null);
   const typed = useRef({ text: "", at: 0 });
-  const listId = useId();
+  const ownId = useId();
+  const listId = `${ownId}-list`;
+  const btnId = id || `${ownId}-btn`;
 
   useImperativeHandle(ref, () => btn.current);
 
@@ -66,27 +74,10 @@ export default function Select({
     if (autoFocus) btn.current?.focus();
   }, [autoFocus]);
 
-  useEffect(() => {
-    if (!at) return undefined;
-    const away = (e) => {
-      if (list.current?.contains(e.target) || btn.current?.contains(e.target)) return;
-      setAt(null);
-    };
-    const onScroll = (e) => {
-      if (!list.current?.contains(e.target)) setAt(null);
-    };
-    document.addEventListener("mousedown", away);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", away);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", away);
-    };
-  }, [at]);
+  usePopupClose(Boolean(at), [btn, list], () => setAt(null));
 
   useEffect(() => {
-    if (at && searchable) search.current?.focus();
+    if (at && searchable && (at.query || !isTouch())) search.current?.focus();
   }, [at, searchable]);
 
   useEffect(() => {
@@ -97,16 +88,15 @@ export default function Select({
     if (disabled) return;
     const r = btn.current.getBoundingClientRect();
     const width = Math.max(r.width, 160);
-    const below = window.innerHeight - r.bottom;
     setQuery(startQuery);
     setActive(startQuery ? 0 : Math.max(0, options.indexOf(current)));
     setAt({
       left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
       width,
-      // Opens upward when there is no room below, as a native select does.
-      ...(below < 300 && r.top > below
-        ? { bottom: window.innerHeight - r.top + 4 }
-        : { top: r.bottom + 4 }),
+      query: startQuery,
+      // Opens upward when there is no room below, as a native select does,
+      // and never runs off a short screen.
+      ...placeBelowOrAbove(r, 300),
     });
   }
 
@@ -160,9 +150,8 @@ export default function Select({
         e.preventDefault();
         if (searchable) open(e.key);
         else {
-          open();
           const i = typeAhead(e.key.toLowerCase());
-          if (i >= 0) setActive(i);
+          if (i >= 0) pick(shown[i]);
         }
       }
       return;
@@ -174,6 +163,9 @@ export default function Select({
     else if (e.key === "Enter" || (e.key === " " && !searchable)) pick(shown[active]);
     else if (e.key === "Escape") close();
     else if (e.key === "Tab") {
+      // The list sits at the end of the page; back on the button first, so
+      // Tab goes on to the next field rather than off the page.
+      btn.current?.focus();
       setAt(null);
       return;
     } else if (printable && !searchable) {
@@ -190,7 +182,8 @@ export default function Select({
       <button
         ref={btn}
         type="button"
-        id={id}
+        id={btnId}
+        role="combobox"
         className={`sel ${className}`}
         style={style}
         title={title}
@@ -200,6 +193,7 @@ export default function Select({
         aria-haspopup="listbox"
         aria-expanded={Boolean(at)}
         aria-controls={at ? listId : undefined}
+        aria-activedescendant={at && !searchable && shown[active] ? `${listId}-${active}` : undefined}
         aria-label={ariaLabel}
         aria-labelledby={labelledBy}
       >
@@ -207,7 +201,7 @@ export default function Select({
             so the button is as wide as the longest. */}
         <span className="sel-sizer">
           <span className="sel-value">{current?.label ?? ""}</span>
-          {options.map((o) => (
+          {options.length <= SIZE_FROM && options.map((o) => (
             <span key={o.key} className="sel-ghost" aria-hidden>
               {o.label}
             </span>
@@ -222,7 +216,7 @@ export default function Select({
           <div
             ref={list}
             className="dd-list sel-list"
-            style={{ position: "fixed", left: at.left, top: at.top, bottom: at.bottom, minWidth: at.width }}
+            style={{ position: "fixed", left: at.left, top: at.top, bottom: at.bottom, minWidth: at.width, maxHeight: Math.min(at.maxHeight, 320) }}
             onKeyDown={onKeyDown}
           >
             {searchable && (
@@ -236,13 +230,16 @@ export default function Select({
                     setActive(0);
                   }}
                   placeholder="Search"
+                  role="combobox"
                   aria-label="Search the list"
+                  aria-expanded
+                  aria-autocomplete="list"
                   aria-controls={listId}
                   aria-activedescendant={shown[active] ? `${listId}-${active}` : undefined}
                 />
               </div>
             )}
-            <ul id={listId} role="listbox" aria-label={ariaLabel} className="sel-options">
+            <ul id={listId} role="listbox" aria-label={ariaLabel} aria-labelledby={ariaLabel ? undefined : labelledBy || btnId} className="sel-options">
               {shown.map((o, i) => {
                 const head = o.group && o.group !== lastGroup ? o.group : null;
                 lastGroup = o.group;

@@ -507,6 +507,7 @@ body {
     overflow: hidden;
   }
   .sel-options {
+    min-height: 0;
     margin: 0;
     padding: 0.25rem;
     list-style: none;
@@ -556,6 +557,19 @@ body {
     transform: translateY(-50%);
   }
   .df-btn:hover:not(:disabled) { color: var(--text); background: var(--surface-2); }
+  .df-note {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    z-index: 5;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    color: var(--danger);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
 
   /* The calendar (components/DatePicker.jsx), drawn in a .pop. */
   .cal { z-index: 200; width: 17.5rem; padding: 0.5rem; }
@@ -897,6 +911,8 @@ body {
   .dd,
   .seg > button { min-height: 2.5rem; }
   .dd-option { min-height: 2.75rem; }
+  .df-btn { min-width: 2.25rem; min-height: 2.25rem; justify-content: center; align-items: center; right: 0.15rem; }
+  .df > .df-input { padding-right: 2.5rem; }
   .cal-day { height: 2.5rem; }
 }
 

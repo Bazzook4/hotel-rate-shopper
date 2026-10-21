@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DatePicker from "./DatePicker";
 import Icon from "./Icon";
+import { isTouch } from "./usePopupClose";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
@@ -15,8 +16,14 @@ const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "
  * as "21 Oct 2026", opens the app's calendar (DatePicker) on a click, and
  * also takes a typed date: 21/10/2026, 21-10-26, 21 Oct, Oct 21 2026,
  * 2026-10-21, today, tomorrow. A day and month are read day first, as in
- * India. A typed date outside min and max is moved to the nearest one
- * allowed; one that cannot be read is put back as it was.
+ * India; with no year, a date more than three months gone is taken as
+ * next year's (5 Jan typed in December) unless that is past `max`. A typed
+ * date outside min and max is moved to the nearest one allowed, and one
+ * that cannot be read is put back as it was; either way a line under the
+ * box says so.
+ *
+ * On a phone a tap opens the calendar without the keyboard, which would
+ * cover it; the date is picked there.
  *
  * It takes what the native input took -- value and min/max as ISO strings,
  * onChange getting { target: { value } } -- so swapping one in keeps the
@@ -44,12 +51,29 @@ export default function DateField({
   const [open, setOpen] = useState(null);
   const [text, setText] = useState(() => show(value));
   const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState("");
+  const [touch, setTouch] = useState(false);
+
+  useEffect(() => setTouch(isTouch()), []);
+
+  useEffect(() => {
+    if (!note) return undefined;
+    const t = setTimeout(() => setNote(""), 4000);
+    return () => clearTimeout(t);
+  }, [note]);
 
   useEffect(() => {
     if (!editing) setText(show(value));
   }, [value, editing]);
 
-  const close = useCallback(() => setOpen(null), []);
+  const close = () => setOpen(null);
+
+  // Closed by Tab or a click away while focus was in the calendar: the
+  // field never saw a blur, so a typed date is taken here.
+  function closeCalendar() {
+    setOpen(null);
+    if (editing) commit();
+  }
 
   function emit(iso) {
     setText(show(iso));
@@ -63,10 +87,18 @@ export default function DateField({
     setEditing(false);
     const t = text.trim();
     if (!t) return emit("");
-    let iso = readTyped(t);
-    if (!iso) return setText(show(value));
-    if (min && iso < min) iso = min;
-    if (max && iso > max) iso = max;
+    let iso = readTyped(t, { max });
+    if (!iso) {
+      setNote("Could not read that date");
+      return setText(show(value));
+    }
+    if (min && iso < min) {
+      iso = min;
+      setNote(`Earliest allowed is ${show(min)}`);
+    } else if (max && iso > max) {
+      iso = max;
+      setNote(`Latest allowed is ${show(max)}`);
+    }
     emit(iso);
   }
 
@@ -90,7 +122,7 @@ export default function DateField({
     }
   }
 
-  const typed = editing ? readTyped(text.trim()) : null;
+  const typed = editing ? readTyped(text.trim(), { max }) : null;
 
   return (
     <span ref={wrap} className="df" style={style}>
@@ -106,7 +138,9 @@ export default function DateField({
         disabled={disabled}
         autoFocus={autoFocus}
         autoComplete="off"
+        inputMode={touch ? "none" : undefined}
         aria-label={ariaLabel}
+        aria-describedby={note ? `${id || name || "df"}-note` : undefined}
         aria-haspopup="dialog"
         aria-expanded={Boolean(open)}
         onChange={(e) => {
@@ -118,7 +152,7 @@ export default function DateField({
           if (calendar.current?.contains(e.relatedTarget)) return;
           if (editing) commit();
         }}
-        onClick={() => !open && setOpen({ takeFocus: false })}
+        onClick={() => !open && setOpen({ takeFocus: touch })}
         onKeyDown={onKeyDown}
       />
       <button
@@ -144,8 +178,13 @@ export default function DateField({
             setEditing(false);
             emit(iso);
           }}
-          onClose={close}
+          onClose={closeCalendar}
         />
+      )}
+      {note && (
+        <span id={`${id || name || "df"}-note`} className="df-note" role="status">
+          {note}
+        </span>
       )}
     </span>
   );
@@ -157,7 +196,7 @@ function show(iso) {
 }
 
 /** A typed date as ISO, or null when it cannot be read. */
-export function readTyped(raw) {
+export function readTyped(raw, { max } = {}) {
   const t = raw.toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ").trim();
   if (!t) return null;
   const today = new Date();
@@ -186,10 +225,20 @@ export function readTyped(raw) {
     return null;
   }
   if (!m) return null;
-  if (y == null) y = today.getFullYear();
-  else if (y < 100) y += 2000;
+  let guessed = false;
+  if (y == null) {
+    y = today.getFullYear();
+    guessed = true;
+  } else if (y < 100) y += 2000;
   const date = new Date(y, m - 1, d);
   if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  // No year, and well past: the next time the date comes round ("5 Jan"
+  // typed in December), unless that is past max (a payment received). A
+  // recent date stays this year, for reports looking back.
+  if (guessed && date < addDays(today, -90)) {
+    const next = new Date(y + 1, m - 1, d);
+    if (next.getMonth() === m - 1 && !(max && formatDateISO(next) > max)) return formatDateISO(next);
+  }
   return formatDateISO(date);
 }
 

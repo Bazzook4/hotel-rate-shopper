@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Icon from "./Icon";
+import usePopupClose from "./usePopupClose";
 import { createPortal } from "react-dom";
 
 /**
@@ -32,26 +33,7 @@ export default function Dropdown({ label, value, options, onChange, ariaLabel, m
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const current = options[index];
 
-  useEffect(() => {
-    if (!at) return undefined;
-    const close = (e) => {
-      if (list.current?.contains(e.target) || btn.current?.contains(e.target)) return;
-      setAt(null);
-    };
-    // Scrolling inside the list is fine; the page scrolling would leave the
-    // list floating away from its button.
-    const onScroll = (e) => {
-      if (!list.current?.contains(e.target)) setAt(null);
-    };
-    document.addEventListener("mousedown", close);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", close);
-    return () => {
-      document.removeEventListener("mousedown", close);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", close);
-    };
-  }, [at]);
+  usePopupClose(Boolean(at), [btn, list], () => setAt(null));
 
   useEffect(() => {
     if (at) list.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });

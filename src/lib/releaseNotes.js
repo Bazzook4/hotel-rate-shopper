@@ -28,6 +28,10 @@ export const RELEASE_NOTES = [
         page: "reservations",
         text: "Every list you pick from, on every page, now opens in the same style as the rest of the app. Long lists, such as countries or services, have a search box at the top: start typing to find what you need.",
       },
+      {
+        page: "reservations",
+        text: "On a phone, tapping a date opens the calendar without the keyboard getting in the way, and long lists stay open until you pick.",
+      },
     ],
   },
   {

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "./Icon";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import usePopupClose from "./usePopupClose";
+import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 
 const DOW = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -21,8 +22,10 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * for a span of years. `unit="month"` starts at the months and picks the
  * first of the month.
  *
- * Keyboard: arrows move a day (a month, a year), Page Up / Page Down a month
- * (a year), Enter picks, Escape closes.
+ * Keyboard: the highlighted day holds focus; arrows move a day (a month, a
+ * year), Page Up / Page Down a month (a year), Enter picks, Escape closes,
+ * Tab goes back to the field. "Today" is the desk's own day, not UTC's, so
+ * the night audit after midnight sees the right one.
  *
  * `takeFocus={false}` leaves focus where it is, for a field the desk is
  * typing into; the arrow keys there hand focus over (DateField).
@@ -45,8 +48,10 @@ export default function DatePicker({
   const [at, setAt] = useState(null);
   const base = unit === "month" ? "months" : "days";
   const [view, setView] = useState(base);
-  const [focus, setFocus] = useState(() => parseDateISO(value) || parseDateISO(todayUTC()));
-  const today = todayUTC();
+  const today = formatDateISO(new Date());
+  const [focus, setFocus] = useState(() => parseDateISO(value) || parseDateISO(today));
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   // A date typed into the field moves the calendar to it.
   useEffect(() => {
@@ -58,40 +63,33 @@ export default function DatePicker({
     const r = anchor.current?.getBoundingClientRect();
     if (!r) return;
     const width = 280;
+    const height = 340;
     const below = window.innerHeight - r.bottom;
-    setAt({
-      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
-      ...(below < 340 && r.top > below
-        ? { bottom: window.innerHeight - r.top + 6 }
-        : { top: r.bottom + 6 }),
-    });
+    let place;
+    if (below >= height + 8 || below >= r.top) place = { top: Math.min(r.bottom + 6, window.innerHeight - height - 8) };
+    else place = { bottom: Math.min(window.innerHeight - r.top + 6, window.innerHeight - height - 8) };
+    // On a screen too short for either, it keeps to the top edge.
+    if ((place.top ?? 0) < 8 && place.bottom == null) place.top = 8;
+    if (place.bottom != null && place.bottom < 8) place.bottom = 8;
+    setAt({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), ...place });
   }, [anchor]);
 
+  // The highlighted day holds focus, so a screen reader reads it as it
+  // moves; only once the calendar has focus, never out of a field being typed in.
+  const wantFocus = useRef(takeFocus);
   useEffect(() => {
-    if (at && takeFocus) box.current?.focus();
-  }, [at, takeFocus]);
+    if (!at) return;
+    if (wantFocus.current || box.current?.contains(document.activeElement)) {
+      wantFocus.current = false;
+      box.current?.querySelector(".cal-focus")?.focus();
+    }
+  }, [at, focus, view]);
 
   useEffect(() => {
     if (boxRef) boxRef.current = box.current;
   });
 
-  useEffect(() => {
-    const away = (e) => {
-      if (box.current?.contains(e.target) || anchor.current?.contains(e.target)) return;
-      onClose();
-    };
-    const onScroll = (e) => {
-      if (!box.current?.contains(e.target)) onClose();
-    };
-    document.addEventListener("mousedown", away);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onClose);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onClose);
-    };
-  }, [anchor, onClose]);
+  usePopupClose(Boolean(at), [box, anchor], () => closeRef.current());
 
   const year = focus.getFullYear();
   const month = focus.getMonth();
@@ -130,6 +128,9 @@ export default function DatePicker({
   }
 
   function onKeyDown(e) {
+    // On the arrows and the title, Enter and Space press that button.
+    const onDay = e.target.classList?.contains("cal-day");
+    if ((e.key === "Enter" || e.key === " ") && !onDay && e.target !== box.current) return;
     const across = view === "days" ? 7 : 3;
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -across, ArrowDown: across }[e.key];
     if (step) {
@@ -139,10 +140,13 @@ export default function DatePicker({
     } else if (e.key === "PageUp" || e.key === "PageDown") {
       shift(e.key === "PageUp" ? -1 : 1);
     } else if (e.key === "Enter" || e.key === " ") {
+      if (onDay) return; // the day's own click picks it
       pick(focus);
     } else if (e.key === "Escape") {
       done();
     } else if (e.key === "Tab") {
+      // Back to the field first, so Tab moves on from there.
+      anchor.current?.querySelector?.("input")?.focus() || anchor.current?.focus?.();
       onClose();
       return;
     } else return;
@@ -240,7 +244,7 @@ export default function DatePicker({
         </button>
       </div>
 
-      <div className={`cal-grid${view === "days" ? "" : " cal-months"}`} role="grid">
+      <div className={`cal-grid${view === "days" ? "" : " cal-months"}`} role="group" aria-label={title}>
         {view === "days" &&
           DOW.map((d) => (
             <span key={d} className="cal-dow" aria-hidden>
@@ -251,7 +255,7 @@ export default function DatePicker({
           <button
             key={c.key}
             type="button"
-            tabIndex={-1}
+            tabIndex={c.focus ? 0 : -1}
             aria-label={c.aria}
             aria-pressed={c.on}
             className={[
