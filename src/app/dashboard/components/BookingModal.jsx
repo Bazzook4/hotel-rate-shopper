@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
+import { Fact, Facts } from "../../components/Facts";
 import { todayUTC } from "@/lib/date";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
@@ -10,8 +11,9 @@ import { confirmDiscard, useDialog } from "../../components/Dialog";
 import { useBackdropClose, useEscape } from "../../components/useEscape";
 import { useFrontDesk, whatsappLink } from "./frontDesk";
 import { toCountryCode } from "@/lib/countries";
+import { visibleModules } from "../modules";
 import OnlineCheckinPanel, {
-  CheckinChip,
+  CheckinFact,
   offersOnlineCheckin,
   onlineCheckinUrl,
   useOnlineCheckin,
@@ -58,6 +60,41 @@ const NEXT_ACTIONS = {
   cancelled: [{ status: "confirmed", label: "Reinstate", kind: "btn-secondary" }],
   no_show: [{ status: "confirmed", label: "Reinstate", kind: "btn-secondary" }],
 };
+
+/** "2026-10-22" as "22 Oct". */
+const shortDate = (iso) =>
+  iso
+    ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" })
+    : "";
+
+/** The stay in one line: dates, nights and who, the first thing checked at the desk. */
+function stayLine(r) {
+  const who = [
+    `${r.adults ?? 0} adult${r.adults === 1 ? "" : "s"}`,
+    r.children > 0 && `${r.children} child${r.children === 1 ? "" : "ren"}`,
+  ].filter(Boolean);
+  if (r.day_use_hours) {
+    const from = String(r.day_use_start || "").slice(0, 5);
+    return [shortDate(r.check_in), `day use${from ? ` from ${from}` : ""}`, ...who].join(", ");
+  }
+  const nights = Math.max(0, Math.round((new Date(r.check_out) - new Date(r.check_in)) / 86400000));
+  return [`${shortDate(r.check_in)} to ${shortDate(r.check_out)}`, `${nights} night${nights === 1 ? "" : "s"}`, ...who].join(", ");
+}
+
+/** What the bill stands at; a complimentary stay says so first. */
+function balanceLine(balance, comp) {
+  const money = (n) => `₹${n.toLocaleString("en-IN")}`;
+  const text =
+    balance > 0
+      ? `owes ${money(balance)}`
+      : balance < 0
+        ? `refund due ${money(-balance)}`
+        : comp
+          ? "nothing to pay"
+          : "paid in full";
+  const line = comp ? `Complimentary, ${text}` : text;
+  return line[0].toUpperCase() + line.slice(1);
+}
 
 export default function BookingModal({
   session,
@@ -304,19 +341,43 @@ export default function BookingModal({
 
   // A stay that has not started yet cannot be checked in. The action stays
   // visible -- hiding it would leave the desk wondering where check-in went --
-  // but it is disabled and says why.
+  // but it is disabled, and the Status fact says when it opens.
   const tooEarly =
-    reservation && reservation.check_in > todayUTC()
-      ? `Arrives ${reservation.check_in} ; check-in opens that day`
+    reservation?.status === "confirmed" && reservation.check_in > todayUTC()
+      ? `Arrives ${shortDate(reservation.check_in)}. Check-in opens that day`
       : null;
 
-  // Nor can a guest go into a room still waiting to be cleaned. The server
-  // refuses it too; this says why before the desk tries.
+  // A room still waiting to be cleaned shows on the Room fact, which marks it
+  // clean in one click. Check in stays open: the desk step asks whether the
+  // room is ready and marks it clean on the way in.
   const assignedRoom = reservation && rooms.find((r) => r.id === reservation.room_id);
-  const roomDirty =
-    reservation?.status === "confirmed" && assignedRoom?.housekeeping === "dirty"
-      ? `Room ${assignedRoom.room_number} is dirty. Mark it clean first`
-      : null;
+  const roomDirty = reservation?.status === "confirmed" && assignedRoom?.housekeeping === "dirty";
+  const canHousekeep = visibleModules(session).some((p) => p.id === "housekeeping");
+
+  async function markRoomClean() {
+    setError(null);
+    try {
+      const res = await fetch("/api/pms/housekeeping", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: propertyId, ids: [assignedRoom.id], status: "clean" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not mark the room clean");
+      setRooms((prev) => prev.map((x) => (x.id === assignedRoom.id ? { ...x, housekeeping: "clean" } : x)));
+      onChanged?.();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const balance = folio?.totals?.balance;
+  const owes = balance > 0;
+  const openPayments = async () => {
+    if (!(await leaveDetails())) return;
+    setTab("bill");
+    setIntent("payments");
+  };
 
   return (
     <div
@@ -381,66 +442,61 @@ export default function BookingModal({
             next desk action. */}
         {!isNew && reservation && (
           <div
-            className="flex flex-wrap items-center gap-2 text-sm"
+            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
             style={{ padding: "0.6rem 1.1rem", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}
           >
-            <span className="chip chip-off">
-              {STATUS_LABELS[reservation.status] || reservation.status}
-            </span>
-            {reservation.rooms?.room_number && (
-              <span className="chip chip-ok">Room {reservation.rooms.room_number}</span>
-            )}
-            {reservation.booking_type === "complimentary" && (
-              <span className="chip chip-off">Complimentary</span>
-            )}
-            {group && (
-              <span
-                className="chip chip-off"
-                title={group.reservations
-                  .map(
-                    (m) =>
-                      `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name}, ${m.guest_name}, ${m.reference}`
-                  )
-                  .join("\n")}
-              >
-                Group: {group.name}, {group.reservations.length} room
-                {group.reservations.length === 1 ? "" : "s"}
-              </span>
-            )}
-            {folio?.totals && (
-              <button
-                type="button"
-                className="chip"
-                title="Open the bill"
-                onClick={async () => {
-                  if (!(await leaveDetails())) return;
-                  setTab("bill");
-                  setIntent("payments");
-                }}
-                style={{
-                  background: folio.totals.balance > 0 ? "var(--warn-soft)" : "var(--surface)",
-                  color: folio.totals.balance > 0 ? "var(--warn)" : "var(--text-muted)",
-                  fontWeight: 600,
-                }}
-              >
-                {folio.totals.balance > 0
-                  ? `Owes ₹${folio.totals.balance.toLocaleString("en-IN")}`
-                  : folio.totals.balance < 0
-                    ? `Refund due ₹${(-folio.totals.balance).toLocaleString("en-IN")}`
-                    : "Paid in full"}
-              </button>
-            )}
-
-            {showCheckin && (
-              <CheckinChip
-                status={checkinStatus}
-                onClick={async () => {
-                  if (tab === "guests" || !(await leaveDetails())) return;
-                  setTab("guests");
-                  setIntent(null);
-                }}
-              />
-            )}
+            <Facts>
+              <Fact label="Status" tone={tooEarly ? "warn" : undefined}>
+                {STATUS_LABELS[reservation.status] || reservation.status}
+                {tooEarly && `, arrives ${shortDate(reservation.check_in)}`}
+              </Fact>
+              <Fact label="Stay">{stayLine(reservation)}</Fact>
+              {roomDirty ? (
+                <Fact
+                  label="Room"
+                  tone="warn"
+                  onClick={canHousekeep ? markRoomClean : undefined}
+                  title={canHousekeep ? `Mark room ${assignedRoom.room_number} clean` : "Waiting to be cleaned"}
+                >
+                  {assignedRoom.room_number}, dirty{canHousekeep && ". Mark clean"}
+                </Fact>
+              ) : (
+                <Fact label="Room">{reservation.rooms?.room_number || "Not assigned"}</Fact>
+              )}
+              {group && (
+                <Fact
+                  label="Group"
+                  title={group.reservations
+                    .map(
+                      (m) =>
+                        `${m.rooms?.room_number ? `Room ${m.rooms.room_number}` : m.room_types?.room_type_name}, ${m.guest_name}, ${m.reference}`
+                    )
+                    .join("\n")}
+                >
+                  {group.name}, {group.reservations.length} room{group.reservations.length === 1 ? "" : "s"}
+                </Fact>
+              )}
+              {folio?.totals && (
+                <Fact
+                  label="Balance"
+                  tone={owes ? "warn" : balance === 0 ? "ok" : undefined}
+                  title="Open the bill"
+                  onClick={openPayments}
+                >
+                  {balanceLine(balance, reservation.booking_type === "complimentary")}
+                </Fact>
+              )}
+              {showCheckin && (
+                <CheckinFact
+                  status={checkinStatus}
+                  onClick={async () => {
+                    if (tab === "guests" || !(await leaveDetails())) return;
+                    setTab("guests");
+                    setIntent(null);
+                  }}
+                />
+              )}
+            </Facts>
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
               {whatsapp ? (
@@ -467,8 +523,13 @@ export default function BookingModal({
                   Cancel {reservation.status === "inquiry" ? "inquiry" : "booking"}
                 </button>
               )}
+              {owes && (reservation.status === "confirmed" || reservation.status === "in_house") && (
+                <button type="button" className="btn btn-secondary text-sm" onClick={openPayments}>
+                  Take payment
+                </button>
+              )}
               {actions.map((a) => {
-                const blocked = a.status === "in_house" && (tooEarly || roomDirty);
+                const blocked = a.status === "in_house" && tooEarly;
                 return (
                   <button
                     key={a.status}
@@ -483,8 +544,8 @@ export default function BookingModal({
                           : changeStatus(a.status)
                     }
                   >
-                    {a.status === "checked_out" && folio?.totals?.balance > 0
-                      ? `Collect ₹${folio.totals.balance.toLocaleString("en-IN")} & check out`
+                    {a.status === "checked_out" && owes
+                      ? `Collect ₹${balance.toLocaleString("en-IN")} & check out`
                       : a.label}
                   </button>
                 );

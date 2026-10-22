@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "Everything about a booking at a glance",
+    points: [
+      {
+        page: "reservations",
+        text: "The top of a booking now shows Status, Stay, Room and Balance as plain labels, so they no longer look like buttons. The stay line gives the dates, nights and guests without opening Details.",
+      },
+      {
+        page: "reservations",
+        text: "A room waiting to be cleaned shows as dirty in amber, and one click marks it clean. Check in still works on a dirty room: it asks first, then marks the room clean.",
+      },
+      {
+        page: "reservations",
+        text: "When money is owed, a Take payment button sits beside Check in. A booking that arrives later says when check-in opens.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "A simpler bill on every booking",
     points: [
       {

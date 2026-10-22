@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import { useToast } from "../../components/Toast";
+import { Fact } from "../../components/Facts";
 import { whatsappCheckinLink } from "./frontDesk";
 import { toCountryCode, countryName } from "@/lib/countries";
 import { CHECKIN_ID_TYPES, CHECKIN_STATUS_LABELS, checkinUrl } from "@/lib/onlineCheckinShared";
@@ -77,15 +78,13 @@ export function offersOnlineCheckin(data, reservation) {
 }
 
 /** The status as a chip, for the booking window's status bar and the lists. */
-export function CheckinChip({ status, onClick }) {
+export function CheckinFact({ status, onClick }) {
   if (!status || status === "none") return null;
-  const label = `Online check-in: ${CHECKIN_STATUS_LABELS[status]}`;
-  return onClick ? (
-    <button type="button" className={`chip ${STATUS_CHIP[status]}`} onClick={onClick} title="Open online check-in">
-      {label}
-    </button>
-  ) : (
-    <span className={`chip ${STATUS_CHIP[status]}`}>{label}</span>
+  const tone = { submitted: "warn", accepted: "ok" }[status];
+  return (
+    <Fact label="Online check-in" tone={tone} onClick={onClick} title="Open online check-in">
+      {CHECKIN_STATUS_LABELS[status]}
+    </Fact>
   );
 }
 
