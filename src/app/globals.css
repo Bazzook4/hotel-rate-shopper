@@ -159,8 +159,31 @@ body {
   }
   .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
 
-  .btn-ghost { background: transparent; color: var(--text-muted); }
-  .btn-ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+  /* The quieter button: same outline as secondary, so it never reads as
+   * plain text. Every clickable thing in the app has a visible edge; only
+   * links (underlined) and tabs go without one. */
+  .btn-ghost {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) { background: var(--surface-2); border-color: var(--border-strong); }
+
+  /* Close on a window's green header bar: an outlined square, not a bare x. */
+  .head-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+  }
+  .head-close:hover { background: rgba(255, 255, 255, 0.15); }
 
   .btn-danger { background: var(--danger-soft); color: var(--danger); }
 

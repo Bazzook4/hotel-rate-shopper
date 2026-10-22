@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "Every button now looks like a button",
+    points: [
+      {
+        page: "reservations",
+        text: "Buttons that used to look like plain text, such as Cancel, Night rates, Edit and Add guest, now have an outline on every page, so it is clear what you can click.",
+      },
+      {
+        page: "reservations",
+        text: "Close and remove buttons show a proper close mark, and the close button on a booking stands out on the green bar.",
+      },
+      {
+        page: "reservations",
+        text: "Online check-in on the Guests tab shows its status as plain text beside the heading, so it is no longer mistaken for a button.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "Everything about a booking at a glance",
     points: [
       {

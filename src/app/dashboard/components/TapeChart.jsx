@@ -940,7 +940,7 @@ export default function TapeChart({ session }) {
           style={{ borderColor: "var(--warn)", background: "var(--warn-soft)", color: "var(--warn)" }}
         >
           <span className="flex-1">{syncWarning}</span>
-          <button type="button" className="muted" onClick={() => setSyncWarning(null)}>
+          <button type="button" className="btn btn-ghost text-xs" onClick={() => setSyncWarning(null)}>
             Dismiss
           </button>
         </div>
@@ -964,8 +964,7 @@ export default function TapeChart({ session }) {
             {chart.unassigned.map((r) => (
               <button
                 key={r.id}
-                className="chip chip-warn"
-                style={{ cursor: "pointer" }}
+                className="btn btn-secondary text-xs"
                 onClick={(e) =>
                   setBookingMenu({ reservation: r, x: e.clientX, y: e.clientY })
                 }

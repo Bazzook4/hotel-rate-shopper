@@ -57,7 +57,7 @@ export default function WhatsNew({ onOpenPage, canOpen, pageLabel }) {
                       <button
                         type="button"
                         onClick={() => onOpenPage(p.page)}
-                        className="whitespace-nowrap font-semibold"
+                        className="whitespace-nowrap font-semibold underline underline-offset-2"
                         style={{ color: "var(--accent-text)" }}
                       >
                         Open {pageLabel(p.page)}

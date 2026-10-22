@@ -582,7 +582,7 @@ export default function RoomInventory({ session, section = false }) {
                     onClick={() => removeRoom(room)}
                     title={draft ? "Remove this new row" : "Delete room"}
                   >
-                    x
+                    <Icon name="close" size={14} />
                   </button>
                 </td>
               </tr>

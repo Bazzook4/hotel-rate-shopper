@@ -16,13 +16,8 @@ import { CHECKIN_ID_TYPES, CHECKIN_STATUS_LABELS, checkinUrl } from "@/lib/onlin
  * one against the other; nothing reaches the guest records until Accept.
  */
 
-const STATUS_CHIP = {
-  none: "chip-off",
-  sent: "chip-off",
-  opened: "chip-off",
-  submitted: "chip-warn",
-  accepted: "chip-ok",
-};
+/** The status beside the panel's heading, as coloured text: a pill there read as a button. */
+const STATUS_COLOR = { submitted: "var(--warn)", accepted: "var(--accent-text)" };
 
 const ID_LABEL = Object.fromEntries(CHECKIN_ID_TYPES.map((t) => [t.id, t.label]));
 
@@ -269,9 +264,11 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
         <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
           Online check-in
         </h4>
-        <span className={`chip ${STATUS_CHIP[c.status]}`}>{CHECKIN_STATUS_LABELS[c.status]}</span>
+        <span className="text-sm font-semibold" style={{ color: STATUS_COLOR[c.status] || "var(--text-muted)" }}>
+          {CHECKIN_STATUS_LABELS[c.status]}
+        </span>
         <span className="text-xs" style={{ color: "var(--text-muted)" }} title={events.join("\n") || undefined}>
-          {c.status === "none" ? "Guest fills in details + ID before arrival" : events[events.length - 1]}
+          {c.status === "none" ? "Guest fills in their details and ID before arrival" : events[events.length - 1]}
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {open && !hasPhone && (

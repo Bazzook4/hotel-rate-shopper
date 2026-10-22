@@ -772,12 +772,13 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
               </span>
             </div>
             <button
-              className="btn btn-ghost text-xs"
+              className="btn btn-secondary text-xs"
               onClick={() =>
                 setGuest({ first_name: "", last_name: "", email: "", phone: "", gender: "" })
               }
             >
-              + Add new guest
+              <Icon name="plus" size={14} />
+              Add guest
             </button>
           </div>
 
@@ -812,7 +813,7 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                 disabled={busy}
                 onClick={() => remove("guest", g.id)}
               >
-                x
+                <Icon name="close" size={14} />
               </button>
             </div>
           ))}

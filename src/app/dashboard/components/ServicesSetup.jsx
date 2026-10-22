@@ -1,5 +1,6 @@
 "use client";
 
+import Icon from "../../components/Icon";
 import { Fragment, useMemo, useState } from "react";
 import { todayUTC } from "@/lib/date";
 import {
@@ -308,7 +309,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
                         title="Delete category"
                         onClick={() => deleteCategory(c, group.services.length)}
                       >
-                        x
+                        <Icon name="close" size={14} />
                       </button>
                     )}
                   </td>
@@ -381,7 +382,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
                             title={draft ? "Remove this new row" : "Retire service"}
                             onClick={() => retire(s)}
                           >
-                            x
+                            <Icon name="close" size={14} />
                           </button>
                         )}
                         {/* An ended tax still on the service is kept, but

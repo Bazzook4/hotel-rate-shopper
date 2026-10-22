@@ -452,7 +452,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
                     onClick={() => remove(t)}
                     title={draft ? "Remove this new row" : "Delete tax"}
                   >
-                    x
+                    <Icon name="close" size={14} />
                   </button>
                 </td>
               </tr>

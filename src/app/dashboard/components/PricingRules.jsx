@@ -1,5 +1,6 @@
 "use client";
 
+import Icon from "../../components/Icon";
 import { useMemo, useRef, useState } from "react";
 import { Grid } from "./SetupGrid";
 import { effectiveBounds } from "@/lib/pricingStrategy";
@@ -81,7 +82,7 @@ function NumIn({ value, onChange, width = 72, label, ...rest }) {
 function RemoveBtn({ onClick, label }) {
   return (
     <button type="button" className="btn btn-ghost" style={{ padding: "2px 8px" }} onClick={onClick} aria-label={label} title={label}>
-      x
+      <Icon name="close" size={14} />
     </button>
   );
 }

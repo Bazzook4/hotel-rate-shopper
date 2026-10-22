@@ -1,5 +1,6 @@
 "use client";
 
+import Icon from "../../components/Icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Grid,
@@ -346,7 +347,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
                     title="Delete line"
                     aria-label="Delete line"
                   >
-                    x
+                    <Icon name="close" size={14} />
                   </button>
                 </td>
               </tr>
@@ -590,7 +591,7 @@ export default function Companies({ session }) {
                     title="Delete"
                     aria-label={`Delete ${c.name || "company"}`}
                   >
-                    x
+                    <Icon name="close" size={14} />
                   </button>
                 </td>
               </tr>

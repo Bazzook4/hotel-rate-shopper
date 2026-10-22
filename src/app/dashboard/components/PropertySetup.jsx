@@ -1,5 +1,6 @@
 "use client";
 
+import Icon from "../../components/Icon";
 import { useCallback, useEffect, useState } from "react";
 import RatePlanSetup from "./RatePlanSetup";
 import {
@@ -300,7 +301,7 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
                       draft ? grid.removeDraft(r.id) : onDelete(r.id, r.room_type_name)
                     }
                   >
-                    x
+                    <Icon name="close" size={14} />
                   </button>
                 </td>
               </tr>

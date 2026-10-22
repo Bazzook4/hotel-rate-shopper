@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useDialog } from "../../components/Dialog";
+import Icon from "../../components/Icon";
 
 /**
  * A guest's photo ID: the pictures or PDF of the ID they showed at the desk.
@@ -174,7 +175,7 @@ export default function GuestIdPhotos({ propertyId, guest, onChanged }) {
                   aria-label={`Delete ${p.name}`}
                   title="Delete"
                 >
-                  x
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             </div>

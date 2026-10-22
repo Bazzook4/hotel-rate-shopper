@@ -403,7 +403,8 @@ export default function RatePlanSetup({
                           {missing ? (
                             <button
                               type="button"
-                              className="chip chip-warn"
+                              className="btn btn-secondary text-xs"
+                              style={{ color: "var(--warn)" }}
                               title="No per-adult rates yet, so this room is not sold on this plan"
                               onClick={() => setDrawer({ kind: "room", plan, room })}
                             >

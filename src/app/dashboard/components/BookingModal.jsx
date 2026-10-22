@@ -1,5 +1,6 @@
 "use client";
 
+import Icon from "../../components/Icon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
@@ -449,19 +450,8 @@ export default function BookingModal({
                   reservation?.guest_name || ""
                 }`}
           </div>
-          <button
-            onClick={requestClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#fff",
-              fontSize: "1.1rem",
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
-            aria-label="Close"
-          >
-            x
+          <button type="button" className="head-close" onClick={requestClose} aria-label="Close">
+            <Icon name="close" size={16} />
           </button>
         </div>
 

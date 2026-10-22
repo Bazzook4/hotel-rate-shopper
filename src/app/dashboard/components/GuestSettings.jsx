@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Grid, Messages, SaveActions, SetupHeader, Toolbar, isDraft, sendJSON, useGrid } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import Icon from "../../components/Icon";
 
 /**
  * Guest tiers and wallet plans: the two short lists the Guests page is set
@@ -135,7 +136,7 @@ export function TiersGrid({ propertyId, tiers, onSaved }) {
               </td>
               <td>
                 <button type="button" className="btn btn-ghost text-xs" aria-label="Delete tier" onClick={() => remove(t, "Guests on this tier keep everything else; they just lose the badge.")}>
-                  x
+                  <Icon name="close" size={14} />
                 </button>
               </td>
             </tr>
@@ -199,7 +200,7 @@ export function WalletPlansGrid({ propertyId, plans, onSaved }) {
                 <td>{grid.input(p, "notes")}</td>
                 <td>
                   <button type="button" className="btn btn-ghost text-xs" aria-label="Delete plan" onClick={() => remove(p, "Money already added on this plan stays in the wallets.")}>
-                    x
+                    <Icon name="close" size={14} />
                   </button>
                 </td>
               </tr>

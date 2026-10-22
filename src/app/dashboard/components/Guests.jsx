@@ -1,5 +1,6 @@
 "use client";
 
+import Icon from "../../components/Icon";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Grid,
@@ -448,7 +449,7 @@ export default function Guests({ session }) {
                       title="Delete guest"
                       aria-label={`Delete ${g.full_name || "guest"}`}
                     >
-                      x
+                      <Icon name="close" size={14} />
                     </button>
                   </td>
                 </tr>

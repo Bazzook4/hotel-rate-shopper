@@ -452,11 +452,11 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
           </span>
           <button
             type="button"
+            className="head-close"
             onClick={requestClose}
             aria-label="Close"
-            style={{ background: "none", border: 0, color: "#fff", cursor: "pointer" }}
           >
-            x
+            <Icon name="close" size={16} />
           </button>
         </div>
 
