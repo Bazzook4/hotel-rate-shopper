@@ -20,6 +20,10 @@ const INVITE_TTL_DAYS = 7;
 export const SHARED_LINK_DEFAULTS = { maxUses: 25, days: 30 };
 export const SHARED_LINK_MAX_USES = 200;
 export const SHARED_LINK_MAX_DAYS = 90;
+// An always-open link, for the PMS website: no hotel limit and no expiry
+// worth the name. Only the daily caps in rateLimit.js hold it back.
+export const OPEN_LINK = { maxUses: 1000000, days: 36500 };
+export const isOpenLink = (maxUses) => maxUses >= OPEN_LINK.maxUses;
 
 export function hashInviteToken(token) {
   return createHash("sha256").update(token).digest("hex");

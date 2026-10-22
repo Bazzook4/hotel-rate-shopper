@@ -143,7 +143,7 @@ export const SCRAPE_LIMIT_MESSAGE =
  * `max_uses` caps it too.
  */
 export const SIGNUP_MAX_PER_IP_PER_DAY = 5;
-export const SIGNUP_MAX_PER_DAY = 20;
+export const SIGNUP_MAX_PER_DAY = 5;
 const SIGNUP_ALL_KEY = "signup:all";
 const signupIpKey = (ip) => `signup:ip:${ip}`;
 

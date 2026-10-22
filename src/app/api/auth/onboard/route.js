@@ -18,7 +18,7 @@ const MAX_ROOMS = 1000;
 const GONE = { error: "This onboarding link has expired, is full, or was switched off." };
 const CAPPED = {
   ip: "Several hotels have already signed up from this internet connection today. Try again tomorrow, or ask us for a link of your own.",
-  all: "Sign-ups through this link are paused for today. Try again tomorrow, or ask us for a link of your own.",
+  all: "We are full for today. Please try again tomorrow, or ask us for a link of your own.",
 };
 
 /** Whether a link is still good, and the hotel name it was issued for. */

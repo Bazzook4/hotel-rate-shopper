@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
 import { canManageProperties } from "@/lib/permissions";
 import {
+  OPEN_LINK,
   SHARED_LINK_DEFAULTS,
   SHARED_LINK_MAX_DAYS,
   SHARED_LINK_MAX_USES,
   createOnboardingInvite,
+  isOpenLink,
   listSharedLinks,
   revokeInvite,
 } from "@/lib/onboarding";
@@ -44,7 +46,11 @@ export async function GET(request) {
   try {
     const links = await listSharedLinks();
     return NextResponse.json({
-      links: links.map(({ share_token, ...link }) => ({ ...link, url: linkUrl(request, share_token) })),
+      links: links.map(({ share_token, ...link }) => ({
+        ...link,
+        url: linkUrl(request, share_token),
+        open: isOpenLink(link.max_uses),
+      })),
       caps: { perConnection: SIGNUP_MAX_PER_IP_PER_DAY, perDay: SIGNUP_MAX_PER_DAY },
     });
   } catch (err) {
@@ -54,7 +60,8 @@ export async function GET(request) {
 
 /**
  * Issue a link: one hotel by default, or `shared: true` for a link up to
- * `maxUses` hotels can sign up through over `days`.
+ * `maxUses` hotels can sign up through over `days`, or `open: true` too
+ * for one that stays open with no hotel limit.
  */
 export async function POST(request) {
   const session = await authorise(request);
@@ -62,18 +69,20 @@ export async function POST(request) {
 
   const body = await request.json().catch(() => ({}));
   const shared = body?.shared === true;
+  const open = shared && body?.open === true;
 
   try {
     const invite = await createOnboardingInvite({
       propertyName: body?.propertyName,
       createdBy: session.userId,
-      ...(shared && {
+      ...(open && OPEN_LINK),
+      ...(shared && !open && {
         maxUses: Math.max(2, clamp(body?.maxUses, SHARED_LINK_DEFAULTS.maxUses, SHARED_LINK_MAX_USES)),
         days: clamp(body?.days, SHARED_LINK_DEFAULTS.days, SHARED_LINK_MAX_DAYS),
       }),
     });
     return NextResponse.json(
-      { url: linkUrl(request, invite.token), expiresAt: invite.expires_at, maxUses: invite.max_uses },
+      { url: linkUrl(request, invite.token), expiresAt: invite.expires_at, maxUses: invite.max_uses, open },
       { status: 201 }
     );
   } catch (err) {

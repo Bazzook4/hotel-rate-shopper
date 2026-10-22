@@ -68,7 +68,8 @@ async function copyText(text) {
 }
 
 /** What is wrong with a shareable link's numbers, if anything. */
-function sharedLinkProblem({ maxUses, days }) {
+function sharedLinkProblem({ open, maxUses, days }) {
+  if (open) return null;
   const whole = (v, lo, hi) => /^\d+$/.test(String(v).trim()) && +v >= lo && +v <= hi;
   if (!whole(maxUses, 2, 200)) return { field: "maxUses", text: "Hotels must be a whole number from 2 to 200." };
   if (!whole(days, 1, 90)) return { field: "days", text: "Days open must be a whole number from 1 to 90." };
@@ -138,7 +139,9 @@ export default function PropertyAdmin({ session }) {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || "Could not create the link.");
       const copied = await copyText(json.url);
-      const made = `Link for ${json.maxUses} hotels, open until ${formatDate(json.expiresAt)}`;
+      const made = json.open
+        ? "Always-open link ready"
+        : `Link for ${json.maxUses} hotels, open until ${formatDate(json.expiresAt)}`;
       setSharedMsg({
         text: copied ? `${made}, copied.` : `${made}. Select it below and copy it.`,
       });
@@ -298,7 +301,7 @@ export default function PropertyAdmin({ session }) {
               onClick={() => {
                 setInvite(null);
                 setSharedMsg(null);
-                setSharedForm(sharedForm ? null : { maxUses: "25", days: "30" });
+                setSharedForm(sharedForm ? null : { open: false, maxUses: "25", days: "30" });
               }}
               aria-expanded={!!sharedForm}
               className="btn btn-secondary"
@@ -343,30 +346,42 @@ export default function PropertyAdmin({ session }) {
             >
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <label className="flex items-center gap-2 label">
-                  Hotels
                   <input
-                    type="number"
-                    min={2}
-                    max={200}
-                    autoFocus
-                    value={sharedForm.maxUses}
-                    onChange={(e) => setSharedForm({ ...sharedForm, maxUses: e.target.value })}
-                    aria-invalid={sharedFormProblem?.field === "maxUses"}
-                    className="input w-20"
+                    type="checkbox"
+                    checked={sharedForm.open}
+                    onChange={(e) => setSharedForm({ ...sharedForm, open: e.target.checked })}
                   />
+                  Always open
                 </label>
-                <label className="flex items-center gap-2 label">
-                  Days open
-                  <input
-                    type="number"
-                    min={1}
-                    max={90}
-                    value={sharedForm.days}
-                    onChange={(e) => setSharedForm({ ...sharedForm, days: e.target.value })}
-                    aria-invalid={sharedFormProblem?.field === "days"}
-                    className="input w-20"
-                  />
-                </label>
+                {!sharedForm.open && (
+                  <>
+                    <label className="flex items-center gap-2 label">
+                      Hotels
+                      <input
+                        type="number"
+                        min={2}
+                        max={200}
+                        autoFocus
+                        value={sharedForm.maxUses}
+                        onChange={(e) => setSharedForm({ ...sharedForm, maxUses: e.target.value })}
+                        aria-invalid={sharedFormProblem?.field === "maxUses"}
+                        className="input w-20"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 label">
+                      Days open
+                      <input
+                        type="number"
+                        min={1}
+                        max={90}
+                        value={sharedForm.days}
+                        onChange={(e) => setSharedForm({ ...sharedForm, days: e.target.value })}
+                        aria-invalid={sharedFormProblem?.field === "days"}
+                        className="input w-20"
+                      />
+                    </label>
+                  </>
+                )}
                 <div className="flex gap-2">
                   <button type="submit" disabled={busy || !!sharedFormProblem} className="btn btn-primary">
                     {busy ? "Creating..." : "Create link"}
@@ -380,7 +395,9 @@ export default function PropertyAdmin({ session }) {
                 <p className="text-xs text-[var(--danger)]">{sharedFormProblem.text}</p>
               ) : (
                 <p className="text-xs muted">
-                  One link many hotels can sign up through, for your website or a WhatsApp group.
+                  {sharedForm.open
+                    ? "One link that never expires and has no hotel limit, for your PMS website."
+                    : "One link many hotels can sign up through, for your website or a WhatsApp group."}
                   {sharedCaps &&
                     ` At most ${sharedCaps.perConnection} hotels a day from one internet connection, and ${sharedCaps.perDay} a day in all.`}
                 </p>
@@ -414,7 +431,9 @@ export default function PropertyAdmin({ session }) {
                     {link.url}
                   </span>
                   <span className="text-xs muted">
-                    {link.use_count} of {link.max_uses} hotels joined, open until {formatDate(link.expires_at)}
+                    {link.open
+                      ? `${link.use_count} hotels joined, always open`
+                      : `${link.use_count} of ${link.max_uses} hotels joined, open until ${formatDate(link.expires_at)}`}
                   </span>
                   <span className="flex gap-2">
                     <button type="button" onClick={() => copyLink(link.url)} className="btn btn-secondary">
