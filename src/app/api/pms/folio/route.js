@@ -132,7 +132,11 @@ export async function POST(req) {
         if (!body.guest?.first_name?.trim()) {
           return NextResponse.json({ error: "First name is required." }, { status: 400 });
         }
-        await saveReservationGuest(reservationId, body.guest);
+        // The booking's main guest is the booking's own guest record, so
+        // their saved ID can fill in what the desk leaves blank. Found here,
+        // never taken from the browser.
+        const own = body.guest.is_primary ? (await getReservation(reservationId).catch(() => null))?.guest_id : null;
+        await saveReservationGuest(reservationId, body.guest, { guestId: own || undefined });
         break;
       }
 

@@ -59,12 +59,12 @@ export function normaliseTz(raw) {
 }
 
 /** The instant a local day begins, as a UTC timestamp to filter on. */
-function dayStart(iso, tz) {
+export function dayStart(iso, tz) {
   return new Date(Date.parse(`${iso}T00:00:00Z`) + tz * 60000).toISOString();
 }
 
 /** The local day a stored moment falls on. */
-function localDay(ts, tz) {
+export function localDay(ts, tz) {
   if (!ts) return null;
   return new Date(Date.parse(ts) - tz * 60000).toISOString().slice(0, 10);
 }
@@ -74,7 +74,7 @@ export function localToday(tz) {
   return localDay(new Date().toISOString(), tz);
 }
 
-function shiftDay(iso, days) {
+export function shiftDay(iso, days) {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
@@ -84,7 +84,7 @@ function daysBetween(from, to) {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 }
 
-function everyDay(start, end) {
+export function everyDay(start, end) {
   const out = [];
   for (let d = start; d <= end; d = shiftDay(d, 1)) out.push(d);
   return out;
@@ -235,7 +235,7 @@ function loadPayments(propertyId, from, to, column = 'paid_at') {
 }
 
 /** Who a user id is, for "recorded by" -- an email, which is what the users page shows. */
-async function userEmails(ids) {
+export async function userEmails(ids) {
   const unique = [...new Set(ids.filter(Boolean))];
   if (unique.length === 0) return {};
   const { data, error } = await getSupabaseAdmin().from('users').select('id, email').in('id', unique);

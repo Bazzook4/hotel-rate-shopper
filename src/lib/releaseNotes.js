@@ -14,6 +14,36 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-22",
+    title: "Cash book, police report and Form C",
+    points: [
+      {
+        page: "cashbook",
+        text: "New Cash & Expenses page under Front desk. It shows how much cash should be in the drawer. Count the cash at each shift change and it tells you at once if the drawer is short or over.",
+      },
+      {
+        page: "cashbook",
+        text: "Record every expense with a tag (groceries, laundry, repairs, salary) and see what the money went on, by tag, for any dates. Cash paid into the bank, given to the owner or added to the drawer goes on the same list. A saved line can only be voided, with a reason, never changed.",
+      },
+      {
+        page: "policereport",
+        text: "New Police & Form C page under Front desk: every guest who checked in, with their ID, address and nationality, ready to print or download for the police station. Anything missing is marked, and one click opens the booking to fill it in.",
+      },
+      {
+        page: "policereport",
+        text: "Hotels with foreign guests get a Form C tab on the same page. It shows when each form is due, within 24 hours of check-in, with Copy buttons for the passport and visa details you already have, and you mark it filed with the FRRO number. Today warns you when one is due.",
+      },
+      {
+        page: "reservations",
+        text: "Checking a guest in now asks for each adult's ID type and number in the same window as the room. You can leave it blank and add it later. If everyone's ID is already in, nothing extra is asked.",
+      },
+      {
+        page: "reservations",
+        text: "Each guest on a booking's Guests tab now has nationality, ID type, ID number, date of birth and address. Online check-in fills these in when you accept it.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-22",
     title: "Every button now looks like a button",
     points: [
       {

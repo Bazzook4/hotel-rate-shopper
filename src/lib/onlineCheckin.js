@@ -480,15 +480,27 @@ export async function acceptCheckin(row, reservation, userId) {
 
     const files = await adoptIdFiles(propertyId, guestId, p.files || []);
 
-    if (!named.some((g) => sameName(`${g.first_name} ${g.last_name || ""}`, p.full_name))) {
+    // Who they are, for the police register and Form C.
+    const identity = {
+      nationality: p.nationality || null,
+      id_type: foreign ? "passport" : p.id_type || null,
+      id_number: p.id_number || null,
+      address: p.address || null,
+      date_of_birth: p.date_of_birth || null,
+    };
+    const already = named.find((g) => sameName(`${g.first_name} ${g.last_name || ""}`, p.full_name));
+    if (!already) {
       const primary = i === 0 && !hasPrimary && sameName(p.full_name, reservation.guest_name);
-      await saveReservationGuest(reservation.id, {
-        ...splitName(p.full_name),
-        email: contact.email || null,
-        phone: contact.phone || null,
-        is_primary: primary,
-      });
+      await saveReservationGuest(
+        reservation.id,
+        { ...splitName(p.full_name), email: contact.email || null, phone: contact.phone || null, is_primary: primary, ...identity },
+        { guestId }
+      );
       if (primary) hasPrimary = true;
+    } else if (!already.id_number) {
+      // Named by the desk before the details came in: the ID goes onto that
+      // line rather than a second one with the same name.
+      await saveReservationGuest(reservation.id, { ...already, ...identity }, { guestId });
     }
 
     people[i] = { ...p, guest_id: guestId, files };

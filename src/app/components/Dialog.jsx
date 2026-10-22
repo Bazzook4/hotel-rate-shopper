@@ -21,7 +21,7 @@ import Select from "@/app/components/Select";
 const DialogContext = createContext(null);
 
 function DialogBox({ request, onDone }) {
-  const { kind, title, message, label, placeholder, options = [], danger } = request;
+  const { kind, title, message, label, placeholder, options = [], danger, inputMode } = request;
   const [value, setValue] = useState(
     request.value ?? (kind === "choose" ? options[0]?.value ?? "" : "")
   );
@@ -73,6 +73,7 @@ function DialogBox({ request, onDone }) {
               ref={fieldRef}
               className="input w-full"
               placeholder={placeholder}
+              inputMode={inputMode}
               value={value}
               onChange={(e) => setValue(e.target.value)}
             />

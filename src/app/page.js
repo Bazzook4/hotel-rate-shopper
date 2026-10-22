@@ -153,6 +153,14 @@ const PaymentsReport = dynamic(() => import("./dashboard/components/PaymentsRepo
   ssr: false,
   loading: PageLoading,
 });
+const CashBook = dynamic(() => import("./dashboard/components/CashBook"), {
+  ssr: false,
+  loading: PageLoading,
+});
+const PoliceReport = dynamic(() => import("./dashboard/components/PoliceReport"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const UserRights = dynamic(() => import("./dashboard/components/UserRights"), {
   ssr: false,
   loading: PageLoading,
@@ -822,6 +830,10 @@ export default function V2Dashboard() {
                   {active === "performance" && <BookingPerformance session={scopedSession} />}
 
                   {active === "nightaudit" && <NightAudit session={scopedSession} />}
+
+                  {active === "cashbook" && <CashBook session={scopedSession} />}
+
+                  {active === "policereport" && <PoliceReport session={scopedSession} initialView={pageView} />}
 
                   {active === "invoicing" && <InvoicingReport session={scopedSession} />}
 

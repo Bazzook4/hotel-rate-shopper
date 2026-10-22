@@ -6,6 +6,9 @@ import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
 import { useToast } from "../../components/Toast";
 import Select from "@/app/components/Select";
+import DateField from "@/app/components/DateField";
+import { countryName, countryOptions, toCountryCode } from "@/lib/countries";
+import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { Drawer, Field } from "./RatePlanSetup";
 
 /**
@@ -774,7 +777,18 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
             <button
               className="btn btn-secondary text-xs"
               onClick={() =>
-                setGuest({ first_name: "", last_name: "", email: "", phone: "", gender: "" })
+                setGuest({
+                  first_name: "",
+                  last_name: "",
+                  email: "",
+                  phone: "",
+                  gender: "",
+                  nationality: toCountryCode(folio.reservation.guest_country) || "",
+                  id_type: "",
+                  id_number: "",
+                  date_of_birth: "",
+                  address: "",
+                })
               }
             >
               <Icon name="plus" size={14} />
@@ -803,6 +817,16 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                 </div>
                 <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>
                   {[g.email, g.phone].filter(Boolean).join(", ") || "No contact details"}
+                </div>
+                <div style={{ fontSize: "0.7rem", color: g.id_number ? "var(--text-faint)" : "var(--warn)" }}>
+                  {g.id_number
+                    ? [
+                        `${CHECKIN_ID_TYPES.find((t) => t.id === g.id_type)?.label || "ID"} ${g.id_number}`,
+                        countryName(g.nationality),
+                      ]
+                        .filter(Boolean)
+                        .join(", ")
+                    : "No ID yet, needed for the police report"}
                 </div>
               </div>
               <button className="btn btn-ghost text-xs" onClick={() => setGuest(g)}>
@@ -870,6 +894,63 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     <option value="other">Other</option>
                   </Select>
                 </div>
+                <div>
+                  <label className="label">Nationality</label>
+                  <Select
+                    className="input"
+                    value={guest.nationality || ""}
+                    onChange={(e) => setGuest({ ...guest, nationality: e.target.value })}
+                  >
+                    <option value="">Select country</option>
+                    {countryOptions().map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="label">ID type</label>
+                  <Select
+                    className="input"
+                    value={guest.id_type || ""}
+                    onChange={(e) => setGuest({ ...guest, id_type: e.target.value })}
+                  >
+                    <option value="">Select ID</option>
+                    {CHECKIN_ID_TYPES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div>
+                  <label className="label">ID number</label>
+                  <input
+                    className="input"
+                    value={guest.id_number || ""}
+                    autoCapitalize="characters"
+                    onChange={(e) => setGuest({ ...guest, id_number: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Date of birth</label>
+                  <DateField
+                    value={guest.date_of_birth || ""}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setGuest({ ...guest, date_of_birth: e.target.value })}
+                    aria-label="Date of birth"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="label">Address</label>
+                <input
+                  className="input w-full"
+                  value={guest.address || ""}
+                  onChange={(e) => setGuest({ ...guest, address: e.target.value })}
+                  placeholder="As on the ID"
+                />
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useDialog } from "../../components/Dialog";
 import { useEscape } from "../../components/useEscape";
 import { dayUseLabel, dayUseWindowLabel } from "@/lib/dayUse";
 import Select from "@/app/components/Select";
+import { countryOptions, toCountryCode } from "@/lib/countries";
+import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 
 /**
  * Check-in and check-out as one shared action, so the Today page, the
@@ -17,6 +18,10 @@ import Select from "@/app/components/Select";
  * it. The check-in then marks it clean under the desk's name. Check-out with money still owed offers to take it in the same
  * step, so a guest is not let go with a balance by accident -- while still
  * allowing it for a stay billed to a company or settled elsewhere.
+ *
+ * Check-in also asks for each adult's ID, which the police report needs,
+ * in the same popup as the room. When the room is set and every adult on
+ * the booking already has an ID, there is no popup at all.
  */
 
 function money(value, currency) {
@@ -72,6 +77,226 @@ export function walkInPrefill(date) {
     `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
   const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
   return { source: "walkin", check_in: iso(d), check_out: iso(next) };
+}
+
+/** At most this many adults are asked for in the popup; more go on the Guests tab. */
+const MAX_ID_LINES = 4;
+
+const fullName = (g) => [g.first_name, g.last_name].filter(Boolean).join(" ");
+
+function splitName(full) {
+  const parts = String(full || "").trim().split(/\s+/);
+  return { first_name: parts[0] || "", last_name: parts.slice(1).join(" ") || null };
+}
+
+/**
+ * Who should be named on the booking, one line per adult: the named guests
+ * as they are, then the booker if nobody is named (with their saved ID, for
+ * a returning guest), then blank lines for the other adults.
+ */
+async function idLines(r) {
+  const res = await fetch(`/api/pms/folio?reservationId=${r.id}`);
+  const folio = await res.json().catch(() => ({}));
+  if (!res.ok) return null;
+  const stay = folio.reservation || r;
+  const named = folio.guests || [];
+  const home = stay.guest_residency === "international" ? "" : toCountryCode(stay.guest_country) || "IN";
+  const wanted = Math.min(Math.max(Number(stay.adults) || 1, 1), MAX_ID_LINES);
+
+  let booker = null;
+  if (!named.length && stay.guest_id) {
+    const g = await fetch(`/api/pms/guests?id=${stay.guest_id}${stay.property_id ? `&propertyId=${stay.property_id}` : ""}`)
+      .then((x) => (x.ok ? x.json() : null))
+      .catch(() => null);
+    booker = g?.guest || null;
+  }
+
+  const lines = named.slice(0, Math.max(wanted, named.length)).map((g) => ({
+    existing: g,
+    name: fullName(g),
+    id_type: g.id_type || "",
+    id_number: g.id_number || "",
+    nationality: g.nationality || (g.is_primary ? toCountryCode(stay.guest_country) : "") || home,
+  }));
+  if (!lines.length) {
+    lines.push({
+      existing: null,
+      primary: true,
+      name: stay.guest_name || "",
+      id_type: booker?.id_type || "",
+      id_number: booker?.id_number || "",
+      nationality: toCountryCode(booker?.country) || home,
+    });
+  }
+  while (lines.length < wanted) lines.push({ existing: null, name: "", id_type: "", id_number: "", nationality: home });
+  const complete = lines.every((l) => l.name.trim() && l.id_number.trim());
+  return { lines, complete };
+}
+
+/** Save the lines the desk filled or changed as named guests on the booking. */
+async function saveIdLines(reservationId, before, after) {
+  const hasPrimary = before.some((l) => l.existing?.is_primary);
+  for (const [i, l] of after.entries()) {
+    const was = before[i];
+    const changed = ["name", "id_type", "id_number", "nationality"].some((k) => String(l[k] || "") !== String(was[k] || ""));
+    if (!l.name.trim() || (l.existing && !changed)) continue;
+    // A booker line nobody touched and with no ID is left as the booking's
+    // name, rather than naming them with nothing new.
+    if (!l.existing && !l.id_number.trim() && !changed) continue;
+    const guest = {
+      ...(l.existing || {}),
+      ...splitName(l.name),
+      id_type: l.id_type || null,
+      id_number: l.id_number.trim() || null,
+      nationality: l.nationality || null,
+    };
+    if (!l.existing) guest.is_primary = Boolean(l.primary) && !hasPrimary;
+    delete guest.guests;
+    const res = await fetch("/api/pms/folio", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "guest", reservationId, guest }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `The details for ${l.name} did not save, so the guest is not checked in yet.`);
+  }
+}
+
+/**
+ * The check-in popup: the room, if one is still to be picked or is dirty,
+ * and each adult's name and ID. Blanks are allowed, since a guest at the
+ * desk should not wait on a missing ID; the police report shows them.
+ */
+function CheckInDialog({ request, onDone }) {
+  const { guest, rooms, roomNote, lines: start } = request;
+  const [roomId, setRoomId] = useState(rooms?.[0]?.value || "");
+  const [lines, setLines] = useState(start || []);
+  const countries = countryOptions();
+  useEscape(() => onDone(null));
+  const set = (i, k, v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  const missing = lines.filter((l) => !l.id_number.trim()).length;
+
+  return (
+    <div
+      className="dialog-backdrop"
+      onClick={(e) => {
+        e.stopPropagation();
+        onDone(null);
+      }}
+    >
+      <form
+        className="dialog card"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Check in ${guest}`}
+        style={{ maxWidth: lines.length ? 760 : undefined, width: lines.length ? "min(760px, 100%)" : undefined }}
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (rooms && !roomId) return;
+          onDone({ roomId, lines });
+        }}
+      >
+        <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
+          Check in {guest}
+        </h3>
+        {roomNote && (
+          <p className="mt-1 text-sm" style={{ color: "var(--warn)" }}>
+            {roomNote}
+          </p>
+        )}
+        {rooms && (
+          <div className="mt-3" style={{ maxWidth: 360 }}>
+            <label className="label">Room</label>
+            <Select className="input w-full" value={roomId} onChange={(e) => setRoomId(e.target.value)} autoFocus>
+              {rooms.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+        {lines.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              ID for the police report. Leave it blank to add later.
+            </p>
+            <div className="table-frame overflow-x-auto rounded-lg" style={{ border: "1px solid var(--border)" }}>
+              <table className="grid-table">
+                <thead>
+                  <tr>
+                    <th style={{ minWidth: 170 }}>Name</th>
+                    <th style={{ minWidth: 140 }}>ID type</th>
+                    <th style={{ minWidth: 150 }}>ID number</th>
+                    <th style={{ minWidth: 150 }}>Nationality</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((l, i) => (
+                    <tr key={i}>
+                      <td>
+                        <input
+                          className="input w-full"
+                          value={l.name}
+                          placeholder={i === 0 ? "Guest name" : `Adult ${i + 1}`}
+                          onChange={(e) => set(i, "name", e.target.value)}
+                          aria-label={`Name of adult ${i + 1}`}
+                        />
+                      </td>
+                      <td>
+                        <Select className="input w-full" value={l.id_type} onChange={(e) => set(i, "id_type", e.target.value)} aria-label="ID type">
+                          <option value="">Select ID</option>
+                          {CHECKIN_ID_TYPES.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.label}
+                            </option>
+                          ))}
+                        </Select>
+                      </td>
+                      <td>
+                        <input
+                          className="input w-full"
+                          value={l.id_number}
+                          autoCapitalize="characters"
+                          autoFocus={!rooms && i === lines.findIndex((x) => !x.id_number.trim())}
+                          onChange={(e) => set(i, "id_number", e.target.value)}
+                          aria-label={`ID number of adult ${i + 1}`}
+                        />
+                      </td>
+                      <td>
+                        <Select className="input w-full" value={l.nationality} onChange={(e) => set(i, "nationality", e.target.value)} aria-label="Nationality">
+                          <option value="">Select country</option>
+                          {countries.map((c) => (
+                            <option key={c.code} value={c.code}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {lines.some((l) => l.id_type === "passport" && (!l.nationality || l.nationality === "IN")) && (
+              <p className="text-xs" style={{ color: "var(--warn)" }}>
+                A passport holder&apos;s nationality decides whether a Form C is needed. Check it is right.
+              </p>
+            )}
+          </div>
+        )}
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn btn-ghost text-sm" onClick={() => onDone(null)}>
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary text-sm" disabled={rooms && !roomId}>
+            {missing && lines.length ? `Check in, ${missing} ID${missing === 1 ? "" : "s"} to add later` : "Check in"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 /** The balance-due step of a check-out: take the money, or go ahead without it. */
@@ -157,31 +382,57 @@ function SettleDialog({ request, onDone }) {
  * `settleDialog` must be rendered by the caller.
  */
 export function useFrontDesk(propertyId) {
-  const dialog = useDialog();
   const [settle, setSettle] = useState(null);
+
+  const [checkInAsk, setCheckInAsk] = useState(null);
+
+  /** The popup, as a promise of `{ roomId, lines }`, or null if the desk backed out. */
+  const askCheckIn = useCallback(async (request) => {
+    const answer = await new Promise((resolve) => setCheckInAsk({ ...request, resolve }));
+    setCheckInAsk(null);
+    return answer;
+  }, []);
 
   const checkIn = useCallback(
     async (r, { roomSeenDirty = false } = {}) => {
+      // Who is on the booking and whose ID is missing. If this cannot be
+      // read, check-in still goes ahead; the police report shows the gap.
+      const ids = await idLines(r).catch(() => null);
+      const lines = ids && !ids.complete ? ids.lines : [];
+
+      const finish = async (answer, roomId, markClean) => {
+        if (answer?.lines?.length) await saveIdLines(r.id, ids.lines, answer.lines);
+        return postStatus(r.id, "in_house", roomId, { markClean });
+      };
+
       if (r.room_id) {
         // Picked in the booking form, whose list already said "dirty": no second question.
-        if (roomSeenDirty) return postStatus(r.id, "in_house", null, { markClean: true });
-        const askToClean = async (number) => {
-          const ok = await dialog.confirm({
-            title: number ? `Room ${number} is marked dirty` : "The room is marked dirty",
-            message: "If it is ready, check the guest in. The room is marked clean under your name.",
-            confirmLabel: "Check in and mark clean",
-          });
-          return ok ? postStatus(r.id, "in_house", null, { markClean: true }) : null;
-        };
-        const room = await roomOf(r, propertyId);
-        if (room?.housekeeping === "dirty") return askToClean(room.room_number);
-        try {
-          return await postStatus(r.id, "in_house");
-        } catch (err) {
-          // The room could not be read first, and the server found it dirty.
-          if (!room && /marked dirty/.test(err.message)) return askToClean(null);
-          throw err;
+        let dirty = false;
+        let number = null;
+        if (!roomSeenDirty) {
+          const room = await roomOf(r, propertyId);
+          dirty = room?.housekeeping === "dirty";
+          number = room?.room_number || null;
         }
+        if (!dirty && !lines.length) {
+          try {
+            return await postStatus(r.id, "in_house", null, { markClean: roomSeenDirty });
+          } catch (err) {
+            // The room could not be read first, and the server found it dirty.
+            if (!/marked dirty/.test(err.message)) throw err;
+            dirty = true;
+          }
+        }
+        const answer = await askCheckIn({
+          guest: r.guest_name,
+          rooms: null,
+          roomNote: dirty
+            ? `${number ? `Room ${number}` : "The room"} is marked dirty. If it is ready, check the guest in and it is marked clean under your name.`
+            : null,
+          lines,
+        });
+        if (!answer) return null;
+        return finish(answer, null, dirty || roomSeenDirty);
       }
 
       const qs = new URLSearchParams({
@@ -199,22 +450,21 @@ export function useFrontDesk(propertyId) {
       const free = ofType.filter((x) => !x.taken);
       if (!free.length) throw new Error(`Every room of that type is taken or out of order for ${r.guest_name}'s stay.`);
       // Clean rooms first; a dirty one says so, and taking it marks it clean.
-      const dirty = (x) => x.housekeeping === "dirty";
-      const offered = [...free.filter((x) => !dirty(x)), ...free.filter(dirty)];
+      const isDirty = (x) => x.housekeeping === "dirty";
+      const offered = [...free.filter((x) => !isDirty(x)), ...free.filter(isDirty)];
 
-      const roomId = await dialog.choose({
-        title: `Check in ${r.guest_name}`,
-        label: "Room",
-        options: offered.map((x) => ({
+      const answer = await askCheckIn({
+        guest: r.guest_name,
+        rooms: offered.map((x) => ({
           value: x.id,
-          label: dirty(x) ? `Room ${x.room_number}, dirty, marked clean on check-in` : `Room ${x.room_number}`,
+          label: isDirty(x) ? `Room ${x.room_number}, dirty, marked clean on check-in` : `Room ${x.room_number}`,
         })),
-        confirmLabel: "Check in",
+        lines,
       });
-      if (!roomId) return null;
-      return postStatus(r.id, "in_house", roomId, { markClean: dirty(offered.find((x) => x.id === roomId)) });
+      if (!answer?.roomId) return null;
+      return finish(answer, answer.roomId, isDirty(offered.find((x) => x.id === answer.roomId)));
     },
-    [propertyId, dialog]
+    [propertyId, askCheckIn]
   );
 
   const checkOut = useCallback(async (r) => {
@@ -245,7 +495,12 @@ export function useFrontDesk(propertyId) {
     return postStatus(r.id, "checked_out");
   }, []);
 
-  const settleDialog = settle ? <SettleDialog request={settle} onDone={settle.resolve} /> : null;
+  // One element for the caller to render, whichever popup is open.
+  const settleDialog = settle ? (
+    <SettleDialog request={settle} onDone={settle.resolve} />
+  ) : checkInAsk ? (
+    <CheckInDialog request={checkInAsk} onDone={checkInAsk.resolve} />
+  ) : null;
 
   return { checkIn, checkOut, settleDialog };
 }

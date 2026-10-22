@@ -249,8 +249,31 @@ function Problem({ tone, count, title, hint, action, children }) {
   );
 }
 
-function NeedsAttention({ today, distribution, onOpenPage, canOpen, openBooking }) {
+function NeedsAttention({ today, distribution, formC, onOpenPage, canOpen, openBooking }) {
   const items = [];
+
+  if (formC?.due > 0) {
+    items.push(
+      <Problem
+        key="formc"
+        tone={formC.overdue > 0 ? "danger" : "warn"}
+        count={formC.due}
+        title={`Form C to file for ${formC.due} foreign guest${formC.due === 1 ? "" : "s"}`}
+        hint={
+          formC.overdue > 0
+            ? `${formC.overdue} past the 24 hours after check-in. File on the FRRO site, then mark it filed.`
+            : "Due within 24 hours of check-in. File on the FRRO site, then mark it filed."
+        }
+        action={
+          canOpen("policereport") && (
+            <button type="button" className="btn btn-secondary text-xs" onClick={() => onOpenPage("policereport", "formc")}>
+              Form C
+            </button>
+          )
+        }
+      />
+    );
+  }
 
   for (const e of today?.exceptions || []) {
     items.push(
@@ -658,7 +681,8 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
   const distribution = report?.distribution?.error ? null : report?.distribution;
   const setup = report?.setup?.error ? null : report?.setup;
   const month = report?.month?.error ? null : report?.month;
-  const hasAttention = report && (report.today || report.distribution);
+  const formC = report?.formC?.error ? null : report?.formC;
+  const hasAttention = report && (report.today || report.distribution || formC?.due > 0);
   const canBook = today && (canOpen("reservations") || canOpen("calendar"));
   const walkIn = () => newBooking(walkInPrefill(today.date));
 
@@ -708,6 +732,7 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
         <NeedsAttention
           today={today}
           distribution={distribution}
+          formC={formC}
           onOpenPage={onOpenPage}
           canOpen={canOpen}
           openBooking={openBooking}

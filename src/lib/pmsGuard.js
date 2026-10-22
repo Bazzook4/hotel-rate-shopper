@@ -7,8 +7,11 @@ import { moduleDeniedResponse } from "@/lib/propertyScope";
 /** The pages that make and change bookings. */
 export const BOOKING_PAGES = ["calendar", "reservations"];
 
-/** Those, plus the finance reports, which open a booking to show its folio. */
-export const BOOKING_VIEW_PAGES = [...BOOKING_PAGES, "nightaudit", "invoicing", "payments"];
+/**
+ * Those, plus the reports that open a booking: the finance reports to show
+ * its folio, the police report to fill in its guests.
+ */
+export const BOOKING_VIEW_PAGES = [...BOOKING_PAGES, "nightaudit", "invoicing", "payments", "cashbook", "policereport"];
 
 /**
  * Session and property scoping for the PMS routes.

@@ -4444,7 +4444,7 @@ export async function listReservationGuests(reservationId) {
  * The primary guest's name is mirrored onto the reservation, because every
  * list and search reads it from there rather than joining.
  */
-export async function saveReservationGuest(reservationId, guest) {
+export async function saveReservationGuest(reservationId, guest, { guestId } = {}) {
   const row = {
     reservation_id: reservationId,
     first_name: guest.first_name?.trim(),
@@ -4454,6 +4454,16 @@ export async function saveReservationGuest(reservationId, guest) {
     gender: guest.gender || null,
     is_primary: guest.is_primary === true,
   };
+  // Who they are, for the police register and Form C (migration 054). Only
+  // sent when the form sent them, so an older caller cannot blank them.
+  const idFields = {};
+  for (const f of ['nationality', 'id_type', 'id_number', 'address']) {
+    if (f in guest) idFields[f] = String(guest[f] ?? '').trim() || null;
+  }
+  if ('date_of_birth' in guest) idFields.date_of_birth = /^\d{4}-\d{2}-\d{2}$/.test(guest.date_of_birth || '') ? guest.date_of_birth : null;
+  // The guest record is linked only by server code that found it (online
+  // check-in), never from what a browser sent.
+  if (guestId) idFields.guest_id = guestId;
 
   // Only one guest may be primary, so promoting this one demotes the rest
   // before the write rather than letting the partial index reject it.
@@ -4468,11 +4478,19 @@ export async function saveReservationGuest(reservationId, guest) {
     }
   }
 
-  const query = guest.id
-    ? supabase.from('reservation_guests').update(row).eq('id', guest.id)
-    : supabase.from('reservation_guests').insert(row);
+  const write = (fields) =>
+    (guest.id
+      ? supabase.from('reservation_guests').update(fields).eq('id', guest.id)
+      : supabase.from('reservation_guests').insert(fields)
+    )
+      .select('*')
+      .single();
 
-  const { data, error } = await query.select('*').single();
+  let { data, error } = await write({ ...row, ...idFields });
+  // Before migration 054 the ID columns are not there; the name still saves.
+  if (error && Object.keys(idFields).length && ['PGRST204', '42703'].includes(error.code)) {
+    ({ data, error } = await write(row));
+  }
   if (error) throw new Error(`Failed to save guest: ${error.message}`);
 
   if (data.is_primary) {

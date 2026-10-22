@@ -5,6 +5,7 @@ import { resolvePropertyId, sessionRights } from "@/lib/propertyScope";
 import { BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { getNightAudit, getStillOwing, localToday, normaliseTz } from "@/lib/financeReports";
 import { getBookingPerformance } from "@/lib/reports";
+import { getFormC } from "@/lib/guestRegister";
 import {
   getPropertyById,
   getPropertyIntegration,
@@ -42,6 +43,18 @@ async function part(build) {
   } catch (err) {
     return { error: err.message || "Could not load this part" };
   }
+}
+
+/**
+ * Foreign guests whose Form C is not marked filed, from the last week's
+ * check-ins: the 24-hour deadline makes anything older than that already
+ * late, and still worth chasing.
+ */
+async function formCPart(propertyId, today, tz) {
+  const report = await getFormC(propertyId, { start: shiftIso(today, -7), end: today, tz });
+  if (!report.ready) return null;
+  const open = report.rows.filter((r) => !r.submittedAt);
+  return { due: open.length, overdue: open.filter((r) => r.overdue).length };
 }
 
 /** Tonight, against the same night a week ago: the weekday is what makes nights alike. */
@@ -220,7 +233,7 @@ export async function GET(req) {
   const tz = normaliseTz(params.get("tz"));
   const today = localToday(tz);
 
-  const [todayData, month, distribution, setup] = await Promise.all([
+  const [todayData, month, distribution, setup, formC] = await Promise.all([
     holds(MOVEMENT_PAGES)
       ? part(() =>
           todayPart(propertyId, today, tz, {
@@ -232,7 +245,8 @@ export async function GET(req) {
     holds(["performance"]) ? part(() => monthPart(propertyId, today)) : null,
     holds(DISTRIBUTION_PAGES) ? part(() => distributionPart(propertyId)) : null,
     user && canManageSetup(user) ? part(() => setupPart(propertyId)) : null,
+    holds(["policereport"]) ? part(() => formCPart(propertyId, today, tz)) : null,
   ]);
 
-  return NextResponse.json({ today: todayData, month, distribution, setup });
+  return NextResponse.json({ today: todayData, month, distribution, setup, formC });
 }

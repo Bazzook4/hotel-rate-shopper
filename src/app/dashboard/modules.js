@@ -38,6 +38,11 @@ export const AREAS = [
       { id: "housekeeping", label: "Housekeeping", icon: "check" },
       // Done by the night desk, so it sits with the desk's pages.
       { id: "nightaudit", label: "Night Audit", icon: "moon" },
+      // The drawer, counted each shift, and what the hotel spent.
+      { id: "cashbook", label: "Cash & Expenses", icon: "money" },
+      // What the police and the FRRO ask of every guest who checks in:
+      // the register, with foreign guests' Form C on a second tab.
+      { id: "policereport", label: "Police & Form C", icon: "file" },
     ],
   },
   {
@@ -98,6 +103,8 @@ const LEGACY_ALIASES = {
   location: "compshopper",
   // Room numbers were their own page until they joined room types on Rooms.
   pmssetup: "rooms",
+  // Form C was briefly its own page before joining the police report.
+  formc: "policereport",
 };
 
 /** Grants as current page ids: legacy ids translated, duplicates dropped. */
