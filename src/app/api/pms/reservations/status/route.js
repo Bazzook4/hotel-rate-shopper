@@ -5,6 +5,7 @@ import {
   findDayUseInRoom,
   getReservation,
   getRoom,
+  setRoomHousekeeping,
   setReservationStatus,
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
@@ -54,7 +55,7 @@ export async function POST(req) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { id, status, room_id, tz } = body || {};
+  const { id, status, room_id, tz, mark_clean } = body || {};
   if (!id) {
     return NextResponse.json({ error: "Reservation id is required" }, { status: 400 });
   }
@@ -112,16 +113,22 @@ export async function POST(req) {
       );
     }
 
-    // A guest is not checked into a room housekeeping has not turned round.
-    // Only a fresh check-in is held to this: undoing a check-out puts the
-    // guest back into the room their own check-out just marked dirty.
+    // A guest is not checked into a room housekeeping has not turned round,
+    // unless the desk says it is ready: the check-in then marks it clean under
+    // the desk's name, so Housekeeping sees who did. Only a fresh check-in is
+    // held to this: undoing a check-out puts the guest back into the room
+    // their own check-out just marked dirty.
+    let cleanRoom = null;
     if (status === "in_house" && current.status === "confirmed") {
       const room = await getRoom(propertyId, room_id || current.room_id);
       if (room?.housekeeping === "dirty") {
-        return NextResponse.json(
-          { error: `Room ${room.room_number} is dirty. Mark it clean before checking this guest in.` },
-          { status: 409 }
-        );
+        if (!mark_clean) {
+          return NextResponse.json(
+            { error: `Room ${room.room_number} is marked dirty. Mark it clean, or check in and mark it clean.` },
+            { status: 409 }
+          );
+        }
+        cleanRoom = room;
       }
     }
 
@@ -155,6 +162,8 @@ export async function POST(req) {
     const reservation = await setReservationStatus(id, status, {
       roomId: room_id !== undefined ? room_id : undefined,
     });
+    // After the check-in is saved, so a failed one leaves the room as it was.
+    if (cleanRoom) await setRoomHousekeeping(propertyId, [cleanRoom.id], "clean", session.userId);
 
     // Cancelling or marking a no-show gives the nights back; reinstating one
     // takes them again. A check-in or check-out changes nothing on sale --

@@ -10,9 +10,11 @@ import Select from "@/app/components/Select";
  * Check-in and check-out as one shared action, so the Today page, the
  * reservations list, the calendar and the booking window all behave alike.
  *
- * Check-in with no room assigned offers the free, clean rooms of the booked
- * type with the first already chosen, rather than asking the desk to type a
- * number. Check-out with money still owed offers to take it in the same
+ * Check-in with no room assigned offers the free rooms of the booked type,
+ * clean ones first with the first already chosen, rather than asking the desk
+ * to type a number. A room marked dirty can still be taken in the same step:
+ * nobody may have tapped Clean, and a guest at the desk should not wait on
+ * it. The check-in then marks it clean under the desk's name. Check-out with money still owed offers to take it in the same
  * step, so a guest is not let go with a balance by accident -- while still
  * allowing it for a stay billed to a company or settled elsewhere.
  */
@@ -31,15 +33,45 @@ const METHODS = [
   { id: "other", label: "Other" },
 ];
 
-async function postStatus(id, status, roomId) {
+async function postStatus(id, status, roomId, { markClean = false } = {}) {
   const res = await fetch("/api/pms/reservations/status", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status, tz: new Date().getTimezoneOffset(), ...(roomId ? { room_id: roomId } : {}) }),
+    body: JSON.stringify({
+      id,
+      status,
+      tz: new Date().getTimezoneOffset(),
+      ...(roomId ? { room_id: roomId } : {}),
+      ...(markClean ? { mark_clean: true } : {}),
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Could not update the booking");
   return data;
+}
+
+/** The room a booking is already in, for its housekeeping status; null if it cannot be read. */
+async function roomOf(r, propertyId) {
+  try {
+    const res = await fetch(`/api/pms/rooms${propertyId ? `?propertyId=${propertyId}` : ""}`);
+    const data = await res.json();
+    return (data.rooms || []).find((x) => x.id === r.room_id) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A walk-in's start: tonight on the desk's own clock, one night, booked as a
+ * walk-in. The booking form then picks a free clean room and makes "Save and
+ * check in" its main button.
+ */
+export function walkInPrefill(date) {
+  const d = date ? new Date(`${date}T00:00:00`) : new Date();
+  const iso = (x) =>
+    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  return { source: "walkin", check_in: iso(d), check_out: iso(next) };
 }
 
 /** The balance-due step of a check-out: take the money, or go ahead without it. */
@@ -129,8 +161,28 @@ export function useFrontDesk(propertyId) {
   const [settle, setSettle] = useState(null);
 
   const checkIn = useCallback(
-    async (r) => {
-      if (r.room_id) return postStatus(r.id, "in_house");
+    async (r, { roomSeenDirty = false } = {}) => {
+      if (r.room_id) {
+        // Picked in the booking form, whose list already said "dirty": no second question.
+        if (roomSeenDirty) return postStatus(r.id, "in_house", null, { markClean: true });
+        const askToClean = async (number) => {
+          const ok = await dialog.confirm({
+            title: number ? `Room ${number} is marked dirty` : "The room is marked dirty",
+            message: "If it is ready, check the guest in. The room is marked clean under your name.",
+            confirmLabel: "Check in and mark clean",
+          });
+          return ok ? postStatus(r.id, "in_house", null, { markClean: true }) : null;
+        };
+        const room = await roomOf(r, propertyId);
+        if (room?.housekeeping === "dirty") return askToClean(room.room_number);
+        try {
+          return await postStatus(r.id, "in_house");
+        } catch (err) {
+          // The room could not be read first, and the server found it dirty.
+          if (!room && /marked dirty/.test(err.message)) return askToClean(null);
+          throw err;
+        }
+      }
 
       const qs = new URLSearchParams({
         checkIn: r.check_in,
@@ -146,22 +198,21 @@ export function useFrontDesk(propertyId) {
       if (!ofType.length) throw new Error("No rooms of that type have been set up yet. Add them under Setup > Rooms first.");
       const free = ofType.filter((x) => !x.taken);
       if (!free.length) throw new Error(`Every room of that type is taken or out of order for ${r.guest_name}'s stay.`);
-      // A dirty room is free but not ready, so it is not offered.
-      const ready = free.filter((x) => x.housekeeping !== "dirty");
-      if (!ready.length) {
-        throw new Error(
-          `Every free room of that type is dirty (${free.map((x) => x.room_number).join(", ")}). Mark one clean first.`
-        );
-      }
+      // Clean rooms first; a dirty one says so, and taking it marks it clean.
+      const dirty = (x) => x.housekeeping === "dirty";
+      const offered = [...free.filter((x) => !dirty(x)), ...free.filter(dirty)];
 
       const roomId = await dialog.choose({
         title: `Check in ${r.guest_name}`,
         label: "Room",
-        options: ready.map((x) => ({ value: x.id, label: `Room ${x.room_number}` })),
+        options: offered.map((x) => ({
+          value: x.id,
+          label: dirty(x) ? `Room ${x.room_number}, dirty, marked clean on check-in` : `Room ${x.room_number}`,
+        })),
         confirmLabel: "Check in",
       });
       if (!roomId) return null;
-      return postStatus(r.id, "in_house", roomId);
+      return postStatus(r.id, "in_house", roomId, { markClean: dirty(offered.find((x) => x.id === roomId)) });
     },
     [propertyId, dialog]
   );

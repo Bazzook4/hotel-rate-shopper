@@ -6,7 +6,8 @@ import BookingModal from "./BookingModal";
 import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
 import DateToolbar from "./DateToolbar";
-import { useFrontDesk } from "./frontDesk";
+import { useFrontDesk, walkInPrefill } from "./frontDesk";
+import Icon from "../../components/Icon";
 import Hint from "../../components/Hint";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import Dropdown from "../../components/Dropdown";
@@ -883,6 +884,9 @@ export default function TapeChart({ session }) {
           <h2 className="h1">Calendar</h2>
           <p className="sub">Every room, night by night.</p>
         </div>
+        <button type="button" className="btn btn-primary text-sm" onClick={() => setNewBooking(walkInPrefill())}>
+          <Icon name="plus" size={16} /> Walk-in
+        </button>
       </div>
 
       <Hint id="calendar">

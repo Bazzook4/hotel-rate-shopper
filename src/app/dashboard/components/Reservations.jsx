@@ -6,7 +6,8 @@ import BookingForm from "./BookingForm";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { SortTh, useSort } from "./useSort";
 import { useToast } from "../../components/Toast";
-import { useFrontDesk } from "./frontDesk";
+import { useFrontDesk, walkInPrefill } from "./frontDesk";
+import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
 import { usePageState } from "./usePageState";
 import { dayUseSummary, isDayUse } from "@/lib/dayUse";
@@ -436,8 +437,12 @@ export default function Reservations({ session, initialView = null }) {
     }
   }
 
-  function openNew() {
+  // What a new booking starts with: nothing, or a walk-in's tonight.
+  const [prefill, setPrefill] = useState(null);
+
+  function openNew(start = null) {
     setEditing(null);
+    setPrefill(start);
     setFormOpen(true);
   }
 
@@ -454,7 +459,7 @@ export default function Reservations({ session, initialView = null }) {
     if (saved?.checkIn) {
       setNotice(`${message} Checking in...`);
       try {
-        const data = await desk.checkIn(saved.reservation);
+        const data = await desk.checkIn(saved.reservation, { roomSeenDirty: saved.roomSeenDirty });
         if (data) {
           setNotice(`${message} Checked in.`);
           problem = problem || inventoryWarning(data);
@@ -484,8 +489,11 @@ export default function Reservations({ session, initialView = null }) {
           <button className="btn btn-secondary text-sm" onClick={adoptOta} disabled={loading}>
             Import OTA bookings
           </button>
-          <button className="btn btn-primary text-sm" onClick={openNew}>
+          <button className="btn btn-secondary text-sm" onClick={() => openNew()}>
             New booking
+          </button>
+          <button className="btn btn-primary text-sm" onClick={() => openNew(walkInPrefill())}>
+            <Icon name="plus" size={16} /> Walk-in
           </button>
         </div>
       </div>
@@ -578,8 +586,10 @@ export default function Reservations({ session, initialView = null }) {
 
       {formOpen && (
         <BookingForm
+          key={editing?.id || (prefill ? "walkin" : "new")}
           session={session}
           reservation={editing}
+          prefill={editing ? null : prefill}
           roomTypes={roomTypes}
           rooms={rooms}
           ratePlans={ratePlans}

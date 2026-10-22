@@ -2873,10 +2873,21 @@ export async function getHousekeepingBoard(propertyId, date) {
       children: r.children,
     };
 
+  // Who last marked each room, as the part of their email before the @: the
+  // supervisor can then tell a room the desk marked clean at check-in from
+  // one their own team turned round.
+  const markerIds = [...new Set(rooms.map((r) => r.housekeeping_updated_by).filter(Boolean))];
+  const markers = {};
+  if (markerIds.length) {
+    const { data } = await supabase.from('users').select('id, email').in('id', markerIds);
+    for (const u of data || []) markers[u.id] = String(u.email || '').split('@')[0];
+  }
+
   return rooms.map((room) => {
     const slot = byRoom[room.id] || {};
     return {
       ...room,
+      housekeeping_updated_by_name: markers[room.housekeeping_updated_by] || null,
       occupied: brief(slot.occupied),
       arriving: brief(slot.arriving),
       departing: brief(slot.departing),

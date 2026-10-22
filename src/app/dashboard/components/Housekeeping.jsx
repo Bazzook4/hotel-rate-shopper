@@ -562,6 +562,7 @@ export default function Housekeeping({ session }) {
                   <td>{room.floor || "-"}</td>
                   <td className="sub" style={{ fontSize: "0.75rem" }}>
                     {timeAgo(room.housekeeping_updated_at)}
+                    {room.housekeeping_updated_by_name ? `, ${room.housekeeping_updated_by_name}` : ""}
                   </td>
                 </tr>
               );

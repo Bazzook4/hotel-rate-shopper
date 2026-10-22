@@ -857,6 +857,59 @@ export default function BookingForm({
   );
 
   /**
+   * For a new overnight booking, which rooms are already taken on its dates,
+   * so the room list can say so and a walk-in can be given a free one. Null
+   * until known; a failed read leaves the list as it was.
+   */
+  const [dated, setDated] = useState(null);
+  const takenIds = useMemo(
+    () => (dated ? new Set(dated.filter((x) => x.taken).map((x) => x.id)) : null),
+    [dated]
+  );
+  useEffect(() => {
+    if (reservation || !form.check_in || !(form.check_out > form.check_in)) {
+      setDated(null);
+      return;
+    }
+    let live = true;
+    const qs = new URLSearchParams({ checkIn: form.check_in, checkOut: form.check_out });
+    if (session?.propertyId) qs.set("propertyId", session.propertyId);
+    fetch(`/api/pms/rooms?${qs}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (live && data) setDated(data.rooms || []);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [reservation, form.check_in, form.check_out, session?.propertyId]);
+
+  /**
+   * A walk-in is given a room: the first type with a free clean room (else
+   * any free room), and its first such room. Defaults win, and the desk can
+   * still change either; once they pick a room themselves, it is left alone.
+   */
+  const walkIn = !reservation && prefill?.source === "walkin";
+  const deskPickedRoom = useRef(false);
+  useEffect(() => {
+    if (!walkIn || !dated || deskPickedRoom.current) return;
+    // Picked already, and still free on the dates as they now stand.
+    if (form.room_id && !takenIds.has(form.room_id)) return;
+    // The dated list, for clean or dirty as it is now, not when the page opened.
+    const free = (typeId) =>
+      dated.filter((r) => r.room_type_id === typeId && r.is_active && !r.taken);
+    const best = (list) => list.find((r) => r.housekeeping !== "dirty") || list[0];
+    const typeId =
+      form.room_type_id ||
+      roomTypes.find((rt) => free(rt.id).some((r) => r.housekeeping !== "dirty"))?.id ||
+      roomTypes.find((rt) => free(rt.id).length)?.id;
+    const room = typeId && best(free(typeId));
+    if (!room) return;
+    setForm((prev) => ({ ...prev, room_type_id: typeId, room_id: room.id }));
+  }, [walkIn, dated, takenIds, roomTypes, form.room_type_id, form.room_id]);
+
+  /**
    * Ask the server what the configured rates make this stay cost.
    *
    * Everything the price depends on is in the dependency list, so changing
@@ -953,6 +1006,7 @@ export default function BookingForm({
 
   function set(field, value) {
     setTouched(true);
+    if (field === "room_id") deskPickedRoom.current = true;
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -1088,7 +1142,11 @@ export default function BookingForm({
           ? `Booking ${data.reservation.reference} updated.`
           : `Booking ${data.reservation.reference} created for ${data.reservation.guest_name}.`,
         inventoryWarning(data),
-        { reservation: data.reservation, checkIn: !reservation && checkInAfter.current }
+        {
+          reservation: data.reservation,
+          checkIn: !reservation && checkInAfter.current,
+          roomSeenDirty: (dated?.find((x) => x.id === form.room_id) || {}).housekeeping === "dirty",
+        }
       );
     } catch (err) {
       setError(err.message);
@@ -1312,11 +1370,16 @@ export default function BookingForm({
             disabled={!form.room_type_id}
           >
             <option value="">Assign later</option>
-            {roomsForType.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.room_number}
-              </option>
-            ))}
+            {roomsForType.map((r) => {
+              const taken = takenIds?.has(r.id);
+              const dirty = (dated?.find((x) => x.id === r.id) || r).housekeeping === "dirty";
+              return (
+                <option key={r.id} value={r.id} disabled={taken && r.id !== form.room_id}>
+                  {r.room_number}
+                  {taken ? ", taken" : dirty ? ", dirty" : ""}
+                </option>
+              );
+            })}
           </Select>
         </Field>
         {companyChoices.length > 0 && (

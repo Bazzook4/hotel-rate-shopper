@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   getHousekeepingBoard,
+  getUserById,
   setRoomHousekeeping,
   HOUSEKEEPING_STATUSES,
 } from "@/lib/database";
@@ -63,7 +64,10 @@ export async function PATCH(req) {
 
   try {
     const rooms = await setRoomHousekeeping(propertyId, ids, body.status, session.userId);
-    return NextResponse.json({ rooms });
+    // Named as the board names them, so the row does not keep the last marker's name.
+    const user = await getUserById(session.userId).catch(() => null);
+    const name = user?.email ? String(user.email).split("@")[0] : null;
+    return NextResponse.json({ rooms: rooms.map((r) => ({ ...r, housekeeping_updated_by_name: name })) });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

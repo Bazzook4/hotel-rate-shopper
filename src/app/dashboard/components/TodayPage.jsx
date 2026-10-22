@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Icon from "../../components/Icon";
-import { useFrontDesk } from "./frontDesk";
+import { useFrontDesk, walkInPrefill } from "./frontDesk";
 import { CHECKIN_SHORT_LABELS } from "@/lib/onlineCheckinShared";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import {
@@ -362,6 +362,19 @@ function NeedsAttention({ today, distribution, onOpenPage, canOpen, openBooking 
 // Front desk: today's arrivals and departures, actionable in place
 // ------------------------------------------------------------------
 
+/** Differences smaller than this are rounding, not money. */
+const PENNY = 0.009;
+
+/** The Collect button's words: what the guest owes, is owed back, or that the bill is settled. */
+function collectLabel(r) {
+  if (r.balance === undefined) return "Collect";
+  const money = moneyFormatter(r.currency || "INR");
+  if (r.bill_to === "company") return "Company bill";
+  if (r.balance > PENNY) return `Collect ${money(r.balance)}`;
+  if (r.balance < -PENNY) return `Refund ${money(-r.balance)}`;
+  return "Paid";
+}
+
 /** How many of each list are shown before "See all". */
 const DESK_ROWS = 8;
 
@@ -411,13 +424,15 @@ function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, 
                   </span>
                 )}
               </button>
+              {/* Says what is owed, or that nothing is; it always opens Payments,
+                  for a deposit or a refund. */}
               <button
                 type="button"
                 className="btn btn-secondary ml-auto text-xs"
                 onClick={() => openBooking(r.id, "payments")}
-                title={`Take a payment from ${r.guest_name}`}
+                title={`Payments for ${r.guest_name}`}
               >
-                <Icon name="money" size={14} /> Collect
+                <Icon name="money" size={14} /> {collectLabel(r)}
               </button>
               <button
                 type="button"
@@ -449,7 +464,7 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
 
   const load = useCallback(async () => {
     const ask = async (params) => {
-      const qs = new URLSearchParams(params);
+      const qs = new URLSearchParams({ ...params, withBalance: "1" });
       if (propertyId) qs.set("propertyId", propertyId);
       const res = await fetch(`/api/pms/reservations?${qs}`);
       const body = await res.json().catch(() => ({}));
@@ -644,15 +659,8 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
   const setup = report?.setup?.error ? null : report?.setup;
   const month = report?.month?.error ? null : report?.month;
   const hasAttention = report && (report.today || report.distribution);
-  // A walk-in: today's dates on the hotel's clock, one night, booked as a
-  // walk-in, with "Save and check in" as the form's main button.
   const canBook = today && (canOpen("reservations") || canOpen("calendar"));
-  const walkIn = () =>
-    newBooking({
-      source: "walkin",
-      check_in: today.date,
-      check_out: new Date(Date.parse(`${today.date}T00:00:00Z`) + 86400000).toISOString().slice(0, 10),
-    });
+  const walkIn = () => newBooking(walkInPrefill(today.date));
 
   return (
     <div className="space-y-4">
@@ -679,6 +687,18 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
       {error && <PartError title="Today" error={error} />}
       {loading && !report && !error && <LoadingCards />}
 
+      {today && (
+        <FrontDesk
+          date={today.date}
+          propertyId={propertyId}
+          stamp={report}
+          onOpenPage={onOpenPage}
+          canOpen={canOpen}
+          openBooking={openBooking}
+          onChanged={reload}
+        />
+      )}
+
       {setup && setup.done < setup.total && (
         <SetupChecklist setup={setup} onOpenPage={onOpenPage} canOpen={canOpen} />
       )}
@@ -694,18 +714,6 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
         />
       )}
       {report?.distribution?.error && <PartError title="Channel status" error={report.distribution.error} />}
-
-      {today && (
-        <FrontDesk
-          date={today.date}
-          propertyId={propertyId}
-          stamp={report}
-          onOpenPage={onOpenPage}
-          canOpen={canOpen}
-          openBooking={openBooking}
-          onChanged={reload}
-        />
-      )}
 
       {today && <Tonight today={today} onOpenPage={onOpenPage} canOpen={canOpen} />}
       {report?.today?.error && <PartError title="Tonight" error={report.today.error} />}
