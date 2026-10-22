@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Grid, Loading, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
-import { Drawer, Field, RowMenu, Section } from "./RatePlanSetup";
+import { Drawer, Field, Section } from "./RatePlanSetup";
+import RowMenu from "../../components/RowMenu";
 import PropertyProfile, { ProfileFields } from "./PropertyProfile";
 import { countryName } from "@/lib/countries";
 import { formatDateISO } from "@/lib/date";

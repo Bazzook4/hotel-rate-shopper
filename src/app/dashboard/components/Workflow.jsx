@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Grid, Loading, Messages, SetupHeader, sendJSON } from "./SetupGrid";
-import { Drawer, Field, RowMenu, Section } from "./RatePlanSetup";
+import { Drawer, Field, Section } from "./RatePlanSetup";
+import RowMenu from "../../components/RowMenu";
 import { useDialog } from "../../components/Dialog";
 import Hint from "../../components/Hint";
 import Select from "@/app/components/Select";

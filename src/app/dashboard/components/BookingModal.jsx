@@ -12,6 +12,7 @@ import { useBackdropClose, useEscape } from "../../components/useEscape";
 import { useFrontDesk, whatsappLink } from "./frontDesk";
 import { toCountryCode } from "@/lib/countries";
 import { visibleModules } from "../modules";
+import RowMenu from "../../components/RowMenu";
 import OnlineCheckinPanel, {
   CheckinFact,
   offersOnlineCheckin,
@@ -379,6 +380,32 @@ export default function BookingModal({
     setIntent("payments");
   };
 
+  function runAction(status) {
+    if (status === "in_house") return deskAction(desk.checkIn);
+    if (status === "checked_out") return deskAction(desk.checkOut);
+    return changeStatus(status);
+  }
+
+  // The toolbar holds the next step, Take payment and WhatsApp. Steps taken
+  // now and then, and the ones that undo a stay, wait under More.
+  const moreItems = reservation
+    ? [
+        !whatsapp && {
+          label: "Send on WhatsApp (add the guest's phone first)",
+          disabled: true,
+        },
+        ...actions
+          .filter((a) => a.kind === "btn-ghost")
+          .map((a) => ({ label: a.label, disabled: busy, onClick: () => runAction(a.status) })),
+        (reservation.status === "confirmed" || reservation.status === "inquiry") && {
+          label: `Cancel ${reservation.status === "inquiry" ? "inquiry" : "booking"}`,
+          danger: true,
+          disabled: busy,
+          onClick: cancelBooking,
+        },
+      ].filter(Boolean)
+    : [];
+
   return (
     <div
       {...backdrop}
@@ -442,8 +469,8 @@ export default function BookingModal({
             next desk action. */}
         {!isNew && reservation && (
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm"
-            style={{ padding: "0.6rem 1.1rem", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}
+            className="flex flex-col gap-3 text-sm"
+            style={{ padding: "0.85rem 1.1rem", borderBottom: "1px solid var(--border)" }}
           >
             <Facts>
               <Fact label="Status" tone={tooEarly ? "warn" : undefined}>
@@ -498,58 +525,37 @@ export default function BookingModal({
               )}
             </Facts>
 
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              {whatsapp ? (
-                <a className="btn btn-secondary text-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">
-                  Send on WhatsApp
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-secondary text-sm"
-                  disabled
-                  title="Add the guest's phone number to send on WhatsApp"
-                >
-                  Send on WhatsApp
-                </button>
-              )}
-              {(reservation.status === "confirmed" || reservation.status === "inquiry") && (
-                <button
-                  className="btn btn-ghost text-sm"
-                  style={{ color: "var(--danger)" }}
-                  onClick={cancelBooking}
-                  disabled={busy}
-                >
-                  Cancel {reservation.status === "inquiry" ? "inquiry" : "booking"}
-                </button>
-              )}
-              {owes && (reservation.status === "confirmed" || reservation.status === "in_house") && (
+            <div className="flex flex-wrap items-center gap-2">
+              {actions
+                .filter((a) => a.kind !== "btn-ghost")
+                .map((a) => {
+                  const blocked = a.status === "in_house" && tooEarly;
+                  return (
+                    <button
+                      key={a.status}
+                      type="button"
+                      className={`btn ${a.kind} text-sm`}
+                      disabled={busy || Boolean(blocked)}
+                      title={blocked || undefined}
+                      onClick={() => runAction(a.status)}
+                    >
+                      {a.status === "checked_out" && owes
+                        ? `Collect ₹${balance.toLocaleString("en-IN")} & check out`
+                        : a.label}
+                    </button>
+                  );
+                })}
+              {owes && tab !== "bill" && (reservation.status === "confirmed" || reservation.status === "in_house") && (
                 <button type="button" className="btn btn-secondary text-sm" onClick={openPayments}>
                   Take payment
                 </button>
               )}
-              {actions.map((a) => {
-                const blocked = a.status === "in_house" && tooEarly;
-                return (
-                  <button
-                    key={a.status}
-                    className={`btn ${a.kind} text-sm`}
-                    disabled={busy || Boolean(blocked)}
-                    title={blocked || undefined}
-                    onClick={() =>
-                      a.status === "in_house"
-                        ? deskAction(desk.checkIn)
-                        : a.status === "checked_out"
-                          ? deskAction(desk.checkOut)
-                          : changeStatus(a.status)
-                    }
-                  >
-                    {a.status === "checked_out" && owes
-                      ? `Collect ₹${balance.toLocaleString("en-IN")} & check out`
-                      : a.label}
-                  </button>
-                );
-              })}
+              {whatsapp && (
+                <a className="btn btn-secondary text-sm" href={whatsapp} target="_blank" rel="noopener noreferrer">
+                  Send on WhatsApp
+                </a>
+              )}
+              {moreItems.length > 0 && <RowMenu label="More" title={`Booking ${reservation.reference}`} items={moreItems} />}
             </div>
           </div>
         )}

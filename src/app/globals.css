@@ -349,44 +349,60 @@ body {
   .chip-in { background: var(--status-in); color: #fff; }
   .chip-out { background: var(--status-out); color: #fff; }
 
-  /* What a record is right now (Facts.jsx): label over value, plain text,
-   * so it never reads as a button or an alert. */
+  /* What a record is right now (Facts.jsx): a one-row table in the
+   * .grid-table look, the labels in its header line and the values under
+   * them. Drawn as boxes rather than a <table> so a phone can wrap them two
+   * to a line; the 1px gaps over a border-coloured backing are the rules. */
   .facts {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 0.4rem 1.5rem;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
   }
   .fact {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     min-width: 0;
-    line-height: 1.25;
+    background: var(--surface);
   }
   .fact-label {
-    font-size: 0.68rem;
-    font-weight: 500;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0.85rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
     color: var(--text-muted);
+    white-space: nowrap;
   }
   .fact-value {
+    padding: 0.5rem 0.85rem;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--text);
+  }
+  @media (max-width: 767px) {
+    .fact { flex-basis: calc(50% - 1px); }
   }
   .fact-warn { color: var(--warn); }
   .fact-ok { color: var(--accent-text); }
   .fact-link {
     background: none;
     border: 0;
-    padding: 0;
+    width: 100%;
     text-align: left;
     cursor: pointer;
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
-  .fact-link:hover { text-decoration-thickness: 2px; }
-  .fact-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  .fact-link:hover { text-decoration-thickness: 2px; background: var(--surface-2); }
+  .fact-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
   /* Joined button group: the date stepper and the window toggle over every
    * date grid. One outline, hairline dividers, the chosen option tinted. */

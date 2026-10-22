@@ -18,7 +18,11 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "The top of a booking now shows Status, Stay, Room and Balance as plain labels, so they no longer look like buttons. The stay line gives the dates, nights and guests without opening Details.",
+        text: "The top of a booking now shows Status, Stay, Room and Balance in a small table, like every other list, so they no longer look like buttons. Stay gives the dates, nights and guests without opening Details.",
+      },
+      {
+        page: "reservations",
+        text: "Under it, one row of buttons: the next step (Check in, Check out), Take payment and Send on WhatsApp. No show and Cancel booking are under More.",
       },
       {
         page: "reservations",
