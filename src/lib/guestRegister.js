@@ -150,35 +150,25 @@ export async function getGuestRegister(propertyId, { start, end, tz = 0 }) {
     if (!byStay.has(g.reservation_id)) byStay.set(g.reservation_id, []);
     byStay.get(g.reservation_id).push(g);
   }
-  const bookers = await guestRecords(stays.filter((s) => !byStay.has(s.id)).map((s) => s.guest_id));
+  // The booker counts as a person on the stay unless one of the named
+  // guests is the main guest: a desk that names only the companion has not
+  // meant to take the booker off the register.
+  const sameName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+  const bookerStays = new Set(
+    stays
+      .filter((s) => {
+        const list = byStay.get(s.id) || [];
+        return !list.some((g) => g.is_primary || sameName([g.first_name, g.last_name].filter(Boolean).join(' '), s.guest_name));
+      })
+      .map((s) => s.id)
+  );
+  const bookers = await guestRecords(stays.filter((s) => bookerStays.has(s.id)).map((s) => s.guest_id));
 
   const people = [];
   const shortStays = [];
   for (const s of stays) {
-    const list = byStay.get(s.id);
-    if (list?.length) {
-      for (const g of list) {
-        const rec = g.guests || {};
-        const nationality = toCountryCode(first(g.nationality, rec.country, g.is_primary ? s.guest_country : null));
-        const travel = rec.travel_details || {};
-        people.push({
-          ...stayFields(s),
-          key: g.id,
-          guestId: g.guest_id || null,
-          name: [g.first_name, g.last_name].filter(Boolean).join(' '),
-          gender: GENDER_LABELS[g.gender] || null,
-          phone: first(g.phone, rec.phone, g.is_primary ? s.guest_phone : null),
-          address: first(g.address, rec.address),
-          nationality,
-          idType: first(g.id_type, rec.id_type),
-          idNumber: first(g.id_number, rec.id_number),
-          dateOfBirth: first(g.date_of_birth, travel.date_of_birth),
-          travel,
-          primary: Boolean(g.is_primary),
-        });
-      }
-      if (list.length < (s.adults || 0)) shortStays.push({ ...stayFields(s), named: list.length });
-    } else {
+    const list = byStay.get(s.id) || [];
+    if (bookerStays.has(s.id)) {
       const rec = bookers[s.guest_id] || {};
       const travel = rec.travel_details || {};
       people.push({
@@ -196,8 +186,29 @@ export async function getGuestRegister(propertyId, { start, end, tz = 0 }) {
         travel,
         primary: true,
       });
-      if ((s.adults || 0) > 1) shortStays.push({ ...stayFields(s), named: 0 });
     }
+    for (const g of list) {
+      const rec = g.guests || {};
+      const nationality = toCountryCode(first(g.nationality, rec.country, g.is_primary ? s.guest_country : null));
+      const travel = rec.travel_details || {};
+      people.push({
+        ...stayFields(s),
+        key: g.id,
+        guestId: g.guest_id || null,
+        name: [g.first_name, g.last_name].filter(Boolean).join(' '),
+        gender: GENDER_LABELS[g.gender] || null,
+        phone: first(g.phone, rec.phone, g.is_primary ? s.guest_phone : null),
+        address: first(g.address, rec.address),
+        nationality,
+        idType: first(g.id_type, rec.id_type),
+        idNumber: first(g.id_number, rec.id_number),
+        dateOfBirth: first(g.date_of_birth, travel.date_of_birth),
+        travel,
+        primary: Boolean(g.is_primary),
+      });
+    }
+    const counted = list.length + (bookerStays.has(s.id) ? 1 : 0);
+    if (counted < (s.adults || 0)) shortStays.push({ ...stayFields(s), named: counted });
   }
 
   for (const p of people) {
