@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Invoices get their own tab, with a preview",
+    points: [
+      {
+        page: "reservations",
+        text: "Invoices now have their own tab on the booking, next to Bill. One press of Issue invoice issues the whole bill and shows it on the page to check, instead of downloading it; press Split the bill to put charges on separate invoices. Each invoice has Print, Share (on a phone, send the PDF straight to WhatsApp or email) and Void. The tab shows how many invoices there are and what is still to issue, and the Bill tab tells you when the invoice is still to be issued.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Change your password, and who booked vs who stays",
     points: [
       {

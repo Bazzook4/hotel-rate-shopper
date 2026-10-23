@@ -363,9 +363,6 @@ function SharedBills({ folio, currency, busy, post, propertyId, openFor }) {
                       <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => openFor("payment", s.id)}>
                         Collect
                       </button>
-                      <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => openFor("invoice", s.id)}>
-                        Invoice
-                      </button>
                     </div>
                   </td>
                   <td className="text-right" style={tight}>
@@ -780,16 +777,6 @@ function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved, forGu
   );
 }
 
-/** Starts the download of an issued invoice's PDF. */
-function downloadInvoice(inv) {
-  const a = document.createElement("a");
-  a.href = `/api/pms/invoice?id=${inv.id}`;
-  a.download = `${inv.invoice_number}.pdf`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
 /** A charge as it reads inside its category: just the night, or the service. */
 function chargeLabel(c) {
   if (c.key.startsWith("night:")) return nightLabel(c.key.slice(6));
@@ -802,7 +789,7 @@ function chargeLabel(c) {
  * bill is still one press. Untick the food to put it on an invoice of its
  * own, or press One invoice per category to issue room and food apart at once.
  */
-function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRefresh, onTakePayment, forGuest }) {
+function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRefresh, onTakePayment, onIssued, forGuest }) {
   const toast = useToast();
   const sharers = folio.sharers || [];
   const allOpen = (folio.charges || []).filter((c) => !c.invoice);
@@ -853,12 +840,11 @@ function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRef
           ...(sharerId ? { sharerId } : {}),
         });
         const inv = (data.invoices || []).find((i) => !before.has(i.id));
-        if (inv) {
-          issued.push(inv);
-          downloadInvoice(inv);
-        }
+        if (inv) issued.push(inv);
       }
       toast(`${issued.map((i) => i.invoice_number).join(" and ")} issued`);
+      // Shown in the preview on the Invoices tab, not downloaded.
+      if (issued[0]) onIssued?.(issued[0].id);
       await onSaved();
     } catch (err) {
       // Whatever was issued before the failure stands; show the bill as it now is.
@@ -899,7 +885,7 @@ function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRef
       }
       onCancel={onClose}
       onSave={save}
-      saveLabel="Issue and download"
+      saveLabel="Issue invoice"
       busyLabel="Issuing..."
       cancelLabel={nothingLeft ? "Close" : "Cancel"}
       saveDisabled={nothingLeft || (open.length > 0 && chosen.length === 0)}
@@ -1144,6 +1130,7 @@ export default function FolioTabs({
   onChanged,
   canSeeIds = false,
   propertyId = null,
+  onTab = null,
 }) {
   const dialog = useDialog();
   const toast = useToast();
@@ -1153,11 +1140,13 @@ export default function FolioTabs({
   const [drawer, setDrawer] = useState(null);
   // The guest a drawer was opened for, from their row of separate bills.
   const [forGuest, setForGuest] = useState(null);
+  // The invoice shown in the preview on the Invoices tab.
+  const [previewId, setPreviewId] = useState(null);
   // The named guest whose photo ID is open, uploaded by the desk for them.
   const [idsOpen, setIdsOpen] = useState(null);
 
   useEffect(() => {
-    if (tab === "bill" && INTENT_DRAWER[intent]) setDrawer(INTENT_DRAWER[intent]);
+    if ((tab === "bill" || tab === "invoices") && INTENT_DRAWER[intent]) setDrawer(INTENT_DRAWER[intent]);
   }, [tab, intent]);
 
   function closeDrawer() {
@@ -1231,6 +1220,78 @@ export default function FolioTabs({
   const leftOver = invoicedSome ? charges.filter((c) => !c.invoice) : [];
   const allInvoiced = charges.length > 0 && charges.every((c) => c.invoice);
   const standingInvoice = (folio.invoices || []).some((i) => !i.voided_at);
+  const openCharges = charges.filter((c) => !c.invoice);
+  const canShareFiles =
+    typeof navigator !== "undefined" &&
+    typeof navigator.canShare === "function" &&
+    navigator.canShare({ files: [new File([""], "x.pdf", { type: "application/pdf" })] });
+
+  /** Issue every charge not yet invoiced in one press, and show it. */
+  async function issueAll() {
+    setBusy(true);
+    setError(null);
+    try {
+      const before = new Set(folio.invoices.map((i) => i.id));
+      const data = await sendFolio(reservationId, "invoice", {});
+      const inv = (data.invoices || []).find((i) => !before.has(i.id));
+      await onChanged();
+      if (inv) {
+        setPreviewId(inv.id);
+        toast(`${inv.invoice_number} issued`);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Print the PDF from a hidden frame, without leaving the booking. */
+  function printInvoice(inv) {
+    const url = `/api/pms/invoice?id=${inv.id}&inline=1`;
+    const frame = document.createElement("iframe");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    frame.src = url;
+    frame.onload = () => {
+      try {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } catch {
+        // Some browsers will not print a PDF from a frame; a tab can.
+        window.open(url, "_blank", "noopener");
+      }
+      setTimeout(() => frame.remove(), 60000);
+    };
+    document.body.appendChild(frame);
+  }
+
+  /** The PDF to the phone's share sheet (WhatsApp, email), or a download. */
+  async function shareInvoice(inv) {
+    const url = `/api/pms/invoice?id=${inv.id}`;
+    if (canShareFiles) {
+      try {
+        const blob = await (await fetch(url)).blob();
+        const file = new File([blob], `${inv.invoice_number}.pdf`, { type: "application/pdf" });
+        await navigator.share({ files: [file], title: inv.invoice_number });
+        return;
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+      }
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${inv.invoice_number}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // The invoice in the preview: the one picked, else the newest standing one.
+  const shown =
+    (folio.invoices || []).find((i) => i.id === previewId) ||
+    (folio.invoices || []).find((i) => !i.voided_at) ||
+    (folio.invoices || [])[0] ||
+    null;
 
   const drawerProps = {
     folio,
@@ -1511,20 +1572,13 @@ export default function FolioTabs({
             >
               {balance < 0 ? "Give a refund" : "Collect payment"}
             </button>
-            <button
-              type="button"
-              className={`btn text-sm ${leftOver.length > 0 ? "btn-primary" : "btn-secondary"}`}
-              onClick={() => setDrawer("invoice")}
-            >
-              {allInvoiced ? "Invoices" : leftOver.length > 0 ? "Invoice the rest" : "Issue invoice"}
-            </button>
             {/* Guests sharing the room, each on a bill of their own. Not while an
                 invoice stands: it was issued for the bill as it is. */}
             {(folio.sharers?.length > 0 || (folio.guests || []).length >= 2) &&
               (standingInvoice ? (
-                <span className="self-center text-xs" style={{ color: "var(--text-faint)" }}>
-                  {folio.sharers?.length > 0 ? "Separate bills" : "One bill"}: void the invoices to change
-                </span>
+                <button type="button" className="btn btn-secondary text-sm" onClick={() => onTab?.("invoices")}>
+                  {folio.sharers?.length > 0 ? "Separate bills" : "One bill"}: void invoices to change
+                </button>
               ) : (
                 <button
                   type="button"
@@ -1542,6 +1596,20 @@ export default function FolioTabs({
               ))}
           </div>
 
+          {/* Invoices live on their own tab; say here when something waits there. */}
+          {(leftOver.length > 0 || (!standingInvoice && charges.length > 0 && balance <= 0.009)) && (
+            <div className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "var(--warn)" }}>
+              <span>
+                {leftOver.length > 0
+                  ? `Not on any invoice yet: ${[...new Set(leftOver.map((c) => c.category))].join(", ")}.`
+                  : "Paid in full. The invoice is not issued yet."}
+              </span>
+              <button type="button" className="btn btn-secondary text-xs" onClick={() => onTab?.("invoices")}>
+                Go to Invoices
+              </button>
+            </div>
+          )}
+
           <SharedBills
             folio={folio}
             currency={currency}
@@ -1553,14 +1621,6 @@ export default function FolioTabs({
               setDrawer(kind);
             }}
           />
-
-          {/* After a split, what is still on no invoice, so it is not forgotten at check-out. */}
-          {leftOver.length > 0 && (
-            <p className="text-sm" style={{ color: "var(--warn)" }}>
-              Not on any invoice yet: {[...new Set(leftOver.map((c) => c.category))].join(", ")},{" "}
-              {money(leftOver.reduce((s, c) => s + c.amount + c.tax, 0), currency)}.
-            </p>
-          )}
 
           <Statement
             folio={folio}
@@ -1582,59 +1642,148 @@ export default function FolioTabs({
             }}
           />
 
+        </div>
+      )}
+
+      {/* ---------------- INVOICES ---------------- */}
+      {tab === "invoices" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* With nothing to split, one press issues the whole bill; the
+                picker is for splitting. */}
+            <button
+              type="button"
+              className={`btn text-sm ${leftOver.length > 0 || (!standingInvoice && charges.length > 0) ? "btn-primary" : "btn-secondary"}`}
+              disabled={busy || allInvoiced}
+              onClick={() => (folio.sharers?.length > 0 ? setDrawer("invoice") : issueAll())}
+            >
+              <Icon name="plus" size={14} /> {leftOver.length > 0 ? "Invoice the rest" : "Issue invoice"}
+            </button>
+            {!allInvoiced && !(folio.sharers?.length > 0) && openCharges.length > 1 && (
+              <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={() => setDrawer("invoice")}>
+                Split the bill
+              </button>
+            )}
+            <span className="text-sm" style={{ color: leftOver.length > 0 ? "var(--warn)" : "var(--text-faint)" }}>
+              {allInvoiced
+                ? "Everything is invoiced. Void an invoice to issue it again."
+                : leftOver.length > 0
+                  ? `Not invoiced: ${[...new Set(leftOver.map((c) => c.category))].join(", ")}, ${money(
+                      leftOver.reduce((sum, c) => sum + c.amount + c.tax, 0),
+                      currency
+                    )}`
+                  : folio.invoices.length === 0
+                    ? "No invoices yet."
+                    : ""}
+            </span>
+          </div>
+
           {folio.invoices.length > 0 && (
-            <div className="space-y-1">
-              <h4 style={smallHeading}>Invoices</h4>
-              {folio.invoices.map((inv) => (
-                <div key={inv.id} className="flex flex-wrap items-center gap-2 text-sm">
-                  <span style={{ fontWeight: 600 }}>{inv.invoice_number}</span>
-                  {(inv.snapshot?.sharer_id || (inv.snapshot?.split && inv.snapshot.categories?.length > 0)) && (
-                    <span>
-                      {[inv.snapshot.sharer_id ? inv.snapshot.guest_name : null, ...(inv.snapshot.categories || [])]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </span>
-                  )}
-                  <span style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}>
-                    {when(inv.issued_at)}, {money(inv.total_amount, inv.currency)}
-                    {inv.void_reason ? `, Reason: ${inv.void_reason}` : ""}
-                  </span>
-                  {inv.voided_at && (
-                    <span className="chip chip-off" style={{ fontSize: "0.6rem" }}>
-                      Voided
-                    </span>
-                  )}
-                  <span className="ml-auto flex items-center gap-1">
-                    <a
-                      className="btn btn-secondary text-xs"
-                      href={`/api/pms/invoice?id=${inv.id}`}
-                      download={`${inv.invoice_number}.pdf`}
-                    >
-                      <Icon name="download" size={14} /> PDF
-                    </a>
-                    {!inv.voided_at && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost text-xs"
-                        disabled={busy}
-                        onClick={async () => {
-                          const reason = await dialog.prompt({
-                            title: "Void this invoice?",
-                            message: "It stays on the record, marked void.",
-                            label: "Reason",
-                            confirmLabel: "Void invoice",
-                            danger: true,
-                          });
-                          if (reason !== null) remove("invoice", inv.id, reason);
+            <>
+              <table className="grid-table w-full text-sm">
+                <tbody>
+                  {folio.invoices.map((inv) => {
+                    const snap = inv.snapshot || {};
+                    // Who it is for, always: the company billed, or the guest.
+                    const label = [
+                      snap.bill_to?.name || snap.guest_name,
+                      ...(snap.split ? snap.categories || [] : []),
+                    ]
+                      .filter(Boolean)
+                      .join(", ");
+                    const on = shown?.id === inv.id;
+                    const pad = { padding: "0.35rem 0.6rem" };
+                    return (
+                      <tr
+                        key={inv.id}
+                        onClick={() => setPreviewId(inv.id)}
+                        style={{
+                          cursor: "pointer",
+                          background: on ? "var(--accent-soft)" : undefined,
+                          color: inv.voided_at ? "var(--text-faint)" : undefined,
                         }}
                       >
-                        Void
-                      </button>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
+                        <td style={pad}>
+                          <span style={{ fontWeight: 600 }}>{inv.invoice_number}</span>
+                          {label && <span>, {label}</span>}{" "}
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+                            {when(inv.issued_at)}
+                          </span>
+                          {inv.voided_at && (
+                            <span style={{ fontSize: "0.75rem", color: "var(--danger)" }}>
+                              {" "}
+                              Voided{inv.void_reason ? ` (${inv.void_reason})` : ""}
+                            </span>
+                          )}
+                        </td>
+                        <td
+                          className="text-right tabular-nums"
+                          style={{ ...pad, textDecoration: inv.voided_at ? "line-through" : undefined }}
+                        >
+                          {money(inv.total_amount, inv.currency)}
+                        </td>
+                        <td className="text-right" style={pad} onClick={(e) => e.stopPropagation()}>
+                          {on ? (
+                            <span className="inline-flex flex-wrap justify-end gap-1">
+                              <button type="button" className="btn btn-primary text-xs" disabled={busy} onClick={() => printInvoice(inv)}>
+                                Print
+                              </button>
+                              <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => shareInvoice(inv)}>
+                                {canShareFiles ? "Share" : "Download"}
+                              </button>
+                              {!inv.voided_at && (
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary text-xs"
+                                  disabled={busy}
+                                  onClick={async () => {
+                                    const reason = await dialog.prompt({
+                                      title: `Void ${inv.invoice_number}?`,
+                                      message: "It stays on the record, marked void, and its charges can go on a new invoice.",
+                                      label: "Reason",
+                                      confirmLabel: "Void invoice",
+                                      danger: true,
+                                    });
+                                    if (reason !== null && (await remove("invoice", inv.id, reason))) {
+                                      toast(`${inv.invoice_number} voided`);
+                                    }
+                                  }}
+                                >
+                                  Void
+                                </button>
+                              )}
+                            </span>
+                          ) : (
+                            <button type="button" className="btn btn-secondary text-xs" onClick={() => setPreviewId(inv.id)}>
+                              View
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* The PDF as it will print. Laptop and up only: phones show a
+                  PDF in a frame badly or not at all, and use Print or Share. */}
+              {shown && (
+                <iframe
+                  key={`${shown.id}-${shown.voided_at || ""}`}
+                  title={`Invoice ${shown.invoice_number}`}
+                  tabIndex={-1}
+                  src={`/api/pms/invoice?id=${shown.id}&inline=1#view=FitH`}
+                  className="hidden w-full md:block"
+                  style={{
+                    height: "min(70vh, calc(100dvh - 300px))",
+                    minHeight: 360,
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    background: "var(--surface-2)",
+                  }}
+                />
+              )}
+            </>
           )}
         </div>
       )}
@@ -1649,6 +1798,7 @@ export default function FolioTabs({
               <InvoiceDrawer
                 {...drawerProps}
                 onRefresh={onChanged}
+                onIssued={setPreviewId}
                 onTakePayment={(id) => {
                   setForGuest(id || null);
                   setDrawer("payment");

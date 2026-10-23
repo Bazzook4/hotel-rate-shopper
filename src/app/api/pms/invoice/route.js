@@ -296,7 +296,10 @@ export async function GET(req) {
     return new NextResponse(Buffer.from(bytes), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${invoice.invoice_number}.pdf"`,
+        // `inline` shows it in the booking's preview or a new tab; otherwise it downloads.
+        "Content-Disposition": `${
+          req.nextUrl.searchParams.get("inline") ? "inline" : "attachment"
+        }; filename="${invoice.invoice_number}.pdf"`,
         "Cache-Control": "private, no-store",
       },
     });

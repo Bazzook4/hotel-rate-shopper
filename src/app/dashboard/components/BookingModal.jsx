@@ -36,10 +36,11 @@ const TABS = [
   { id: "details", label: "Details" },
   { id: "guests", label: "Guests" },
   { id: "bill", label: "Bill" },
+  { id: "invoices", label: "Invoices" },
 ];
 
-/** The jobs callers can open a booking for, each one a drawer on the Bill. */
-const BILL_IDS = new Set(["inclusions", "payments", "invoices"]);
+/** The jobs callers can open a booking for, each one a drawer on the Bill or Invoices tab. */
+const BILL_IDS = new Set(["inclusions", "payments"]);
 
 const STATUS_LABELS = {
   inquiry: "Inquiry",
@@ -377,6 +378,15 @@ export default function BookingModal({
 
   const balance = folio?.totals?.balance;
   const owes = balance > 0;
+  // The Invoices tab says what waits there: how many stand, or what is still to issue.
+  const toIssue = (folio?.charges || []).filter((c) => !c.invoice).length;
+  const standing = (folio?.invoices || []).filter((i) => !i.voided_at).length;
+  const invoicesLabel =
+    standing > 0 && toIssue > 0
+      ? `Invoices (${standing}), ${toIssue} to issue`
+      : standing > 0
+        ? `Invoices (${standing})`
+        : "Invoices";
   const openPayments = async () => {
     if (!(await leaveDetails())) return;
     setTab("bill");
@@ -588,7 +598,7 @@ export default function BookingModal({
                   fontWeight: tab === t.id ? 600 : 400,
                 }}
               >
-                {t.label}
+                {t.id === "invoices" ? invoicesLabel : t.label}
               </button>
             ))}
           </div>
@@ -662,14 +672,15 @@ export default function BookingModal({
             />
           )}
 
-          {!firstLoad && !isNew && tab === "bill" && folio && (
+          {!firstLoad && !isNew && (tab === "bill" || tab === "invoices") && folio && (
             <FolioTabs
-              tab="bill"
+              tab={tab}
               folio={folio}
               extras={extras}
               reservationId={reservationId}
               intent={intent}
               onIntentDone={() => setIntent(null)}
+              onTab={setTab}
               onChanged={folioChanged}
             />
           )}
