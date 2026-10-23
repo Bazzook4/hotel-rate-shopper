@@ -355,6 +355,8 @@ export default function BookingModal({
   const assignedRoom = reservation && rooms.find((r) => r.id === reservation.room_id);
   const roomDirty = reservation?.status === "confirmed" && assignedRoom?.housekeeping === "dirty";
   const canHousekeep = visibleModules(session).some((p) => p.id === "housekeeping");
+  // ID photos need the Guests page itself, as on the server.
+  const canSeeIds = visibleModules(session).some((p) => p.id === "guests");
 
   async function markRoomClean() {
     setError(null);
@@ -468,6 +470,11 @@ export default function BookingModal({
                 {tooEarly && `, arrives ${shortDate(reservation.check_in)}`}
               </Fact>
               <Fact label="Stay">{stayLine(reservation)}</Fact>
+              {reservation.booker_name && (
+                <Fact label="Booked by" title={reservation.booker_email || undefined}>
+                  {[reservation.booker_name, reservation.booker_phone].filter(Boolean).join(", ")}
+                </Fact>
+              )}
               {roomDirty ? (
                 <Fact
                   label="Room"
@@ -646,6 +653,8 @@ export default function BookingModal({
             <FolioTabs
               tab="guests"
               folio={folio}
+              canSeeIds={canSeeIds}
+              propertyId={reservation?.property_id}
               extras={extras}
               reservationId={reservationId}
               intent={null}

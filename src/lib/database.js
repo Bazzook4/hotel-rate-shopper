@@ -2944,6 +2944,23 @@ export async function reservationsHaveCountry() {
   return countryColumnSeen;
 }
 
+let bookerColumnSeen = false;
+let bookerColumnCheckedAt = 0;
+
+/**
+ * Whether `reservations.booker_name` exists yet (migration 055). Like the
+ * country column above: a booking made for someone else must not fail in
+ * the time between the push and the SQL being pasted.
+ */
+export async function reservationsHaveBooker() {
+  if (bookerColumnSeen) return true;
+  if (Date.now() - bookerColumnCheckedAt < 60000) return false;
+  bookerColumnCheckedAt = Date.now();
+  const { error } = await supabase.from('reservations').select('booker_name').limit(1);
+  bookerColumnSeen = !error;
+  return bookerColumnSeen;
+}
+
 /** The guest's country from a partner booking's payload, as a code. */
 function partnerGuestCountry(row) {
   const b = row.payload?.booking || row.payload?.reservation || row.payload || {};
@@ -5914,6 +5931,77 @@ export async function linkGuestForBooking(propertyId, fields, guestId = null) {
     residency: fields.guest_residency,
   });
   return created.id;
+}
+
+/**
+ * The guest record for someone named on a booking, found or made, with what
+ * the desk has just typed for them written onto it -- so everyone who stays
+ * is on the guest list, not only the main guest.
+ *
+ *   already linked  that record, updated
+ *   main guest      the booking's own guest record, when it has one
+ *   anyone else     matched on their own phone or email, never one they
+ *                   share with the booking or its booker (usually the
+ *                   booker's own), and never on a name; else a new guest
+ *
+ * The booker is not a guest and is never made one here. Returns the guest
+ * id, or null before migration 045.
+ */
+export async function linkNamedGuest(reservation, guest, existing = null) {
+  if (!(await guestsReady())) return null;
+  const propertyId = reservation.property_id;
+  const fullName = [guest.first_name, guest.last_name].map((v) => String(v || '').trim()).filter(Boolean).join(' ');
+  if (!fullName) return null;
+
+  // A group's lines share one contact, so even its main guest is matched
+  // only on details of their own.
+  const ownBooking = guest.is_primary && !reservation.group_id;
+  const shared = new Set(
+    [reservation.booker_phone, ownBooking ? null : reservation.guest_phone].map(guestPhoneKey).filter(Boolean)
+  );
+  const sharedEmail = new Set(
+    [reservation.booker_email, ownBooking ? null : reservation.guest_email]
+      .map((e) => String(e || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+  const phone = guest.phone && !shared.has(guestPhoneKey(guest.phone)) ? guest.phone : null;
+  const email = guest.email && !sharedEmail.has(String(guest.email).trim().toLowerCase()) ? guest.email : null;
+
+  let guestId = existing?.guest_id || (ownBooking ? reservation.guest_id : null) || null;
+  let record = guestId ? await getGuest(propertyId, guestId).catch(() => null) : null;
+  if (!record) {
+    guestId = null;
+    record = phone || email ? await findGuestMatch(propertyId, { phone, email }) : null;
+    guestId = record?.id || null;
+  }
+  if (!guestId) {
+    record = await createGuest(propertyId, { full_name: fullName, phone, email });
+    guestId = record.id;
+  }
+
+  // What the desk typed is what the guest has just shown them, so it is
+  // written over the record; blanks leave the record as it was. A matched
+  // record keeps its own name.
+  const typed = {
+    full_name: existing?.guest_id ? fullName : null,
+    phone,
+    email,
+    country: guest.nationality,
+    address: guest.address,
+    id_type: guest.id_type,
+    id_number: guest.id_number,
+  };
+  const updates = {};
+  for (const [k, v] of Object.entries(typed)) {
+    const value = String(v ?? '').trim();
+    if (value && value !== record?.[k]) updates[k] = value;
+  }
+  if (Object.keys(updates).length) await updateGuest(propertyId, guestId, updates);
+
+  if (ownBooking && !reservation.guest_id) {
+    await supabase.from('reservations').update({ guest_id: guestId }).eq('id', reservation.id);
+  }
+  return guestId;
 }
 
 // ============================================

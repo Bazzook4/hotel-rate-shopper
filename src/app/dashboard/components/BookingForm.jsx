@@ -55,6 +55,12 @@ function emptyBooking(country = "") {
     guest_phone: "",
     guest_country: country,
     guest_residency: "domestic",
+    // Someone booking for another person: kept as a contact on the booking,
+    // never put on the guest list.
+    booked_by_other: false,
+    booker_name: "",
+    booker_phone: "",
+    booker_email: "",
     room_type_id: "",
     room_id: "",
     rate_plan_id: "",
@@ -91,6 +97,10 @@ function toForm(reservation) {
     guest_phone: reservation.guest_phone || "",
     guest_country: reservation.guest_country || "",
     guest_residency: reservation.guest_residency || "domestic",
+    booked_by_other: Boolean(reservation.booker_name),
+    booker_name: reservation.booker_name || "",
+    booker_phone: reservation.booker_phone || "",
+    booker_email: reservation.booker_email || "",
     room_type_id: reservation.room_type_id || "",
     room_id: reservation.room_id || "",
     rate_plan_id: reservation.rate_plan_id || "",
@@ -1083,6 +1093,10 @@ export default function BookingForm({
 
 
   async function submit(allowOverbook = false) {
+    if (form.booked_by_other && !form.booker_name.trim()) {
+      setError("Add who booked, or untick Booked by someone else.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -1092,6 +1106,7 @@ export default function BookingForm({
         room_id: form.room_id || null,
         rate_plan_id: form.rate_plan_id || null,
         allow_overbook: allowOverbook,
+        ...(form.booked_by_other ? {} : { booker_name: "", booker_phone: "", booker_email: "" }),
         // The quote's night-by-night prices, sent only while the total is
         // the quoted one -- a typed total has no breakdown to go with it.
         night_rates:
@@ -1222,6 +1237,19 @@ export default function BookingForm({
             )}
           </div>
           {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
+          <label
+            className="mt-1 flex items-center gap-2 text-sm"
+            style={{ minHeight: 32 }}
+            title="The booker is kept on the booking only, not added to the guest list"
+          >
+            <input
+              type="checkbox"
+              style={{ width: 18, height: 18 }}
+              checked={form.booked_by_other}
+              onChange={(e) => set("booked_by_other", e.target.checked)}
+            />
+            Booked by someone else
+          </label>
         </Field>
         <Field label="Phone">
           <div style={{ position: "relative" }}>
@@ -1239,6 +1267,25 @@ export default function BookingForm({
             )}
           </div>
         </Field>
+        {form.booked_by_other && (
+          <>
+            <Field label="Booked by *" wide>
+              <input
+                className="input"
+                value={form.booker_name}
+                onChange={(e) => set("booker_name", e.target.value)}
+                placeholder="Who booked, not staying"
+                autoFocus={!form.booker_name}
+              />
+            </Field>
+            <Field label="Booker phone">
+              <input className="input" type="tel" value={form.booker_phone} onChange={(e) => set("booker_phone", e.target.value)} />
+            </Field>
+            <Field label="Booker email">
+              <input className="input" type="email" value={form.booker_email} onChange={(e) => set("booker_email", e.target.value)} />
+            </Field>
+          </>
+        )}
         <Field label="Stay">
           <Select
             className="input"

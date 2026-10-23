@@ -10,6 +10,7 @@ import DateField from "@/app/components/DateField";
 import { countryName, countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { Drawer, Field } from "./RatePlanSetup";
+import GuestIdPhotos from "./GuestIdPhotos";
 
 /**
  * The parts of a booking that hang off its folio: who is staying, and the bill.
@@ -662,13 +663,25 @@ function NightsDrawer({ folio, reservationId, currency, onClose, onSaved, onRefr
  * job's drawer. `onIntentDone` tells the booking the drawer has closed, so
  * asking for the same job again opens it again.
  */
-export default function FolioTabs({ tab, folio, extras, reservationId, intent, onIntentDone, onChanged }) {
+export default function FolioTabs({
+  tab,
+  folio,
+  extras,
+  reservationId,
+  intent,
+  onIntentDone,
+  onChanged,
+  canSeeIds = false,
+  propertyId = null,
+}) {
   const dialog = useDialog();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [guest, setGuest] = useState(null);
   const [drawer, setDrawer] = useState(null);
+  // The named guest whose photo ID is open, uploaded by the desk for them.
+  const [idsOpen, setIdsOpen] = useState(null);
 
   useEffect(() => {
     if (tab === "bill" && INTENT_DRAWER[intent]) setDrawer(INTENT_DRAWER[intent]);
@@ -776,20 +789,29 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
             </div>
             <button
               className="btn btn-secondary text-xs"
-              onClick={() =>
+              onClick={() => {
+                // The first guest named is usually the one the booking is
+                // in the name of, so they start filled in.
+                const first = folio.guests.length === 0;
+                // Titles dropped, and a channel's "KUMAR/RAVI" read as last/first.
+                let name = first ? String(folio.reservation.guest_name || "").trim() : "";
+                if (name.includes("/")) name = name.split("/").reverse().join(" ");
+                name = name.replace(/^(mr|mrs|ms|miss|dr)\.?\s+/i, "");
+                const [firstName = "", ...rest] = name.split(/\s+/).filter(Boolean);
                 setGuest({
-                  first_name: "",
-                  last_name: "",
-                  email: "",
-                  phone: "",
+                  first_name: firstName,
+                  last_name: rest.join(" "),
+                  email: first ? folio.reservation.guest_email || "" : "",
+                  phone: first ? folio.reservation.guest_phone || "" : "",
+                  is_primary: first,
                   gender: "",
                   nationality: toCountryCode(folio.reservation.guest_country) || "",
                   id_type: "",
                   id_number: "",
                   date_of_birth: "",
                   address: "",
-                })
-              }
+                });
+              }}
             >
               <Icon name="plus" size={14} />
               Add guest
@@ -803,11 +825,8 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
           )}
 
           {folio.guests.map((g) => (
-            <div
-              key={g.id}
-              className="card"
-              style={{ padding: "0.6rem 0.75rem", display: "flex", gap: "1rem", alignItems: "center" }}
-            >
+            <div key={g.id} className="card" style={{ padding: "0.6rem 0.75rem" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
               <span title={g.is_primary ? "Primary guest" : "Guest"}>
                 <Icon name="star" size={16} filled={g.is_primary} />
               </span>
@@ -829,6 +848,15 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
                     : "No ID yet, needed for the police report"}
                 </div>
               </div>
+              {canSeeIds && g.guest_id && (
+                <button
+                  className={`btn text-xs ${idsOpen === g.id ? "btn-primary" : "btn-ghost"}`}
+                  aria-expanded={idsOpen === g.id}
+                  onClick={() => setIdsOpen(idsOpen === g.id ? null : g.id)}
+                >
+                  Photo ID
+                </button>
+              )}
               <button className="btn btn-ghost text-xs" onClick={() => setGuest(g)}>
                 Edit
               </button>
@@ -839,6 +867,15 @@ export default function FolioTabs({ tab, folio, extras, reservationId, intent, o
               >
                 <Icon name="close" size={14} />
               </button>
+            </div>
+            {idsOpen === g.id && (
+              <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+                <GuestIdPhotos
+                  propertyId={propertyId}
+                  guest={{ id: g.guest_id, full_name: [g.first_name, g.last_name].filter(Boolean).join(" ") }}
+                />
+              </div>
+            )}
             </div>
           ))}
 

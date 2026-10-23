@@ -6,6 +6,7 @@ import {
   getReservationFolio,
   saveReservationGuest,
   deleteReservationGuest,
+  linkNamedGuest,
   addReservationExtra,
   deleteReservationExtra,
   addReservationPayment,
@@ -132,11 +133,29 @@ export async function POST(req) {
         if (!body.guest?.first_name?.trim()) {
           return NextResponse.json({ error: "First name is required." }, { status: 400 });
         }
-        // The booking's main guest is the booking's own guest record, so
-        // their saved ID can fill in what the desk leaves blank. Found here,
-        // never taken from the browser.
-        const own = body.guest.is_primary ? (await getReservation(reservationId).catch(() => null))?.guest_id : null;
-        await saveReservationGuest(reservationId, body.guest, { guestId: own || undefined });
+        // Everyone named on a booking goes on the guest list, with the ID
+        // the desk typed. The record is found here, never taken from the
+        // browser; a guest list that cannot be reached never costs the desk
+        // the name on the booking.
+        const reservation = await getReservation(reservationId);
+        let existing = null;
+        if (body.guest.id) {
+          const { data } = await getSupabaseAdmin()
+            .from("reservation_guests")
+            .select("*")
+            .eq("id", body.guest.id)
+            .eq("reservation_id", reservationId)
+            .maybeSingle();
+          if (!data) return NextResponse.json({ error: "Guest not found on this booking" }, { status: 404 });
+          existing = data;
+        }
+        let guestId = existing?.guest_id || null;
+        try {
+          guestId = (await linkNamedGuest(reservation, body.guest, existing)) || guestId;
+        } catch (err) {
+          console.error("Could not put the guest on the guest list:", err.message);
+        }
+        await saveReservationGuest(reservationId, body.guest, { guestId: guestId || undefined });
         break;
       }
 

@@ -14,8 +14,20 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
-    title: "Change your password",
+    title: "Change your password, and who booked vs who stays",
     points: [
+      {
+        page: "reservations",
+        text: "Booking for someone else? Tick Booked by someone else on the booking and type who booked. The guest name stays the person staying. The booker is kept on the booking only and is not added to your guest list.",
+      },
+      {
+        page: "reservations",
+        text: "Everyone you add on a booking's Guests tab, or at the check-in popup, is now saved to your guest list with their ID details, ready for their next stay.",
+      },
+      {
+        page: "guests",
+        text: "Upload a guest's photo ID yourself: open the booking, go to Guests, and click Photo ID next to their name. Take a photo or upload a file, just like the online check-in link.",
+      },
       {
         text: "New Account button at the top of every page, with Change password and Sign out. Type your current password and the new one twice to change it.",
       },

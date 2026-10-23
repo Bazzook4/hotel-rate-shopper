@@ -11,6 +11,7 @@ import {
   findDayUseSlotClash,
   findRoomClash,
   reservationsHaveCountry,
+  reservationsHaveBooker,
   linkGuestForBooking,
   companiesReady,
   getCompany,
@@ -35,6 +36,9 @@ function isDate(value) {
  */
 function validate(body) {
   if (!body.guest_name?.trim()) return "Guest name is required.";
+  if (body.booked_by_other && !body.booker_name?.trim()) {
+    return "Add who booked, or untick Booked by someone else.";
+  }
   if (!body.room_type_id) return "Choose a room type.";
   if (!isDate(body.check_in)) return "Check-in date is required.";
   if (body.stay_kind === "day_use") {
@@ -165,6 +169,23 @@ async function applyGuestCountry(fields, body) {
   if (!("guest_country" in body)) return;
   if (!(await reservationsHaveCountry())) return;
   fields.guest_country = toCountryCode(body.guest_country);
+}
+
+/**
+ * Who booked, when it was not the guest. Kept on the booking only: the
+ * booker is a contact, not someone staying, so they never reach the guest
+ * list or the police register. Blank means the guest booked for themselves.
+ *
+ * Written only once migration 055 has run, and only when the form sent the
+ * fields, so older callers leave what is stored alone.
+ */
+async function applyBooker(fields, body) {
+  if (!("booker_name" in body)) return;
+  if (!(await reservationsHaveBooker())) return;
+  const name = body.booker_name?.trim() || null;
+  fields.booker_name = name;
+  fields.booker_phone = name ? body.booker_phone?.trim() || null : null;
+  fields.booker_email = name ? body.booker_email?.trim() || null : null;
 }
 
 /**
@@ -311,6 +332,7 @@ export async function POST(req) {
     const dayUse = fields.stay_kind === "day_use";
     const complimentary = applyBookingType(fields, body);
     await applyGuestCountry(fields, body);
+    await applyBooker(fields, body);
     const badCompany = await applyCompany(fields, body, propertyId);
     if (badCompany) return NextResponse.json({ error: badCompany }, { status: 400 });
 
@@ -405,6 +427,7 @@ export async function PATCH(req) {
     const dayUse = fields.stay_kind === "day_use";
     const complimentary = applyBookingType(fields, body, before);
     await applyGuestCountry(fields, body);
+    await applyBooker(fields, body);
     const badCompany = await applyCompany(fields, body, propertyId, before);
     if (badCompany) return NextResponse.json({ error: badCompany }, { status: 400 });
 
