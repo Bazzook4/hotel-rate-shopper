@@ -13,6 +13,8 @@ import {
   reservationsHaveCountry,
   reservationsHaveBooker,
   linkGuestForBooking,
+  listReservationGuests,
+  saveReservationGuest,
   companiesReady,
   getCompany,
   listRatePlans,
@@ -186,6 +188,48 @@ async function applyBooker(fields, body) {
   fields.booker_name = name;
   fields.booker_phone = name ? body.booker_phone?.trim() || null : null;
   fields.booker_email = name ? body.booker_email?.trim() || null : null;
+}
+
+/**
+ * The guest the booking is for, named on its Guests tab as the main guest,
+ * so the desk does not type them a second time there. An edit to the name,
+ * phone or email on the booking carries over to that line; their ID details
+ * on it are left alone. The booker is never named here.
+ *
+ * A line that cannot be written never costs the desk the booking.
+ */
+async function nameMainGuest(reservation) {
+  const name = String(reservation.guest_name || "").trim();
+  if (!name || (name === "OTA guest" && !reservation.guest_phone && !reservation.guest_email)) return;
+  try {
+    const [first_name, ...rest] = name.split(/\s+/);
+    const contact = {
+      first_name,
+      last_name: rest.join(" ") || null,
+      phone: reservation.guest_phone || null,
+      email: reservation.guest_email || null,
+    };
+    const main = (await listReservationGuests(reservation.id)).find((g) => g.is_primary);
+    if (main) {
+      const same = ["first_name", "last_name", "phone", "email"].every((k) => (main[k] || null) === contact[k]);
+      const relinked = reservation.guest_id && reservation.guest_id !== main.guest_id;
+      if (!same || relinked) {
+        await saveReservationGuest(
+          reservation.id,
+          { ...main, ...contact, is_primary: true },
+          { guestId: reservation.guest_id || undefined }
+        );
+      }
+      return;
+    }
+    await saveReservationGuest(
+      reservation.id,
+      { ...contact, nationality: reservation.guest_country || null, is_primary: true },
+      { guestId: reservation.guest_id || undefined }
+    );
+  } catch (err) {
+    console.error("Could not name the guest on the booking:", err.message);
+  }
 }
 
 /**
@@ -381,6 +425,7 @@ export async function POST(req) {
       },
       { rates }
     );
+    await nameMainGuest(reservation);
 
     // The rooms this booking took are no longer for sale anywhere else.
     const inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
@@ -471,6 +516,7 @@ export async function PATCH(req) {
     await applyGuest(fields, body, propertyId, before);
 
     const reservation = await updateReservation(id, fields, { rates });
+    await nameMainGuest(reservation);
 
     // The channels sell room types, not rooms: an edit that keeps the type and
     // the dates -- assigning a room, fixing a phone number -- changes nothing

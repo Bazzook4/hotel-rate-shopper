@@ -479,7 +479,7 @@ function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, 
  * leaving the home page.
  */
 function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, onChanged }) {
-  const desk = useFrontDesk(propertyId);
+  const desk = useFrontDesk(propertyId, { canSeeIds: Boolean(canOpen?.("guests")) });
   const [arrivals, setArrivals] = useState([]);
   const [departures, setDepartures] = useState([]);
   const [busyId, setBusyId] = useState(null);

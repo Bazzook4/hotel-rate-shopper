@@ -151,7 +151,7 @@ function shiftDate(date, days) {
 
 export default function TapeChart({ session }) {
   const propertyId = session?.propertyId || null;
-  const desk = useFrontDesk(propertyId);
+  const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
 
   // todayUTC() already gives a YYYY-MM-DD string; formatDateISO takes a Date
   // and returns "" for anything else, which would leave the chart with no

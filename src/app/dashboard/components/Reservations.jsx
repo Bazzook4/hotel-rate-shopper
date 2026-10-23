@@ -1,5 +1,6 @@
 "use client";
 
+import { visibleModules } from "../modules";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
 import BookingForm from "./BookingForm";
@@ -125,7 +126,7 @@ export default function Reservations({ session, initialView = null }) {
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
   const toast = useToast();
-  const desk = useFrontDesk(propertyId);
+  const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
 
   // OTA bookings received but not in the PMS -- normally none.
   const [pending, setPending] = useState([]);

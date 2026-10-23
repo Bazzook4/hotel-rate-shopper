@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useEscape } from "../../components/useEscape";
 import { dayUseLabel, dayUseWindowLabel } from "@/lib/dayUse";
 import Select from "@/app/components/Select";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
+import { shrink } from "./GuestIdPhotos";
+import Icon from "../../components/Icon";
 
 /**
  * Check-in and check-out as one shared action, so the Today page, the
@@ -117,6 +119,7 @@ async function idLines(r) {
     id_type: g.id_type || "",
     id_number: g.id_number || "",
     nationality: g.nationality || (g.is_primary ? toCountryCode(stay.guest_country) : "") || home,
+    files: [],
   }));
   if (!lines.length) {
     lines.push({
@@ -126,23 +129,34 @@ async function idLines(r) {
       id_type: booker?.id_type || "",
       id_number: booker?.id_number || "",
       nationality: toCountryCode(booker?.country) || home,
+      files: [],
     });
   }
-  while (lines.length < wanted) lines.push({ existing: null, name: "", id_type: "", id_number: "", nationality: home });
+  while (lines.length < wanted) lines.push({ existing: null, name: "", id_type: "", id_number: "", nationality: home, files: [] });
   const complete = lines.every((l) => l.name.trim() && l.id_number.trim());
   return { lines, complete };
 }
 
-/** Save the lines the desk filled or changed as named guests on the booking. */
-async function saveIdLines(reservationId, before, after) {
+/**
+ * Save the lines the desk filled or changed as named guests on the booking,
+ * then upload any ID photos taken for them onto their guest records.
+ */
+async function saveIdLines(reservationId, before, after, propertyId) {
   const hasPrimary = before.some((l) => l.existing?.is_primary);
   for (const [i, l] of after.entries()) {
     const was = before[i];
     const changed = ["name", "id_type", "id_number", "nationality"].some((k) => String(l[k] || "") !== String(was[k] || ""));
-    if (!l.name.trim() || (l.existing && !changed)) continue;
-    // A booker line nobody touched and with no ID is left as the booking's
-    // name, rather than naming them with nothing new.
-    if (!l.existing && !l.id_number.trim() && !changed) continue;
+    const photos = l.files?.length > 0;
+    let guestId = l.existing?.guest_id || null;
+    if (!l.name.trim()) continue;
+    // A line nobody touched is left as it is: a named guest unchanged, or
+    // the booker line with no ID, rather than naming them with nothing new.
+    // A photo taken for them still needs them on the guest list.
+    const skip = l.existing ? !changed && (guestId || !photos) : !l.id_number.trim() && !changed && !photos;
+    if (skip) {
+      if (photos && guestId) await uploadIdPhotos(guestId, l, propertyId);
+      continue;
+    }
     const guest = {
       ...(l.existing || {}),
       ...splitName(l.name),
@@ -152,6 +166,7 @@ async function saveIdLines(reservationId, before, after) {
     };
     if (!l.existing) guest.is_primary = Boolean(l.primary) && !hasPrimary;
     delete guest.guests;
+    const known = new Set(after.map((x) => x.existing?.id).filter(Boolean));
     const res = await fetch("/api/pms/folio", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -159,7 +174,29 @@ async function saveIdLines(reservationId, before, after) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `The details for ${l.name} did not save, so the guest is not checked in yet.`);
+    if (!photos) continue;
+    // The answer is the whole folio: this line is the row it updated, or
+    // the one row that is new.
+    const saved = (data.guests || []).find((g) => (l.existing ? g.id === l.existing.id : !known.has(g.id)));
+    if (saved && !l.existing) l.existing = saved;
+    guestId = saved?.guest_id || guestId;
+    if (!guestId) throw new Error(`${l.name} could not be put on the guest list, so their ID photo was not saved. Check in without the photo and add it on the Guests tab.`);
+    await uploadIdPhotos(guestId, l, propertyId);
   }
+}
+
+/** The ID photos taken in the popup, onto the guest's record. */
+async function uploadIdPhotos(guestId, line, propertyId) {
+  for (const file of line.files) {
+    const form = new FormData();
+    form.set("guest_id", guestId);
+    if (propertyId) form.set("property_id", propertyId);
+    form.set("file", file);
+    const res = await fetch("/api/pms/guests/photos", { method: "POST", body: form });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`${line.name}'s ID photo did not upload (${data.error || "try again"}), so the guest is not checked in yet.`);
+  }
+  line.files = [];
 }
 
 /**
@@ -168,13 +205,26 @@ async function saveIdLines(reservationId, before, after) {
  * desk should not wait on a missing ID; the police report shows them.
  */
 function CheckInDialog({ request, onDone }) {
-  const { guest, rooms, roomNote, lines: start } = request;
+  const { guest, rooms, roomNote, lines: start, canSeeIds } = request;
   const [roomId, setRoomId] = useState(rooms?.[0]?.value || "");
   const [lines, setLines] = useState(start || []);
   const countries = countryOptions();
   useEscape(() => onDone(null));
   const set = (i, k, v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
   const missing = lines.filter((l) => !l.id_number.trim()).length;
+  // One file box for every line: it remembers which line asked.
+  const fileRef = useRef(null);
+  const [photoFor, setPhotoFor] = useState(null);
+  const [shrinking, setShrinking] = useState(false);
+  const pickPhotos = async (e) => {
+    const picked = [...(e.target.files || [])];
+    e.target.value = "";
+    if (photoFor == null || !picked.length) return;
+    setShrinking(true);
+    const files = await Promise.all(picked.map(shrink));
+    setShrinking(false);
+    setLines((ls) => ls.map((l, j) => (j === photoFor ? { ...l, files: [...(l.files || []), ...files].slice(0, 6) } : l)));
+  };
 
   return (
     <div
@@ -230,6 +280,7 @@ function CheckInDialog({ request, onDone }) {
                     <th style={{ minWidth: 140 }}>ID type</th>
                     <th style={{ minWidth: 150 }}>ID number</th>
                     <th style={{ minWidth: 150 }}>Nationality</th>
+                    {canSeeIds && <th style={{ minWidth: 110 }}>Photo of ID</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -274,11 +325,43 @@ function CheckInDialog({ request, onDone }) {
                           ))}
                         </Select>
                       </td>
+                      {canSeeIds && (
+                        <td>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-secondary text-xs"
+                              disabled={shrinking || !l.name.trim()}
+                              title={l.name.trim() ? "Take a photo or pick a file, front and back if the ID has both" : "Type the name first"}
+                              onClick={() => {
+                                setPhotoFor(i);
+                                fileRef.current?.click();
+                              }}
+                            >
+                              {l.files?.length ? `${l.files.length} added` : "Add"}
+                            </button>
+                            {l.files?.length > 0 && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost text-xs"
+                                aria-label={`Remove the ID photos for adult ${i + 1}`}
+                                title="Remove these photos"
+                                onClick={() => set(i, "files", [])}
+                              >
+                                <Icon name="close" size={14} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {canSeeIds && (
+              <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple hidden onChange={pickPhotos} />
+            )}
             {lines.some((l) => l.id_type === "passport" && (!l.nationality || l.nationality === "IN")) && (
               <p className="text-xs" style={{ color: "var(--warn)" }}>
                 A passport holder&apos;s nationality decides whether a Form C is needed. Check it is right.
@@ -381,7 +464,11 @@ function SettleDialog({ request, onDone }) {
  * out, and throw with a message written for the desk when refused.
  * `settleDialog` must be rendered by the caller.
  */
-export function useFrontDesk(propertyId) {
+/**
+ * `canSeeIds` is whether this user has the Guests page, which ID photos
+ * need; without it the popup asks for ID numbers only.
+ */
+export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
   const [settle, setSettle] = useState(null);
 
   const [checkInAsk, setCheckInAsk] = useState(null);
@@ -401,7 +488,7 @@ export function useFrontDesk(propertyId) {
       const lines = ids && !ids.complete ? ids.lines : [];
 
       const finish = async (answer, roomId, markClean) => {
-        if (answer?.lines?.length) await saveIdLines(r.id, ids.lines, answer.lines);
+        if (answer?.lines?.length) await saveIdLines(r.id, ids.lines, answer.lines, propertyId || r.property_id);
         return postStatus(r.id, "in_house", roomId, { markClean });
       };
 
@@ -430,6 +517,7 @@ export function useFrontDesk(propertyId) {
             ? `${number ? `Room ${number}` : "The room"} is marked dirty. If it is ready, check the guest in and it is marked clean under your name.`
             : null,
           lines,
+          canSeeIds,
         });
         if (!answer) return null;
         return finish(answer, null, dirty || roomSeenDirty);
@@ -460,11 +548,12 @@ export function useFrontDesk(propertyId) {
           label: isDirty(x) ? `Room ${x.room_number}, dirty, marked clean on check-in` : `Room ${x.room_number}`,
         })),
         lines,
+        canSeeIds,
       });
       if (!answer?.roomId) return null;
       return finish(answer, answer.roomId, isDirty(offered.find((x) => x.id === answer.roomId)));
     },
-    [propertyId, askCheckIn]
+    [propertyId, askCheckIn, canSeeIds]
   );
 
   const checkOut = useCallback(async (r) => {

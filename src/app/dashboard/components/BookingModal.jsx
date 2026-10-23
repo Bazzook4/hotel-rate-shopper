@@ -126,7 +126,7 @@ export default function BookingModal({
   const [ratePlans, setRatePlans] = useState([]);
 
   const propertyId = session?.propertyId || null;
-  const desk = useFrontDesk(propertyId);
+  const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
 
   const loadFolio = useCallback(async () => {
     if (isNew) return;

@@ -22,11 +22,11 @@ export const RELEASE_NOTES = [
       },
       {
         page: "reservations",
-        text: "Everyone you add on a booking's Guests tab, or at the check-in popup, is now saved to your guest list with their ID details, ready for their next stay.",
+        text: "The guest you make a booking for now appears on that booking's Guests tab straight away, so you do not type them twice. Everyone you add there, or at the check-in popup, is saved to your guest list with their ID details, ready for their next stay.",
       },
       {
         page: "guests",
-        text: "Upload a guest's photo ID yourself: open the booking, go to Guests, and click Photo ID next to their name. Take a photo or upload a file, just like the online check-in link.",
+        text: "Upload a guest's photo ID yourself: open the booking, go to Guests, and click Photo ID next to their name. Take a photo or upload a file, just like the online check-in link. The check-in popup also has an Add button on each guest line, so you can photograph the ID while checking them in.",
       },
       {
         text: "New Account button at the top of every page, with Change password and Sign out. Type your current password and the new one twice to change it.",
