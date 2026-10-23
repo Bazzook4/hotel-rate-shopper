@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "The day changes at your night audit time",
+    points: [
+      {
+        page: "setup",
+        text: "Today no longer turns over at midnight. Until 2:30 AM the Calendar, Today, the night audit and payments still count as the day before, so a walk-in at 1 AM is tonight's stay and a payment at 1 AM is on that day's audit. Change the time under Day changes at in Property Setup.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "Your hotel's own time zone and currency",
     points: [
       {

@@ -18,7 +18,8 @@ import {
   useReport,
   whole,
 } from "./reportKit";
-import { hotelZone } from "@/lib/hotelTime";
+import { hotelToday } from "@/lib/hotelTime";
+import { parseDateISO } from "@/lib/date";
 
 /**
  * The home page: the answer to "how am I doing, and what needs me?" before
@@ -694,7 +695,7 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
           <h2 className="h1">Today</h2>
           <p className="sub">
             {session?.propertyName ? `${session.propertyName}, ` : ""}
-            {new Date().toLocaleDateString("en-GB", { timeZone: hotelZone(), weekday: "long", day: "numeric", month: "long" })}
+            {parseDateISO(hotelToday()).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

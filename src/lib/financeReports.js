@@ -20,8 +20,9 @@ import { DEFAULT_ZONE, dayInZone, todayInZone, zoneDayStart } from '@/lib/hotelT
  *
  * Payments and invoices are stamped with a moment, not a date, and a hotel's
  * day is its own local day: a payment taken at 1am in Ooty belongs to that
- * day, not to the UTC day before it. `tz` is the hotel's own time zone
- * (getPropertyZone, lib/hotelTime.js) and days are cut there.
+ * day, not to the UTC day before it. `tz` is the hotel's business clock
+ * (getPropertyClock, lib/hotelTime.js): days are cut at its night audit
+ * time, so a payment at 1am is on the day before a 2:30 AM change-over.
  */
 
 export const PAYMENT_METHODS = {

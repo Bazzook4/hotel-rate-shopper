@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { getPropertyZone } from "@/lib/database";
+import { getPropertyClock } from "@/lib/database";
 
 /**
  * The questions every finance report route asks before it reads anything:
@@ -23,7 +23,7 @@ async function base(req, page) {
   const params = req.nextUrl.searchParams;
   const propertyId = await resolvePropertyId(session, params.get("propertyId"));
   if (!propertyId) return fail("No property selected");
-  return { params, propertyId, tz: await getPropertyZone(propertyId) };
+  return { params, propertyId, tz: await getPropertyClock(propertyId) };
 }
 
 /** A start and end date, both inclusive, at most `maxDays` apart. `page` is the report's own. */

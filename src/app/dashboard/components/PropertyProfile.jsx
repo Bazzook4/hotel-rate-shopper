@@ -5,7 +5,7 @@ import { countryOptions } from "@/lib/countries";
 import { PROPERTY_TYPES, profileGaps } from "@/lib/eventTags";
 import { citySuggestions, guessCountry, placesFor, stateOptions } from "@/lib/places";
 import Select from "@/app/components/Select";
-import { browserZone, zoneOptions } from "@/lib/hotelTime";
+import { DEFAULT_DAY_START, browserZone, dayStartOptions, dayStartValue, zoneOptions } from "@/lib/hotelTime";
 import { currencyForCountry, currencyOptions } from "@/lib/money";
 
 /**
@@ -59,6 +59,9 @@ export function ProfileFields({
   showTypes = true,
   // The hotel's clock. Asked for a hotel, not for an event's tags.
   showZone = false,
+  // When the business day changes (the night audit time). Property Setup
+  // only: sign-up starts every hotel on 2:30 AM.
+  showDayChange = false,
 }) {
   const countries = useMemo(() => countryOptions(), []);
   const zones = useMemo(() => (showZone ? zoneOptions() : []), [showZone]);
@@ -155,7 +158,7 @@ export function ProfileFields({
       </div>
 
       {showZone && (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={`grid gap-3 ${showDayChange ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         <label className="block sm:col-span-2">
           <span className="label">Time zone</span>
           <Select
@@ -182,6 +185,25 @@ export function ProfileFields({
             Today, the night audit and every time on screen follow the hotel&apos;s clock.
           </span>
         </label>
+        {showDayChange && (
+          <label className="block">
+            <span className="label">Day changes at</span>
+            <Select
+              className="input w-full"
+              value={value.day_change_time || dayStartValue(DEFAULT_DAY_START)}
+              onChange={(e) => set({ day_change_time: e.target.value })}
+            >
+              {dayStartOptions().map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+            <span className="mt-1 block text-xs faint">
+              Your night audit time. Until then, today is still the day before.
+            </span>
+          </label>
+        )}
         <label className="block">
           <span className="label">Currency</span>
           <Select
@@ -297,11 +319,11 @@ export default function PropertyProfile({ propertyId, onSaved, intro }) {
         <h3 className="h2">Property profile</h3>
         <p className="sub">
           {intro ||
-            "Where the hotel is, its time zone and what kind it is. Events (festivals, holidays, conferences, wedding seasons) are matched to hotels by these, and feed Dynamic Pricing."}
+            "Where the hotel is, its clock and money, and what kind it is. Events (festivals, holidays, conferences, wedding seasons) are matched to hotels by these, and feed Dynamic Pricing."}
         </p>
       </div>
 
-      {value ? <ProfileFields value={value} onChange={setValue} idPrefix={`profile-${propertyId || "own"}`} showZone /> : <p className="sub">Loading...</p>}
+      {value ? <ProfileFields value={value} onChange={setValue} idPrefix={`profile-${propertyId || "own"}`} showZone showDayChange /> : <p className="sub">Loading...</p>}
 
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>

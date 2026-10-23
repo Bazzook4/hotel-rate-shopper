@@ -8,7 +8,7 @@ import { getBookingPerformance } from "@/lib/reports";
 import { getFormC } from "@/lib/guestRegister";
 import {
   getPropertyIntegration,
-  getPropertyZone,
+  getPropertyClock,
   listPropertyTaxes,
   listRatePlanRooms,
   listRatePlans,
@@ -213,7 +213,7 @@ export async function GET(req) {
 
   const { user, rights } = await sessionRights(session);
   const holds = (pages) => pages.some((p) => rights.includes(p));
-  const tz = await getPropertyZone(propertyId);
+  const tz = await getPropertyClock(propertyId);
   const today = localToday(tz);
 
   const [todayData, month, distribution, setup, formC] = await Promise.all([

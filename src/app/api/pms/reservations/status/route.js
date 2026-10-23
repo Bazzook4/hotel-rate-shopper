@@ -4,7 +4,7 @@ import {
   findRoomClash,
   findDayUseInRoom,
   getReservation,
-  getPropertyZone,
+  getPropertyClock,
   getRoom,
   setRoomHousekeeping,
   setReservationStatus,
@@ -96,7 +96,7 @@ export async function POST(req) {
     // allowed: the guest is standing there, the date has simply passed.
     // "Today" is the hotel's own, so a walk-in after midnight in India is not
     // refused for arriving on what is still yesterday in UTC.
-    if (status === "in_house" && current.check_in > localToday(await getPropertyZone(propertyId))) {
+    if (status === "in_house" && current.check_in > localToday(await getPropertyClock(propertyId))) {
       return NextResponse.json(
         {
           error: `This booking arrives on ${current.check_in}. Move the dates if the guest is arriving early.`,

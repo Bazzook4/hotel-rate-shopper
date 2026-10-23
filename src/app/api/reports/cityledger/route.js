@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { getPropertyZone } from "@/lib/database";
+import { getPropertyClock } from "@/lib/database";
 import { getCityLedger, getCompanyStatement } from "@/lib/cityLedger";
 
 /**
@@ -14,7 +14,7 @@ export async function GET(req) {
   const params = req.nextUrl.searchParams;
   const propertyId = await resolvePropertyId(session, params.get("propertyId"));
   if (!propertyId) return NextResponse.json({ error: "No property selected" }, { status: 400 });
-  const tz = await getPropertyZone(propertyId);
+  const tz = await getPropertyClock(propertyId);
 
   try {
     const companyId = params.get("companyId");

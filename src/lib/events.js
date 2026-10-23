@@ -1,5 +1,5 @@
 import { forgetPropertyZone, getSupabaseAdmin } from "@/lib/database";
-import { isZone } from "@/lib/hotelTime";
+import { dayStartValue, isZone, parseDayStart } from "@/lib/hotelTime";
 import { currencyForCountry, isCurrency } from "@/lib/money";
 import {
   EVENT_CATEGORIES,
@@ -51,6 +51,8 @@ export async function getPropertyProfile(propertyId) {
     property_types: data.property_types || [],
     // Empty only before migration 058; the hotel is then asked to choose.
     timezone: data.timezone || "",
+    // "02:30:00" from Postgres, as "02:30". Empty before migration 059.
+    day_change_time: parseDayStart(data.day_change_time) != null ? dayStartValue(parseDayStart(data.day_change_time)) : "",
     currency: data.currency || currencyForCountry(data.country_code || toCountryCode(data.country)) || "",
   };
 }
@@ -69,7 +71,21 @@ export function validateProfile(input) {
   // The money it sells in; the country's own when none was picked.
   const currency = isCurrency(input?.currency) ? input.currency : currencyForCountry(country_code);
   if (!currency) return { error: "Choose the currency the hotel sells in." };
-  return { profile: { country_code, state: state || null, city, property_types, timezone: input.timezone, currency } };
+  // When the business day changes over. Left out when not sent (sign-up), so
+  // the hotel keeps what it has -- 2:30 AM to begin with.
+  const dayStart = parseDayStart(input?.day_change_time);
+  if (input?.day_change_time && dayStart == null) return { error: "Choose a day change time from midnight to 6 AM." };
+  return {
+    profile: {
+      country_code,
+      state: state || null,
+      city,
+      property_types,
+      timezone: input.timezone,
+      currency,
+      ...(dayStart != null ? { day_change_time: dayStartValue(dayStart) } : {}),
+    },
+  };
 }
 
 export async function savePropertyProfile(propertyId, profile) {

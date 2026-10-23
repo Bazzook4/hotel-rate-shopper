@@ -1,4 +1,4 @@
-import { getSupabaseAdmin, getPropertyZone, getReservationFolio } from '@/lib/database';
+import { getSupabaseAdmin, getPropertyClock, getReservationFolio } from '@/lib/database';
 import { todayInZone } from '@/lib/hotelTime';
 
 /**
@@ -206,7 +206,7 @@ export async function topUpWallet(propertyId, owner, input, userId = null) {
 
   const receivedOn = /^\d{4}-\d{2}-\d{2}$/.test(input.received_on || '')
     ? input.received_on
-    : todayInZone(await getPropertyZone(propertyId));
+    : todayInZone(await getPropertyClock(propertyId));
 
   const { data, error } = await db()
     .from('wallet_transactions')

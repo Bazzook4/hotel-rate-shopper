@@ -2,7 +2,7 @@ import { getSupabaseAdmin } from '@/lib/database';
 import { localDay, shiftDay, userEmails } from '@/lib/financeReports';
 import { chunks, notMigrated, readAll } from '@/lib/reports';
 import { toCountryCode } from '@/lib/countries';
-import { DEFAULT_ZONE } from '@/lib/hotelTime';
+import { DEFAULT_ZONE, clockOf } from '@/lib/hotelTime';
 import { FORM_C_FIELDS, FORM_C_PURPOSES, FORM_C_REQUIRED } from '@/lib/formC';
 
 /**
@@ -70,7 +70,7 @@ async function arrivedStays(propertyId, { start, end, tz }) {
     'stays'
   );
   return rows
-    .map((r) => ({ ...r, arrivalDay: r.checked_in_at ? localDay(r.checked_in_at, tz) : r.check_in }))
+    .map((r) => ({ ...r, arrivalDay: r.checked_in_at ? localDay(r.checked_in_at, clockOf(tz).zone) : r.check_in }))
     .filter((r) => r.arrivalDay >= start && r.arrivalDay <= end);
 }
 

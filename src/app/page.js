@@ -15,7 +15,7 @@ import CommandPalette from "./dashboard/components/CommandPalette";
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
 import { useEscape } from "./components/useEscape";
 import Select from "@/app/components/Select";
-import { setHotelZone } from "@/lib/hotelTime";
+import { setHotelDayStart, setHotelZone } from "@/lib/hotelTime";
 import { setHotelCurrency } from "@/lib/money";
 
 /**
@@ -304,6 +304,7 @@ export default function V2Dashboard() {
     // every page is the hotel's own (lib/hotelTime.js, lib/money.js) from the
     // first paint.
     setHotelZone(propertyTimezone);
+    setHotelDayStart(chosen?.day_change_time || session.propertyDayChange);
     setHotelCurrency(propertyCurrency);
     return {
       ...session,
@@ -899,10 +900,12 @@ export default function V2Dashboard() {
                       />
                       <PropertyProfile
                         propertyId={scopedSession?.propertyId}
-                        onSaved={({ timezone, currency, country_code }) =>
+                        onSaved={({ timezone, currency, country_code, day_change_time }) =>
                           setProperties((list) =>
                             list.map((p) =>
-                              p.id === scopedSession?.propertyId ? { ...p, timezone, currency, country_code } : p
+                              p.id === scopedSession?.propertyId
+                                ? { ...p, timezone, currency, country_code, day_change_time: day_change_time || p.day_change_time }
+                                : p
                             )
                           )
                         }

@@ -5,7 +5,7 @@ import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/rateP
 import { folioTotals, indianGstPreset, taxLinesFor } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
 import { toCountryCode } from '@/lib/countries';
-import { DEFAULT_ZONE, todayInZone, zoneOr } from '@/lib/hotelTime';
+import { DEFAULT_DAY_START, DEFAULT_ZONE, parseDayStart, todayInZone, zoneOr } from '@/lib/hotelTime';
 import { DEFAULT_CURRENCY, currencyOr } from '@/lib/money';
 import { contractNights } from '@/lib/contractRates';
 import {
@@ -160,22 +160,26 @@ export async function getPropertyById(id) {
 const zoneCache = new Map();
 
 /**
- * The hotel's time zone and currency (see lib/hotelTime.js, lib/money.js).
- * Read on almost every front office request, so kept for a minute; a change
- * in Property Setup clears it. India and rupees until the columns exist or
- * when they hold something unusable.
+ * The hotel's time zone, day-change time and currency (see lib/hotelTime.js,
+ * lib/money.js). Read on almost every front office request, so kept for a
+ * minute; a change in Property Setup clears it. India, 2:30 AM and rupees
+ * until the columns exist or when they hold something unusable. Every
+ * column is read, so a missing one (an unrun migration) costs only itself.
  */
 async function propertyLocale(propertyId) {
-  if (!propertyId) return { zone: DEFAULT_ZONE, currency: DEFAULT_CURRENCY, country: 'IN' };
+  if (!propertyId) {
+    return { zone: DEFAULT_ZONE, dayStart: DEFAULT_DAY_START, currency: DEFAULT_CURRENCY, country: 'IN' };
+  }
   const hit = zoneCache.get(propertyId);
   if (hit && hit.until > Date.now()) return hit;
   const { data, error } = await supabase
     .from('properties')
-    .select('timezone, currency, country_code, country')
+    .select('*')
     .eq('id', propertyId)
     .maybeSingle();
   const entry = {
     zone: zoneOr(error ? null : data?.timezone),
+    dayStart: parseDayStart(error ? null : data?.day_change_time) ?? DEFAULT_DAY_START,
     currency: currencyOr(error ? null : data?.currency),
     country: (error ? null : data?.country_code || toCountryCode(data?.country)) || 'IN',
     until: Date.now() + 60000,
@@ -184,8 +188,15 @@ async function propertyLocale(propertyId) {
   return entry;
 }
 
+/** The hotel's zone alone: the calendar date, for the channels and the police register. */
 export async function getPropertyZone(propertyId) {
   return (await propertyLocale(propertyId)).zone;
+}
+
+/** The hotel's business clock: its zone and the time its day changes over (lib/hotelTime.js). */
+export async function getPropertyClock(propertyId) {
+  const { zone, dayStart } = await propertyLocale(propertyId);
+  return { zone, dayStart };
 }
 
 export async function getPropertyCurrency(propertyId) {
