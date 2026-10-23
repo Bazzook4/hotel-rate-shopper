@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Calendar shows the right date on each day",
+    points: [
+      {
+        page: "calendar",
+        text: "The date number at the top of each day on the Calendar was one day behind (Friday 23 showed as 22), and the weekend shading sat on Friday and Saturday. Each day now shows its own date, and Saturday and Sunday are shaded. Bookings were always on the right nights.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Invoices show your logo, laid out in tables",
     points: [
       {

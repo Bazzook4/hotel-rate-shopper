@@ -1077,7 +1077,7 @@ export default function TapeChart({ session }) {
                 {dates.map((d) => {
                   const parsed = parseDateISO(d);
                   const isToday = d === today;
-                  const weekend = [0, 6].includes(parsed.getUTCDay());
+                  const weekend = [0, 6].includes(parsed.getDay());
                   // With occupancy colours on, the fill means how full the
                   // house is and nothing else: today gets an underline and
                   // the weekend a bold day name instead.
@@ -1119,7 +1119,7 @@ export default function TapeChart({ session }) {
                           fontSize: "0.8rem",
                         }}
                       >
-                        {parsed.getUTCDate()}
+                        {parsed.getDate()}
                       </div>
                       <div>
                         {parsed.toLocaleDateString("en-GB", { month: "short" }).toUpperCase()}
@@ -1293,7 +1293,7 @@ export default function TapeChart({ session }) {
                       <div style={{ display: "flex", position: "relative", flex: 1 }}>
                         {dates.map((d) => {
                           const parsed = parseDateISO(d);
-                          const weekend = [0, 6].includes(parsed.getUTCDay());
+                          const weekend = [0, 6].includes(parsed.getDay());
                           return (
                             <div
                               key={d}
@@ -1599,7 +1599,6 @@ function nightLabel(date) {
     weekday: "short",
     day: "numeric",
     month: "short",
-    timeZone: "UTC",
   });
 }
 
