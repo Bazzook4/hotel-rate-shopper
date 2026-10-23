@@ -7,6 +7,7 @@ import { guessCountry } from "@/lib/places";
 import {
   DEFAULT_PLAN_CODES,
   MAX_ADULTS,
+  MAX_PRICE,
   MAX_ROOM_TYPES,
   STARTER_PLANS,
   emptyRoomType,
@@ -61,6 +62,10 @@ export default function OnboardPage() {
 
   const setRoom = (i, key, value) =>
     setRoomTypes((list) => list.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
+  const setPrice = (i, code, value) =>
+    setRoomTypes((list) =>
+      list.map((r, j) => (j === i ? { ...r, prices: { ...r.prices, [code]: value } } : r))
+    );
   const togglePlan = (code) =>
     setPlanCodes((codes) =>
       codes.includes(code) ? codes.filter((c) => c !== code) : [...codes, code]
@@ -70,12 +75,17 @@ export default function OnboardPage() {
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
-    if (password !== confirm) {
-      setError("Passwords do not match");
-      return;
-    }
     if (!/^\d+$/.test(totalRooms.trim()) || +totalRooms < 1 || +totalRooms > MAX_ROOMS) {
       setError(`Total rooms must be a whole number from 1 to ${MAX_ROOMS}.`);
+      return;
+    }
+    const gaps = profileGaps(profile);
+    if (gaps.length) {
+      setError(`Still needed: ${gaps.join(", ")}.`);
+      return;
+    }
+    if (contactPhone.replace(/\D/g, "").length < 10) {
+      setError("Enter your mobile number, so we can reach you.");
       return;
     }
     const starter = validateStarterSetup({ roomTypes, planCodes }, Number(totalRooms));
@@ -83,13 +93,8 @@ export default function OnboardPage() {
       setError(starter.error);
       return;
     }
-    if (contactPhone.replace(/\D/g, "").length < 10) {
-      setError("Enter your mobile number, so we can reach you.");
-      return;
-    }
-    const gaps = profileGaps(profile);
-    if (gaps.length) {
-      setError(`Still needed: ${gaps.join(", ")}.`);
+    if (password !== confirm) {
+      setError("Passwords do not match");
       return;
     }
     setLoading(true);
@@ -136,7 +141,7 @@ export default function OnboardPage() {
           <p className="text-xs uppercase tracking-[0.4em] text-ink/70">HMS | Online Hotelier</p>
           <h1 className="h1">Set up your hotel</h1>
           <p className="text-xs text-ink/70">
-            Choose the email and password you will sign in with.
+            Six short steps. Your rooms, plans and prices are ready when you sign in.
           </p>
         </div>
 
@@ -172,216 +177,285 @@ export default function OnboardPage() {
                   />
                 </label>
               </div>
-              <div className="grid gap-4 sm:grid-cols-[1fr_8rem] sm:gap-3">
-                <label className="block space-y-2 text-left">
-                  <span className={labelClass}>Hotel name</span>
-                  <input
-                    type="text"
-                    value={propertyName}
-                    onChange={(e) => setPropertyName(e.target.value)}
-                    required
-                    autoComplete="organization"
-                    className="input"
-                  />
-                </label>
-
-                <label className="block space-y-2 text-left">
-                  <span className={labelClass}>Total rooms</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={MAX_ROOMS}
-                    step={1}
-                    value={totalRooms}
-                    onChange={(e) => setTotalRooms(e.target.value)}
-                    required
-                    className="input"
-                  />
-                </label>
-                <p className="text-xs text-ink/70 sm:col-span-2">
-                  Total rooms: every room the hotel has. You can set up this many; ask us if you add rooms later.
-                </p>
-              </div>
-
-              <div className="space-y-2 text-left">
-                <span className={labelClass}>Room types</span>
-                <div className="hidden grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto] gap-2 text-xs text-ink/70 sm:grid">
-                  <span>Name</span>
-                  <span>Rooms</span>
-                  <span>Adults</span>
-                  <span>Most adults</span>
-                  <span className="w-[4.5rem]" />
-                </div>
-                {roomTypes.map((r, i) => (
-                  <div
-                    key={i}
-                    className="grid grid-cols-3 gap-2 sm:grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto]"
-                  >
+              <section className="space-y-4">
+                <h2 className="h2 text-left">1. Hotel details</h2>
+                <div className="grid gap-4 sm:grid-cols-[1fr_8rem] sm:gap-3">
+                  <label className="block space-y-2 text-left">
+                    <span className={labelClass}>Hotel name</span>
                     <input
                       type="text"
-                      value={r.name}
-                      onChange={(e) => setRoom(i, "name", e.target.value)}
-                      placeholder="e.g. Deluxe"
-                      aria-label="Room type name"
-                      className="input col-span-3 sm:col-span-1"
+                      value={propertyName}
+                      onChange={(e) => setPropertyName(e.target.value)}
+                      required
+                      autoComplete="organization"
+                      className="input"
                     />
-                    {[
-                      ["rooms", "Rooms", 1, Number(totalRooms) || undefined],
-                      ["baseAdults", "Adults", 1, MAX_ADULTS],
-                      ["maxAdults", "Most adults", 1, MAX_ADULTS],
-                    ].map(([key, label, min, max]) => (
-                      <label key={key} className="block space-y-1">
-                        <span className="text-xs text-ink/70 sm:hidden">{label}</span>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={min}
-                          max={max}
-                          step={1}
-                          value={r[key]}
-                          onChange={(e) => setRoom(i, key, e.target.value)}
-                          aria-label={label}
-                          className="input"
-                        />
-                      </label>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setRoomTypes((list) => list.filter((_, j) => j !== i))}
-                      disabled={roomTypes.length === 1}
-                      className="btn btn-ghost col-span-3 sm:col-span-1"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRoomTypes((list) => [...list, emptyRoomType()])}
-                    disabled={roomTypes.length >= MAX_ROOM_TYPES}
-                    className="btn btn-ghost"
-                  >
-                    Add room type
-                  </button>
-                  {Number(totalRooms) > 0 && (
-                    <span
-                      className={`text-xs ${
-                        roomsPlaced > Number(totalRooms) ? "text-[var(--danger)]" : "text-ink/70"
-                      }`}
-                    >
-                      {roomsPlaced} of {totalRooms} rooms
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-ink/70">
-                  Adults: guests the room price includes. Most adults: the most it sleeps, extra
-                  adults paying more.
-                </p>
-              </div>
+                  </label>
 
-              <fieldset className="space-y-2 text-left">
-                <legend className={labelClass}>What do you sell?</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {STARTER_PLANS.map((p) => (
-                    <label
-                      key={p.code}
-                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+                  <label className="block space-y-2 text-left">
+                    <span className={labelClass}>Total rooms</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      max={MAX_ROOMS}
+                      step={1}
+                      value={totalRooms}
+                      onChange={(e) => setTotalRooms(e.target.value)}
+                      required
+                      className="input"
+                    />
+                  </label>
+                  <p className="text-xs text-ink/70 sm:col-span-2">
+                    Total rooms: every room the hotel has. You can set up this many; ask us if you add rooms later.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-left">
+                  <span className={labelClass}>Where (for local events)</span>
+                  <ProfileFields
+                    value={profile}
+                    onChange={setProfile}
+                    idPrefix="onboard"
+                    showTypes={false}
+                  />
+                </div>
+              </section>
+
+              <section className="space-y-4 border-t border-[var(--border)] pt-4">
+                <h2 className="h2 text-left">2. Contact details</h2>
+                <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+                  <label className="block space-y-2 text-left">
+                    <span className={labelClass}>Your name</span>
+                    <input
+                      type="text"
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      required
+                      autoComplete="name"
+                      className="input"
+                    />
+                  </label>
+                  <label className="block space-y-2 text-left">
+                    <span className={labelClass}>Your mobile</span>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      required
+                      autoComplete="tel"
+                      placeholder="WhatsApp number"
+                      className="input"
+                    />
+                  </label>
+                  <p className="text-xs text-ink/70 sm:col-span-2">
+                    So we can reach you to help set up. Not shown to guests.
+                  </p>
+                </div>
+              </section>
+
+              <section className="space-y-4 border-t border-[var(--border)] pt-4">
+                <h2 className="h2 text-left">3. Room types</h2>
+                <div className="space-y-2 text-left">
+                  <div className="hidden grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto] gap-2 text-xs text-ink/70 sm:grid">
+                    <span>Name</span>
+                    <span>Rooms</span>
+                    <span>Adults</span>
+                    <span>Most adults</span>
+                    <span className="w-[4.5rem]" />
+                  </div>
+                  {roomTypes.map((r, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-3 gap-2 sm:grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto]"
                     >
                       <input
-                        type="checkbox"
-                        checked={planCodes.includes(p.code)}
-                        onChange={() => togglePlan(p.code)}
+                        type="text"
+                        value={r.name}
+                        onChange={(e) => setRoom(i, "name", e.target.value)}
+                        placeholder="e.g. Deluxe"
+                        aria-label="Room type name"
+                        className="input col-span-3 sm:col-span-1"
                       />
-                      <span className="text-sm">
-                        {p.name} <span className="text-xs text-ink/70">({p.code})</span>
-                      </span>
-                    </label>
+                      {[
+                        ["rooms", "Rooms", 1, Number(totalRooms) || undefined],
+                        ["baseAdults", "Adults", 1, MAX_ADULTS],
+                        ["maxAdults", "Most adults", 1, MAX_ADULTS],
+                      ].map(([key, label, min, max]) => (
+                        <label key={key} className="block space-y-1">
+                          <span className="text-xs text-ink/70 sm:hidden">{label}</span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min={min}
+                            max={max}
+                            step={1}
+                            value={r[key]}
+                            onChange={(e) => setRoom(i, key, e.target.value)}
+                            aria-label={label}
+                            className="input"
+                          />
+                        </label>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setRoomTypes((list) => list.filter((_, j) => j !== i))}
+                        disabled={roomTypes.length === 1}
+                        className="btn btn-ghost col-span-3 sm:col-span-1"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   ))}
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setRoomTypes((list) => [...list, emptyRoomType()])}
+                      disabled={roomTypes.length >= MAX_ROOM_TYPES}
+                      className="btn btn-ghost"
+                    >
+                      Add room type
+                    </button>
+                    {Number(totalRooms) > 0 && (
+                      <span
+                        className={`text-xs ${
+                          roomsPlaced > Number(totalRooms) ? "text-[var(--danger)]" : "text-ink/70"
+                        }`}
+                      >
+                        {roomsPlaced} of {totalRooms} rooms
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-ink/70">
+                    Adults: guests the room price includes. Most adults: the most it sleeps, extra
+                    adults paying more.
+                  </p>
                 </div>
-                <p className="text-xs text-ink/70">
-                  Each one becomes a rate plan on every room type. You add prices after signing in.
-                </p>
-              </fieldset>
+              </section>
 
-              <div className="space-y-2 text-left">
-                <span className={labelClass}>Where (for local events)</span>
-                <ProfileFields
-                  value={profile}
-                  onChange={setProfile}
-                  idPrefix="onboard"
-                  showTypes={false}
-                />
-              </div>
+              <section className="space-y-4 border-t border-[var(--border)] pt-4">
+                <h2 className="h2 text-left">4. Rate plans</h2>
+                <fieldset className="space-y-2 text-left">
+                  <legend className={labelClass}>What do you sell?</legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {STARTER_PLANS.map((p) => (
+                      <label
+                        key={p.code}
+                        className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={planCodes.includes(p.code)}
+                          onChange={() => togglePlan(p.code)}
+                        />
+                        <span className="text-sm">
+                          {p.name} <span className="text-xs text-ink/70">({p.code})</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-ink/70">
+                    Each one becomes a rate plan on every room type.
+                  </p>
+                </fieldset>
+              </section>
 
-              <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+              <section className="space-y-4 border-t border-[var(--border)] pt-4">
+                <h2 className="h2 text-left">5. Rates</h2>
+                <div className="space-y-3 text-left">
+                  {roomTypes.map((r, i) => (
+                    <div key={i} className="space-y-2">
+                      <p className="text-sm font-semibold">
+                        {r.name.trim() || `Room type ${i + 1}`}
+                        <span className="font-normal text-ink/70">
+                          {" "}for {Number(r.baseAdults) || 1}{" "}
+                          {Number(r.baseAdults) === 1 ? "adult" : "adults"}
+                        </span>
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {STARTER_PLANS.filter((p) => planCodes.includes(p.code)).map((p) => (
+                          <label key={p.code} className="block space-y-1">
+                            <span className="text-xs text-ink/70">{p.name}</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={1}
+                              max={MAX_PRICE}
+                              step="any"
+                              value={r.prices?.[p.code] ?? ""}
+                              onChange={(e) => setPrice(i, p.code, e.target.value)}
+                              required
+                              className="input"
+                            />
+                          </label>
+                        ))}
+                        {Number(r.maxAdults) > Number(r.baseAdults) && (
+                          <label className="block space-y-1">
+                            <span className="text-xs text-ink/70">Each extra adult</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              max={MAX_PRICE}
+                              step="any"
+                              value={r.extraAdult ?? ""}
+                              onChange={(e) => setRoom(i, "extraAdult", e.target.value)}
+                              placeholder="0"
+                              className="input"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-ink/70">
+                    Price per night. You can change prices by date later in Rates &amp; Inventory.
+                  </p>
+                </div>
+              </section>
+
+              <section className="space-y-4 border-t border-[var(--border)] pt-4">
+                <h2 className="h2 text-left">6. Email and password</h2>
+                <p className="text-xs text-ink/70 text-left">You sign in with these.</p>
                 <label className="block space-y-2 text-left">
-                  <span className={labelClass}>Your name</span>
+                  <span className={labelClass}>Email</span>
                   <input
-                    type="text"
-                    value={contactName}
-                    onChange={(e) => setContactName(e.target.value)}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
-                    autoComplete="name"
+                    autoComplete="email"
                     className="input"
                   />
                 </label>
+
                 <label className="block space-y-2 text-left">
-                  <span className={labelClass}>Your mobile</span>
+                  <span className={labelClass}>Password</span>
                   <input
-                    type="tel"
-                    inputMode="tel"
-                    value={contactPhone}
-                    onChange={(e) => setContactPhone(e.target.value)}
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
-                    autoComplete="tel"
-                    placeholder="WhatsApp number"
+                    minLength={8}
+                    autoComplete="new-password"
                     className="input"
                   />
                 </label>
-                <p className="text-xs text-ink/70 sm:col-span-2">
-                  So we can reach you to help set up. Not shown to guests.
-                </p>
-              </div>
 
-              <label className="block space-y-2 text-left">
-                <span className={labelClass}>Email</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  className="input"
-                />
-              </label>
-
-              <label className="block space-y-2 text-left">
-                <span className={labelClass}>Password</span>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="input"
-                />
-              </label>
-
-              <label className="block space-y-2 text-left">
-                <span className={labelClass}>Confirm password</span>
-                <input
-                  type="password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  className="input"
-                />
-              </label>
+                <label className="block space-y-2 text-left">
+                  <span className={labelClass}>Confirm password</span>
+                  <input
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    className="input"
+                  />
+                </label>
+              </section>
             </div>
 
             {error && (

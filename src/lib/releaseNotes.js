@@ -14,6 +14,30 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Sign-up asks for prices, step by step",
+    points: [
+      {
+        page: "rateplans",
+        text: "New hotels now sign up in six steps: hotel details, contact details, room types, rate plans, a price for each room on each plan, then email and password. Rooms, plans and prices are all ready on first sign-in.",
+      },
+      {
+        page: "today",
+        text: "The bar along the bottom now also has Feedback / Feature request, which opens a WhatsApp chat with us so you can tell us what to improve or add.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
+    title: "Send us feedback or ask for a feature",
+    points: [
+      {
+        page: "today",
+        text: "The bar along the bottom of every page now also has Feedback / Feature request. It opens a WhatsApp chat with us, your hotel's name already written, so you can tell us what to improve or add.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Ask us for help on WhatsApp",
     points: [
       {

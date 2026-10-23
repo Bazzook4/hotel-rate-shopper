@@ -7,6 +7,7 @@ import {
   getSupabaseAdmin,
   saveRatePlanRooms,
   setUserModules,
+  syncRoomBasePrices,
 } from "@/lib/database";
 import { hashPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
@@ -157,19 +158,20 @@ export async function POST(request) {
       if (contactError) console.error("Could not save the contact at onboarding:", contactError.message);
     }
 
-    // The hotel's rooms and plans, every room sold on every plan. Rates are
-    // left blank for the hotel to fill in under Rates & Inventory.
+    // The hotel's rooms and plans, every room sold on every plan at the
+    // price given for its base adults.
     const rooms = [];
     for (const r of starter.roomTypes) {
-      rooms.push(
-        await createRoomType({
+      rooms.push({
+        ...r,
+        room: await createRoomType({
           property_id: property.id,
           room_type_name: r.name,
           number_of_rooms: r.rooms,
           base_adults: r.baseAdults,
           max_adults: r.maxAdults,
-        })
-      );
+        }),
+      });
     }
     for (const code of starter.planCodes) {
       const plan = await createRatePlanWithDerivation({
@@ -180,9 +182,17 @@ export async function POST(request) {
       await saveRatePlanRooms(
         property.id,
         plan.id,
-        rooms.map((room) => ({ room_type_id: room.id, base_adults: room.base_adults }))
+        rooms.map(({ room, baseAdults, prices, extraAdult }) => ({
+          room_type_id: room.id,
+          base_adults: room.base_adults ?? baseAdults,
+          adult_rates: { [room.base_adults ?? baseAdults]: prices[code] },
+          extra_adult_rate: extraAdult,
+        }))
       );
     }
+    await syncRoomBasePrices(property.id).catch((err) =>
+      console.error("Could not set room base prices at onboarding:", err)
+    );
 
     user = await createUser({
       email,
