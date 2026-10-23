@@ -2,10 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
 import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/ratePlanPricing';
-import { folioTotals, taxLinesFor } from '@/lib/taxes';
+import { folioTotals, indianGstPreset, taxLinesFor } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
 import { toCountryCode } from '@/lib/countries';
 import { DEFAULT_ZONE, todayInZone, zoneOr } from '@/lib/hotelTime';
+import { DEFAULT_CURRENCY, currencyOr } from '@/lib/money';
 import { contractNights } from '@/lib/contractRates';
 import {
   DAY_USE_HOLDING_STATUSES,
@@ -159,18 +160,42 @@ export async function getPropertyById(id) {
 const zoneCache = new Map();
 
 /**
- * The hotel's time zone (see lib/hotelTime.js). Read on almost every front
- * office request, so kept for a minute; a change in Property Setup clears it.
- * India until the column exists or when it holds something unusable.
+ * The hotel's time zone and currency (see lib/hotelTime.js, lib/money.js).
+ * Read on almost every front office request, so kept for a minute; a change
+ * in Property Setup clears it. India and rupees until the columns exist or
+ * when they hold something unusable.
  */
-export async function getPropertyZone(propertyId) {
-  if (!propertyId) return DEFAULT_ZONE;
+async function propertyLocale(propertyId) {
+  if (!propertyId) return { zone: DEFAULT_ZONE, currency: DEFAULT_CURRENCY, country: 'IN' };
   const hit = zoneCache.get(propertyId);
-  if (hit && hit.until > Date.now()) return hit.zone;
-  const { data, error } = await supabase.from('properties').select('timezone').eq('id', propertyId).maybeSingle();
-  const zone = zoneOr(error ? null : data?.timezone);
-  zoneCache.set(propertyId, { zone, until: Date.now() + 60000 });
-  return zone;
+  if (hit && hit.until > Date.now()) return hit;
+  const { data, error } = await supabase
+    .from('properties')
+    .select('timezone, currency, country_code, country')
+    .eq('id', propertyId)
+    .maybeSingle();
+  const entry = {
+    zone: zoneOr(error ? null : data?.timezone),
+    currency: currencyOr(error ? null : data?.currency),
+    country: (error ? null : data?.country_code || toCountryCode(data?.country)) || 'IN',
+    until: Date.now() + 60000,
+  };
+  zoneCache.set(propertyId, entry);
+  return entry;
+}
+
+export async function getPropertyZone(propertyId) {
+  return (await propertyLocale(propertyId)).zone;
+}
+
+export async function getPropertyCurrency(propertyId) {
+  return (await propertyLocale(propertyId)).currency;
+}
+
+/** How Google should price for this hotel: its currency, as seen from its country. */
+export async function hotelMarket(propertyId) {
+  const { currency, country } = await propertyLocale(propertyId);
+  return { currency, country };
 }
 
 export function forgetPropertyZone(propertyId) {
@@ -3671,9 +3696,12 @@ export function acceptNightRates(nightRates, checkIn, checkOut, total) {
  */
 export async function createReservation(row, { rate = null, rates = null } = {}) {
   let lastError = null;
+  // A booking is taken in the hotel's currency unless it says otherwise (an
+  // OTA booking keeps the one the channel sent).
+  const currency = row.currency || (await getPropertyCurrency(row.property_id));
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const candidate = { ...row, reference: row.reference || generateReservationReference() };
+    const candidate = { ...row, currency, reference: row.reference || generateReservationReference() };
 
     const { data, error } = await supabase
       .from('reservations')
@@ -4296,7 +4324,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
           ? { stay_kind: 'overnight', day_use_hours: null }
           : {}),
         total_amount: amount,
-        currency: booked.currency || 'INR',
+        currency: booked.currency || (await getPropertyCurrency(propertyId)),
         source: row.channel || 'OTA',
         ...(withCountry ? { guest_country: country } : {}),
         ...(contact.guest_phone ? { guest_phone: contact.guest_phone } : {}),
@@ -4708,6 +4736,19 @@ export async function ensureServiceDefaults(propertyId) {
     throw new Error(`Failed to create the room service: ${error.message}`);
   }
   return data;
+}
+
+/**
+ * Indian GST on room nights, for a hotel in India at sign-up -- the same
+ * rules the Tax page's "Add Indian GST" button adds. A hotel anywhere else
+ * starts with no tax and adds its own on the Tax page.
+ */
+export async function addIndianGst(propertyId) {
+  const room = await ensureServiceDefaults(propertyId);
+  for (const rule of indianGstPreset()) {
+    const tax = await savePropertyTax({ ...rule, property_id: propertyId, basis: 'per_night', is_active: true });
+    if (room) await setTaxServices(tax.id, [room.id]);
+  }
 }
 
 /** { service_id: [tax_id, ...] } for a property. */

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePageState } from "./usePageState";
+import { currencySymbol, formatAmount } from "@/lib/money";
 
 /**
  * The market, as it bears on the rates grid: what the competition charges,
@@ -18,7 +19,7 @@ import { usePageState } from "./usePageState";
  * fails because of, a page the user may not even have.
  */
 
-const money = (v) => (v == null ? "-" : Math.round(v).toLocaleString("en-IN"));
+const money = (v) => (v == null ? "-" : formatAmount(v));
 
 async function getJSON(url) {
   try {
@@ -130,8 +131,8 @@ export function DateSignals({ date, market }) {
 
   const shown = keyRate ?? median;
   const title = [
-    market.keyCompetitor && `${market.keyCompetitor.name}: ${keyRate != null ? `₹${money(keyRate)}` : "no rate"}`,
-    median != null && `Competitor median: ₹${money(median)}`,
+    market.keyCompetitor && `${market.keyCompetitor.name}: ${keyRate != null ? `${currencySymbol()}${money(keyRate)}` : "no rate"}`,
+    median != null && `Competitor median: ${currencySymbol()}${money(median)}`,
     parity === "breach" && "Your channels disagree by more than 5% on this night",
     parity === "drift" && "Your channels differ by 1 to 5% on this night",
   ]
@@ -245,7 +246,7 @@ export function SuggestionDialog({ open, propertyId, onClose, onDone }) {
       onDone(
         decision === "dismissed"
           ? `Skipped the suggestion for ${room.name}, ${date}.`
-          : json.warning || `${room.name} on ${date} is now ₹${money(Number(rate))} and sent to your channels.`
+          : json.warning || `${room.name} on ${date} is now ${currencySymbol()}${money(Number(rate))} and sent to your channels.`
       );
     } catch (err) {
       setError(err.message);
@@ -267,7 +268,7 @@ export function SuggestionDialog({ open, propertyId, onClose, onDone }) {
           {room.name}, {day}
         </h3>
         <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-          Now ₹{money(cell.current)} to suggested ₹{money(cell.recommended)}
+          Now {currencySymbol()}{money(cell.current)} to suggested {currencySymbol()}{money(cell.recommended)}
           {cell.boundedBy ? ` (held at your ${cell.boundedBy})` : ""}
         </p>
         {cell.reasons?.length > 0 && (
@@ -305,7 +306,7 @@ export function SuggestionDialog({ open, propertyId, onClose, onDone }) {
             onClick={() => send("applied")}
             disabled={busy || !(Number(rate) > 0)}
           >
-            {busy ? "Sending..." : adjusted ? `Send ₹${money(Number(rate))}` : "Accept"}
+            {busy ? "Sending..." : adjusted ? `Send ${currencySymbol()}${money(Number(rate))}` : "Accept"}
           </button>
         </div>
       </div>

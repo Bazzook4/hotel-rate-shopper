@@ -392,7 +392,7 @@ const PENNY = 0.009;
 /** The Collect button's words: what the guest owes, is owed back, or that the bill is settled. */
 function collectLabel(r) {
   if (r.balance === undefined) return "Collect";
-  const money = moneyFormatter(r.currency || "INR");
+  const money = moneyFormatter(r.currency);
   if (r.bill_to === "company") return "Company bill";
   if (r.balance > PENNY) return `Collect ${money(r.balance)}`;
   if (r.balance < -PENNY) return `Refund ${money(-r.balance)}`;
@@ -574,7 +574,7 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
 // ------------------------------------------------------------------
 
 function Tonight({ today, onOpenPage, canOpen }) {
-  const money = moneyFormatter(today.currency || "INR");
+  const money = moneyFormatter(today.currency);
   const { current: c, previous: p, movement: m } = today;
   const tile = { onOpenPage, canOpen };
   const vs = (now, before, opts = {}) => <Change now={now} before={before} better="up" {...opts} />;
@@ -637,7 +637,7 @@ function Tonight({ today, onOpenPage, canOpen }) {
 }
 
 function MonthToDate({ month, onOpenPage, canOpen }) {
-  const money = moneyFormatter(month.currency || "INR");
+  const money = moneyFormatter(month.currency);
   const { current: c, previous: p } = month.kpis;
   const tile = { onOpenPage, canOpen, page: "performance" };
   return (

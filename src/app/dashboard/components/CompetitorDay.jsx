@@ -1,10 +1,11 @@
 "use client";
 
 import { parseDateISO } from "@/lib/date";
+import { currencySymbol, formatAmount } from "@/lib/money";
 
 function money(value) {
   if (value == null) return "-";
-  return Math.round(value).toLocaleString("en-IN");
+  return formatAmount(value);
 }
 
 /** When a lookup ran, so a fresh refresh can be told from an old one. */
@@ -119,7 +120,7 @@ export default function CompetitorDay({
         >
           <div className="label">My rate</div>
           <div style={{ fontSize: "1.4rem", fontWeight: 600 }}>
-            {own != null ? `₹${money(own)}` : "Not priced"}
+            {own != null ? `${currencySymbol()}${money(own)}` : "Not priced"}
           </div>
           {diff != null && (
             <div
@@ -140,7 +141,7 @@ export default function CompetitorDay({
         <div className="card card-pad">
           <div className="label">Median competitor rate</div>
           <div style={{ fontSize: "1.4rem", fontWeight: 600 }}>
-            {median != null ? `₹${money(median)}` : "-"}
+            {median != null ? `${currencySymbol()}${money(median)}` : "-"}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
             Across {rows.filter((r) => r.cell?.rate != null).length} of {rows.length} competitors

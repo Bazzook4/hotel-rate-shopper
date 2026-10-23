@@ -47,6 +47,7 @@ export async function GET(request) {
       propertyName: property?.name || null,
       propertyLocation: property?.city || null,
       propertyTimezone: property?.timezone || null,
+      propertyCurrency: property?.currency || null,
       modules,
     },
   });

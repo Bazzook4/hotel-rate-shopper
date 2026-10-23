@@ -6,6 +6,7 @@ import { PROPERTY_TYPES, profileGaps } from "@/lib/eventTags";
 import { citySuggestions, guessCountry, placesFor, stateOptions } from "@/lib/places";
 import Select from "@/app/components/Select";
 import { browserZone, zoneOptions } from "@/lib/hotelTime";
+import { currencyForCountry, currencyOptions } from "@/lib/money";
 
 /**
  * Where the hotel is and what kind of hotel it is.
@@ -20,7 +21,7 @@ import { browserZone, zoneOptions } from "@/lib/hotelTime";
  * shared events there already use.
  */
 
-export const EMPTY_PROFILE = { country_code: "", state: "", city: "", property_types: [], timezone: "" };
+export const EMPTY_PROFILE = { country_code: "", state: "", city: "", property_types: [], timezone: "", currency: "" };
 
 /**
  * States and cities that shared events already name in a country. Signed
@@ -62,6 +63,7 @@ export function ProfileFields({
   const countries = useMemo(() => countryOptions(), []);
   const zones = useMemo(() => (showZone ? zoneOptions() : []), [showZone]);
   const deviceZone = useMemo(() => (showZone ? browserZone() : ""), [showZone]);
+  const currencies = useMemo(() => (showZone ? currencyOptions() : []), [showZone]);
   const known = useKnownPlaces(value.country_code);
   const set = (patch) => onChange({ ...value, ...patch });
   const listedStates = stateOptions(value.country_code);
@@ -83,7 +85,15 @@ export function ProfileFields({
           <Select
             className="input w-full"
             value={value.country_code || ""}
-            onChange={(e) => set({ country_code: e.target.value, state: "", city: "" })}
+            onChange={(e) =>
+              set({
+                country_code: e.target.value,
+                state: "",
+                city: "",
+                // A new country brings its own money; it can still be changed below.
+                ...(showZone ? { currency: currencyForCountry(e.target.value) || value.currency || "" } : {}),
+              })
+            }
           >
             <option value="">Choose...</option>
             {countries.map((c) => (
@@ -145,7 +155,8 @@ export function ProfileFields({
       </div>
 
       {showZone && (
-        <label className="block">
+        <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block sm:col-span-2">
           <span className="label">Time zone</span>
           <Select
             className="input w-full"
@@ -171,6 +182,23 @@ export function ProfileFields({
             Today, the night audit and every time on screen follow the hotel&apos;s clock.
           </span>
         </label>
+        <label className="block">
+          <span className="label">Currency</span>
+          <Select
+            className="input w-full"
+            value={value.currency || currencyForCountry(value.country_code) || ""}
+            onChange={(e) => set({ currency: e.target.value })}
+          >
+            <option value="">Choose...</option>
+            {currencies.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+          <span className="mt-1 block text-xs faint">New bookings and every price are in this.</span>
+        </label>
+        </div>
       )}
 
       {showTypes && (
@@ -215,7 +243,13 @@ export default function PropertyProfile({ propertyId, onSaved, intro }) {
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.error || "Could not load the property profile.");
         if (!cancelled) {
-          setValue({ ...EMPTY_PROFILE, ...json.profile, country_code: json.profile.country_code || guessCountry() });
+          const country_code = json.profile.country_code || guessCountry();
+          setValue({
+            ...EMPTY_PROFILE,
+            ...json.profile,
+            country_code,
+            currency: json.profile.currency || currencyForCountry(country_code) || "",
+          });
         }
       })
       .catch((err) => {

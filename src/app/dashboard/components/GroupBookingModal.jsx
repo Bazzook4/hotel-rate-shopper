@@ -8,6 +8,7 @@ import { confirmDiscard, useDialog } from "../../components/Dialog";
 import { useBackdropClose, useEscape } from "../../components/useEscape";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { formatMoney } from "@/lib/money";
 
 /**
  * Booking several rooms at once for one party, as a three-step wizard.
@@ -47,10 +48,6 @@ function nightsBetween(checkIn, checkOut) {
   return Math.round(
     (new Date(`${checkOut}T00:00:00Z`) - new Date(`${checkIn}T00:00:00Z`)) / 86400000
   );
-}
-
-function formatMoney(value) {
-  return `₹${(Number(value) || 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
 /** Why a room cannot join the group for these dates, as far as the chart knows. */

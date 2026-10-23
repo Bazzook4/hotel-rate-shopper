@@ -7,6 +7,7 @@ import {
   getUserPropertyId,
   saveParityRates,
   clearParityRatesForDates,
+  hotelMarket,
 } from "@/lib/database";
 import { normaliseChannels } from "@/lib/parity";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
@@ -26,7 +27,7 @@ const MAX_DATES_PER_REFRESH = 31;
 const DEFAULT_DAYS = 7;
 
 /** One stay date, priced across every channel Google knows. */
-async function fetchDate(_unused, query, stayDate, nights, guests, sessionId) {
+async function fetchDate(market, query, stayDate, nights, guests, sessionId) {
   const checkOut = formatDateISO(addDays(parseDateISO(stayDate), nights));
 
   // Rates are read from Google's own page rather than bought from SerpAPI,
@@ -37,6 +38,7 @@ async function fetchDate(_unused, query, stayDate, nights, guests, sessionId) {
     checkOut,
     adults: guests,
     sessionId,
+    ...market,
   });
 
   return normaliseChannels(json);
@@ -71,6 +73,7 @@ export async function POST(req) {
   }
 
   const property = await getPropertyById(propertyId);
+  const market = await hotelMarket(propertyId);
   if (!property) {
     return NextResponse.json({ error: "Property not found." }, { status: 404 });
   }
@@ -158,7 +161,7 @@ export async function POST(req) {
 
     try {
       await recordScrape(propertyId);
-      const channels = await fetchDate(null, property.google_place_query, stayDate, nights, guests, sessionId);
+      const channels = await fetchDate(market, property.google_place_query, stayDate, nights, guests, sessionId);
       if (channels.length === 0) {
         emptyDates.push(stayDate);
         // Cleared as it is found, for the same reason the rates below are
@@ -172,7 +175,7 @@ export async function POST(req) {
         continue;
       }
 
-      const dateRows = channels.map((channel) => ({ ...channel, stay_date: stayDate, nights, guests }));
+      const dateRows = channels.map((channel) => ({ ...channel, currency: market.currency, stay_date: stayDate, nights, guests }));
       rows.push(...dateRows);
 
       // Saved a date at a time rather than banked until the batch ends. A

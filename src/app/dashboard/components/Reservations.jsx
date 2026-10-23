@@ -14,6 +14,7 @@ import { useDialog } from "../../components/Dialog";
 import { usePageState } from "./usePageState";
 import { dayUseSummary, isDayUse } from "@/lib/dayUse";
 import { CHECKIN_SHORT_LABELS } from "@/lib/onlineCheckinShared";
+import { formatMoney } from "@/lib/money";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -49,11 +50,7 @@ const STATUS_CHIP = {
 
 function money(value, currency) {
   if (value == null) return "-";
-  // Anything without a symbol here shows its code, so a BDT booking is not
-  // read as rupees.
-  const symbol =
-    currency === "GBP" ? "£" : currency === "USD" ? "$" : !currency || currency === "INR" ? "₹" : `${currency} `;
-  return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
+  return formatMoney(value, { currency });
 }
 
 function shortDate(iso) {

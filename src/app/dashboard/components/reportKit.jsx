@@ -8,6 +8,7 @@ import { hotelToday, hotelZone } from "@/lib/hotelTime";
 import { usePageState } from "./usePageState";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { formatAmount, formatMoney, hotelCurrency } from "@/lib/money";
 
 /**
  * The pieces the Insights reports share: the period picker and its presets,
@@ -65,23 +66,15 @@ export function presetRange(id, todayIso) {
   }
 }
 
+/** Money in the report's currency, or the hotel's when the report has none. */
 export function moneyFormatter(currency, { decimals = 0 } = {}) {
-  let fmt;
-  try {
-    fmt = new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-GB", {
-      style: "currency",
-      currency,
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  } catch {
-    fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: decimals });
-  }
-  return (v) => (v == null ? "-" : fmt.format(v));
+  const code = currency || hotelCurrency();
+  return (v) => (v == null ? "-" : formatMoney(v, { currency: code, decimals }));
 }
 
-export const whole = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-export const one = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
+// Counts, not money: grouped the way the hotel groups its numbers.
+export const whole = { format: (v) => formatAmount(v) };
+export const one = { format: (v) => formatAmount(v, { decimals: 1 }) };
 
 export function longDate(iso) {
   if (!iso) return "-";

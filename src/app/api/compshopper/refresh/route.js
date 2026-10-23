@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/session";
-import { listCompetitors, saveCompetitorRates } from "@/lib/database";
+import { hotelMarket, listCompetitors, saveCompetitorRates } from "@/lib/database";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { cheapestQuote, MAX_COMPETITORS } from "@/lib/competitors";
 import { fetchHotel, isScraperConfigured, jitterDelay, sessionIdFor, sleep } from "@/lib/scraper/fetch";
@@ -17,7 +17,7 @@ import { addDays, clampToToday, formatDateISO, parseDateISO, todayUTC } from "@/
 const REFRESH_DAYS = 7;
 
 /** One competitor on one night, priced at the cheapest channel selling it. */
-async function fetchOne(competitor, stayDate, nights, guests, sessionId) {
+async function fetchOne(competitor, stayDate, nights, guests, sessionId, market) {
   const checkOut = formatDateISO(addDays(parseDateISO(stayDate), nights));
 
   // The competitor is looked up by name. SerpAPI pinned a listing with its
@@ -29,6 +29,7 @@ async function fetchOne(competitor, stayDate, nights, guests, sessionId) {
     checkOut,
     adults: guests,
     sessionId,
+    ...market,
   });
 
   const quote = cheapestQuote(json);
@@ -38,6 +39,7 @@ async function fetchOne(competitor, stayDate, nights, guests, sessionId) {
     nights,
     guests,
     rate: quote?.rate ?? null,
+    currency: market.currency,
     channel: quote?.channel ?? null,
     link: quote?.link ?? null,
     room_name: quote?.room_name ?? null,
@@ -76,6 +78,7 @@ export async function POST(req) {
   }
 
   const competitors = await listCompetitors(propertyId);
+  const market = await hotelMarket(propertyId);
   if (competitors.length === 0) {
     return NextResponse.json(
       {
@@ -167,7 +170,7 @@ export async function POST(req) {
 
     try {
       await recordScrape(propertyId);
-      const row = await fetchOne(competitor, stayDate, nights, guests, sessionId);
+      const row = await fetchOne(competitor, stayDate, nights, guests, sessionId, market);
       rows.push(row);
 
       // Saved as it arrives rather than banked until the batch ends. A

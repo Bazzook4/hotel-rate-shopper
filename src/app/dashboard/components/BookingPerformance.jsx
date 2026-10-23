@@ -18,6 +18,7 @@ import { Change } from "./reportKit";
 import { usePageState } from "./usePageState";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { formatAmount, formatMoney, hotelCurrency } from "@/lib/money";
 
 /**
  * Booking performance: what the reservations in the PMS add up to.
@@ -112,21 +113,12 @@ const SERIES = Array.from({ length: 8 }, (_, i) => `var(--series-${i + 1})`);
 // ------------------------------------------------------------------
 
 function moneyFormatter(currency) {
-  let fmt;
-  try {
-    fmt = new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-GB", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    });
-  } catch {
-    fmt = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-  }
-  return (v) => (v == null ? "-" : fmt.format(v));
+  const code = currency || hotelCurrency();
+  return (v) => (v == null ? "-" : formatMoney(v, { currency: code }));
 }
 
-const whole = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-const one = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 1 });
+const whole = { format: (v) => formatAmount(v) };
+const one = { format: (v) => formatAmount(v, { decimals: 1 }) };
 
 function shortDate(iso) {
   return parseDateISO(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
@@ -785,7 +777,7 @@ export default function BookingPerformance({ session }) {
     };
   }, [propertyId, range.start, range.end, basis, compare, compareRange.start, compareRange.end]);
 
-  const money = useMemo(() => moneyFormatter(report?.currency || "INR"), [report?.currency]);
+  const money = useMemo(() => moneyFormatter(report?.currency), [report?.currency]);
   const badRange = range.end < range.start;
   const badCompare = compare === "custom" && compareRange.end < compareRange.start;
 

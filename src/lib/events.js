@@ -1,5 +1,6 @@
 import { forgetPropertyZone, getSupabaseAdmin } from "@/lib/database";
 import { isZone } from "@/lib/hotelTime";
+import { currencyForCountry, isCurrency } from "@/lib/money";
 import {
   EVENT_CATEGORIES,
   IMPACTS,
@@ -50,6 +51,7 @@ export async function getPropertyProfile(propertyId) {
     property_types: data.property_types || [],
     // Empty only before migration 058; the hotel is then asked to choose.
     timezone: data.timezone || "",
+    currency: data.currency || currencyForCountry(data.country_code || toCountryCode(data.country)) || "",
   };
 }
 
@@ -64,7 +66,10 @@ export function validateProfile(input) {
   const property_types = cleanPropertyTypes(input?.property_types);
   // The hotel's clock: today, the night audit's day and every time shown.
   if (!isZone(input?.timezone)) return { error: "Choose the time zone the hotel is in." };
-  return { profile: { country_code, state: state || null, city, property_types, timezone: input.timezone } };
+  // The money it sells in; the country's own when none was picked.
+  const currency = isCurrency(input?.currency) ? input.currency : currencyForCountry(country_code);
+  if (!currency) return { error: "Choose the currency the hotel sells in." };
+  return { profile: { country_code, state: state || null, city, property_types, timezone: input.timezone, currency } };
 }
 
 export async function savePropertyProfile(propertyId, profile) {

@@ -159,7 +159,7 @@ export function WalletPlansGrid({ propertyId, plans, onSaved }) {
 
   return (
     <div className="space-y-3">
-      <SetupHeader section title="Wallet plans" count={plans.length} sub="Offers for adding money to a wallet, e.g. pay ₹10,000, get ₹11,000 to spend on stays and services.">
+      <SetupHeader section title="Wallet plans" count={plans.length} sub="Offers for adding money to a wallet, e.g. pay 10,000, get 11,000 to spend on stays and services.">
         <SaveActions count={grid.count} busy={busy} onSave={save} onDiscard={grid.discard} />
       </SetupHeader>
       <Messages error={error} />

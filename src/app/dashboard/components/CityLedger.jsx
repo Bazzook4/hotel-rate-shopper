@@ -261,7 +261,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
 
   useEffect(() => setReceiving(startReceiving), [startReceiving, companyId]);
 
-  const money = useMemo(() => moneyFormatter(st?.stays?.[0]?.currency || "INR"), [st]);
+  const money = useMemo(() => moneyFormatter(st?.stays?.[0]?.currency), [st]);
 
   function changed(message) {
     setNotice(message);
@@ -429,7 +429,7 @@ export default function CityLedger({ session }) {
   const { report, loading, error, reload } = useReport("/api/reports/cityledger", {}, propertyId);
   const [open, setOpen] = useState(null);
 
-  const money = useMemo(() => moneyFormatter(report?.currency || "INR"), [report]);
+  const money = useMemo(() => moneyFormatter(report?.currency), [report]);
   const rows = report?.companies || [];
   const sorter = useSort(rows, {
     name: (r) => r.name.toLowerCase(),

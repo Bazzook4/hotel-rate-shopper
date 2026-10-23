@@ -112,7 +112,7 @@ function stayLine(r, folio, company, today, tz, bill = null) {
     charges: totals.total,
     paid: totals.paid,
     balance: totals.balance,
-    currency: r.currency || 'INR',
+    currency: r.currency || null,
   };
 }
 
@@ -306,7 +306,7 @@ export async function getCityLedger(propertyId, { tz = DEFAULT_ZONE } = {}) {
 
   return {
     today,
-    currency: lines[0]?.currency || 'INR',
+    currency: lines[0]?.currency || null,
     totals: roundTotals(total),
     buckets: AGE_BUCKETS.map(({ id, label }) => ({ id, label })),
     companies: rows,

@@ -10,6 +10,7 @@ import { countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { shrink } from "./GuestIdPhotos";
 import Icon from "../../components/Icon";
+import { formatMoney } from "@/lib/money";
 
 /**
  * Check-in and check-out as one shared action, so the Today page, the
@@ -29,8 +30,7 @@ import Icon from "../../components/Icon";
  */
 
 function money(value, currency) {
-  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : !currency || currency === "INR" ? "₹" : `${currency} `;
-  return `${symbol}${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return formatMoney(value, { currency, decimals: 2 });
 }
 
 const METHODS = [

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { fetchSearch, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fetch";
 import { getSessionFromRequest } from "@/lib/session";
-import { getPropertyById, listCompetitors } from "@/lib/database";
+import { getPropertyById, hotelMarket, listCompetitors } from "@/lib/database";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { rankSuggestions } from "@/lib/competitors";
 import { addDays, formatDateISO } from "@/lib/date";
@@ -85,6 +85,7 @@ export async function GET(req) {
       checkOut,
       adults: 2,
       sessionId: sessionIdFor(propertyId),
+      ...(await hotelMarket(propertyId)),
     });
   } catch (err) {
     console.error("Competitor suggestion search failed:", err.message);

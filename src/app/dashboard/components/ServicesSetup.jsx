@@ -14,6 +14,7 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import { currencySymbol } from "@/lib/money";
 
 /**
  * Services, grouped by category, each with the taxes it carries.
@@ -243,7 +244,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
             <th className="cm-sticky" style={{ minWidth: 240 }}>
               Category &amp; service
             </th>
-            <th style={{ width: 120 }}>Price (₹)</th>
+            <th style={{ width: 120 }}>Price ({currencySymbol()})</th>
             <th style={{ width: 120 }}>Charged</th>
             <th style={{ width: 120 }}>Type</th>
             <th style={{ width: 160 }}>Category</th>

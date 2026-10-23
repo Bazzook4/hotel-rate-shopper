@@ -79,7 +79,9 @@ function bookingFields(body) {
       body.total_amount === "" || body.total_amount == null
         ? null
         : Number(body.total_amount),
-    currency: body.currency || "INR",
+    // Left out unless sent: a new booking is then taken in the hotel's
+    // currency (createReservation), and an edit keeps the booking's own.
+    ...(body.currency ? { currency: body.currency } : {}),
     notes: body.notes?.trim() || null,
   };
 }

@@ -3,6 +3,8 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { getReservationInvoice, getPropertyById } from "@/lib/database";
 import { getHotelBrand } from "@/lib/hotelBrand";
+import { DEFAULT_CURRENCY, moneyLocale } from "@/lib/money";
+import { toCountryCode } from "@/lib/countries";
 
 /**
  * An issued invoice as a PDF the desk can download, print or email.
@@ -35,9 +37,9 @@ function plain(value) {
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, "?");
 }
 
-function money(value, currency = "INR") {
+function money(value, currency = DEFAULT_CURRENCY) {
   const n = Number(value) || 0;
-  return `${currency} ${n.toLocaleString("en-IN", {
+  return `${currency} ${n.toLocaleString(moneyLocale(currency), {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -221,12 +223,14 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
   });
   y -= 15;
 
+  // India's tax number is the GSTIN; elsewhere it is simply the tax number.
+  const taxIdLabel = (property.country_code || toCountryCode(property.country) || "IN") === "IN" ? "GSTIN" : "Tax ID";
   const issuerLines = [
     property.address,
     [property.city, property.state, property.postal_code].filter(Boolean).join(", "),
     property.country,
     [property.phone, property.email].filter(Boolean).join("  |  "),
-    property.gstin ? `GSTIN: ${property.gstin}` : null,
+    property.gstin ? `${taxIdLabel}: ${property.gstin}` : null,
   ].filter(Boolean);
   for (const l of issuerLines) {
     text(l, issuerX, { size: 9, color: muted });
@@ -253,7 +257,7 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
         bill.name,
         bill.address,
         [bill.city, bill.state, bill.postal_code].filter(Boolean).join(", "),
-        bill.gstin ? `GSTIN: ${bill.gstin}` : null,
+        bill.gstin ? `${taxIdLabel}: ${bill.gstin}` : null,
         `Guest: ${snap.guest_name}`,
       ]
     : [snap.guest_name, snap.guest_email, snap.guest_phone];

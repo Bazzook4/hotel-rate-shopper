@@ -14,11 +14,19 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
-    title: "Your hotel's own time zone",
+    title: "Your hotel's own time zone and currency",
     points: [
       {
         page: "setup",
         text: "Property Setup now asks for your hotel's time zone, and new hotels choose it when they sign up. Today, the Calendar, the night audit, reports and every time on screen follow your hotel's clock, wherever you open the app from. Hotels already using the app are set to India time.",
+      },
+      {
+        page: "setup",
+        text: "Property Setup also shows the currency your hotel sells in, filled in from your country. New bookings, bills, reports and competitor prices are all shown in it. Hotels already using the app stay in rupees.",
+      },
+      {
+        page: "taxsetup",
+        text: "New hotels in India start with GST on rooms already added. Hotels in other countries start with no tax and add their own on the Taxes page.",
       },
     ],
   },

@@ -24,6 +24,7 @@ import {
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
 import Select from "@/app/components/Select";
+import { currencySymbol, formatMoney, hotelCurrency } from "@/lib/money";
 
 /**
  * Taxes and fees: the rules services are taxed by.
@@ -44,7 +45,7 @@ import Select from "@/app/components/Select";
  */
 
 function money(value) {
-  return `₹${(Number(value) || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+  return formatMoney(value, { decimals: 2 });
 }
 
 function blank(sortOrder, serviceIds = []) {
@@ -72,7 +73,7 @@ function shift(date, days) {
 
 const CALC_TYPES = [
   { id: "percent", label: "%" },
-  { id: "fixed", label: "₹ fixed" },
+  { id: "fixed", label: "Fixed amount" },
 ];
 
 /** Inputs hand back text; the tax maths wants numbers or nulls. */
@@ -302,9 +303,12 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
         >
           + Add a tax
         </button>
-        <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={addGst}>
-          + Indian GST preset
-        </button>
+        {/* GST's bands are in rupees, so it is offered to hotels that sell in rupees. */}
+        {hotelCurrency() === "INR" && (
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={addGst}>
+            + Indian GST preset
+          </button>
+        )}
         <span className="ml-auto text-xs muted">
           Price bands are checked against each line&apos;s unit price; for the room,
           each night&apos;s rate. To change a rate, End the old rule and add a new one.
@@ -513,7 +517,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
               </Select>
             </div>
             <div>
-              <label className="label">...costing (₹)</label>
+              <label className="label">...costing ({currencySymbol()})</label>
               <input
                 className="input"
                 type="number"

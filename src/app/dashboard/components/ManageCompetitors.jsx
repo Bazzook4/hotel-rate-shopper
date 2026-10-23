@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { formatMoney } from "@/lib/money";
 
 const MAX = 6;
 
@@ -17,7 +18,7 @@ function describe(entry) {
         : `${(entry.distance_m / 1000).toFixed(1)} km away`
     );
   }
-  if (entry.rate != null) bits.push(`from ₹${Math.round(entry.rate).toLocaleString("en-IN")}`);
+  if (entry.rate != null) bits.push(`from ${formatMoney(entry.rate)}`);
   return bits.join(", ");
 }
 

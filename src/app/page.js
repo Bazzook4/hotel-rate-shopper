@@ -16,6 +16,7 @@ import { RELEASE_NOTES } from "@/lib/releaseNotes";
 import { useEscape } from "./components/useEscape";
 import Select from "@/app/components/Select";
 import { setHotelZone } from "@/lib/hotelTime";
+import { setHotelCurrency } from "@/lib/money";
 
 /**
  * Each page is fetched the first time it is opened, not with the dashboard.
@@ -298,16 +299,20 @@ export default function V2Dashboard() {
     if (!session) return null;
     const chosen = properties.find((p) => p.id === propertyId);
     const propertyTimezone = chosen?.timezone || session.propertyTimezone || null;
-    // Set here, before any page renders, so every "today" on every page is
-    // the hotel's own (lib/hotelTime.js) from the first paint.
+    const propertyCurrency = chosen?.currency || session.propertyCurrency || null;
+    // Set here, before any page renders, so every "today" and every price on
+    // every page is the hotel's own (lib/hotelTime.js, lib/money.js) from the
+    // first paint.
     setHotelZone(propertyTimezone);
+    setHotelCurrency(propertyCurrency);
     return {
       ...session,
       propertyId: propertyId || session.propertyId,
       propertyName: chosen?.name || session.propertyName,
       // New bookings default the guest's country to the hotel's own.
-      propertyCountry: chosen?.country || null,
+      propertyCountry: chosen?.country_code || chosen?.country || null,
       propertyTimezone,
+      propertyCurrency,
       // Switching happens in the header now, so no page offers its own picker.
       canSwitchProperties: false,
     };
@@ -894,9 +899,11 @@ export default function V2Dashboard() {
                       />
                       <PropertyProfile
                         propertyId={scopedSession?.propertyId}
-                        onSaved={({ timezone }) =>
+                        onSaved={({ timezone, currency, country_code }) =>
                           setProperties((list) =>
-                            list.map((p) => (p.id === scopedSession?.propertyId ? { ...p, timezone } : p))
+                            list.map((p) =>
+                              p.id === scopedSession?.propertyId ? { ...p, timezone, currency, country_code } : p
+                            )
                           )
                         }
                       />

@@ -492,7 +492,7 @@ export default function NightAudit({ session }) {
 
   const { report, loading, error, reload } = useReport("/api/reports/nightaudit", date ? { date } : null, propertyId);
   const { openBooking, modal } = useBookingOpener(session, reload);
-  const money = useMemo(() => moneyFormatter(report?.currency || "INR"), [report?.currency]);
+  const money = useMemo(() => moneyFormatter(report?.currency), [report?.currency]);
 
   const step = (days) => setDate((d) => formatDateISO(addDays(d, days)));
 

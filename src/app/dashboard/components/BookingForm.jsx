@@ -25,6 +25,7 @@ import {
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
 import Icon from "@/app/components/Icon";
+import { formatAmount, formatMoney } from "@/lib/money";
 
 /**
  * Entering or editing a booking.
@@ -145,7 +146,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
         {quote?.total != null && (
           <>
             {" "}
-            Configured rate is {Math.round(quote.total).toLocaleString("en-IN")}.{" "}
+            Configured rate is {formatMoney(quote.total)}.{" "}
             <button
               type="button"
               className="btn-link"
@@ -206,7 +207,7 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
         : SOURCE_LABEL[quote.source] || "from configured rates"}
       {quote.diagnosis && <>: {quote.diagnosis}</>}
       {perNight != null && nights > 1 && (
-        <>, {perNight.toLocaleString("en-IN")}/night x {nights}</>
+        <>, {formatMoney(perNight, { decimals: 2 })}/night x {nights}</>
       )}
       {quote.partial && (
         <span style={{ color: "var(--warn)" }}>
@@ -379,7 +380,7 @@ function LinkedGuest({ guest, onUnlink, propertyId }) {
       <TierBadge tier={tier} />
       {guest.wallet > 0 && (
         <span title="Can pay this booking's bill, from the Bill tab">
-          Wallet ₹{Math.round(guest.wallet).toLocaleString("en-IN")}
+          Wallet {formatMoney(guest.wallet)}
         </span>
       )}
       {guest.stays > 0 && (
@@ -1524,7 +1525,7 @@ export default function BookingForm({
           {commissionPercent != null && Number(form.total_amount) > 0 && (
             <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
               {company.name} commission {commissionPercent}% ={" "}
-              {Math.round((Number(form.total_amount) * commissionPercent) / 100).toLocaleString("en-IN")}
+              {formatMoney((Number(form.total_amount) * commissionPercent) / 100)}
             </p>
           )}
         </Field>

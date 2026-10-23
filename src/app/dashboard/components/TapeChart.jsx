@@ -19,6 +19,7 @@ import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
 import { dayUseSummary, dayUseWindow, holdsInventory, isDayUse, shortMinutes } from "@/lib/dayUse";
 import { useEscape } from "../../components/useEscape";
+import { formatMoney, hotelCurrency } from "@/lib/money";
 
 /**
  * The tape chart: one row per physical room, each stay a bar across its nights.
@@ -1201,7 +1202,7 @@ export default function TapeChart({ session }) {
                           key={d}
                           title={
                             rate != null
-                              ? `${sold} of ${total} sold${blockedNote}, ${formatMoney(rate)} for 2 adults${
+                              ? `${sold} of ${total} sold${blockedNote}, ${money(rate)} for 2 adults${
                                   typeRates.base_price_only
                                     ? " (base price, no channel rate set)"
                                     : typeRates.plan_name
@@ -1237,7 +1238,7 @@ export default function TapeChart({ session }) {
                                 fontStyle: typeRates.base_price_only ? "italic" : undefined,
                               }}
                             >
-                              {formatMoney(rate)}
+                              {money(rate)}
                             </div>
                           )}
                         </div>
@@ -1588,11 +1589,8 @@ export default function TapeChart({ session }) {
   );
 }
 
-function formatMoney(value, currency = "INR") {
-  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
-  return `${symbol}${(Number(value) || 0).toLocaleString("en-IN", {
-    maximumFractionDigits: 2,
-  })}`;
+function money(value, currency) {
+  return formatMoney(value, { currency, decimals: 2 });
 }
 
 function nightLabel(date) {
@@ -1607,12 +1605,12 @@ function nightLabel(date) {
  * The question a resize asks: what happens to the price?
  *
  * Both answers are shown with their real figures, because "adjust the total"
- * means nothing until the desk can see it is ₹9,000 for two Saturday nights.
+ * means nothing until the desk can see it is 9,000 for two Saturday nights.
  * Neither answer is assumed: closing the dialog cancels the move.
  */
 function PricingDialog({ plan, reservation, onChoose, onCancel }) {
   const [busy, setBusy] = useState(false);
-  const currency = reservation?.currency || "INR";
+  const currency = reservation?.currency || hotelCurrency();
   const longer = plan.added.length > 0;
   const changed = longer ? plan.added : plan.removed;
   const nights = changed.length;
@@ -1665,7 +1663,7 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
                     </span>
                   )}
                 </td>
-                <td className="text-right">{formatMoney(n.rate, currency)}</td>
+                <td className="text-right">{money(n.rate, currency)}</td>
               </tr>
             ))}
           </tbody>
@@ -1674,15 +1672,15 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
         <div className="text-sm space-y-1">
           <div className="flex justify-between">
             <span style={{ color: "var(--text-muted)" }}>Room charge now</span>
-            <span>{formatMoney(plan.currentTotal, currency)}</span>
+            <span>{money(plan.currentTotal, currency)}</span>
           </div>
           <div className="flex justify-between" style={{ fontWeight: 600 }}>
             <span>{longer ? "If increased" : "If decreased"}</span>
             <span>
-              {formatMoney(plan.adjustedTotal, currency)}{" "}
+              {money(plan.adjustedTotal, currency)}{" "}
               <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
                 ({plan.delta >= 0 ? "+" : "−"}
-                {formatMoney(Math.abs(plan.delta), currency)})
+                {money(Math.abs(plan.delta), currency)})
               </span>
             </span>
           </div>
@@ -1711,14 +1709,14 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
             disabled={busy}
             onClick={() => choose("keep")}
           >
-            Keep {formatMoney(plan.currentTotal, currency)}
+            Keep {money(plan.currentTotal, currency)}
           </button>
           <button
             className="btn btn-primary text-sm"
             disabled={busy}
             onClick={() => choose("adjust")}
           >
-            {longer ? "Increase" : "Decrease"} to {formatMoney(plan.adjustedTotal, currency)}
+            {longer ? "Increase" : "Decrease"} to {money(plan.adjustedTotal, currency)}
           </button>
         </div>
       </div>

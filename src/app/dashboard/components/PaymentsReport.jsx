@@ -321,7 +321,7 @@ export default function PaymentsReport({ session }) {
     propertyId
   );
   const { openBooking, modal } = useBookingOpener(session, reload);
-  const money = useMemo(() => moneyFormatter(report?.currency || "INR", { decimals: 2 }), [report?.currency]);
+  const money = useMemo(() => moneyFormatter(report?.currency, { decimals: 2 }), [report?.currency]);
 
   const methods = useMemo(() => {
     const seen = new Set((report?.payments || []).filter((p) => !p.voidedAt && p.method !== "wallet").map((p) => p.method));

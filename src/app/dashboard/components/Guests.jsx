@@ -19,6 +19,7 @@ import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, TiersGrid, WalletPlansGrid, useGuestTiers } from "./GuestSettings";
 import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
 import GuestIdPhotos from "./GuestIdPhotos";
+import { formatAmount } from "@/lib/money";
 
 /**
  * Guests: everyone who has stayed, or is booked to stay, at the property.
@@ -51,7 +52,7 @@ const STATUS_LABELS = {
   no_show: "No show",
 };
 
-const money = (v) => Math.round(Number(v) || 0).toLocaleString("en-IN");
+const money = (v) => formatAmount(v);
 
 function formatDate(iso) {
   if (!iso) return "-";

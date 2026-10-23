@@ -12,6 +12,7 @@ import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { Drawer, Field } from "./RatePlanSetup";
 import GuestIdPhotos from "./GuestIdPhotos";
 import { hotelToday, hotelZone } from "@/lib/hotelTime";
+import { formatMoney, hotelCurrency } from "@/lib/money";
 
 /**
  * The parts of a booking that hang off its folio: who is staying, and the bill.
@@ -26,10 +27,8 @@ import { hotelToday, hotelZone } from "@/lib/hotelTime";
  * invoice are buttons that open a drawer, not forms left open on the page.
  */
 
-function money(value, currency = "INR") {
-  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
-  const n = Number(value) || 0;
-  return `${symbol}${n.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+function money(value, currency) {
+  return formatMoney(value, { currency, decimals: 2 });
 }
 
 /** "Sat 26 Sep" -- a night on the folio, read in the hotel's calendar. */
@@ -1217,7 +1216,7 @@ export default function FolioTabs({
     }
   }
 
-  const currency = folio.reservation?.currency || "INR";
+  const currency = folio.reservation?.currency || hotelCurrency();
   const balance = folio.totals?.balance || 0;
   const charges = folio.charges || [];
   const invoicedSome = charges.some((c) => c.invoice);

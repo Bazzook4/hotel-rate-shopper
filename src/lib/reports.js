@@ -526,10 +526,10 @@ export async function getBookingPerformance(
   // row in another is not worth splitting every figure over.
   const currencies = {};
   for (const r of facts.reservations) {
-    currencies[r.currency || 'INR'] = (currencies[r.currency || 'INR'] || 0) + 1;
+    if (r.currency) currencies[r.currency] = (currencies[r.currency] || 0) + 1;
   }
-  const currency =
-    Object.entries(currencies).sort((a, b) => b[1] - a[1])[0]?.[0] || 'INR';
+  // None at all: the page falls back to the hotel's own currency.
+  const currency = Object.entries(currencies).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
   return {
     start,

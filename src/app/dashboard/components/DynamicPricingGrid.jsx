@@ -8,6 +8,7 @@ import EventMarker, { useEventsByDate } from "./EventMarker";
 import PricingSettings from "./PricingSettings";
 import { usePageState } from "./usePageState";
 import YearDemand from "./YearDemand";
+import { formatAmount } from "@/lib/money";
 
 const WINDOW_DAYS = 14;
 
@@ -23,7 +24,7 @@ function ageLabel(iso) {
 }
 
 function money(v) {
-  return v == null ? "-" : Math.round(v).toLocaleString("en-IN");
+  return v == null ? "-" : formatAmount(v);
 }
 
 /**

@@ -22,6 +22,7 @@ import RowMenu from "../../components/RowMenu";
 import { useEscape } from "../../components/useEscape";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { formatAmount } from "@/lib/money";
 
 /**
  * Rate Plan Setup, laid out the way SiteMinder lays it out.
@@ -40,7 +41,7 @@ import DateField from "@/app/components/DateField";
 const fmt = (n) =>
   n === null || n === undefined || !Number.isFinite(Number(n))
     ? "-"
-    : Math.round(Number(n)).toLocaleString("en-IN");
+    : formatAmount(n);
 
 const blank = (v) => v === null || v === undefined || v === "";
 const orBlank = (v) => (blank(v) ? "" : v);

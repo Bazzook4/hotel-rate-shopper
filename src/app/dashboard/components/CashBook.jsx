@@ -426,7 +426,7 @@ export default function CashBook({ session }) {
   const period = usePeriod("mtd");
   const { report, loading, error, reload } = useReport("/api/cashbook", period.valid ? period.range : null, propertyId);
   const { openBooking, modal } = useBookingOpener(session, reload);
-  const money = useMemo(() => moneyFormatter(report?.currency || "INR", { decimals: 2 }), [report?.currency]);
+  const money = useMemo(() => moneyFormatter(report?.currency, { decimals: 2 }), [report?.currency]);
   const grid = useGrid(report?.entries || []);
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState("");

@@ -21,6 +21,7 @@ import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
 import { hotelToday } from "@/lib/hotelTime";
+import { formatAmount } from "@/lib/money";
 
 /**
  * Scales & rules: what each signal does with what it reads, and the
@@ -35,7 +36,7 @@ import { hotelToday } from "@/lib/hotelTime";
 
 const num = (v) => (v === "" || v == null ? "" : Number(v));
 const signed = (n) => `${n > 0 ? "+" : ""}${Math.round(n * 10) / 10}`;
-const money = (n) => (n == null ? "-" : Math.round(n).toLocaleString("en-IN"));
+const money = (n) => (n == null ? "-" : formatAmount(n));
 
 function Section({ title, sub, children }) {
   return (

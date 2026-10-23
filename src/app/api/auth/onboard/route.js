@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  addIndianGst,
   createRatePlanWithDerivation,
   createRoomType,
   createUser,
@@ -193,6 +194,12 @@ export async function POST(request) {
     await syncRoomBasePrices(property.id).catch((err) =>
       console.error("Could not set room base prices at onboarding:", err)
     );
+    // Tax: a hotel in India starts with GST on its rooms; anywhere else it
+    // starts with none and adds its own on the Tax page. A failure here must
+    // not cost the hotel its account -- the Tax page can still add it.
+    if (profile.country_code === "IN") {
+      await addIndianGst(property.id).catch((err) => console.error("Could not add GST at onboarding:", err));
+    }
 
     user = await createUser({
       email,

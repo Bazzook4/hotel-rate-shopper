@@ -9,6 +9,7 @@ import CompetitorDay from "./CompetitorDay";
 import { MAX_COMPETITORS } from "@/lib/competitors";
 import DateField from "@/app/components/DateField";
 import { hotelToday } from "@/lib/hotelTime";
+import { formatAmount } from "@/lib/money";
 
 /** A refresh fills one week of the month; paging then refreshing walks across. */
 const REFRESH_DAYS = 7;
@@ -33,7 +34,7 @@ function ageLabel(iso) {
 
 function money(value) {
   if (value == null) return "-";
-  return Math.round(value).toLocaleString("en-IN");
+  return formatAmount(value);
 }
 
 /**

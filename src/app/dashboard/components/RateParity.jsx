@@ -9,6 +9,7 @@ import GoogleListingSetup from "./GoogleListingSetup";
 import ParityTrend from "./ParityTrend";
 import { usePageState } from "./usePageState";
 import { hotelToday } from "@/lib/hotelTime";
+import { formatMoney } from "@/lib/money";
 
 /**
  * How many nights the grid shows and a refresh scrapes.
@@ -33,8 +34,7 @@ function ageLabel(iso) {
 
 function money(value, currency) {
   if (value == null) return "-";
-  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
-  return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
+  return formatMoney(value, { currency });
 }
 
 /** Column header: weekday over day-of-month over month, today called out. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { formatMoney } from "@/lib/money";
 
 /**
  * Your rate against the range every other channel is selling at.
@@ -27,8 +28,7 @@ const PADDING = { top: 16, right: 16, bottom: 28, left: 52 };
 
 function money(value, currency) {
   if (value == null) return "-";
-  const symbol = currency === "GBP" ? "£" : currency === "USD" ? "$" : "₹";
-  return `${symbol}${Math.round(value).toLocaleString("en-IN")}`;
+  return formatMoney(value, { currency });
 }
 
 /** Round a bound out to a readable number, so the axis reads 1,500 not 1,487. */

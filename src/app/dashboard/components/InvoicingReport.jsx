@@ -485,7 +485,7 @@ export default function InvoicingReport({ session }) {
     propertyId
   );
   const { openBooking, modal } = useBookingOpener(session, reload);
-  const money = useMemo(() => moneyFormatter(report?.currency || "INR", { decimals: 2 }), [report?.currency]);
+  const money = useMemo(() => moneyFormatter(report?.currency, { decimals: 2 }), [report?.currency]);
 
   const counts = report
     ? {

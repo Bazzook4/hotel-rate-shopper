@@ -281,7 +281,8 @@ export async function userEmails(ids) {
 function mainCurrency(values) {
   const counts = {};
   for (const v of values) if (v) counts[v] = (counts[v] || 0) + 1;
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'INR';
+  // None at all: the page falls back to the hotel's own currency.
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 }
 
 /** The fields every list on these pages shows for a stay. */

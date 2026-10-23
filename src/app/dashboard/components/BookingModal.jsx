@@ -20,6 +20,7 @@ import OnlineCheckinPanel, {
   onlineCheckinUrl,
   useOnlineCheckin,
 } from "./OnlineCheckin";
+import { formatMoney } from "@/lib/money";
 
 /**
  * One booking, opened from the tape chart or any list.
@@ -86,7 +87,7 @@ function stayLine(r) {
 
 /** What the bill stands at; a complimentary stay says so first. */
 function balanceLine(balance, comp) {
-  const money = (n) => `₹${n.toLocaleString("en-IN")}`;
+  const money = (n) => formatMoney(n, { decimals: 2 });
   const text =
     balance > 0
       ? `owes ${money(balance)}`
@@ -547,7 +548,7 @@ export default function BookingModal({
                       onClick={() => runAction(a.status)}
                     >
                       {a.status === "checked_out" && owes
-                        ? `Collect ₹${balance.toLocaleString("en-IN")} & check out`
+                        ? `Collect ${money(balance)} & check out`
                         : a.label}
                     </button>
                   );

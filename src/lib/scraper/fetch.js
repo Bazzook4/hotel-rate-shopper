@@ -174,12 +174,15 @@ async function fetchPage(url, { sessionId, expect, attempts = 2 }) {
   throw lastError || new Error("Could not reach Google.");
 }
 
-/** The search URL for one stay. */
-function travelUrl(query, { checkIn, checkOut, adults = 2, currency = "INR" }) {
+/**
+ * The search URL for one stay, priced in the hotel's currency as a guest in
+ * the hotel's country sees it (`country` is its two-letter code).
+ */
+function travelUrl(query, { checkIn, checkOut, adults = 2, currency = "INR", country = "IN" }) {
   const url = new URL("https://www.google.com/travel/search");
   url.searchParams.set("q", query);
   url.searchParams.set("hl", "en");
-  url.searchParams.set("gl", "in");
+  url.searchParams.set("gl", String(country || "IN").toLowerCase());
   url.searchParams.set("currency", currency);
   if (checkIn) url.searchParams.set("check_in_date", checkIn);
   if (checkOut) url.searchParams.set("check_out_date", checkOut);

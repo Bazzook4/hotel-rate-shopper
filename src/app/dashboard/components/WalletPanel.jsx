@@ -5,6 +5,7 @@ import { useDialog } from "../../components/Dialog";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
 import { hotelToday } from "@/lib/hotelTime";
+import { formatMoney } from "@/lib/money";
 
 /**
  * One wallet: what it holds, adding money (on a plan, or any amount with
@@ -26,7 +27,7 @@ const METHODS = [
 const METHOD_LABEL = Object.fromEntries(METHODS.map((m) => [m.id, m.label]));
 
 export const inr = (v) =>
-  `₹${Math.round(Number(v) || 0).toLocaleString("en-IN")}`;
+  formatMoney(v);
 
 
 async function send(method, body) {

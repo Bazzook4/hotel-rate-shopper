@@ -13,6 +13,7 @@ import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { currencySymbol, formatAmount } from "@/lib/money";
 
 
 
@@ -1177,7 +1178,7 @@ export default function ChannelManager({ session }) {
     );
   }
 
-  const currency = property?.currency === "INR" ? "₹" : "";
+  const currency = currencySymbol(property?.currency);
 
   return (
     <div className="space-y-4">
@@ -2280,7 +2281,7 @@ function ChannelRow({
               color: "var(--text-muted)",
             }}
           >
-            {value === null ? "-" : value.toLocaleString("en-IN")}
+            {value === null ? "-" : formatAmount(value, { decimals: 2 })}
           </td>
         );
       })}
