@@ -1589,17 +1589,20 @@ export default function ChannelManager({ session }) {
               />
             </ToolbarField>
             {/* The one rival watched most; its rate replaces the median in
-                the date header. */}
+                the date header. Desktop only: a desk on a phone never
+                changes it, and it would push the bar to a third row. */}
             {market.competitors.length > 0 && (
-              <Dropdown
-                label="Key competitor"
-                value={market.keyCompetitor?.id || ""}
-                onChange={market.setKeyCompetitor}
-                options={[
-                  { value: "", label: "Median of all" },
-                  ...market.competitors.map((c) => ({ value: c.id, label: c.name })),
-                ]}
-              />
+              <span className="max-md:hidden">
+                <Dropdown
+                  label="Key competitor"
+                  value={market.keyCompetitor?.id || ""}
+                  onChange={market.setKeyCompetitor}
+                  options={[
+                    { value: "", label: "Median of all" },
+                    ...market.competitors.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+              </span>
             )}
           </>
         }

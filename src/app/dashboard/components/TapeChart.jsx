@@ -213,6 +213,9 @@ export default function TapeChart({ session }) {
   // How tall the rows are: a per-viewer preference, so it is remembered in
   // this browser only. Storage can be missing or blocked; normal stands in.
   const [density, setDensityState] = useState("normal");
+  // On a phone the colour keys sit behind a Key button: they cost two or
+  // three lines above the rooms every visit, and the desk learns them fast.
+  const [showKey, setShowKey] = useState(false);
   useEffect(() => {
     try {
       if (localStorage.getItem(DENSITY_KEY) === "compact") setDensityState("compact");
@@ -930,11 +933,21 @@ export default function TapeChart({ session }) {
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              className={`btn text-sm md:hidden ${showKey ? "btn-primary" : "btn-secondary"}`}
+              aria-expanded={showKey}
+              onClick={() => setShowKey((v) => !v)}
+            >
+              Key
+            </button>
           </>
         }
       />
 
-      <DemandKey prefs={demandPrefs} />
+      <div className={showKey ? "" : "max-md:hidden"}>
+        <DemandKey prefs={demandPrefs} />
+      </div>
 
       {syncWarning && (
         <div
@@ -980,7 +993,10 @@ export default function TapeChart({ session }) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 text-xs" style={{ color: "var(--text-muted)" }}>
+      <div
+        className={`flex flex-wrap gap-3 text-xs ${showKey ? "" : "max-md:hidden"}`}
+        style={{ color: "var(--text-muted)" }}
+      >
         {LEGEND.map(({ status, label }) => (
           <span key={status}>
             <span

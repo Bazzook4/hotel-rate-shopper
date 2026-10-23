@@ -18,7 +18,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "calendar",
-        text: "On a phone the bar above the Calendar now takes two rows instead of three: the date, Today and 14 | 30 days on one line, Normal | Compact on the next. Tap the date to jump further ahead.",
+        text: "On a phone the bar above the Calendar now takes two rows instead of three: the date, Today and 14 | 30 days on one line, Normal | Compact on the next. Tap the date to jump further ahead. The colour key now sits behind a Key button, so the rooms start higher up.",
       },
       {
         page: "cm",
