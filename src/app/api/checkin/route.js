@@ -21,7 +21,7 @@ export async function POST(req) {
   const { found, ip, response } = await openLink(req, body.token);
   if (response) return response;
   if (!found.prefs.enabled) return NextResponse.json(GONE, { status: 404 });
-  if (closedReason(found.row, found.reservation)) {
+  if (closedReason(found.row, found.reservation, found.property.timezone)) {
     return NextResponse.json({ error: "Your details can no longer be changed online. Please speak to the front desk." }, { status: 409 });
   }
 

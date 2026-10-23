@@ -25,6 +25,7 @@ import {
 import { usePageState } from "./usePageState";
 import { useFrontDesk } from "./frontDesk";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * The night audit: the close of one business day.
@@ -486,7 +487,7 @@ function exportCsv(report) {
 
 export default function NightAudit({ session }) {
   const propertyId = session?.propertyId || null;
-  const todayIso = formatDateISO(new Date());
+  const todayIso = hotelToday();
   const [date, setDate] = usePageState("nightaudit.date", todayIso);
 
   const { report, loading, error, reload } = useReport("/api/reports/nightaudit", date ? { date } : null, propertyId);

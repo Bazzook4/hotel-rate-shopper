@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import BookingForm from "./BookingForm";
 import FolioTabs from "./FolioTabs";
 import { Fact, Facts } from "../../components/Facts";
-import { todayUTC } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
 import { confirmDiscard, useDialog } from "../../components/Dialog";
@@ -346,7 +346,7 @@ export default function BookingModal({
   // visible -- hiding it would leave the desk wondering where check-in went --
   // but it is disabled, and the Status fact says when it opens.
   const tooEarly =
-    reservation?.status === "confirmed" && reservation.check_in > todayUTC()
+    reservation?.status === "confirmed" && reservation.check_in > hotelToday()
       ? `Arrives ${shortDate(reservation.check_in)}. Check-in opens that day`
       : null;
 

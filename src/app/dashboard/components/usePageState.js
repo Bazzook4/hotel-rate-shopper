@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * useState that survives leaving the page: the dates, window and filters a
@@ -16,7 +17,7 @@ import { useCallback, useState } from "react";
  * page where it was.
  */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => hotelToday();
 
 function read(key) {
   if (typeof window === "undefined") return undefined;

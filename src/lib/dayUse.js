@@ -1,3 +1,5 @@
+import { hotelZone, minutesNowInZone } from "@/lib/hotelTime";
+
 /**
  * Day use: a room taken for some hours of one day rather than for a night.
  *
@@ -135,13 +137,12 @@ export function windowsOverlap(a, b) {
 
 /**
  * The first start a new day use can take without clashing with `taken`
- * slots: from the next half hour when the date is today, from 10 AM on any
- * other date. Null when nothing that day is free.
+ * slots: from the next half hour (on the hotel's clock) when the date is
+ * today, from 10 AM on any other date. Null when nothing that day is free.
  */
-export function suggestDayUseStart(hours, { taken = [], isToday = false, now = new Date() } = {}) {
+export function suggestDayUseStart(hours, { taken = [], isToday = false, nowMinutes = minutesNowInZone(hotelZone()) } = {}) {
   const options = dayUseStartOptions(hours);
   const length = (validDayUseHours(hours) || 1) * 60;
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const from = isToday ? nowMinutes : 10 * 60;
   const free = (t) => !taken.some((w) => windowsOverlap({ start: t, end: t + length }, w));
   const pick = options.find((t) => t >= from && free(t));
@@ -161,10 +162,10 @@ export function dayUseDueOut(reservation) {
   return new Date(new Date(reservation.checked_in_at).getTime() + hours * 3600000);
 }
 
-/** "2:30 PM", in the viewer's own clock -- the desk reads the time on the wall. */
+/** "2:30 PM", on the hotel's clock -- the desk reads the time on the wall. */
 export function clockTime(date) {
   if (!date) return "";
-  return date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+  return date.toLocaleTimeString("en-IN", { timeZone: hotelZone(), hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 /**

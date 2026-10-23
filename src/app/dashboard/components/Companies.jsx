@@ -15,6 +15,7 @@ import {
 import { useDialog } from "../../components/Dialog";
 import { WEEKDAYS, MONTHS } from "@/lib/contractRates";
 import Select from "@/app/components/Select";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * Companies & agents: who books for a guest, may be billed, and may have a
@@ -36,8 +37,8 @@ const KINDS = [
   { id: "travel_agent", label: "Travel agent" },
 ];
 
-const today = () => new Date().toISOString().slice(0, 10);
-const yearEnd = () => `${new Date().getFullYear()}-12-31`;
+const today = () => hotelToday();
+const yearEnd = () => `${hotelToday().slice(0, 4)}-12-31`;
 
 /**
  * Days or months as toggles. Nothing chosen means every one, so a line that

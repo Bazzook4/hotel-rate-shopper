@@ -1,4 +1,5 @@
-import { getSupabaseAdmin, getReservationFolio } from '@/lib/database';
+import { getSupabaseAdmin, getPropertyZone, getReservationFolio } from '@/lib/database';
+import { todayInZone } from '@/lib/hotelTime';
 
 /**
  * Wallets: prepaid credit held by a guest, a company or a travel agent
@@ -205,7 +206,7 @@ export async function topUpWallet(propertyId, owner, input, userId = null) {
 
   const receivedOn = /^\d{4}-\d{2}-\d{2}$/.test(input.received_on || '')
     ? input.received_on
-    : new Date().toISOString().slice(0, 10);
+    : todayInZone(await getPropertyZone(propertyId));
 
   const { data, error } = await db()
     .from('wallet_transactions')

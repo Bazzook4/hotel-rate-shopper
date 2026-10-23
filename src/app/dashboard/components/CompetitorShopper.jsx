@@ -8,6 +8,7 @@ import ManageCompetitors from "./ManageCompetitors";
 import CompetitorDay from "./CompetitorDay";
 import { MAX_COMPETITORS } from "@/lib/competitors";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /** A refresh fills one week of the month; paging then refreshing walks across. */
 const REFRESH_DAYS = 7;
@@ -301,7 +302,7 @@ export default function CompetitorShopper({ session }) {
     return out;
   }, [data?.dates]);
 
-  const today = formatDateISO(new Date());
+  const today = hotelToday();
 
   // Shown in the calendar and in the day view alike, so a refresh started
   // from either reports back where the hotelier is looking.

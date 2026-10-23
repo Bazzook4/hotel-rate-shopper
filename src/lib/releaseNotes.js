@@ -13,6 +13,16 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-24",
+    title: "Your hotel's own time zone",
+    points: [
+      {
+        page: "setup",
+        text: "Property Setup now asks for your hotel's time zone, and new hotels choose it when they sign up. Today, the Calendar, the night audit, reports and every time on screen follow your hotel's clock, wherever you open the app from. Hotels already using the app are set to India time.",
+      },
+    ],
+  },
+  {
     date: "2026-10-23",
     title: "Calendar shows the right date on each day",
     points: [

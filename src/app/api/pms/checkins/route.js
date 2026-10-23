@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
-import { getReservation } from "@/lib/database";
+import { getPropertyZone, getReservation } from "@/lib/database";
 import {
   CHECKIN_NOT_READY,
   acceptCheckin,
@@ -35,16 +35,17 @@ async function scope(req, reservationId) {
 }
 
 async function answer(session, reservation) {
-  const [prefs, row, idsDenied] = await Promise.all([
+  const [prefs, row, idsDenied, zone] = await Promise.all([
     getCheckinPrefs(reservation.property_id),
     getCheckinForReservation(reservation.id),
     moduleDeniedResponse(session, ["guests"]),
+    getPropertyZone(reservation.property_id),
   ]);
   return NextResponse.json({
     ready: true,
     enabled: prefs.enabled,
     canSeeIds: !idsDenied,
-    checkin: await deskView(row, { reservation, withFiles: !idsDenied }),
+    checkin: await deskView(row, { reservation, withFiles: !idsDenied, zone }),
   });
 }
 

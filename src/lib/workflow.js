@@ -30,6 +30,7 @@ import { pushToChannelManager } from "@/lib/cmPush";
 import {
   getAvailabilityGrid,
   getPropertyIntegration,
+  getPropertyZone,
   listChannelRestrictions,
   listDailyRestrictions,
   listRatePlanRooms,
@@ -40,7 +41,7 @@ import {
 } from "@/lib/database";
 import { plansForRoom } from "@/lib/ratePlanPricing";
 import { channelLabel } from "@/lib/channels";
-import { todayUTC } from "@/lib/date";
+import { todayInZone } from "@/lib/hotelTime";
 
 /** How far ahead a full check reaches: the same year inventory sync covers. */
 export const WORKFLOW_DAYS = 365;
@@ -118,7 +119,7 @@ function toUpdates(entries) {
  *            or nothing could be saved
  */
 export async function runWorkflows(propertyId, { from = null, to = null } = {}) {
-  const today = todayUTC();
+  const today = todayInZone(await getPropertyZone(propertyId));
   const start = !from || from < today ? today : from;
   const end = to || addDaysISO(today, WORKFLOW_DAYS - 1);
   const none = { status: "none", closed: 0, reopened: 0, message: "" };

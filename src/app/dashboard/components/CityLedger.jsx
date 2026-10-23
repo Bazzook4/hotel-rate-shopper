@@ -20,6 +20,7 @@ import { SortTh, useSort } from "./useSort";
 import WalletPanel, { useWalletPlans } from "./WalletPanel";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * City Ledger: what companies and travel agents owe for stays billed to
@@ -47,10 +48,6 @@ const METHOD_LABEL = Object.fromEntries(METHODS.map((m) => [m.id, m.label]));
 const KIND_LABEL = { company: "Company", travel_agent: "Agent" };
 
 const PENNY = 0.009;
-const todayLocal = () => {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-};
 const round2 = (n) => Math.round(n * 100) / 100;
 
 /** Split an amount over bills oldest due first, as the server would. */
@@ -70,7 +67,7 @@ async function send(method, body) {
   const res = await fetch("/api/reports/cityledger/receipts", {
     method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, tz: new Date().getTimezoneOffset() }),
+    body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
@@ -87,7 +84,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
   const [amount, setAmount] = useState("");
   // Bonus credit the hotel gives on top, as on a wallet plan. Blank = none.
   const [credit, setCredit] = useState("");
-  const [receivedOn, setReceivedOn] = useState(todayLocal());
+  const [receivedOn, setReceivedOn] = useState(hotelToday());
   const [method, setMethod] = useState("bank_transfer");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -148,7 +145,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
         </label>
         <label>
           <span className="label">Received on</span>
-          <DateField className="input" value={receivedOn} max={todayLocal()} onChange={(e) => setReceivedOn(e.target.value)} />
+          <DateField className="input" value={receivedOn} max={hotelToday()} onChange={(e) => setReceivedOn(e.target.value)} />
         </label>
         <label>
           <span className="label">Method</span>

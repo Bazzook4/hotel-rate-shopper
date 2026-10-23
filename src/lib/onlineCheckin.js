@@ -10,7 +10,7 @@ import {
   listReservationGuests,
   saveReservationGuest,
 } from "@/lib/database";
-import { todayUTC } from "@/lib/date";
+import { todayInZone } from "@/lib/hotelTime";
 import { toCountryCode } from "@/lib/countries";
 import {
   storeCheckinFile,
@@ -162,13 +162,14 @@ export async function findCheckinByToken(token) {
 
 /**
  * Why the guest can no longer change what they sent, or null while they
- * still can.
+ * still can. `zone` is the hotel's: a stay is past once its check-out day
+ * has gone by at the hotel.
  */
-export function closedReason(row, reservation) {
+export function closedReason(row, reservation, zone) {
   if (row.accepted_at) return "accepted";
   if (reservation.status === "in_house" || reservation.status === "checked_out") return "arrived";
   if (!OPEN_STATUSES.has(reservation.status)) return "cancelled";
-  if (reservation.check_out < todayUTC()) return "past";
+  if (reservation.check_out < todayInZone(zone)) return "past";
   return null;
 }
 
@@ -219,7 +220,7 @@ export function guestView({ row, reservation, property, prefs }) {
     arrivalTime: row.details?.arrival_time || "",
     requests: row.details?.requests || "",
     submittedAt: row.submitted_at,
-    closed: closedReason(row, reservation),
+    closed: closedReason(row, reservation, property.timezone),
   };
 }
 
@@ -350,7 +351,7 @@ export async function removeGuestFile(found, fileId) {
  * A booking's check-in as the desk sees it. ID files come with short-lived
  * links only for someone who may open the Guests page, as on that page.
  */
-export async function deskView(row, { reservation, withFiles }) {
+export async function deskView(row, { reservation, withFiles, zone }) {
   if (!row) return { status: "none", guests: [] };
   const people = row.details?.guests || [];
   let links = new Map();
@@ -363,7 +364,7 @@ export async function deskView(row, { reservation, withFiles }) {
     openedAt: row.opened_at,
     submittedAt: row.submitted_at,
     acceptedAt: row.accepted_at,
-    closed: closedReason(row, reservation),
+    closed: closedReason(row, reservation, zone),
     guests: row.submitted_at
       ? people.map((g) => ({
           ...g,

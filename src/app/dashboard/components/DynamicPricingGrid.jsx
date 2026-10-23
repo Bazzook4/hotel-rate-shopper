@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import DateToolbar from "./DateToolbar";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import PricingSettings from "./PricingSettings";
@@ -149,7 +150,7 @@ function Explain({ cell, onClose }) {
 export default function DynamicPricingGrid({ session }) {
   const propertyId = session?.propertyId || session?.property_id || null;
 
-  const [anchor, setAnchor] = usePageState("pricing.anchor", () => todayUTC());
+  const [anchor, setAnchor] = usePageState("pricing.anchor", () => hotelToday());
   const [data, setData] = useState(null);
   const [selected, setSelected] = useState(() => new Set());
   const [explain, setExplain] = useState(null);
@@ -290,7 +291,7 @@ export default function DynamicPricingGrid({ session }) {
     [data]
   );
 
-  const today = formatDateISO(new Date());
+  const today = hotelToday();
 
   if (settings) {
     return (

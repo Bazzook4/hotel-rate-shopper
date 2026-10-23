@@ -26,7 +26,7 @@ import {
   useReport,
   whole,
 } from "./reportKit";
-import { formatDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * Cash & Expenses: where the drawer's cash came from and went, and what the
@@ -437,7 +437,7 @@ export default function CashBook({ session }) {
   function addLine(kind) {
     grid.add({
       kind,
-      date: formatDateISO(new Date()),
+      date: hotelToday(),
       tag: "",
       amount: "",
       method: "cash",

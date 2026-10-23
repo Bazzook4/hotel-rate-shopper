@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { normaliseTz } from "@/lib/financeReports";
+import { getPropertyZone } from "@/lib/database";
 
 /**
  * The questions every finance report route asks before it reads anything:
  * who is asking, for which property, over which dates, on which clock.
+ * The clock is the hotel's own time zone, never the browser's.
  *
  * Reading the property's own folios is front-office work, so these take the
  * PMS guard rather than the setup permission, as booking performance does.
@@ -22,7 +23,7 @@ async function base(req, page) {
   const params = req.nextUrl.searchParams;
   const propertyId = await resolvePropertyId(session, params.get("propertyId"));
   if (!propertyId) return fail("No property selected");
-  return { params, propertyId, tz: normaliseTz(params.get("tz")) };
+  return { params, propertyId, tz: await getPropertyZone(propertyId) };
 }
 
 /** A start and end date, both inclusive, at most `maxDays` apart. `page` is the report's own. */

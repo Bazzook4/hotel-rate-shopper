@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import BookingModal from "./BookingModal";
 import RoomBlockModal from "./RoomBlockModal";
 import GroupBookingModal from "./GroupBookingModal";
@@ -153,12 +154,12 @@ export default function TapeChart({ session }) {
   const propertyId = session?.propertyId || null;
   const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
 
-  // todayUTC() already gives a YYYY-MM-DD string; formatDateISO takes a Date
+  // hotelToday() already gives a YYYY-MM-DD string; formatDateISO takes a Date
   // and returns "" for anything else, which would leave the chart with no
   // window to ask for.
   // Remembered for the day, so coming back to the calendar finds it where
   // it was left (see usePageState).
-  const [anchor, setAnchor] = usePageState("calendar.anchor", () => todayUTC());
+  const [anchor, setAnchor] = usePageState("calendar.anchor", () => hotelToday());
   const [windowDays, setWindowDays] = usePageState("calendar.days", 14);
   const [chart, setChart] = useState(null);
   const [extras, setExtras] = useState([]);
@@ -271,7 +272,7 @@ export default function TapeChart({ session }) {
    */
   const [pending, setPending] = useState(null);
 
-  const today = todayUTC();
+  const today = hotelToday();
 
   const dates = useMemo(() => {
     const out = [];

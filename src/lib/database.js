@@ -5,6 +5,7 @@ import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/rateP
 import { folioTotals, taxLinesFor } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
 import { toCountryCode } from '@/lib/countries';
+import { DEFAULT_ZONE, todayInZone, zoneOr } from '@/lib/hotelTime';
 import { contractNights } from '@/lib/contractRates';
 import {
   DAY_USE_HOLDING_STATUSES,
@@ -155,6 +156,27 @@ export async function getPropertyById(id) {
   return data;
 }
 
+const zoneCache = new Map();
+
+/**
+ * The hotel's time zone (see lib/hotelTime.js). Read on almost every front
+ * office request, so kept for a minute; a change in Property Setup clears it.
+ * India until the column exists or when it holds something unusable.
+ */
+export async function getPropertyZone(propertyId) {
+  if (!propertyId) return DEFAULT_ZONE;
+  const hit = zoneCache.get(propertyId);
+  if (hit && hit.until > Date.now()) return hit.zone;
+  const { data, error } = await supabase.from('properties').select('timezone').eq('id', propertyId).maybeSingle();
+  const zone = zoneOr(error ? null : data?.timezone);
+  zoneCache.set(propertyId, { zone, until: Date.now() + 60000 });
+  return zone;
+}
+
+export function forgetPropertyZone(propertyId) {
+  zoneCache.delete(propertyId);
+}
+
 export async function updateProperty(id, updates) {
   const { data, error } = await supabase
     .from('properties')
@@ -167,6 +189,7 @@ export async function updateProperty(id, updates) {
     throw new Error(`Failed to update property: ${error.message}`);
   }
 
+  forgetPropertyZone(id);
   return data;
 }
 
@@ -5852,11 +5875,13 @@ function guestRow(input) {
  */
 async function attachGuestStats(guests) {
   if (guests.length === 0) return guests;
+  // Every guest asked about belongs to one hotel, whose day it is.
+  const zone = await getPropertyZone(guests[0].property_id);
   const ids = guests.map((g) => g.id);
   const stats = Object.fromEntries(
     ids.map((id) => [id, { stays: 0, nights: 0, last_stay: null, next_stay: null, revenue: 0 }])
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInZone(zone);
 
   const PAGE = 1000;
   for (let offset = 0; ; offset += PAGE) {

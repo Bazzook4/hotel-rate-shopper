@@ -20,9 +20,10 @@ import { pushToChannelManager } from "@/lib/cmPush";
 import {
   getAvailabilityGrid,
   getPropertyIntegration,
+  getPropertyZone,
   nightsBetween,
 } from "@/lib/database";
-import { todayUTC } from "@/lib/date";
+import { todayInZone } from "@/lib/hotelTime";
 import { runWorkflows } from "@/lib/workflow";
 
 /** How far ahead a capacity change or a full resync reaches. */
@@ -133,7 +134,7 @@ export async function syncInventory(propertyId, spans, options = {}) {
 
 async function sendInventory(propertyId, spans, { session = null, actor = null } = {}) {
   try {
-    const today = todayUTC();
+    const today = todayInZone(await getPropertyZone(propertyId));
     const wanted = new Map(); // roomTypeId -> Set of nights
     for (const span of spans || []) {
       if (!span?.roomTypeId || !span.from || !span.to) continue;
@@ -231,7 +232,7 @@ export async function syncInventoryForward(
   roomTypeIds,
   { session = null, actor = null, from = null, to = null } = {}
 ) {
-  const start = from || todayUTC();
+  const start = from || todayInZone(await getPropertyZone(propertyId));
   const end = to || addDaysISO(start, FORWARD_DAYS - 1);
 
   let ids = roomTypeIds;

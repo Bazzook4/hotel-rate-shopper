@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * One wallet: what it holds, adding money (on a plan, or any amount with
@@ -27,10 +28,6 @@ const METHOD_LABEL = Object.fromEntries(METHODS.map((m) => [m.id, m.label]));
 export const inr = (v) =>
   `₹${Math.round(Number(v) || 0).toLocaleString("en-IN")}`;
 
-const todayLocal = () => {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-};
 
 async function send(method, body) {
   const res = await fetch("/api/pms/wallets", {
@@ -66,7 +63,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
   const [notice, setNotice] = useState(null);
   const [mode, setMode] = useState(null); // "topup" | "adjust"
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ plan_id: "", cash_amount: "", credit: "", method: "cash", reference: "", received_on: todayLocal(), notes: "" });
+  const [form, setForm] = useState({ plan_id: "", cash_amount: "", credit: "", method: "cash", reference: "", received_on: hotelToday(), notes: "" });
   const [adjust, setAdjust] = useState({ credit: "", notes: "" });
 
   const load = useCallback(async () => {
@@ -212,7 +209,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
           </label>
           <label>
             <span className="label">Received on</span>
-            <DateField className="input" max={todayLocal()} value={form.received_on} onChange={(e) => setForm({ ...form, received_on: e.target.value })} />
+            <DateField className="input" max={hotelToday()} value={form.received_on} onChange={(e) => setForm({ ...form, received_on: e.target.value })} />
           </label>
           <button type="button" className="btn btn-primary text-sm" disabled={busy || (!plan && !(Number(form.cash_amount) > 0))} onClick={topUp}>
             {busy ? "Adding..." : plan ? `Take ${inr(plan.pay_amount)}` : "Add"}

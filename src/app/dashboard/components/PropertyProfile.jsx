@@ -5,6 +5,7 @@ import { countryOptions } from "@/lib/countries";
 import { PROPERTY_TYPES, profileGaps } from "@/lib/eventTags";
 import { citySuggestions, guessCountry, placesFor, stateOptions } from "@/lib/places";
 import Select from "@/app/components/Select";
+import { browserZone, zoneOptions } from "@/lib/hotelTime";
 
 /**
  * Where the hotel is and what kind of hotel it is.
@@ -19,7 +20,7 @@ import Select from "@/app/components/Select";
  * shared events there already use.
  */
 
-export const EMPTY_PROFILE = { country_code: "", state: "", city: "", property_types: [] };
+export const EMPTY_PROFILE = { country_code: "", state: "", city: "", property_types: [], timezone: "" };
 
 /**
  * States and cities that shared events already name in a country. Signed
@@ -55,8 +56,12 @@ export function ProfileFields({
   typesHint = "Optional. Choose every one that fits: a resort that hosts weddings is both.",
   // Sign-up leaves the kind out; it can be added under Property Setup.
   showTypes = true,
+  // The hotel's clock. Asked for a hotel, not for an event's tags.
+  showZone = false,
 }) {
   const countries = useMemo(() => countryOptions(), []);
+  const zones = useMemo(() => (showZone ? zoneOptions() : []), [showZone]);
+  const deviceZone = useMemo(() => (showZone ? browserZone() : ""), [showZone]);
   const known = useKnownPlaces(value.country_code);
   const set = (patch) => onChange({ ...value, ...patch });
   const listedStates = stateOptions(value.country_code);
@@ -139,6 +144,35 @@ export function ProfileFields({
         </label>
       </div>
 
+      {showZone && (
+        <label className="block">
+          <span className="label">Time zone</span>
+          <Select
+            className="input w-full"
+            value={value.timezone || ""}
+            onChange={(e) => set({ timezone: e.target.value })}
+          >
+            <option value="">Choose...</option>
+            {/* The device's own zone first: whoever signs up is usually at the hotel. */}
+            {deviceZone && (
+              <option value={deviceZone}>
+                {zones.find((z) => z.value === deviceZone)?.label || deviceZone}, this device
+              </option>
+            )}
+            {zones
+              .filter((z) => z.value !== deviceZone)
+              .map((z) => (
+                <option key={z.value} value={z.value}>
+                  {z.label}
+                </option>
+              ))}
+          </Select>
+          <span className="mt-1 block text-xs faint">
+            Today, the night audit and every time on screen follow the hotel&apos;s clock.
+          </span>
+        </label>
+      )}
+
       {showTypes && (
         <div>
           <span className="label">Kind of property</span>
@@ -197,6 +231,7 @@ export default function PropertyProfile({ propertyId, onSaved, intro }) {
   async function save(e) {
     e.preventDefault();
     const gaps = profileGaps(value);
+    if (!value.timezone) gaps.push("time zone");
     if (gaps.length) {
       setError(`Still needed: ${gaps.join(", ")}.`);
       return;
@@ -228,11 +263,11 @@ export default function PropertyProfile({ propertyId, onSaved, intro }) {
         <h3 className="h2">Property profile</h3>
         <p className="sub">
           {intro ||
-            "Where the hotel is and what kind it is. Events (festivals, holidays, conferences, wedding seasons) are matched to hotels by these, and feed Dynamic Pricing."}
+            "Where the hotel is, its time zone and what kind it is. Events (festivals, holidays, conferences, wedding seasons) are matched to hotels by these, and feed Dynamic Pricing."}
         </p>
       </div>
 
-      {value ? <ProfileFields value={value} onChange={setValue} idPrefix={`profile-${propertyId || "own"}`} /> : <p className="sub">Loading...</p>}
+      {value ? <ProfileFields value={value} onChange={setValue} idPrefix={`profile-${propertyId || "own"}`} showZone /> : <p className="sub">Loading...</p>}
 
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>

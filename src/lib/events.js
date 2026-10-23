@@ -1,4 +1,5 @@
-import { getSupabaseAdmin } from "@/lib/database";
+import { forgetPropertyZone, getSupabaseAdmin } from "@/lib/database";
+import { isZone } from "@/lib/hotelTime";
 import {
   EVENT_CATEGORIES,
   IMPACTS,
@@ -47,6 +48,8 @@ export async function getPropertyProfile(propertyId) {
     state: data.state || "",
     city: data.city || "",
     property_types: data.property_types || [],
+    // Empty only before migration 058; the hotel is then asked to choose.
+    timezone: data.timezone || "",
   };
 }
 
@@ -59,7 +62,9 @@ export function validateProfile(input) {
   if (!city) return { error: "Give the city or town the hotel is in." };
   // Optional: with none, the hotel sees the events that name no kind.
   const property_types = cleanPropertyTypes(input?.property_types);
-  return { profile: { country_code, state: state || null, city, property_types } };
+  // The hotel's clock: today, the night audit's day and every time shown.
+  if (!isZone(input?.timezone)) return { error: "Choose the time zone the hotel is in." };
+  return { profile: { country_code, state: state || null, city, property_types, timezone: input.timezone } };
 }
 
 export async function savePropertyProfile(propertyId, profile) {
@@ -71,6 +76,7 @@ export async function savePropertyProfile(propertyId, profile) {
     if (missingEventsTable(error)) throw new Error(NEEDS_MIGRATION);
     throw new Error(`Failed to save property profile: ${error.message}`);
   }
+  forgetPropertyZone(propertyId);
 }
 
 // ---------------------------------------------------------------------------

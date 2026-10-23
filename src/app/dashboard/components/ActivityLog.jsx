@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Select from "@/app/components/Select";
+import { hotelZone } from "@/lib/hotelTime";
 
 /**
  * The channel-manager activity log.
@@ -57,6 +58,7 @@ function formatWhen(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleString(undefined, {
+    timeZone: hotelZone(),
     day: "2-digit",
     month: "short",
     hour: "2-digit",

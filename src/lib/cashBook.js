@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/database';
-import { getPaymentsReport, userEmails } from '@/lib/financeReports';
+import { dayStart, getPaymentsReport, shiftDay, userEmails } from '@/lib/financeReports';
+import { DEFAULT_ZONE } from '@/lib/hotelTime';
 import { notMigrated, readAll, round } from '@/lib/reports';
 
 /**
@@ -161,7 +162,7 @@ export async function drawerNow(propertyId) {
  * The cash book over some days: every cash movement in order, the drawer
  * counts made in them, and the expenses by tag.
  */
-export async function getCashBook(propertyId, { start, end, tz = 0 }) {
+export async function getCashBook(propertyId, { start, end, tz = DEFAULT_ZONE }) {
   const supabase = getSupabaseAdmin();
   let entries;
   let counts;
@@ -185,8 +186,8 @@ export async function getCashBook(propertyId, { start, end, tz = 0 }) {
             .from('cash_counts')
             .select('*')
             .eq('property_id', propertyId)
-            .gte('counted_at', new Date(Date.parse(`${start}T00:00:00Z`) + tz * 60000).toISOString())
-            .lt('counted_at', new Date(Date.parse(`${end}T00:00:00Z`) + 86400000 + tz * 60000).toISOString())
+            .gte('counted_at', dayStart(start, tz))
+            .lt('counted_at', dayStart(shiftDay(end, 1), tz))
             .order('counted_at'),
         'cash counts'
       ),

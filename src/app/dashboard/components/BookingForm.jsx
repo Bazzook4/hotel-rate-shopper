@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import { handleExpiredSession } from "@/lib/authRedirect";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { plansForRoom } from "@/lib/ratePlanPricing";
@@ -40,14 +41,9 @@ function nightsBetween(checkIn, checkOut) {
   return Math.round((b - a) / 86400000);
 }
 
-/** Today's date on the desk's own clock, for "the next free half hour". */
-function localToday() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 function emptyBooking(country = "") {
-  const today = todayUTC();
+  const today = hotelToday();
   return {
     guest_id: null,
     guest_name: "",
@@ -64,7 +60,7 @@ function emptyBooking(country = "") {
     room_type_id: "",
     room_id: "",
     rate_plan_id: "",
-    // todayUTC is already an ISO string; formatDateISO only takes a Date and
+    // hotelToday is already an ISO string; formatDateISO only takes a Date and
     // would turn it into "", leaving every new booking without an arrival.
     check_in: today,
     check_out: formatDateISO(addDays(today, 1)),
@@ -452,7 +448,7 @@ export default function BookingForm({
   // Set by "Save and check in", and kept through "Book anyway" after a clash.
   const checkInAfter = useRef(false);
   const arrivesToday =
-    !reservation && form.status !== "inquiry" && [localToday(), todayUTC()].includes(form.check_in);
+    !reservation && form.status !== "inquiry" && form.check_in === hotelToday();
 
   /**
    * Whether the desk has changed anything since the form opened (or last
@@ -840,7 +836,7 @@ export default function BookingForm({
     if (reservation && chosenStart != null) return;
     const pick = suggestDayUseStart(form.day_use_hours, {
       taken: takenSlots,
-      isToday: form.check_in === localToday(),
+      isToday: form.check_in === hotelToday(),
     });
     if (pick != null && toClock(pick) !== form.day_use_start) {
       setForm((prev) => ({ ...prev, day_use_start: toClock(pick) }));

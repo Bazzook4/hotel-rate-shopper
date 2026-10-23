@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Icon from "../../components/Icon";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import { useToast } from "../../components/Toast";
 import {
   TAX_BASES,
@@ -97,7 +98,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
   const [notice, setNotice] = useState(null);
   const toast = useToast();
 
-  const today = todayUTC();
+  const today = hotelToday();
   const roomService = services.find((s) => s.is_room) || null;
   // Included services are part of the rate, so they are never taxed alone.
   const taxable = services.filter((s) => s.is_room || s.kind !== "inclusion");

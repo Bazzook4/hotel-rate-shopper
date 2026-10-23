@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Icon from "./Icon";
 import usePopupClose from "./usePopupClose";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 
 const DOW = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -48,7 +49,7 @@ export default function DatePicker({
   const [at, setAt] = useState(null);
   const base = unit === "month" ? "months" : "days";
   const [view, setView] = useState(base);
-  const today = formatDateISO(new Date());
+  const today = hotelToday();
   const [focus, setFocus] = useState(() => parseDateISO(value) || parseDateISO(today));
   const closeRef = useRef(onClose);
   closeRef.current = onClose;

@@ -11,6 +11,7 @@ import { countryName, countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { Drawer, Field } from "./RatePlanSetup";
 import GuestIdPhotos from "./GuestIdPhotos";
+import { hotelToday, hotelZone } from "@/lib/hotelTime";
 
 /**
  * The parts of a booking that hang off its folio: who is staying, and the bill.
@@ -44,6 +45,7 @@ function nightLabel(date) {
 function when(iso) {
   if (!iso) return "-";
   return new Date(iso).toLocaleDateString("en-GB", {
+    timeZone: hotelZone(),
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -1526,7 +1528,7 @@ export default function FolioTabs({
                   <label className="label">Date of birth</label>
                   <DateField
                     value={guest.date_of_birth || ""}
-                    max={new Date().toISOString().slice(0, 10)}
+                    max={hotelToday()}
                     onChange={(e) => setGuest({ ...guest, date_of_birth: e.target.value })}
                     aria-label="Date of birth"
                   />

@@ -8,6 +8,7 @@ import {
 import { folioTotals } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills } from '@/lib/folioBills';
 import { capacityOf, channelOf, chunks, notMigrated, readAll, round } from '@/lib/reports';
+import { DEFAULT_ZONE, dayInZone, todayInZone, zoneDayStart } from '@/lib/hotelTime';
 
 /**
  * The money side of the PMS: the night audit, the invoice register with what
@@ -19,9 +20,8 @@ import { capacityOf, channelOf, chunks, notMigrated, readAll, round } from '@/li
  *
  * Payments and invoices are stamped with a moment, not a date, and a hotel's
  * day is its own local day: a payment taken at 1am in Ooty belongs to that
- * day, not to the UTC day before it. The property has no timezone of its own
- * yet, so the page sends the desk's offset (`tz`, in minutes, with the sign
- * `getTimezoneOffset` uses -- IST is -330) and days are cut there.
+ * day, not to the UTC day before it. `tz` is the hotel's own time zone
+ * (getPropertyZone, lib/hotelTime.js) and days are cut there.
  */
 
 export const PAYMENT_METHODS = {
@@ -53,26 +53,19 @@ const PENNY = 0.009;
 // Days
 // ------------------------------------------------------------------
 
-/** A browser's UTC offset, trusted only when it is one the world uses. */
-export function normaliseTz(raw) {
-  const n = Number(raw);
-  return Number.isFinite(n) && Math.abs(n) <= 14 * 60 ? Math.round(n) : 0;
-}
-
 /** The instant a local day begins, as a UTC timestamp to filter on. */
 export function dayStart(iso, tz) {
-  return new Date(Date.parse(`${iso}T00:00:00Z`) + tz * 60000).toISOString();
+  return zoneDayStart(iso, tz);
 }
 
 /** The local day a stored moment falls on. */
 export function localDay(ts, tz) {
-  if (!ts) return null;
-  return new Date(Date.parse(ts) - tz * 60000).toISOString().slice(0, 10);
+  return dayInZone(ts, tz);
 }
 
-/** Today, as the desk's clock has it. */
+/** Today, on the hotel's clock. */
 export function localToday(tz) {
-  return localDay(new Date().toISOString(), tz);
+  return todayInZone(tz);
 }
 
 export function shiftDay(iso, days) {
@@ -421,7 +414,7 @@ function topUpRow(t, emails) {
   };
 }
 
-export async function getPaymentsReport(propertyId, { start, end, tz = 0 }) {
+export async function getPaymentsReport(propertyId, { start, end, tz = DEFAULT_ZONE }) {
   const [raw, topUps] = await Promise.all([
     loadPayments(propertyId, dayStart(start, tz), dayStart(shiftDay(end, 1), tz)),
     loadWalletTopUps(propertyId, start, end),
@@ -612,7 +605,7 @@ const BALANCE_LOOKBACK_DAYS = 365;
  *   uninvoiced   stays that checked out in the period and were never
  *                invoiced, or whose bill has changed since it was
  */
-export async function getInvoicingReport(propertyId, { start, end, tz = 0 }) {
+export async function getInvoicingReport(propertyId, { start, end, tz = DEFAULT_ZONE }) {
   const supabase = getSupabaseAdmin();
   const today = localToday(tz);
   const lookback = [start, shiftDay(today, -BALANCE_LOOKBACK_DAYS)].sort()[0];
@@ -770,7 +763,7 @@ export async function getInvoicingReport(propertyId, { start, end, tz = 0 }) {
  * to that day (an undated line goes with the arrival, as the tax engine and
  * the performance report both have it), and the taxes that fell on them.
  */
-export async function getNightAudit(propertyId, { date, tz = 0 }) {
+export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
   const supabase = getSupabaseAdmin();
   const today = localToday(tz);
   const from = dayStart(date, tz);

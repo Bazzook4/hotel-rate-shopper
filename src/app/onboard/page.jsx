@@ -80,6 +80,7 @@ export default function OnboardPage() {
       return;
     }
     const gaps = profileGaps(profile);
+    if (!profile.timezone) gaps.push("time zone");
     if (gaps.length) {
       setError(`Still needed: ${gaps.join(", ")}.`);
       return;
@@ -212,12 +213,13 @@ export default function OnboardPage() {
                 </div>
 
                 <div className="space-y-2 text-left">
-                  <span className={labelClass}>Where (for local events)</span>
+                  <span className={labelClass}>Where, and its time zone</span>
                   <ProfileFields
                     value={profile}
                     onChange={setProfile}
                     idPrefix="onboard"
                     showTypes={false}
+                    showZone
                   />
                 </div>
               </section>

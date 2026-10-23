@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import { useEscape } from "../../components/useEscape";
 import { dayUseLabel, dayUseWindowLabel } from "@/lib/dayUse";
+import { addDays, formatDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import Select from "@/app/components/Select";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
@@ -47,7 +49,6 @@ async function postStatus(id, status, roomId, { markClean = false } = {}) {
     body: JSON.stringify({
       id,
       status,
-      tz: new Date().getTimezoneOffset(),
       ...(roomId ? { room_id: roomId } : {}),
       ...(markClean ? { mark_clean: true } : {}),
     }),
@@ -69,16 +70,13 @@ async function roomOf(r, propertyId) {
 }
 
 /**
- * A walk-in's start: tonight on the desk's own clock, one night, booked as a
+ * A walk-in's start: tonight on the hotel's own clock, one night, booked as a
  * walk-in. The booking form then picks a free clean room and makes "Save and
  * check in" its main button.
  */
 export function walkInPrefill(date) {
-  const d = date ? new Date(`${date}T00:00:00`) : new Date();
-  const iso = (x) =>
-    `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-  return { source: "walkin", check_in: iso(d), check_out: iso(next) };
+  const checkIn = date || hotelToday();
+  return { source: "walkin", check_in: checkIn, check_out: formatDateISO(addDays(checkIn, 1)) };
 }
 
 /** At most this many adults are asked for in the popup; more go on the Guests tab. */

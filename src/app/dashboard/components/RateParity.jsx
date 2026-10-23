@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Icon from "../../components/Icon";
-import { formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { parseDateISO, todayUTC } from "@/lib/date";
 import DateToolbar from "./DateToolbar";
 import Dropdown from "../../components/Dropdown";
 import GoogleListingSetup from "./GoogleListingSetup";
 import ParityTrend from "./ParityTrend";
 import { usePageState } from "./usePageState";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * How many nights the grid shows and a refresh scrapes.
@@ -347,7 +348,7 @@ export default function RateParity({ session }) {
     URL.revokeObjectURL(link.href);
   }
 
-  const today = formatDateISO(new Date());
+  const today = hotelToday();
 
   if (loading && !data) {
     return <p className="sub">Loading rate parity...</p>;

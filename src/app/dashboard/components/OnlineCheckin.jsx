@@ -7,6 +7,7 @@ import { Fact } from "../../components/Facts";
 import { whatsappCheckinLink } from "./frontDesk";
 import { toCountryCode, countryName } from "@/lib/countries";
 import { CHECKIN_ID_TYPES, CHECKIN_STATUS_LABELS, checkinUrl } from "@/lib/onlineCheckinShared";
+import { hotelZone } from "@/lib/hotelTime";
 
 /**
  * A booking's online check-in, in the booking window: send the guest their
@@ -24,7 +25,7 @@ const ID_LABEL = Object.fromEntries(CHECKIN_ID_TYPES.map((t) => [t.id, t.label])
 /** When something happened, for the panel's history. */
 const when = (iso) =>
   iso
-    ? new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+    ? new Date(iso).toLocaleString("en-IN", { timeZone: hotelZone(), day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
     : null;
 
 async function call(method, body, reservationId) {

@@ -3,11 +3,12 @@ import { getSessionFromRequest } from "@/lib/session";
 import { canManageSetup } from "@/lib/permissions";
 import { resolvePropertyId, sessionRights } from "@/lib/propertyScope";
 import { BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
-import { getNightAudit, getStillOwing, localToday, normaliseTz } from "@/lib/financeReports";
+import { getNightAudit, getStillOwing, localToday } from "@/lib/financeReports";
 import { getBookingPerformance } from "@/lib/reports";
 import { getFormC } from "@/lib/guestRegister";
 import {
   getPropertyIntegration,
+  getPropertyZone,
   listPropertyTaxes,
   listRatePlanRooms,
   listRatePlans,
@@ -212,7 +213,7 @@ export async function GET(req) {
 
   const { user, rights } = await sessionRights(session);
   const holds = (pages) => pages.some((p) => rights.includes(p));
-  const tz = normaliseTz(params.get("tz"));
+  const tz = await getPropertyZone(propertyId);
   const today = localToday(tz);
 
   const [todayData, month, distribution, setup, formC] = await Promise.all([

@@ -2,7 +2,7 @@
 
 import Icon from "../../components/Icon";
 import { Fragment, useMemo, useState } from "react";
-import { todayUTC } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import {
   Grid,
   Messages,
@@ -62,7 +62,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
   const [notice, setNotice] = useState(null);
   const [filter, setFilter] = useState("");
 
-  const today = todayUTC();
+  const today = hotelToday();
   // A tax that has ended is kept on old nights but offered to no new service.
   const liveTaxes = useMemo(
     () => taxes.filter((t) => t.is_active !== false && !(t.valid_to && t.valid_to < today)),

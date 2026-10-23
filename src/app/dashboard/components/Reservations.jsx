@@ -2,7 +2,8 @@
 
 import { visibleModules } from "../modules";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday, hotelZone } from "@/lib/hotelTime";
 import BookingForm from "./BookingForm";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { SortTh, useSort } from "./useSort";
@@ -132,10 +133,10 @@ export default function Reservations({ session, initialView = null }) {
   const [pending, setPending] = useState([]);
   const [retrying, setRetrying] = useState(null);
 
-  // todayUTC() is already a YYYY-MM-DD string. Passing it through
+  // hotelToday() is already a YYYY-MM-DD string. Passing it through
   // formatDateISO, which expects a Date, yields "" and quietly breaks every
   // date comparison below.
-  const today = todayUTC();
+  const today = hotelToday();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -150,7 +151,7 @@ export default function Reservations({ session, initialView = null }) {
       // narrows it below.
       if (view === "current") {
         qs.set("from", today);
-        qs.set("to", formatDateISO(addDays(todayUTC(), 30)));
+        qs.set("to", formatDateISO(addDays(hotelToday(), 30)));
       }
 
       const res = await fetch(`/api/pms/reservations?${qs}`);
@@ -559,6 +560,7 @@ export default function Reservations({ session, initialView = null }) {
                     <td>
                       {p.received_at
                         ? new Date(p.received_at).toLocaleString("en-GB", {
+                            timeZone: hotelZone(),
                             day: "numeric",
                             month: "short",
                             hour: "2-digit",

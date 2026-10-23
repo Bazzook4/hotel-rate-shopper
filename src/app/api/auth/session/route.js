@@ -46,6 +46,7 @@ export async function GET(request) {
       propertyId,
       propertyName: property?.name || null,
       propertyLocation: property?.city || null,
+      propertyTimezone: property?.timezone || null,
       modules,
     },
   });

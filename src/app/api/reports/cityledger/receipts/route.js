@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
-import { normaliseTz } from "@/lib/financeReports";
+import { getPropertyZone } from "@/lib/database";
 import { recordReceipt, applyCompanyCredit, voidReceipt } from "@/lib/cityLedger";
 import { WalletError } from "@/lib/wallets";
 
@@ -29,7 +29,7 @@ async function context(req) {
   }
   const propertyId = await resolvePropertyId(session, body.property_id);
   if (!propertyId) return { error: NextResponse.json({ error: "No property selected" }, { status: 400 }) };
-  return { session, body, propertyId, tz: normaliseTz(body.tz) };
+  return { session, body, propertyId, tz: await getPropertyZone(propertyId) };
 }
 
 export async function POST(req) {

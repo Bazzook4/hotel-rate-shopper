@@ -12,7 +12,7 @@ import { openLink } from "../openLink";
 async function openForChange(req, token) {
   const { found, ip, response } = await openLink(req, token);
   if (response) return { response };
-  if (!found.prefs.enabled || closedReason(found.row, found.reservation)) {
+  if (!found.prefs.enabled || closedReason(found.row, found.reservation, found.property.timezone)) {
     return {
       response: NextResponse.json(
         { error: "Your details can no longer be changed online. Please speak to the front desk." },

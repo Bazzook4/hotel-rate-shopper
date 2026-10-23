@@ -2,6 +2,7 @@ import { getSupabaseAdmin } from '@/lib/database';
 import { localDay, shiftDay, userEmails } from '@/lib/financeReports';
 import { chunks, notMigrated, readAll } from '@/lib/reports';
 import { toCountryCode } from '@/lib/countries';
+import { DEFAULT_ZONE } from '@/lib/hotelTime';
 import { FORM_C_FIELDS, FORM_C_PURPOSES, FORM_C_REQUIRED } from '@/lib/formC';
 
 /**
@@ -142,7 +143,7 @@ function gapsOf(p) {
  * gaps the desk still has to fill. Stays with fewer people named than adults
  * booked say so, since the police register wants every adult.
  */
-export async function getGuestRegister(propertyId, { start, end, tz = 0 }) {
+export async function getGuestRegister(propertyId, { start, end, tz = DEFAULT_ZONE }) {
   const [country, stays] = await Promise.all([propertyCountry(propertyId), arrivedStays(propertyId, { start, end, tz })]);
   const named = await namedGuests(stays.map((s) => s.id));
   const byStay = new Map();
@@ -281,7 +282,7 @@ function prefill(p) {
 }
 
 /** Every foreign guest who arrived on these days, with their Form C as it stands. */
-export async function getFormC(propertyId, { start, end, tz = 0 }) {
+export async function getFormC(propertyId, { start, end, tz = DEFAULT_ZONE }) {
   const register = await getGuestRegister(propertyId, { start, end, tz });
   const foreign = register.people.filter((p) => p.foreign);
   const records = await formCRows(propertyId, [...new Set(foreign.map((p) => p.reservationId))]);

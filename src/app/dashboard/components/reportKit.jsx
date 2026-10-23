@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Icon from "../../components/Icon";
 import BookingModal from "./BookingModal";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday, hotelZone } from "@/lib/hotelTime";
 import { usePageState } from "./usePageState";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
@@ -96,10 +97,10 @@ export function shortDate(iso) {
   return parseDateISO(iso.slice(0, 10)).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-/** A stored moment, in the desk's own clock. */
+/** A stored moment, on the hotel's own clock. */
 export function timeOf(ts) {
   if (!ts) return "-";
-  return new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString("en-GB", { timeZone: hotelZone(), hour: "2-digit", minute: "2-digit" });
 }
 
 // ------------------------------------------------------------------
@@ -152,7 +153,6 @@ export function useReport(path, query, propertyId) {
       setError("");
       try {
         const qs = new URLSearchParams(key);
-        qs.set("tz", String(new Date().getTimezoneOffset()));
         if (propertyId) qs.set("propertyId", propertyId);
         const res = await fetch(`${path}?${qs}`);
         const body = await res.json().catch(() => ({}));
@@ -283,7 +283,7 @@ export function PeriodPicker({ id, label = "Dates", preset, range, onPreset, onR
 
 /** Period state: a preset, or dates typed in (which turns the preset to Custom). */
 export function usePeriod(initial = "mtd") {
-  const todayIso = formatDateISO(new Date());
+  const todayIso = hotelToday();
   // Shared by every report (and Booking Performance), so the period chosen on
   // one is the period on the next.
   const [preset, setPreset] = usePageState("reports.preset", initial);

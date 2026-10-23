@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/database';
-import { loadFolios, localToday } from '@/lib/financeReports';
+import { loadFolios, localDay, localToday } from '@/lib/financeReports';
+import { DEFAULT_ZONE } from '@/lib/hotelTime';
 import { readAll, round } from '@/lib/reports';
 import {
   walletBalances,
@@ -84,7 +85,7 @@ function stayLine(r, folio, company, today, tz, bill = null) {
   const billedOn =
     phase === 'billed'
       ? invoice?.issued_at
-        ? new Date(Date.parse(invoice.issued_at) - tz * 60000).toISOString().slice(0, 10)
+        ? localDay(invoice.issued_at, tz)
         : r.status === 'checked_out'
         ? r.check_out
         : String(r.updated_at || r.check_in).slice(0, 10)
@@ -116,7 +117,7 @@ function stayLine(r, folio, company, today, tz, bill = null) {
 }
 
 /** Everything the ledger reads, for one company or all of them. */
-async function loadLedger(propertyId, { companyId = null, today, tz = 0 } = {}) {
+async function loadLedger(propertyId, { companyId = null, today, tz = DEFAULT_ZONE } = {}) {
   const supabase = getSupabaseAdmin();
 
   let companyQuery = supabase.from('companies').select('*').eq('property_id', propertyId);
@@ -247,7 +248,7 @@ function roundTotals(t) {
  * owed and how overdue, what is still running in house, credit held, and
  * the money received this month -- per company and for the property.
  */
-export async function getCityLedger(propertyId, { tz = 0 } = {}) {
+export async function getCityLedger(propertyId, { tz = DEFAULT_ZONE } = {}) {
   const today = localToday(tz);
   const monthStart = `${today.slice(0, 7)}-01`;
   const { companies, lines, wallets, topups } = await loadLedger(propertyId, { today, tz });
@@ -316,7 +317,7 @@ export async function getCityLedger(propertyId, { tz = 0 } = {}) {
  * One company's statement: every stay billed to it that still has money on
  * it (or every one, with `all`), oldest due first, and its receipts.
  */
-export async function getCompanyStatement(propertyId, companyId, { tz = 0, all = false } = {}) {
+export async function getCompanyStatement(propertyId, companyId, { tz = DEFAULT_ZONE, all = false } = {}) {
   const today = localToday(tz);
   const { companies, lines, wallets } = await loadLedger(propertyId, { companyId, today, tz });
   const company = companies[0];
@@ -425,7 +426,7 @@ async function spendOnBills(propertyId, companyId, allocations, userId) {
  * or oldest due first. What is left stays in the wallet as credit.
  */
 export async function recordReceipt(propertyId, input, userId = null) {
-  const statement = await getCompanyStatement(propertyId, input.company_id, { tz: input.tz || 0 });
+  const statement = await getCompanyStatement(propertyId, input.company_id, { tz: input.tz });
   if (!statement) throw new WalletError('Company not found.');
 
   const { transaction } = await topUpWallet(
@@ -453,7 +454,7 @@ export async function recordReceipt(propertyId, input, userId = null) {
 }
 
 /** Spend a company's wallet on its bills, chosen or oldest first. */
-export async function applyCompanyCredit(propertyId, companyId, { allocations = null, tz = 0 } = {}, userId = null) {
+export async function applyCompanyCredit(propertyId, companyId, { allocations = null, tz = DEFAULT_ZONE } = {}, userId = null) {
   const statement = await getCompanyStatement(propertyId, companyId, { tz });
   if (!statement) throw new WalletError('Company not found.');
   const held = statement.totals.credit;

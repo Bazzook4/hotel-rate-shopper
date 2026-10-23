@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatDateISO } from "@/lib/date";
 import Icon from "../../components/Icon";
 import { usePageState } from "./usePageState";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * The housekeeping board: every room, whether it is clean, and whether
@@ -124,7 +124,7 @@ function timeAgo(iso) {
 export default function Housekeeping({ session }) {
   const propertyId = session?.propertyId || null;
 
-  const [date, setDate] = usePageState("housekeeping.date", () => formatDateISO(new Date()));
+  const [date, setDate] = usePageState("housekeeping.date", () => hotelToday());
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -301,7 +301,7 @@ export default function Housekeeping({ session }) {
     setSelected(allVisibleSelected ? new Set() : new Set(visible.map((r) => r.id)));
   }
 
-  const today = formatDateISO(new Date());
+  const today = hotelToday();
 
   return (
     <div className="space-y-4">

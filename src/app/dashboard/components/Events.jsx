@@ -20,6 +20,7 @@ import { useDialog } from "../../components/Dialog";
 import Hint from "../../components/Hint";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * Events: festivals, holidays, conferences and seasons that move demand.
@@ -39,7 +40,7 @@ const WINDOWS = [
   { months: 12, label: "Next 12 months" },
 ];
 
-const today = () => formatDateISO(new Date());
+const today = () => hotelToday();
 function monthsAhead(months) {
   const d = new Date();
   d.setMonth(d.getMonth() + months);

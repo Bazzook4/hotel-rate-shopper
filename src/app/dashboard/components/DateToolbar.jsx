@@ -3,7 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import DatePicker from "../../components/DatePicker";
 import Icon from "../../components/Icon";
-import { addDays, formatDateISO, parseDateISO, todayUTC } from "@/lib/date";
+import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * The date-and-filter bar that sits over every date grid.
@@ -42,7 +43,7 @@ export default function DateToolbar({
   const dateBtn = useRef(null);
   const [picking, setPicking] = useState(false);
   const closePicker = useCallback(() => setPicking(false), []);
-  const today = unit === "month" ? `${todayUTC().slice(0, 7)}-01` : todayUTC();
+  const today = unit === "month" ? `${hotelToday().slice(0, 7)}-01` : hotelToday();
   const parsed = parseDateISO(value);
 
   function go(iso) {

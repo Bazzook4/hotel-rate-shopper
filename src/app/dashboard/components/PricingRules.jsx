@@ -20,6 +20,7 @@ import {
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * Scales & rules: what each signal does with what it reads, and the
@@ -127,7 +128,7 @@ function TryIt({ rooms, strategy, scales, adjustments }) {
     );
   }
 
-  const today = formatDateISO(new Date());
+  const today = hotelToday();
   const daysOut = Math.max(0, Math.round((parseDateISO(date) - parseDateISO(today)) / 86400000));
   const base = room.basePrice;
   const result = recommendRate({

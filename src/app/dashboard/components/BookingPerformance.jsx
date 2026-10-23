@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import Icon from "../../components/Icon";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
+import { hotelToday } from "@/lib/hotelTime";
 import { Change } from "./reportKit";
 import { usePageState } from "./usePageState";
 import Select from "@/app/components/Select";
@@ -723,7 +724,7 @@ function downloadCsv(report) {
 
 export default function BookingPerformance({ session }) {
   const propertyId = session?.propertyId || null;
-  const todayIso = formatDateISO(new Date());
+  const todayIso = hotelToday();
 
   const [basis, setBasis] = usePageState("performance.basis", "stay");
   // The period is shared by every report, so moving between them keeps it.
