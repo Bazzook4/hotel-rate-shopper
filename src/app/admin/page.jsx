@@ -6,6 +6,7 @@ import PropertyAdmin from "../components/PropertyAdmin";
 import UserList from "../components/UserList";
 import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
+import HotelUsage from "../components/HotelUsage";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
 import { DialogProvider } from "../components/Dialog";
@@ -74,7 +75,12 @@ export default function AdminPage() {
             {[
               ["properties", "Properties"],
               ["users", "Users"],
-              ...(isSuperAdmin(session) ? [["partners", "Partners"]] : []),
+              ...(isSuperAdmin(session)
+                ? [
+                    ["usage", "Usage"],
+                    ["partners", "Partners"],
+                  ]
+                : []),
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -102,6 +108,7 @@ export default function AdminPage() {
               {isSuperAdmin(session) && <UserList session={session} />}
             </div>
           )}
+          {tab === "usage" && isSuperAdmin(session) && <HotelUsage />}
           {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
         </div>
       </main>

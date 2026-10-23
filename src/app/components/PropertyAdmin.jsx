@@ -61,7 +61,7 @@ function Field({ field, value, onChange, readOnly = false }) {
 }
 
 /** Who signed the hotel up, the number opening a WhatsApp chat with them. */
-function ContactLine({ name, phone }) {
+export function ContactLine({ name, phone }) {
   const digits = whatsappNumber(phone, "IN");
   return (
     <span className="mt-0.5 flex items-center gap-1.5 text-xs muted">
