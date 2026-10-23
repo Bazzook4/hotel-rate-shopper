@@ -6,7 +6,7 @@ import Link from "next/link";
 import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
 import AccountMenu from "./components/AccountMenu";
 import ThemeToggle from "./components/ThemeToggle";
-import SupportButton from "./components/SupportButton";
+import SupportBar from "./components/SupportBar";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
@@ -494,7 +494,7 @@ export default function V2Dashboard() {
   return (
     <ToastProvider>
       <DialogProvider>
-      <main className="min-h-screen" style={{ background: "var(--page)" }}>
+      <main className="min-h-screen pb-[34px]" style={{ background: "var(--page)" }}>
         {/* Row 1 — brand, property, account */}
         <header
           className="sticky top-0 z-30 flex h-[46px] items-center justify-between gap-2 px-3 md:px-4"
@@ -586,7 +586,6 @@ export default function V2Dashboard() {
             >
               Admin
             </Link>
-            <SupportButton propertyName={scopedSession?.propertyName} email={session?.email} />
             <ThemeToggle />
             <AccountMenu email={session?.email} />
           </div>
@@ -649,7 +648,7 @@ export default function V2Dashboard() {
           {/* Sidebar — the pages of the open area. A rail beside the page from
               tablet width up; below that, a drawer that slides in over it. */}
           <aside
-            className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 overflow-y-auto transition-all md:sticky md:top-[84px] md:z-auto md:h-[calc(100vh-84px)] md:translate-x-0 ${
+            className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 overflow-y-auto transition-all md:sticky md:top-[84px] md:z-auto md:h-[calc(100vh-118px)] md:translate-x-0 ${
               drawerOpen ? "translate-x-0" : "-translate-x-full"
             }`}
             style={{
@@ -924,6 +923,8 @@ export default function V2Dashboard() {
             onOpenPage={openPage}
           />
         )}
+
+        <SupportBar propertyName={scopedSession?.propertyName} email={session?.email} />
       </main>
       </DialogProvider>
     </ToastProvider>

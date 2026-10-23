@@ -804,7 +804,8 @@ body {
   .toast-stack {
     position: fixed;
     left: 50%;
-    bottom: 1.25rem;
+    /* Clear of the help bar along the bottom. */
+    bottom: calc(34px + 1rem);
     transform: translateX(-50%);
     z-index: 90;
     display: flex;

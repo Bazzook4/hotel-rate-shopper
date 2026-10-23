@@ -18,7 +18,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "today",
-        text: "A Help button at the top of every page opens a WhatsApp chat with our support team, with your hotel's name already written in the message.",
+        text: "A bar along the bottom of every page has Help via WhatsApp, which opens a chat with our support team with your hotel's name already written in the message.",
       },
     ],
   },
