@@ -152,6 +152,19 @@ export async function POST(req) {
             .maybeSingle();
           if (!data) return NextResponse.json({ error: "Guest not found on this booking" }, { status: 404 });
           existing = data;
+        } else {
+          // One named guest per adult and child on the booking.
+          const cap = Math.max(1, (Number(reservation.adults) || 0) + (Number(reservation.children) || 0));
+          const { count } = await getSupabaseAdmin()
+            .from("reservation_guests")
+            .select("id", { count: "exact", head: true })
+            .eq("reservation_id", reservationId);
+          if ((count || 0) >= cap) {
+            return NextResponse.json(
+              { error: `This booking is for ${cap} guest${cap === 1 ? "" : "s"}. Raise the adults or children on the booking to name another.` },
+              { status: 400 }
+            );
+          }
         }
         let guestId = existing?.guest_id || null;
         try {

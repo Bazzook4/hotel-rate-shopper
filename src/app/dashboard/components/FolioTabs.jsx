@@ -1137,6 +1137,8 @@ export default function FolioTabs({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [guest, setGuest] = useState(null);
+  // One named guest per adult and child on the booking.
+  const guestCap = Math.max(1, (Number(folio?.reservation?.adults) || 0) + (Number(folio?.reservation?.children) || 0));
   const [drawer, setDrawer] = useState(null);
   // The guest a drawer was opened for, from their row of separate bills.
   const [forGuest, setForGuest] = useState(null);
@@ -1331,6 +1333,8 @@ export default function FolioTabs({
             </div>
             <button
               className="btn btn-secondary text-xs"
+              disabled={folio.guests.length >= guestCap}
+              title={folio.guests.length >= guestCap ? "Every adult and child on the booking is named" : undefined}
               onClick={() => {
                 // The first guest named is usually the one the booking is
                 // in the name of, so they start filled in.
@@ -1359,6 +1363,12 @@ export default function FolioTabs({
               Add guest
             </button>
           </div>
+
+          {folio.guests.length >= guestCap && !guest && (
+            <p className="sub">
+              All {guestCap} guest{guestCap === 1 ? "" : "s"} named. Raise the adults or children on the booking to add another.
+            </p>
+          )}
 
           {folio.guests.length === 0 && !guest && (
             <p className="sub">

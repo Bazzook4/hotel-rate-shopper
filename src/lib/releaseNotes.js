@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Guests on a booking match its adults and children",
+    points: [
+      {
+        page: "reservations",
+        text: "The Guests tab on a booking now lets you name one guest per adult and child on it. When everyone is named, Add guest turns off; raise the adults or children on the booking to add someone else.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Invoices get their own tab, with a preview",
     points: [
       {
