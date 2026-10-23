@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
@@ -46,7 +46,7 @@ const TodayPage = dynamic(() => import("./dashboard/components/TodayPage"), {
   ssr: false,
   loading: PageLoading,
 });
-const WhatsNew = dynamic(() => import("./dashboard/components/WhatsNew"), {
+const Explore = dynamic(() => import("./dashboard/components/Explore"), {
   ssr: false,
   loading: PageLoading,
 });
@@ -176,7 +176,7 @@ const START_KEY = "hms.startPage";
 // The date of the newest release note this browser has read.
 const NOTES_SEEN_KEY = "hms.whatsNewSeen";
 // Page ids that moved, so an old bookmark still lands on the right page.
-const MOVED_PAGES = { pmssetup: "rooms" };
+const MOVED_PAGES = { pmssetup: "rooms", whatsnew: "explore" };
 
 /** Which job someone's rights say they do: owner, desk, housekeeping or other. */
 function jobProfile(canSee) {
@@ -442,9 +442,9 @@ export default function V2Dashboard() {
     setActive(id);
     setDrawerOpen(false);
     const area = areaForPage(areas, id);
-    // The Home tab always returns to Today: What's new is read once, not
-    // somewhere to come back to.
-    if (area && id !== "whatsnew") {
+    // The Home tab always returns to Today: Explore is a guide to look
+    // something up in, not somewhere to work.
+    if (area && id !== "explore") {
       setLastInArea((prev) => {
         const next = { ...prev, [area.id]: id };
         try {
@@ -463,9 +463,9 @@ export default function V2Dashboard() {
 
   const canOpen = (id) => canOpenPage(areas, id);
 
-  // What's new is marked New until it is opened, counting only releases with
-  // something for this reader, so a change to a page they cannot open never
-  // calls them over. Null until the browser has answered, so it never flashes.
+  // Explore is marked New until its What's new tab is opened, counting only
+  // releases with something for this reader, so a change to a page they
+  // cannot open never calls them over. Null until the browser has answered, so it never flashes.
   const [notesSeen, setNotesSeen] = useState(null);
   useEffect(() => {
     try {
@@ -475,13 +475,13 @@ export default function V2Dashboard() {
   const latestNote =
     RELEASE_NOTES.find((r) => r.points.some((p) => !p.page || canOpen(p.page)))?.date || "";
   const hasNews = notesSeen !== null && latestNote > notesSeen;
-  useEffect(() => {
-    if (active !== "whatsnew" || !latestNote) return;
+  const markNewsSeen = useCallback(() => {
+    if (!latestNote) return;
     setNotesSeen(latestNote);
     try {
       localStorage.setItem(NOTES_SEEN_KEY, latestNote);
     } catch {}
-  }, [active, latestNote]);
+  }, [latestNote]);
 
   // The drawer lists every area's pages, so a phone reaches any page in two
   // taps rather than choosing an area first and then opening the drawer. The
@@ -699,7 +699,7 @@ export default function V2Dashboard() {
                   {area.pages.map((page) => {
                     const on = active === page.id;
                     const soon = PLACEHOLDER_PAGES.has(page.id);
-                    const isNew = page.id === "whatsnew" && hasNews;
+                    const isNew = page.id === "explore" && hasNews;
                     const isStart = (startPage || defaultStartPage(canOpen)) === page.id;
                     return (
                       <div key={page.id} className="group flex items-center">
@@ -806,8 +806,11 @@ export default function V2Dashboard() {
 
                   {/* Keyed by property so a switch starts the grid afresh:
                       an unsaved edit must never publish to another hotel. */}
-                  {active === "whatsnew" && (
-                    <WhatsNew
+                  {active === "explore" && (
+                    <Explore
+                      areas={areas}
+                      hasNews={hasNews}
+                      onNewsSeen={markNewsSeen}
                       onOpenPage={openPage}
                       canOpen={canOpen}
                       pageLabel={(id) => areas.flatMap((a) => a.pages).find((p) => p.id === id)?.label || id}

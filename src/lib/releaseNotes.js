@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Explore: every feature and where to find it",
+    points: [
+      {
+        page: "explore",
+        text: "What's new is now Explore, under Home. It lists every page you can open, what it is for and what you can do there, with a button to open it. Type what you want to do, like invoice or stop sell, to find the right page. What's new is still there as its second tab.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Sign-up asks for prices, step by step",
     points: [
       {

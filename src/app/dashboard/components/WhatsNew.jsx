@@ -4,7 +4,8 @@ import { RELEASE_NOTES } from "@/lib/releaseNotes";
 import Icon from "../../components/Icon";
 
 /**
- * What changed in the app, in plain words, newest first.
+ * What changed in the app, in plain words, newest first. Shown as the
+ * second tab of Explore, which gives it its heading.
  *
  * A point about a page the reader cannot open is left out, since telling a
  * housekeeper about Dynamic Pricing is noise; a release with nothing left
@@ -26,11 +27,6 @@ export default function WhatsNew({ onOpenPage, canOpen, pageLabel }) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="h1">What&apos;s new</h2>
-        <p className="sub">Changes to the app, newest first.</p>
-      </div>
-
       {!releases.length && <div className="card card-pad sub">Nothing new yet.</div>}
 
       {releases.map((r) => (
