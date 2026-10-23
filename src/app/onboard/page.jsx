@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { EMPTY_PROFILE, ProfileFields } from "../dashboard/components/PropertyProfile";
 import { profileGaps } from "@/lib/eventTags";
 import { guessCountry } from "@/lib/places";
+import {
+  DEFAULT_PLAN_CODES,
+  MAX_ADULTS,
+  MAX_ROOM_TYPES,
+  STARTER_PLANS,
+  emptyRoomType,
+  validateStarterSetup,
+} from "@/lib/onboardSetup";
 
 const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
 // Matches the server's limit in api/auth/onboard.
@@ -19,6 +27,8 @@ export default function OnboardPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [profile, setProfile] = useState(EMPTY_PROFILE);
+  const [roomTypes, setRoomTypes] = useState([emptyRoomType()]);
+  const [planCodes, setPlanCodes] = useState(DEFAULT_PLAN_CODES);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   // Bot traps the server checks: when the form opened, and a field only a
@@ -47,6 +57,14 @@ export default function OnboardPage() {
       .catch(() => setLinkState("gone"));
   }, []);
 
+  const setRoom = (i, key, value) =>
+    setRoomTypes((list) => list.map((r, j) => (j === i ? { ...r, [key]: value } : r)));
+  const togglePlan = (code) =>
+    setPlanCodes((codes) =>
+      codes.includes(code) ? codes.filter((c) => c !== code) : [...codes, code]
+    );
+  const roomsPlaced = roomTypes.reduce((n, r) => n + (Number(r.rooms) || 0), 0);
+
   async function onSubmit(e) {
     e.preventDefault();
     setError("");
@@ -56,6 +74,11 @@ export default function OnboardPage() {
     }
     if (!/^\d+$/.test(totalRooms.trim()) || +totalRooms < 1 || +totalRooms > MAX_ROOMS) {
       setError(`Total rooms must be a whole number from 1 to ${MAX_ROOMS}.`);
+      return;
+    }
+    const starter = validateStarterSetup({ roomTypes, planCodes }, Number(totalRooms));
+    if (starter.error) {
+      setError(starter.error);
       return;
     }
     const gaps = profileGaps(profile);
@@ -72,6 +95,8 @@ export default function OnboardPage() {
           token,
           propertyName,
           totalRooms: Number(totalRooms),
+          roomTypes,
+          planCodes,
           email,
           password,
           profile,
@@ -170,6 +195,107 @@ export default function OnboardPage() {
                   Total rooms: every room the hotel has. You can set up this many; ask us if you add rooms later.
                 </p>
               </div>
+
+              <div className="space-y-2 text-left">
+                <span className={labelClass}>Room types</span>
+                <div className="hidden grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto] gap-2 text-xs text-ink/70 sm:grid">
+                  <span>Name</span>
+                  <span>Rooms</span>
+                  <span>Adults</span>
+                  <span>Most adults</span>
+                  <span className="w-[4.5rem]" />
+                </div>
+                {roomTypes.map((r, i) => (
+                  <div
+                    key={i}
+                    className="grid grid-cols-3 gap-2 sm:grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto]"
+                  >
+                    <input
+                      type="text"
+                      value={r.name}
+                      onChange={(e) => setRoom(i, "name", e.target.value)}
+                      placeholder="e.g. Deluxe"
+                      aria-label="Room type name"
+                      className="input col-span-3 sm:col-span-1"
+                    />
+                    {[
+                      ["rooms", "Rooms", 1, Number(totalRooms) || undefined],
+                      ["baseAdults", "Adults", 1, MAX_ADULTS],
+                      ["maxAdults", "Most adults", 1, MAX_ADULTS],
+                    ].map(([key, label, min, max]) => (
+                      <label key={key} className="block space-y-1">
+                        <span className="text-xs text-ink/70 sm:hidden">{label}</span>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={min}
+                          max={max}
+                          step={1}
+                          value={r[key]}
+                          onChange={(e) => setRoom(i, key, e.target.value)}
+                          aria-label={label}
+                          className="input"
+                        />
+                      </label>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setRoomTypes((list) => list.filter((_, j) => j !== i))}
+                      disabled={roomTypes.length === 1}
+                      className="btn btn-ghost col-span-3 sm:col-span-1"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRoomTypes((list) => [...list, emptyRoomType()])}
+                    disabled={roomTypes.length >= MAX_ROOM_TYPES}
+                    className="btn btn-ghost"
+                  >
+                    Add room type
+                  </button>
+                  {Number(totalRooms) > 0 && (
+                    <span
+                      className={`text-xs ${
+                        roomsPlaced > Number(totalRooms) ? "text-[var(--danger)]" : "text-ink/70"
+                      }`}
+                    >
+                      {roomsPlaced} of {totalRooms} rooms
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-ink/70">
+                  Adults: guests the room price includes. Most adults: the most it sleeps, extra
+                  adults paying more.
+                </p>
+              </div>
+
+              <fieldset className="space-y-2 text-left">
+                <legend className={labelClass}>What do you sell?</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {STARTER_PLANS.map((p) => (
+                    <label
+                      key={p.code}
+                      className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={planCodes.includes(p.code)}
+                        onChange={() => togglePlan(p.code)}
+                      />
+                      <span className="text-sm">
+                        {p.name} <span className="text-xs text-ink/70">({p.code})</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-ink/70">
+                  Each one becomes a rate plan on every room type. You add prices after signing in.
+                </p>
+              </fieldset>
 
               <div className="space-y-2 text-left">
                 <span className={labelClass}>Where (for local events)</span>

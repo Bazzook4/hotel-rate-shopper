@@ -17,6 +17,10 @@ export const RELEASE_NOTES = [
     title: "Change your password, and who booked vs who stays",
     points: [
       {
+        page: "rateplans",
+        text: "New hotels now list their room types (name, how many rooms, how many adults) and tick what they sell (Room Only, Room with Breakfast, Breakfast and One Meal, All Meals) while signing up. The rooms and rate plans are ready on first sign-in; only the prices are left to fill in on Rates & Inventory.",
+      },
+      {
         page: "reservations",
         text: "Two guests sharing a room can each have their own bill. Name both on the Guests tab, then on the Bill tab press Give each guest their own bill. The room is shared evenly (type a percent to change it), and each guest's invoice can go to their own company with its GSTIN. Each guest's row has its own Service, Collect and Invoice buttons, so nothing lands on the wrong bill. One invoice per guest issues both in one go, and each company's account on City Ledger shows only its own guest's bill.",
       },

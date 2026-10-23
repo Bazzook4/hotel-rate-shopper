@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
-import { createUser, findUserByEmail, getSupabaseAdmin, setUserModules } from "@/lib/database";
+import {
+  createRatePlanWithDerivation,
+  createRoomType,
+  createUser,
+  findUserByEmail,
+  getSupabaseAdmin,
+  saveRatePlanRooms,
+  setUserModules,
+} from "@/lib/database";
 import { hashPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 import { ROLES } from "@/lib/permissions";
@@ -7,6 +15,7 @@ import { getDefaultAdminModules } from "@/lib/rights";
 import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/lib/onboarding";
 import { savePropertyProfile, validateProfile } from "@/lib/events";
 import { clientIp, recordSignup, signupBlockedBy } from "@/lib/rateLimit";
+import { STARTER_PLANS, validateStarterSetup } from "@/lib/onboardSetup";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -59,6 +68,13 @@ export async function POST(request) {
       { error: `Total rooms must be a whole number from 1 to ${MAX_ROOMS}.` },
       { status: 400 }
     );
+  }
+  const starter = validateStarterSetup(
+    { roomTypes: body?.roomTypes, planCodes: body?.planCodes },
+    totalRooms
+  );
+  if (starter.error) {
+    return NextResponse.json({ error: starter.error }, { status: 400 });
   }
   const { profile, error: profileError } = validateProfile(body?.profile);
   if (profileError) {
@@ -119,6 +135,33 @@ export async function POST(request) {
     await savePropertyProfile(property.id, profile).catch((err) =>
       console.error("Could not save the property profile at onboarding:", err)
     );
+
+    // The hotel's rooms and plans, every room sold on every plan. Rates are
+    // left blank for the hotel to fill in under Rates & Inventory.
+    const rooms = [];
+    for (const r of starter.roomTypes) {
+      rooms.push(
+        await createRoomType({
+          property_id: property.id,
+          room_type_name: r.name,
+          number_of_rooms: r.rooms,
+          base_adults: r.baseAdults,
+          max_adults: r.maxAdults,
+        })
+      );
+    }
+    for (const code of starter.planCodes) {
+      const plan = await createRatePlanWithDerivation({
+        property_id: property.id,
+        plan_name: STARTER_PLANS.find((p) => p.code === code).name,
+        meal_plan: code,
+      });
+      await saveRatePlanRooms(
+        property.id,
+        plan.id,
+        rooms.map((room) => ({ room_type_id: room.id, base_adults: room.base_adults }))
+      );
+    }
 
     user = await createUser({
       email,
