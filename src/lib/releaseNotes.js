@@ -14,6 +14,20 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "A tidier date bar on phones",
+    points: [
+      {
+        page: "calendar",
+        text: "On a phone the bar above the Calendar now takes two rows instead of three: the date, Today and 14 | 30 days on one line, Normal | Compact on the next. Tap the date to jump further ahead.",
+      },
+      {
+        page: "cm",
+        text: "On a phone the bar above Rates now takes two rows instead of four: search sits beside Rates | Min | Max | Stop sell.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "The day changes at your night audit time",
     points: [
       {

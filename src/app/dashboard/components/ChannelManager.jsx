@@ -58,8 +58,8 @@ function planCodeChip(plan) {
 /** What the grid can show across the dates, for every plan at once. */
 const VIEWS = [
   { id: "rates", label: "Rates" },
-  { id: "min_stay", label: "Min nights" },
-  { id: "max_stay", label: "Max nights" },
+  { id: "min_stay", label: "Min", rest: " nights" },
+  { id: "max_stay", label: "Max", rest: " nights" },
   { id: "stop_sell", label: "Stop sell" },
 ];
 
@@ -1571,6 +1571,7 @@ export default function ChannelManager({ session }) {
                 onClick={() => setView(v.id)}
               >
                 {v.label}
+                {v.rest && <span className="seg-wide">{v.rest}</span>}
               </button>
             ))}
           </div>
@@ -1583,7 +1584,7 @@ export default function ChannelManager({ session }) {
                 id="cm-filter"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Search room type or plan..."
+                placeholder="Search"
                 className="input"
               />
             </ToolbarField>

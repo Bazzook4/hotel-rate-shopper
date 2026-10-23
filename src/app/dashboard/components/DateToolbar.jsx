@@ -16,7 +16,8 @@ import { hotelToday } from "@/lib/hotelTime";
  *
  *   [« ‹ 📅 24 Sep 2026 › »] [Today] [14 | 30 days] [Room type: All ▾] Clear   actions
  *
- * It wraps on a narrow screen. Filters carry their label inside or beside
+ * It wraps on a narrow screen. A phone gets two rows: the stepper (no
+ * page jumps, no year), Today and the window switch, then filters and actions. Filters carry their label inside or beside
  * the control (Dropdown, ToolbarField), never on a line above it.
  *
  * ‹ › move one day and « » a whole window, so a desk can nudge the grid a
@@ -62,7 +63,10 @@ export default function DateToolbar({
   const label =
     unit === "month"
       ? parsed?.toLocaleDateString("en-GB", { month: "long", year: "numeric" })
-      : parsed?.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      : parsed?.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  // The year is for the desk paging months ahead; a phone drops it so the
+  // stepper, Today and the window switch share one row.
+  const year = unit === "month" ? null : parsed?.getFullYear();
 
   const atMin = Boolean(min && value <= min);
 
@@ -73,6 +77,7 @@ export default function DateToolbar({
           {unit === "day" && (
             <button
               type="button"
+              className="seg-wide"
               onClick={() => move(-step)}
               disabled={atMin}
               aria-label={`Back ${step} days`}
@@ -99,7 +104,10 @@ export default function DateToolbar({
             title="Pick a date"
           >
             <Icon name="calendar" size={15} />
-            {label}
+            <span>
+              {label}
+              {year && <span className="seg-wide"> {year}</span>}
+            </span>
           </button>
           <button
             type="button"
@@ -111,6 +119,7 @@ export default function DateToolbar({
           {unit === "day" && (
             <button
               type="button"
+              className="seg-wide"
               onClick={() => move(step)}
               aria-label={`Forward ${step} days`}
               title={`Forward ${step} days`}
@@ -131,14 +140,17 @@ export default function DateToolbar({
 
         {windows?.length > 1 && (
           <div className="seg">
-            {windows.map((n) => (
+            {windows.map((n, i) => (
               <button
                 key={n}
                 type="button"
                 className={windowDays === n ? "seg-on" : ""}
                 onClick={() => onWindowChange(n)}
+                aria-label={`${n} days`}
               >
-                {n} days
+                {n}
+                {/* "14 | 30 days" on a phone: the unit once, on the last. */}
+                <span className={i < windows.length - 1 ? "seg-wide" : ""}> days</span>
               </button>
             ))}
           </div>
@@ -149,7 +161,7 @@ export default function DateToolbar({
       {filters && (
         <>
           <span aria-hidden className="hidden h-6 sm:block" style={{ borderLeft: "1px solid var(--border)" }} />
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="tb-filters flex flex-wrap items-center gap-2">
             {filters}
             {onClearAll && (
               <button type="button" className="btn btn-ghost text-sm" onClick={onClearAll}>

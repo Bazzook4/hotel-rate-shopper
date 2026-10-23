@@ -934,6 +934,17 @@ body {
   /* The date button's fixed width is what pushed the stepper past a
    * phone's edge; its label is short enough to size itself. */
   .seg > .seg-date { min-width: 0; }
+
+  /* The date bar in two rows: what is only for a wide screen (the
+   * page jumps, the year, a repeated "days" or "nights") goes, and the
+   * filters share their row with the view switch instead of taking one
+   * each. */
+  .seg .seg-wide { display: none; }
+  .seg > .seg-wide:first-child + button { border-left: 0; }
+  .seg > button { padding-left: 0.6rem; padding-right: 0.6rem; }
+  .tb-filters { flex: 1 1 6rem; min-width: 0; }
+  .tb-filters .tb-field { flex: 1 1 auto; min-width: 0; }
+  .tb-filters .tb-field > div { width: 100% !important; }
   .dd, .dd-option, .sel-search input { font-size: 16px; }
 
   .cm-name-col { min-width: 0; }
