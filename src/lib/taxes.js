@@ -107,6 +107,7 @@ export function stayLines({ nights = [], extras = [], roomServiceId = null }) {
 
   return [
     ...sorted.map((n) => ({
+      key: `night:${n.stay_date}`,
       service_id: roomServiceId,
       date: n.stay_date,
       unit_price: Number(n.rate) || 0,
@@ -115,6 +116,7 @@ export function stayLines({ nights = [], extras = [], roomServiceId = null }) {
     ...extras
       .filter((e) => e.kind !== "inclusion")
       .map((e) => ({
+        key: e.id ? `extra:${e.id}` : null,
         service_id: e.extra_id || null,
         date: e.stay_date || firstNight,
         unit_price: Number(e.unit_price) || 0,
@@ -137,6 +139,9 @@ export function stayLines({ nights = [], extras = [], roomServiceId = null }) {
  *   byService: { [service_id]: { added, included } }
  *   byDate:    { [date]: { [tax name]: { amount, inclusive } } } -- which night
  *              each tax fell on, for posting one day's tax in the night audit
+ *   byKey:     { [line key]: [{ tax_id, name, inclusive, calc_type, value,
+ *              amount, base, units }] } -- each line's own share of each rule,
+ *              unrounded, so a split invoice can carry the tax on just its lines
  * }
  */
 export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
@@ -161,6 +166,7 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
   const out = [];
   const byService = {};
   const byDate = {};
+  const byKey = {};
   const credit = (serviceId, amount, inclusive) => {
     const key = serviceId || "none";
     byService[key] = byService[key] || { added: 0, included: 0 };
@@ -198,7 +204,7 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
           : 1;
 
       if (perStay) {
-        shares.push([eligible[0], value * people]);
+        shares.push([eligible[0], value * people, 1]);
       } else {
         // Units in date order, up to the cap on chargeable nights.
         let left = tax.max_nights ? Number(tax.max_nights) : Infinity;
@@ -206,7 +212,7 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
           const units = Math.min(l.quantity, left);
           if (units <= 0) break;
           left -= units;
-          shares.push([l, value * units * people]);
+          shares.push([l, value * units * people, units]);
         }
       }
     } else {
@@ -219,6 +225,7 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
         shares.push([
           l,
           inclusive ? base - base / (1 + value / 100) : (base * value) / 100,
+          units,
         ]);
       }
     }
@@ -226,10 +233,22 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
     const amount = round2(shares.reduce((s, [, a]) => s + a, 0));
     if (amount === 0) continue;
 
-    for (const [l, a] of shares) {
+    for (const [l, a, units] of shares) {
       if (!inclusive) l.taxSoFar += a;
       credit(l.service_id, a, inclusive);
       date(l, tax.name, a, inclusive);
+      if (l.key) {
+        (byKey[l.key] = byKey[l.key] || []).push({
+          tax_id: tax.id || null,
+          name: tax.name,
+          inclusive,
+          calc_type: tax.calc_type,
+          value,
+          amount: a,
+          base: l.unit_price * units,
+          units,
+        });
+      }
     }
 
     const base = round2(shares.reduce((s, [l]) => s + l.unit_price * l.quantity, 0));
@@ -261,7 +280,47 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
     included: round2(out.filter((l) => l.inclusive).reduce((s, l) => s + l.amount, 0)),
     byService,
     byDate,
+    byKey,
   };
+}
+
+/**
+ * The tax lines for part of a bill: the rules' shares on the given line keys
+ * only, in the same shape as `computeTaxes(...).lines`. Used for an invoice
+ * that carries some of a stay's charges and leaves the rest to another.
+ *
+ * A key may come as { key, weight } to carry only part of a line -- a
+ * sharer's share of a night -- and that part of its tax.
+ */
+export function taxLinesFor(byKey, keys) {
+  const out = new Map();
+  for (const entry of keys) {
+    const key = typeof entry === "string" ? entry : entry.key;
+    const weight = typeof entry === "string" ? 1 : Number(entry.weight ?? 1);
+    for (const raw of byKey?.[key] || []) {
+      const s = { ...raw, amount: raw.amount * weight, base: raw.base * weight, units: raw.units * weight };
+      const id = `${s.tax_id || s.name}`;
+      if (!out.has(id)) {
+        out.set(id, { tax_id: s.tax_id, name: s.name, inclusive: s.inclusive, calc_type: s.calc_type, value: s.value, amount: 0, base: 0, units: 0 });
+      }
+      const t = out.get(id);
+      t.amount += s.amount;
+      t.base += s.base;
+      t.units += s.units;
+    }
+  }
+  return [...out.values()]
+    .map((t) => ({
+      tax_id: t.tax_id,
+      name: t.name,
+      amount: round2(t.amount),
+      inclusive: t.inclusive,
+      detail:
+        t.calc_type === "fixed"
+          ? `${t.value} x ${t.value ? round2(t.amount / t.value) : t.units}`
+          : `${t.value}% of ${round2(t.base)}`,
+    }))
+    .filter((t) => t.amount !== 0);
 }
 
 /**

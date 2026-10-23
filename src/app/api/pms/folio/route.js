@@ -14,6 +14,8 @@ import {
   createReservationInvoice,
   voidReservationInvoice,
   setNightRate,
+  setSeparateBills,
+  setSharer,
 } from "@/lib/database";
 import { walletBalance } from "@/lib/wallets";
 
@@ -30,7 +32,7 @@ import { walletBalance } from "@/lib/wallets";
 
 async function folioResponse(reservationId) {
   const folio = await getReservationFolio(reservationId);
-  return NextResponse.json({ ...folio, wallets: await folioWallets(folio.reservation) });
+  return NextResponse.json({ ...folio, wallets: await folioWallets(folio.reservation, folio.sharers) });
 }
 
 /**
@@ -38,7 +40,7 @@ async function folioResponse(reservationId) {
  * or agent's on the booking -- with what each holds. Empty before migration
  * 047, or when nobody on the booking has ever had a wallet.
  */
-async function folioWallets(reservation) {
+async function folioWallets(reservation, sharers = []) {
   const out = [];
   try {
     const supabase = getSupabaseAdmin();
@@ -49,11 +51,13 @@ async function folioWallets(reservation) {
         out.push({ type: "guest", id: reservation.guest_id, name: data?.full_name || reservation.guest_name, balance: w.balance });
       }
     }
-    if (reservation.company_id) {
-      const w = await walletBalance(reservation.property_id, { type: "company", id: reservation.company_id });
+    // The booking's company, and any a sharer's bill goes to.
+    const companyIds = [...new Set([reservation.company_id, ...sharers.map((s) => s.companyId)].filter(Boolean))];
+    for (const companyId of companyIds) {
+      const w = await walletBalance(reservation.property_id, { type: "company", id: companyId });
       if (w.credit > 0) {
-        const { data } = await supabase.from("companies").select("name").eq("id", reservation.company_id).maybeSingle();
-        out.push({ type: "company", id: reservation.company_id, name: data?.name || "Company", balance: w.balance });
+        const { data } = await supabase.from("companies").select("name").eq("id", companyId).maybeSingle();
+        out.push({ type: "company", id: companyId, name: data?.name || "Company", balance: w.balance });
       }
     }
   } catch {
@@ -173,6 +177,9 @@ export async function POST(req) {
             { status: 400 }
           );
         }
+        if (line.bill_guest_id && !(await rowBelongs("guest", line.bill_guest_id, reservationId))) {
+          return NextResponse.json({ error: "That guest is not on this booking." }, { status: 400 });
+        }
         await addReservationExtra(reservationId, line);
         break;
       }
@@ -184,6 +191,9 @@ export async function POST(req) {
             { error: "Enter an amount more than zero." },
             { status: 400 }
           );
+        }
+        if (body.payment.bill_guest_id && !(await rowBelongs("guest", body.payment.bill_guest_id, reservationId))) {
+          return NextResponse.json({ error: "That guest is not on this booking." }, { status: 400 });
         }
         await addReservationPayment(reservationId, body.payment, session.userId);
         break;
@@ -205,7 +215,42 @@ export async function POST(req) {
       }
 
       case "invoice": {
-        await createReservationInvoice(reservationId, session.userId);
+        // `charges` picks what goes on it; left out, every charge not yet invoiced.
+        const charges = Array.isArray(body.charges) ? body.charges.map(String) : null;
+        if (charges && charges.length === 0) {
+          return NextResponse.json({ error: "Tick at least one charge." }, { status: 400 });
+        }
+        await createReservationInvoice(reservationId, session.userId, {
+          chargeKeys: charges,
+          sharerId: body.sharerId || null,
+        });
+        break;
+      }
+
+      // Guests sharing the room, each on a bill of their own.
+      case "separate_bills": {
+        await setSeparateBills(reservationId, body.on === true);
+        break;
+      }
+
+      case "sharer": {
+        if (!(await rowBelongs("guest", body.guestId, reservationId))) {
+          return NextResponse.json({ error: "Guest not found on this booking" }, { status: 404 });
+        }
+        if (body.bill_company_id) {
+          const reservation = await getReservation(reservationId);
+          const { data } = await getSupabaseAdmin()
+            .from("companies")
+            .select("id")
+            .eq("id", body.bill_company_id)
+            .eq("property_id", reservation.property_id)
+            .maybeSingle();
+          if (!data) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+        }
+        await setSharer(reservationId, body.guestId, {
+          room_share: body.room_share,
+          bill_company_id: body.bill_company_id,
+        });
         break;
       }
 

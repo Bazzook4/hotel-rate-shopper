@@ -6,6 +6,7 @@ import {
   listRooms,
 } from '@/lib/database';
 import { folioTotals } from '@/lib/taxes';
+import { folioCharges, sharersOf, sharerBills } from '@/lib/folioBills';
 import { capacityOf, channelOf, chunks, notMigrated, readAll, round } from '@/lib/reports';
 
 /**
@@ -169,7 +170,7 @@ export async function loadFolios(propertyId, reservations) {
           () =>
             supabase
               .from('reservation_invoices')
-              .select('id, reservation_id, invoice_number, issued_at, total_amount, voided_at')
+              .select('id, reservation_id, invoice_number, issued_at, total_amount, voided_at, sharer_id:snapshot->>sharer_id')
               .in('reservation_id', chunk)
               .order('id'),
           'invoices'
@@ -181,6 +182,26 @@ export async function loadFolios(propertyId, reservations) {
     payments.push(...p);
     invoices.push(...i);
   });
+
+  // The guests on stays billed apart, for each sharer's own bill.
+  const shared = reservations.filter((r) => r.separate_bills).map((r) => r.id);
+  const guests = [];
+  await inBatches(chunks(shared), async (chunk) => {
+    guests.push(
+      ...(await tolerant(() =>
+        readAll(
+          () => supabase.from('reservation_guests').select('*').in('reservation_id', chunk).order('id'),
+          'guests'
+        )
+      ))
+    );
+  });
+  const guestsBy = groupBy(guests);
+  const serviceById = new Map(services.map((sv) => [sv.id, sv]));
+  const categoryOf = (id) => {
+    const sv = id ? serviceById.get(id) : null;
+    return sv?.service_categories?.name || (sv ? 'Uncategorised' : 'Other');
+  };
 
   const nightsBy = groupBy(nights);
   const extrasBy = groupBy(extras);
@@ -194,7 +215,7 @@ export async function loadFolios(propertyId, reservations) {
       .sort((a, b) => a.stay_date.localeCompare(b.stay_date));
     const stayExtras = extrasBy.get(r.id) || [];
     const stayPayments = paymentsBy.get(r.id) || [];
-    const { tax, totals } = folioTotals({
+    const { tax, totals, roomService } = folioTotals({
       reservation: r,
       nights: stayNights,
       extras: stayExtras,
@@ -202,7 +223,27 @@ export async function loadFolios(propertyId, reservations) {
       taxRules,
       services,
     });
+    // Each sharer's own bill, worked out as the folio tab works it out.
+    const sharers = sharersOf(r, guestsBy.get(r.id) || []);
+    let bills = [];
+    if (sharers.length) {
+      const room = Number(r.total_amount) || 0;
+      const sum = stayNights.reduce((s, n) => s + (n.rate || 0), 0);
+      const charges = folioCharges({
+        reservation: r,
+        nights: stayNights,
+        nightsMatch: stayNights.every((n) => n.rate != null) && Math.abs(sum - room) < 0.01,
+        extras: stayExtras,
+        tax,
+        roomCategory: roomService ? categoryOf(roomService.id) : 'Accommodation',
+        categoryOf,
+        room,
+        sharers,
+      });
+      bills = sharerBills({ sharers, charges, payments: stayPayments, totals });
+    }
     folios.set(r.id, {
+      bills,
       nights: stayNights,
       extras: stayExtras,
       payments: stayPayments,
@@ -664,18 +705,21 @@ export async function getInvoicingReport(propertyId, { start, end, tz = 0 }) {
     if (r.check_out < start || r.check_out > end) continue;
     const f = folios.get(r.id);
     const latest = f.invoices[0];
+    // A bill split over several invoices is covered by all that stand.
+    const standing = f.invoices.filter((i) => !i.voided_at);
+    const invoiced = round(standing.reduce((s, i) => s + Number(i.total_amount), 0));
     if (!latest) {
       // A complimentary stay with nothing on it has nothing to invoice.
       if (f.totals.total <= PENNY) continue;
       uninvoiced.push({ ...stayRow(r), kind: 'none', total: f.totals.total, balance: f.totals.balance });
-    } else if (Math.abs(Number(latest.total_amount) - f.totals.total) > PENNY) {
+    } else if (Math.abs(invoiced - f.totals.total) > PENNY) {
       uninvoiced.push({
         ...stayRow(r),
         kind: 'changed',
         total: f.totals.total,
         balance: f.totals.balance,
-        invoice: latest.invoice_number,
-        invoiced: Number(latest.total_amount),
+        invoice: standing.map((i) => i.invoice_number).join(', ') || latest.invoice_number,
+        invoiced,
       });
     }
   }

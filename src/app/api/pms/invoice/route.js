@@ -209,9 +209,11 @@ async function renderInvoice(invoice, fallbackProperty) {
 
   // ---- Totals ----
   const totals = snap.totals || {};
+  // A split invoice carries only some of the stay's charges; a heading with
+  // nothing under it would only make the reader look for what is missing.
   const totalRows = [
-    ["Room", totals.room],
-    ["Extras", totals.extras],
+    ...(snap.split && !Number(totals.room) ? [] : [["Room", totals.room]]),
+    ...(snap.split && !Number(totals.extras) ? [] : [["Extras", totals.extras]]),
     ...taxes.filter((t) => !t.inclusive).map((t) => [t.name, t.amount]),
     ["Total", totals.total, true],
     ...taxes.filter((t) => t.inclusive).map((t) => [`Includes ${t.name}`, t.amount]),

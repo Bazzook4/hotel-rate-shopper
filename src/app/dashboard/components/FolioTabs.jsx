@@ -104,6 +104,13 @@ function Statement({ folio, currency, actions, busy }) {
     .join(", ");
   const faint = { color: "var(--text-faint)", fontSize: "0.75rem" };
   const cell = actions ? <td /> : null;
+  // With separate bills, whose bill each service is on.
+  const sharers = folio.sharers || [];
+  const sharerName = (e) => {
+    if (sharers.length === 0 || (e.kind && e.kind !== "extra")) return null;
+    const id = sharers.some((x) => x.id === e.bill_guest_id) ? e.bill_guest_id : primaryOf(sharers);
+    return sharers.find((x) => x.id === id)?.name || null;
+  };
 
   return (
     <table className="grid-table w-full text-sm">
@@ -137,6 +144,7 @@ function Statement({ folio, currency, actions, busy }) {
                 {e.name}
                 {qty > 1 ? ` x${qty}` : ""}
                 {e.stay_date && <span style={faint}>, {nightLabel(e.stay_date)}</span>}
+                {sharerName(e) && <span style={faint}>, bill: {sharerName(e)}</span>}
               </td>
               <td className="text-right">
                 {e.kind === "inclusion" ? (
@@ -202,6 +210,7 @@ function Statement({ folio, currency, actions, busy }) {
                 {amount < 0 ? "Refund" : "Paid"}, {method}
                 {p.reference ? `, ${p.reference}` : ""}
                 <span style={faint}>, {when(p.paid_at)}</span>
+                {sharerName(p) && <span style={faint}>, bill: {sharerName(p)}</span>}
                 {p.voided_at && (
                   <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }}>
                     Voided{p.void_reason ? `, ${p.void_reason}` : ""}
@@ -239,8 +248,203 @@ function Statement({ folio, currency, actions, busy }) {
   );
 }
 
+/**
+ * Whose bill, when guests sharing the room are billed apart: one button per
+ * sharer, so the choice is one press and always visible.
+ */
+function BillPicker({ sharers, bills = [], currency, value, onChange, disabled, label = "Bill for" }) {
+  if (!sharers?.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={label}>
+      <span className="label" style={{ margin: 0 }}>{label}</span>
+      {sharers.map((s) => {
+        const b = bills.find((x) => x.id === s.id);
+        return (
+          <button
+            key={s.id}
+            type="button"
+            aria-pressed={value === s.id}
+            disabled={disabled}
+            className={`btn text-sm ${value === s.id ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => onChange(s.id)}
+          >
+            {s.name}
+            {b && (
+              <span style={{ fontSize: "0.7rem", opacity: 0.8 }}>
+                {b.balance > 0 ? `owes ${money(b.balance, currency)}` : "paid"}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const primaryOf = (sharers) => (sharers.find((s) => s.isPrimary) || sharers[0])?.id || null;
+
+/**
+ * Separate bills for guests sharing the room: each guest's share of the room,
+ * who their invoices go to, and what they owe. Offered once two guests are
+ * named; one press turns it on.
+ */
+function SharedBills({ folio, currency, busy, post, propertyId, openFor }) {
+  const sharers = folio.sharers || [];
+  const bills = folio.bills || [];
+  const [companies, setCompanies] = useState([]);
+  const [shares, setShares] = useState({});
+
+  useEffect(() => {
+    if (sharers.length === 0) return;
+    const pid = propertyId || folio.reservation?.property_id;
+    fetch(`/api/pms/companies${pid ? `?propertyId=${pid}` : ""}`)
+      .then((r) => (r.ok ? r.json() : { companies: [] }))
+      .then((d) => setCompanies((d.companies || []).filter((c) => c.is_active)))
+      .catch(() => setCompanies([]));
+  }, [sharers.length, propertyId, folio.reservation?.property_id]);
+
+  if (sharers.length === 0) return null;
+  const set = sharers.filter((s) => s.shareSet);
+  const setSum = set.reduce((sum, s) => sum + Number(s.share), 0);
+  // What the desk typed, before the server scaled it to 100.
+  const typedSum = (folio.guests || []).reduce(
+    (sum, g) => sum + (g.room_share != null && g.room_share !== "" ? Number(g.room_share) : 0),
+    0
+  );
+  const typedAll = (folio.guests || []).every((g) => g.room_share != null && g.room_share !== "");
+  const typedShare = (id) => {
+    const g = (folio.guests || []).find((x) => x.id === id);
+    return g?.room_share != null && g.room_share !== "" ? String(Number(g.room_share)) : "";
+  };
+  const sharesOff = set.length > 0 && setSum >= 0 && (typedSum > 100.001 || (typedAll && Math.abs(typedSum - 100) > 0.001));
+
+  const saveShare = (s) => {
+    const raw = shares[s.id];
+    if (raw === undefined) return;
+    setShares((prev) => {
+      const next = { ...prev };
+      delete next[s.id];
+      return next;
+    });
+    post("sharer", { guestId: s.id, room_share: raw === "" ? null : Number(raw) });
+  };
+
+  const kinds = [
+    ["company", "Companies"],
+    ["travel_agent", "Travel agents"],
+  ];
+  const tight = { padding: "0.35rem 0.6rem" };
+
+  return (
+    <div className="space-y-1">
+      <div className="overflow-x-auto">
+        <table className="grid-table w-full text-sm">
+          <thead>
+            <tr>
+              <th>Guest</th>
+              <th className="text-right">Share %</th>
+              <th>Invoice to</th>
+              <th className="text-right hidden sm:table-cell">Total</th>
+              <th className="text-right">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sharers.map((s) => {
+              const b = bills.find((x) => x.id === s.id) || {};
+              return (
+                <tr key={s.id}>
+                  <td style={tight}>
+                    <div style={{ fontWeight: 500 }}>{s.name}</div>
+                    {/* Already set to this guest, so nothing lands on the wrong bill. */}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => openFor("service", s.id)}>
+                        <Icon name="plus" size={12} /> Service
+                      </button>
+                      <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => openFor("payment", s.id)}>
+                        Collect
+                      </button>
+                      <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => openFor("invoice", s.id)}>
+                        Invoice
+                      </button>
+                    </div>
+                  </td>
+                  <td className="text-right" style={tight}>
+                    <input
+                      className="input"
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      aria-label={`${s.name}'s share of the room, percent`}
+                      placeholder={String(Math.round(s.share * 100) / 100)}
+                      disabled={busy}
+                      value={shares[s.id] ?? typedShare(s.id)}
+                      onChange={(e) => setShares((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                      onBlur={() => saveShare(s)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          saveShare(s);
+                        }
+                      }}
+                      style={{ maxWidth: 76, textAlign: "right", marginLeft: "auto", padding: "0.3rem 0.5rem" }}
+                    />
+                  </td>
+                  <td style={{ ...tight, minWidth: 150 }}>
+                    <Select
+                      className="input"
+                      value={s.companyId || ""}
+                      disabled={busy}
+                      onChange={(e) => post("sharer", { guestId: s.id, bill_company_id: e.target.value || null })}
+                    >
+                      <option value="">Guest pays</option>
+                      {kinds.map(([kind, label]) => {
+                        const group = companies.filter((c) => c.kind === kind);
+                        return group.length ? (
+                          <optgroup key={kind} label={label}>
+                            {group.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null;
+                      })}
+                    </Select>
+                    {s.companyId && companies.some((c) => c.id === s.companyId && !c.gstin) && (
+                      <div style={{ fontSize: "0.7rem", color: "var(--warn)" }}>No GSTIN on record</div>
+                    )}
+                  </td>
+                  <td className="text-right tabular-nums hidden sm:table-cell" style={tight}>
+                    {money(b.total || 0, currency)}
+                  </td>
+                  <td
+                    className="text-right tabular-nums"
+                    style={{ ...tight, fontWeight: 600, color: b.balance > 0 ? "var(--warn)" : undefined }}
+                  >
+                    {money(b.balance || 0, currency)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {sharesOff ? (
+        <p className="text-sm" style={{ color: "var(--warn)" }}>
+          The shares you typed add up to {Math.round(typedSum * 100) / 100}%, so they are scaled to 100%:{" "}
+          {sharers.map((s) => `${s.name} ${Math.round(s.share * 100) / 100}%`).join(", ")}.
+        </p>
+      ) : (
+        <p style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>Leave a share blank to split the room evenly.</p>
+      )}
+    </div>
+  );
+}
+
 /** Add a service to the stay. Its name and price can be changed for this stay only. */
-function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSaved }) {
+function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSaved, forGuest }) {
   // Every charge is a service, so it carries that service's taxes. The room
   // is billed through its nights, never added as a line.
   const sellable = (extras || []).filter((x) => !x.is_room);
@@ -251,7 +455,15 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
       return acc;
     }, {})
   );
-  const [line, setLine] = useState({ extra_id: "", name: "", unit_price: "", quantity: "", stay_date: "" });
+  const sharers = folio.sharers || [];
+  const [line, setLine] = useState({
+    extra_id: "",
+    name: "",
+    unit_price: "",
+    quantity: "",
+    stay_date: "",
+    bill_guest_id: forGuest || primaryOf(sharers),
+  });
   const [pricing, setPricing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -273,6 +485,7 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
         line: {
           ...line,
           stay_date: line.stay_date || null,
+          bill_guest_id: sharers.length ? line.bill_guest_id : undefined,
           unit_price: line.unit_price === "" ? undefined : Number(line.unit_price),
           // A per-night service with the quantity left empty is multiplied
           // out by the server; an explicit number wins.
@@ -294,6 +507,18 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
         </p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
+          {sharers.length > 0 && (
+            <div className="sm:col-span-2">
+              <BillPicker
+                sharers={sharers}
+                bills={folio.bills}
+                currency={currency}
+                value={line.bill_guest_id}
+                disabled={busy}
+                onChange={(id) => setLine({ ...line, bill_guest_id: id })}
+              />
+            </div>
+          )}
           <div className="sm:col-span-2">
             <Field label="Service">
               <Select
@@ -381,8 +606,15 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
  * a refund is its own choice rather than a minus sign. A guest's own wallet,
  * or the company's on the booking, is one more way to pay, up to what it holds.
  */
-function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved }) {
-  const balance = folio.totals.balance;
+function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved, forGuest }) {
+  // With separate bills a payment pays one guest's bill: the one owing most.
+  const sharers = folio.sharers || [];
+  const bills = folio.bills || [];
+  const [whose, setWhose] = useState(() =>
+    bills.length ? forGuest || [...bills].sort((a, b) => b.balance - a.balance)[0].id : null
+  );
+  const bill = bills.find((b) => b.id === whose) || null;
+  const balance = bill ? bill.balance : folio.totals.balance;
   const wallets = (folio.wallets || []).filter((w) => w.balance > 0);
   const owedFor = (isRefund) => Math.max(isRefund ? -balance : balance, 0);
   const [refund, setRefund] = useState(balance < 0);
@@ -419,6 +651,7 @@ function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved }) {
             action: "pay",
             property_id: folio.reservation?.property_id,
             reservationId,
+            billGuestId: whose || undefined,
             type: wallet.type,
             id: wallet.id,
             amount: n,
@@ -428,7 +661,7 @@ function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved }) {
         if (!res.ok) throw new Error(data.error || "Could not pay from the wallet");
       } else {
         await sendFolio(reservationId, "payment", {
-          payment: { amount: refund ? -n : n, method, reference },
+          payment: { amount: refund ? -n : n, method, reference, bill_guest_id: whose || undefined },
         });
       }
       await onSaved();
@@ -449,6 +682,22 @@ function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved }) {
       error={error}
     >
       <div className="space-y-4">
+        {sharers.length > 0 && (
+          <BillPicker
+            sharers={sharers}
+            bills={bills}
+            currency={currency}
+            value={whose}
+            disabled={busy}
+            onChange={(id) => {
+              setWhose(id);
+              const owes = bills.find((b) => b.id === id)?.balance || 0;
+              const due = Math.max(refund ? -owes : owes, 0);
+              setAmount(due > 0 ? String(due) : "");
+              if (method === "wallet") setMethod("cash");
+            }}
+          />
+        )}
         <Field label="Amount">
           <input
             className="input"
@@ -531,57 +780,279 @@ function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved }) {
   );
 }
 
-/** Shows the bill as it will print, then issues the invoice and downloads it in one go. */
-function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onTakePayment }) {
-  const owes = folio.totals.balance > 0;
+/** Starts the download of an issued invoice's PDF. */
+function downloadInvoice(inv) {
+  const a = document.createElement("a");
+  a.href = `/api/pms/invoice?id=${inv.id}`;
+  a.download = `${inv.invoice_number}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** A charge as it reads inside its category: just the night, or the service. */
+function chargeLabel(c) {
+  if (c.key.startsWith("night:")) return nightLabel(c.key.slice(6));
+  return `${c.description}${c.quantity > 1 ? ` x${c.quantity}` : ""}`;
+}
+
+/**
+ * Picks the charges an invoice carries, then issues it and downloads it in
+ * one go. Everything not yet invoiced is ticked, so one invoice for the whole
+ * bill is still one press. Untick the food to put it on an invoice of its
+ * own, or press One invoice per category to issue room and food apart at once.
+ */
+function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRefresh, onTakePayment, forGuest }) {
+  const toast = useToast();
+  const sharers = folio.sharers || [];
+  const allOpen = (folio.charges || []).filter((c) => !c.invoice);
+  // With separate bills an invoice is one guest's: start on the first guest
+  // with something left to invoice.
+  const [whose, setWhose] = useState(
+    () => forGuest || (sharers.find((x) => allOpen.some((c) => c.owner === x.id)) || sharers[0])?.id || null
+  );
+  const charges = (folio.charges || []).filter((c) => !whose || c.owner === whose);
+  const open = charges.filter((c) => !c.invoice);
+  const done = charges.filter((c) => c.invoice);
+  const [picked, setPicked] = useState(() => new Set(allOpen.map((c) => c.key)));
+  const [expanded, setExpanded] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  async function save() {
+  const groups = [];
+  for (const c of open) {
+    let g = groups.find((x) => x.name === c.category);
+    if (!g) groups.push((g = { name: c.category, charges: [] }));
+    g.charges.push(c);
+  }
+  const chosen = open.filter((c) => picked.has(c.key));
+  const withTax = (rows) => rows.reduce((s, c) => s + c.amount + c.tax, 0);
+  const nothingLeft = open.length === 0 && (charges.length > 0 || Boolean(whose));
+  // What the guest being invoiced still owes: their own bill with separate bills.
+  const whoseBill = whose ? (folio.bills || []).find((b) => b.id === whose) : null;
+  const owesNow = whoseBill ? whoseBill.balance : folio.totals.balance;
+  const everything = chosen.length === open.length;
+
+  const toggle = (keys, on) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      for (const k of keys) (on ? next.add(k) : next.delete(k));
+      return next;
+    });
+
+  /** Issues one invoice per set of charges, in turn, and downloads each. */
+  async function issue(sets) {
     setBusy(true);
     setError(null);
+    const issued = [];
     try {
-      const data = await sendFolio(reservationId, "invoice", {});
-      const issued = [...(data.invoices || [])].sort((a, b) =>
-        String(b.issued_at).localeCompare(String(a.issued_at))
-      )[0];
-      if (issued) {
-        const a = document.createElement("a");
-        a.href = `/api/pms/invoice?id=${issued.id}`;
-        a.download = `${issued.invoice_number}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+      for (const { keys, sharerId } of sets) {
+        const before = new Set(folio.invoices.map((i) => i.id).concat(issued.map((i) => i.id)));
+        const data = await sendFolio(reservationId, "invoice", {
+          ...(keys ? { charges: keys } : {}),
+          ...(sharerId ? { sharerId } : {}),
+        });
+        const inv = (data.invoices || []).find((i) => !before.has(i.id));
+        if (inv) {
+          issued.push(inv);
+          downloadInvoice(inv);
+        }
       }
+      toast(`${issued.map((i) => i.invoice_number).join(" and ")} issued`);
       await onSaved();
     } catch (err) {
-      setError(err.message);
+      // Whatever was issued before the failure stands; show the bill as it now is.
+      await onRefresh();
+      setError(
+        /already on an invoice/.test(err.message)
+          ? "Some of these charges were just invoiced on another screen. The list is updated; check it and issue again."
+          : issued.length > 0
+            ? `${issued.map((i) => i.invoice_number).join(", ")} issued. ${err.message}`
+            : err.message
+      );
       setBusy(false);
     }
   }
 
+  const save = () => issue([{ keys: everything ? null : chosen.map((c) => c.key), sharerId: whose }]);
+  const perCategory = () => issue(groups.map((g) => ({ keys: g.charges.map((c) => c.key), sharerId: whose })));
+  // Every guest's whole bill, each on its own invoice.
+  const owing = sharers.filter((x) => allOpen.some((c) => c.owner === x.id));
+  const perGuest = () => issue(owing.map((x) => ({ keys: null, sharerId: x.id })));
+
+  const faint = { color: "var(--text-faint)", fontSize: "0.75rem" };
+  const doneBy = {};
+  for (const c of done) (doneBy[c.invoice] = doneBy[c.invoice] || new Set()).add(c.category);
+  const tight = { padding: "0.35rem 0.75rem" };
+
   return (
     <Drawer
       title="Issue invoice"
+      subtitle={
+        nothingLeft
+          ? "Everything is invoiced"
+          : open.length > 0
+            ? chosen.length === 0
+              ? "Tick at least one charge"
+              : `${chosen.length} of ${open.length} charges, invoice total ${money(withTax(chosen), currency)} with tax`
+            : null
+      }
       onCancel={onClose}
       onSave={save}
       saveLabel="Issue and download"
       busyLabel="Issuing..."
+      cancelLabel={nothingLeft ? "Close" : "Cancel"}
+      saveDisabled={nothingLeft || (open.length > 0 && chosen.length === 0)}
       busy={busy}
       error={error}
     >
-      {owes && (
+      {/* Only when invoicing everything: a split leaves the rest owing by design. */}
+      {owesNow > 0 && everything && !nothingLeft && (
         <div className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "var(--warn)" }}>
-          <span style={{ marginRight: "auto" }}>The guest still owes {money(folio.totals.balance, currency)}.</span>
-          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={onTakePayment}>
+          <span style={{ marginRight: "auto" }}>
+            {whoseBill ? whoseBill.name : "The guest"} still owes {money(owesNow, currency)}.
+          </span>
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={() => onTakePayment(whose)}>
             Collect payment first
           </button>
         </div>
       )}
-      <p className="sub">
-        This is what the invoice will say. Once issued it keeps saying it, even if the stay changes later.
-      </p>
-      <Statement folio={folio} currency={currency} />
+
+      {sharers.length > 0 && (
+        <div className="flex flex-wrap items-end gap-2">
+          <div style={{ marginRight: "auto" }}>
+            <BillPicker
+              sharers={sharers}
+              bills={folio.bills}
+              currency={currency}
+              label="Invoice for"
+              value={whose}
+              disabled={busy}
+              onChange={(id) => {
+                setWhose(id);
+                setError(null);
+              }}
+            />
+          </div>
+          {owing.length > 1 && (
+            <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={perGuest}>
+              One invoice per guest
+            </button>
+          )}
+        </div>
+      )}
+
+      {nothingLeft ? (
+        <p className="sub">
+          {charges.length === 0
+            ? "Nothing is on this guest's bill."
+            : "Everything on this bill is on an invoice. To change one, close this and void it under Invoices."}
+        </p>
+      ) : open.length === 0 ? (
+        <>
+          <p className="sub">Nothing is charged on this stay. The invoice will show a zero bill.</p>
+          <Statement folio={folio} currency={currency} />
+        </>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="sub" style={{ marginRight: "auto" }}>
+              Untick charges to put them on a separate invoice. Issued invoices never change.
+            </p>
+            {groups.length > 1 && (
+              <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={perCategory}>
+                One invoice per category
+              </button>
+            )}
+          </div>
+          <table className="grid-table w-full text-sm">
+            <tbody>
+              {groups.map((g) => {
+                const keys = g.charges.map((c) => c.key);
+                const all = keys.every((k) => picked.has(k));
+                const some = !all && keys.some((k) => picked.has(k));
+                const single = g.charges.length === 1 && g.charges[0].description === g.name;
+                // Long lists (a week of nights) fold into the category row.
+                const folded = g.charges.length > 3 && !expanded.has(g.name);
+                const nights = g.charges.every((c) => c.key.startsWith("night:"));
+                return [
+                  <tr key={`g-${g.name}`}>
+                    <td style={tight}>
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-2" style={{ fontWeight: 600 }}>
+                          <input
+                            type="checkbox"
+                            checked={all}
+                            ref={(el) => el && (el.indeterminate = some)}
+                            disabled={busy}
+                            onChange={(e) => toggle(keys, e.target.checked)}
+                          />
+                          {g.name}
+                          {g.charges.length > 1 && (
+                            <span style={faint}>
+                              {g.charges.length} {nights ? "nights" : "charges"}
+                            </span>
+                          )}
+                        </label>
+                        {g.charges.length > 3 && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary text-xs"
+                            disabled={busy}
+                            onClick={() =>
+                              setExpanded((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(g.name)) next.delete(g.name);
+                                else next.add(g.name);
+                                return next;
+                              })
+                            }
+                          >
+                            {folded ? (nights ? "Show nights" : "Show all") : "Hide"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="text-right" style={{ ...tight, fontWeight: 600 }}>
+                      {money(withTax(g.charges), currency)}
+                    </td>
+                  </tr>,
+                  ...(single || folded
+                    ? []
+                    : g.charges.map((c) => (
+                        <tr key={c.key}>
+                          <td style={{ ...tight, paddingLeft: 32 }}>
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={picked.has(c.key)}
+                                disabled={busy}
+                                onChange={(e) => toggle([c.key], e.target.checked)}
+                              />
+                              {chargeLabel(c)}
+                            </label>
+                          </td>
+                          <td className="text-right" style={tight}>
+                            {money(c.amount + c.tax, currency)}
+                          </td>
+                        </tr>
+                      ))),
+                ];
+              })}
+            </tbody>
+          </table>
+          <p style={faint}>Amounts include tax.</p>
+        </div>
+      )}
+
+      {Object.keys(doneBy).length > 0 && (
+        <p className="text-sm">
+          <span style={smallHeading}>Already invoiced </span>
+          {Object.entries(doneBy)
+            .map(([number, cats]) => `${number} (${[...cats].join(", ")})`)
+            .join(", ")}
+        </p>
+      )}
     </Drawer>
   );
 }
@@ -680,6 +1151,8 @@ export default function FolioTabs({
   const [error, setError] = useState(null);
   const [guest, setGuest] = useState(null);
   const [drawer, setDrawer] = useState(null);
+  // The guest a drawer was opened for, from their row of separate bills.
+  const [forGuest, setForGuest] = useState(null);
   // The named guest whose photo ID is open, uploaded by the desk for them.
   const [idsOpen, setIdsOpen] = useState(null);
 
@@ -689,6 +1162,7 @@ export default function FolioTabs({
 
   function closeDrawer() {
     setDrawer(null);
+    setForGuest(null);
     onIntentDone?.();
   }
 
@@ -723,6 +1197,7 @@ export default function FolioTabs({
             unit_price: Number(e.unit_price),
             quantity: Number(e.quantity),
             stay_date: e.stay_date || null,
+            bill_guest_id: e.bill_guest_id || undefined,
           },
         });
         await onChanged();
@@ -751,12 +1226,18 @@ export default function FolioTabs({
 
   const currency = folio.reservation?.currency || "INR";
   const balance = folio.totals?.balance || 0;
+  const charges = folio.charges || [];
+  const invoicedSome = charges.some((c) => c.invoice);
+  const leftOver = invoicedSome ? charges.filter((c) => !c.invoice) : [];
+  const allInvoiced = charges.length > 0 && charges.every((c) => c.invoice);
+  const standingInvoice = (folio.invoices || []).some((i) => !i.voided_at);
 
   const drawerProps = {
     folio,
     reservationId,
     currency,
     onClose: closeDrawer,
+    forGuest,
     onSaved: async () => {
       await onChanged();
       closeDrawer();
@@ -1030,10 +1511,56 @@ export default function FolioTabs({
             >
               {balance < 0 ? "Give a refund" : "Collect payment"}
             </button>
-            <button type="button" className="btn btn-secondary text-sm" onClick={() => setDrawer("invoice")}>
-              Issue invoice
+            <button
+              type="button"
+              className={`btn text-sm ${leftOver.length > 0 ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setDrawer("invoice")}
+            >
+              {allInvoiced ? "Invoices" : leftOver.length > 0 ? "Invoice the rest" : "Issue invoice"}
             </button>
+            {/* Guests sharing the room, each on a bill of their own. Not while an
+                invoice stands: it was issued for the bill as it is. */}
+            {(folio.sharers?.length > 0 || (folio.guests || []).length >= 2) &&
+              (standingInvoice ? (
+                <span className="self-center text-xs" style={{ color: "var(--text-faint)" }}>
+                  {folio.sharers?.length > 0 ? "Separate bills" : "One bill"}: void the invoices to change
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-secondary text-sm"
+                  disabled={busy}
+                  onClick={async () => {
+                    const on = !(folio.sharers?.length > 0);
+                    if (await post("separate_bills", { on })) {
+                      toast(on ? "Each guest now has their own bill" : "Back to one bill for the room");
+                    }
+                  }}
+                >
+                  {folio.sharers?.length > 0 ? "One bill for the room" : "Give each guest their own bill"}
+                </button>
+              ))}
           </div>
+
+          <SharedBills
+            folio={folio}
+            currency={currency}
+            busy={busy}
+            post={post}
+            propertyId={propertyId}
+            openFor={(kind, id) => {
+              setForGuest(id);
+              setDrawer(kind);
+            }}
+          />
+
+          {/* After a split, what is still on no invoice, so it is not forgotten at check-out. */}
+          {leftOver.length > 0 && (
+            <p className="text-sm" style={{ color: "var(--warn)" }}>
+              Not on any invoice yet: {[...new Set(leftOver.map((c) => c.category))].join(", ")},{" "}
+              {money(leftOver.reduce((s, c) => s + c.amount + c.tax, 0), currency)}.
+            </p>
+          )}
 
           <Statement
             folio={folio}
@@ -1061,9 +1588,16 @@ export default function FolioTabs({
               {folio.invoices.map((inv) => (
                 <div key={inv.id} className="flex flex-wrap items-center gap-2 text-sm">
                   <span style={{ fontWeight: 600 }}>{inv.invoice_number}</span>
+                  {(inv.snapshot?.sharer_id || (inv.snapshot?.split && inv.snapshot.categories?.length > 0)) && (
+                    <span>
+                      {[inv.snapshot.sharer_id ? inv.snapshot.guest_name : null, ...(inv.snapshot.categories || [])]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </span>
+                  )}
                   <span style={{ fontSize: "0.75rem", color: "var(--text-faint)" }}>
                     {when(inv.issued_at)}, {money(inv.total_amount, inv.currency)}
-                    {inv.void_reason ? `, ${inv.void_reason}` : ""}
+                    {inv.void_reason ? `, Reason: ${inv.void_reason}` : ""}
                   </span>
                   {inv.voided_at && (
                     <span className="chip chip-off" style={{ fontSize: "0.6rem" }}>
@@ -1111,7 +1645,16 @@ export default function FolioTabs({
           <>
             {drawer === "service" && <ServiceDrawer {...drawerProps} extras={extras} />}
             {drawer === "payment" && <PaymentDrawer {...drawerProps} />}
-            {drawer === "invoice" && <InvoiceDrawer {...drawerProps} onTakePayment={() => setDrawer("payment")} />}
+            {drawer === "invoice" && (
+              <InvoiceDrawer
+                {...drawerProps}
+                onRefresh={onChanged}
+                onTakePayment={(id) => {
+                  setForGuest(id || null);
+                  setDrawer("payment");
+                }}
+              />
+            )}
             {drawer === "nights" && <NightsDrawer {...drawerProps} onRefresh={onChanged} />}
           </>,
           document.body

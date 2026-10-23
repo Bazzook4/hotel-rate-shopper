@@ -60,7 +60,7 @@ function oldestFirst(bills, amount) {
   for (const b of bills) {
     if (left <= PENNY) break;
     const take = round2(Math.min(left, b.balance));
-    out[b.reservationId] = take;
+    out[b.lineKey] = take;
     left = round2(left - take);
   }
   return out;
@@ -122,7 +122,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
         notes,
         allocations: Object.entries(split)
           .filter(([, v]) => Number(v) > 0)
-          .map(([reservationId, v]) => ({ reservationId, amount: Number(v) })),
+          .map(([lineKey, v]) => ({ lineKey, amount: Number(v) })),
       });
       onDone(
         `Recorded ${money(Number(amount))} from ${statement.company.name}` +
@@ -186,7 +186,7 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
             </thead>
             <tbody>
               {bills.map((b) => (
-                <tr key={b.reservationId}>
+                <tr key={b.lineKey}>
                   <td className="font-medium">{b.reference}</td>
                   <td>{b.guestName}</td>
                   <td style={{ color: b.overdueDays > 0 ? "var(--danger)" : undefined }}>
@@ -200,10 +200,10 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
                       type="number"
                       min="0"
                       max={b.balance}
-                      value={split[b.reservationId] ?? ""}
+                      value={split[b.lineKey] ?? ""}
                       onChange={(e) => {
                         setTouched(true);
-                        setSplit((s) => ({ ...s, [b.reservationId]: e.target.value }));
+                        setSplit((s) => ({ ...s, [b.lineKey]: e.target.value }));
                       }}
                     />
                   </td>
@@ -382,7 +382,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
             </thead>
             <tbody>
               {st.stays.map((s) => (
-                <tr key={s.reservationId}>
+                <tr key={s.lineKey}>
                   <td>
                     <BookingLink reference={s.reference} reservationId={s.reservationId} tab="bill" onOpen={openBooking} />
                   </td>

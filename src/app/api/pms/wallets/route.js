@@ -81,7 +81,9 @@ export async function POST(req) {
     }
     if (body.action === "pay") {
       if (!body.reservationId) return NextResponse.json({ error: "Which booking?" }, { status: 400 });
-      const payment = await payFromWallet(propertyId, body.reservationId, owner, body.amount, session.userId);
+      const payment = await payFromWallet(propertyId, body.reservationId, owner, body.amount, session.userId, {
+        billGuestId: body.billGuestId || null,
+      });
       return NextResponse.json({ payment });
     }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

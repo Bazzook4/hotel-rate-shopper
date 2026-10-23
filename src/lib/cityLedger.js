@@ -17,7 +17,9 @@ import {
  *
  * What is owed is the folio balance of each stay billed to a company, worked
  * out by `loadFolios` exactly as the folio tab works it out -- never stored,
- * so the ledger and the bill cannot disagree. A stay owes from the day it is
+ * so the ledger and the bill cannot disagree. When guests sharing a room are
+ * billed apart, each sharer's bill is its own line, owed by that sharer's
+ * company only. A stay owes from the day it is
  * billed: its latest invoice, or check-out if none was issued. It falls due
  * after the company's credit days.
  *
@@ -71,10 +73,14 @@ function phaseOf(r) {
   return 'upcoming';
 }
 
-/** A stay billed to a company, as a ledger line. */
-function stayLine(r, folio, company, today, tz) {
+/**
+ * A stay billed to a company, as a ledger line -- or, with `bill`, one
+ * sharer's bill on it.
+ */
+function stayLine(r, folio, company, today, tz, bill = null) {
   const phase = phaseOf(r);
-  const invoice = folio?.invoices?.[0] || null;
+  const invoice =
+    (bill ? folio?.invoices?.find((i) => (i.sharer_id ?? i.snapshot?.sharer_id) === bill.id) : folio?.invoices?.[0]) || null;
   const billedOn =
     phase === 'billed'
       ? invoice?.issued_at
@@ -84,12 +90,14 @@ function stayLine(r, folio, company, today, tz) {
         : String(r.updated_at || r.check_in).slice(0, 10)
       : null;
   const dueOn = billedOn ? shiftDay(billedOn, Number(company?.credit_days) || 0) : null;
-  const totals = folio?.totals || { total: 0, paid: 0, balance: 0 };
+  const totals = bill || folio?.totals || { total: 0, paid: 0, balance: 0 };
   const overdueDays = dueOn && totals.balance > PENNY ? Math.max(0, daysBetween(dueOn, today)) : 0;
   return {
     reservationId: r.id,
+    billGuestId: bill?.id || null,
+    lineKey: bill ? `${r.id}:${bill.id}` : r.id,
     reference: r.reference,
-    guestName: r.guest_name,
+    guestName: bill ? bill.name : r.guest_name,
     checkIn: r.check_in,
     checkOut: r.check_out,
     status: r.status,
@@ -117,7 +125,7 @@ async function loadLedger(propertyId, { companyId = null, today, tz = 0 } = {}) 
   if (companyError) throw new Error(`Failed to load companies: ${companyError.message}`);
   const byId = new Map((companies || []).map((c) => [c.id, c]));
 
-  const stays = await readAll(() => {
+  const direct = await readAll(() => {
     let q = supabase
       .from('reservations')
       .select(STAY_SELECT)
@@ -127,6 +135,33 @@ async function loadLedger(propertyId, { companyId = null, today, tz = 0 } = {}) 
     if (companyId) q = q.eq('company_id', companyId);
     return q.order('id');
   }, 'stays billed to companies');
+
+  // Sharers whose own bill goes to a company (migration 056). Before the
+  // migration there are none.
+  let sharerStays = [];
+  try {
+    const rows = await readAll(() => {
+      let q = supabase
+        .from('reservation_guests')
+        .select('reservation_id, reservations!inner(property_id, separate_bills)')
+        .eq('reservations.property_id', propertyId)
+        .eq('reservations.separate_bills', true)
+        .not('bill_company_id', 'is', null);
+      if (companyId) q = q.eq('bill_company_id', companyId);
+      return q.order('reservation_id');
+    }, 'sharers billed to companies');
+    const have = new Set(direct.map((r) => r.id));
+    const ids = [...new Set(rows.map((x) => x.reservation_id))].filter((id) => !have.has(id));
+    if (ids.length) {
+      sharerStays = await readAll(
+        () => supabase.from('reservations').select(STAY_SELECT).in('id', ids).order('id'),
+        'shared stays'
+      );
+    }
+  } catch {
+    sharerStays = [];
+  }
+  const stays = [...direct, ...sharerStays];
 
   const { folios } = stays.length ? await loadFolios(propertyId, stays) : { folios: new Map() };
 
@@ -150,10 +185,19 @@ async function loadLedger(propertyId, { companyId = null, today, tz = 0 } = {}) 
     );
   }
 
-  const lines = stays.map((r) => ({
-    companyId: r.company_id,
-    ...stayLine(r, folios.get(r.id), byId.get(r.company_id), today, tz),
-  }));
+  const lines = [];
+  for (const r of stays) {
+    const folio = folios.get(r.id);
+    if (folio?.bills?.length) {
+      // Each sharer's bill is owed by their own company, and only theirs.
+      for (const b of folio.bills) {
+        if (!b.companyId || (companyId && b.companyId !== companyId) || !byId.has(b.companyId)) continue;
+        lines.push({ companyId: b.companyId, ...stayLine(r, folio, byId.get(b.companyId), today, tz, b) });
+      }
+    } else if (r.bill_to === 'company' && r.company_id) {
+      lines.push({ companyId: r.company_id, ...stayLine(r, folio, byId.get(r.company_id), today, tz) });
+    }
+  }
 
   return { companies: companies || [], lines, wallets, topups };
 }
@@ -332,7 +376,7 @@ function allocateOldestFirst(stays, amount) {
     if (left <= PENNY) break;
     if (s.phase !== 'billed' || s.balance <= PENNY) continue;
     const take = round(Math.min(left, s.balance));
-    out.push({ reservationId: s.reservationId, amount: take });
+    out.push({ lineKey: s.lineKey, reservationId: s.reservationId, billGuestId: s.billGuestId, amount: take });
     left = round(left - take);
   }
   return out;
@@ -346,19 +390,19 @@ function allocateOldestFirst(stays, amount) {
 function settleAllocations(statement, amount, requested) {
   if (!Array.isArray(requested)) return allocateOldestFirst(statement.stays, amount);
 
-  const byId = new Map(statement.stays.map((s) => [s.reservationId, s]));
+  const byId = new Map(statement.stays.map((s) => [s.lineKey, s]));
   const out = [];
   let sum = 0;
   for (const a of requested) {
     const value = round(Number(a.amount));
     if (!value) continue;
     if (!Number.isFinite(value) || value < 0) throw new WalletError('Amounts applied must be more than zero.');
-    const stay = byId.get(a.reservationId);
+    const stay = byId.get(a.lineKey || a.reservationId);
     if (!stay) throw new WalletError('One of the bookings is not billed to this company.');
     if (value > stay.balance + PENNY) {
       throw new WalletError(`${stay.reference} only owes ${stay.balance.toLocaleString('en-IN')}.`);
     }
-    out.push({ reservationId: stay.reservationId, amount: value });
+    out.push({ lineKey: stay.lineKey, reservationId: stay.reservationId, billGuestId: stay.billGuestId, amount: value });
     sum += value;
   }
   if (sum > amount + PENNY) throw new WalletError('More is applied than the wallet holds.');
@@ -368,7 +412,9 @@ function settleAllocations(statement, amount, requested) {
 /** Pay each chosen bill from the company's wallet. */
 async function spendOnBills(propertyId, companyId, allocations, userId) {
   for (const a of allocations) {
-    await payFromWallet(propertyId, a.reservationId, { type: 'company', id: companyId }, a.amount, userId);
+    await payFromWallet(propertyId, a.reservationId, { type: 'company', id: companyId }, a.amount, userId, {
+      billGuestId: a.billGuestId || null,
+    });
   }
   return round(allocations.reduce((s, a) => s + a.amount, 0));
 }

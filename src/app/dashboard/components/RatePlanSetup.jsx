@@ -552,6 +552,7 @@ export function Drawer({
   saveLabel = "Save",
   busyLabel = "Saving...",
   cancelLabel = "Cancel",
+  saveDisabled = false,
   busy,
   error,
   children,
@@ -577,7 +578,7 @@ export function Drawer({
         style={{ maxWidth: 620, background: "var(--surface)", borderLeft: "1px solid var(--border)" }}
         onSubmit={(e) => {
           e.preventDefault();
-          if (!busy) onSave();
+          if (!busy && !saveDisabled) onSave();
         }}
       >
         <div
@@ -592,7 +593,7 @@ export function Drawer({
             <button type="button" className="btn btn-secondary" onClick={cancel} disabled={busy}>
               {cancelLabel}
             </button>
-            <button type="submit" className="btn btn-primary" disabled={busy}>
+            <button type="submit" className="btn btn-primary" disabled={busy || saveDisabled}>
               {busy ? busyLabel : saveLabel}
             </button>
           </div>

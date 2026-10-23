@@ -18,6 +18,14 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
+        text: "Two guests sharing a room can each have their own bill. Name both on the Guests tab, then on the Bill tab press Give each guest their own bill. The room is shared evenly (type a percent to change it), and each guest's invoice can go to their own company with its GSTIN. Each guest's row has its own Service, Collect and Invoice buttons, so nothing lands on the wrong bill. One invoice per guest issues both in one go, and each company's account on City Ledger shows only its own guest's bill.",
+      },
+      {
+        page: "reservations",
+        text: "Split a bill over more than one invoice. Open the booking, go to Bill, and press Issue invoice. Everything is ticked; untick the food (or any charge) and issue, and the room goes on that invoice with only its own tax. Or press One invoice per category to issue the room and the food as two invoices in one go. Until every charge is invoiced, the Bill tab tells you what is left. A charge already on an invoice cannot go on another one until you void it.",
+      },
+      {
+        page: "reservations",
         text: "Booking for someone else? Tick Booked by someone else on the booking and type who booked. The guest name stays the person staying. The booker is kept on the booking only and is not added to your guest list.",
       },
       {

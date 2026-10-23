@@ -2,7 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 // The Channel Manager's own resolver. Shared rather than reimplemented so a
 // booking and the grid cannot drift to different prices for the same night.
 import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/ratePlanPricing';
-import { folioTotals } from '@/lib/taxes';
+import { folioTotals, taxLinesFor } from '@/lib/taxes';
+import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
 import { toCountryCode } from '@/lib/countries';
 import { contractNights } from '@/lib/contractRates';
 import {
@@ -4808,7 +4809,7 @@ export async function listReservationExtras(reservationId) {
  * length is known to be what the line was priced against.
  */
 export async function addReservationExtra(reservationId, line) {
-  let { name, unit_price, quantity = 1, kind = 'extra', extra_id = null, stay_date = null } = line;
+  let { name, unit_price, quantity = 1, kind = 'extra', extra_id = null, stay_date = null, bill_guest_id = null } = line;
 
   if (extra_id) {
     const { data: menuItem, error } = await supabase
@@ -4839,11 +4840,13 @@ export async function addReservationExtra(reservationId, line) {
       quantity: Number(quantity) || 1,
       kind,
       stay_date,
+      // Whose bill, when guests sharing the room are billed apart (migration 056).
+      ...(bill_guest_id ? { bill_guest_id } : {}),
     })
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to add the line: ${error.message}`);
+  if (error) throw new Error(`Failed to add the line: ${migration056(error) || error.message}`);
   return data;
 }
 
@@ -4875,12 +4878,67 @@ export async function addReservationPayment(reservationId, payment, userId = nul
       notes: payment.notes?.trim() || null,
       paid_at: payment.paid_at || new Date().toISOString(),
       recorded_by: userId,
+      ...(payment.bill_guest_id ? { bill_guest_id: payment.bill_guest_id } : {}),
     })
     .select('*')
     .single();
 
-  if (error) throw new Error(`Failed to record the payment: ${error.message}`);
+  if (error) throw new Error(`Failed to record the payment: ${migration056(error) || error.message}`);
   return data;
+}
+
+/** The plain message for a write that needs migration 056 before it can save. */
+function migration056(error) {
+  return ['PGRST204', '42703'].includes(error?.code)
+    ? 'Separate bills need a database update (migration 056). Ask your administrator to apply it.'
+    : null;
+}
+
+/**
+ * Switch separate bills on or off for a booking. Not while an invoice
+ * stands: the room would be divided differently from what it says.
+ */
+export async function setSeparateBills(reservationId, on) {
+  const invoices = await listReservationInvoices(reservationId);
+  if (invoices.some((i) => !i.voided_at)) {
+    throw new Error('Void the invoices on this booking first; they were issued for the bill as it is now.');
+  }
+  if (on) {
+    const guests = await listReservationGuests(reservationId);
+    if (guests.length < 2) throw new Error('Add the other guest on the Guests tab first.');
+  }
+  const { error } = await supabase
+    .from('reservations')
+    .update({ separate_bills: Boolean(on), updated_at: new Date().toISOString() })
+    .eq('id', reservationId);
+  if (error) throw new Error(`Failed to change the bills: ${migration056(error) || error.message}`);
+}
+
+/**
+ * A sharer's share of the room (blank for an even split) and the company
+ * their invoices go to. A share cannot change once one of their room
+ * charges is invoiced.
+ */
+export async function setSharer(reservationId, guestId, { room_share, bill_company_id } = {}) {
+  const row = {};
+  if (room_share !== undefined) {
+    const share = room_share === null || room_share === '' ? null : Number(room_share);
+    if (share !== null && !(share >= 0 && share <= 100)) throw new Error('A share is a percent from 0 to 100.');
+    const invoices = await listReservationInvoices(reservationId);
+    if (invoices.some((i) => !i.voided_at && (i.snapshot?.charge_keys || ['room']).some((k) => k.startsWith('room') || k.startsWith('night:')))) {
+      throw new Error('The room is already invoiced. Void its invoices to change the shares.');
+    }
+    row.room_share = share;
+  }
+  if (bill_company_id !== undefined) row.bill_company_id = bill_company_id || null;
+  if (Object.keys(row).length === 0) return;
+
+  const { error } = await supabase
+    .from('reservation_guests')
+    .update(row)
+    .eq('id', guestId)
+    .eq('reservation_id', reservationId);
+  if (error) throw new Error(`Failed to save the share: ${migration056(error) || error.message}`);
 }
 
 /**
@@ -4987,6 +5045,10 @@ export async function getReservationFolio(reservationId) {
     amount: Number(g.amount.toFixed(2)),
     tax: Number(g.tax.toFixed(2)),
   }));
+  const nightsMatch = nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01;
+  // Guests sharing the room on bills of their own (migration 056).
+  const sharers = sharersOf(reservation, guests);
+  const charges = folioCharges({ reservation, nights, nightsMatch, extras, invoices, tax, roomCategory, categoryOf, room, sharers });
 
   return {
     reservation,
@@ -4995,9 +5057,13 @@ export async function getReservationFolio(reservationId) {
     payments,
     invoices,
     nights,
-    nightsMatch: nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01,
+    nightsMatch,
     taxes: tax.lines,
+    taxByKey: tax.byKey,
     categories,
+    charges,
+    sharers,
+    bills: sharerBills({ sharers, charges, payments, totals }),
     roomServiceId: roomService?.id || null,
     totals,
   };
@@ -5015,7 +5081,12 @@ export async function listReservationInvoices(reservationId) {
 }
 
 /**
- * Issue an invoice for a stay.
+ * Issue an invoice for a stay, or for some of its charges.
+ *
+ * `chargeKeys` picks the charges (from the folio's `charges`) the invoice
+ * carries; left out, it carries every charge not already on a standing
+ * invoice. So the room can go on one invoice and the food on another, and
+ * nothing goes on two. Each carries the tax on its own charges only.
  *
  * The document is frozen into `snapshot` rather than recomputed when opened:
  * an invoice must keep saying what it said on the day it was issued, even if
@@ -5025,43 +5096,87 @@ export async function listReservationInvoices(reservationId) {
  * simultaneous issues, so the unique constraint is the real guard and a
  * collision is retried with the next number up.
  */
-export async function createReservationInvoice(reservationId, userId = null) {
+export async function createReservationInvoice(reservationId, userId = null, { chargeKeys = null, sharerId = null } = {}) {
   const folio = await getReservationFolio(reservationId);
-  const { reservation, totals } = folio;
+  const { reservation, sharers } = folio;
   const property = await getPropertyById(reservation.property_id).catch(() => null);
-  const roomName = reservation.room_types?.room_type_name || 'room';
+
+  // With separate bills, an invoice is one sharer's, addressed to them or to
+  // their own company, and carries only their charges.
+  const sharer = sharers.length > 0 ? sharers.find((x) => x.id === sharerId) : null;
+  if (sharers.length > 0 && !sharer) throw new Error('Choose whose bill to invoice.');
+  const companyId = sharer ? sharer.companyId : reservation.bill_to === 'company' ? reservation.company_id : null;
   // Frozen with the rest: a company that later moves office or corrects its
   // GSTIN must not change an invoice already issued to it.
-  const company = reservation.company_id
-    ? await getCompany(reservation.property_id, reservation.company_id).catch(() => null)
+  const company = companyId || reservation.company_id
+    ? await getCompany(reservation.property_id, companyId || reservation.company_id).catch(() => null)
     : null;
 
-  // One line per night where the nights add up to the room charge, so the
-  // invoice shows how the total was reached; one line for the stay otherwise.
-  const roomLines = folio.nightsMatch && folio.nights.length > 0
-    ? folio.nights.map((n) => ({
-        description: `Accommodation: ${roomName}, night of ${n.stay_date}`,
-        quantity: 1,
-        unit_price: n.rate,
-        amount: n.rate,
-      }))
-    : reservation.stay_kind === 'day_use'
-      ? [
-          {
-            description: `Day use: ${roomName}, ${dayUseLabel(reservation.day_use_hours)} on ${reservation.check_in}`,
-            quantity: 1,
-            unit_price: totals.room,
-            amount: totals.room,
-          },
-        ]
-      : [
-        {
-          description: `Accommodation: ${roomName} (${folio.nights.length} night${
-            folio.nights.length === 1 ? '' : 's'
-          })`,
-          amount: totals.room,
-        },
-      ];
+  const open = folio.charges.filter((c) => !c.invoice && (!sharer || c.owner === sharer.id));
+  const wanted = chargeKeys ? new Set(chargeKeys) : null;
+  const picked = wanted ? open.filter((c) => wanted.has(c.key)) : open;
+  if (wanted && picked.length < wanted.size) {
+    throw new Error('Some of those charges are already on an invoice. Refresh and try again.');
+  }
+  // A stay with nothing charged (complimentary) can still be invoiced, once,
+  // as it always could; otherwise an invoice needs a charge to carry.
+  const liveInvoices = folio.invoices.filter((i) => !i.voided_at);
+  if (picked.length === 0 && (folio.charges.length > 0 || liveInvoices.length > 0)) {
+    throw new Error('Everything on this bill is already on an invoice.');
+  }
+
+  const whole = !sharer && picked.length === folio.charges.length;
+  const lineKeys = picked.flatMap((c) => c.keys.map((key) => ({ key, weight: c.weight ?? 1 })));
+  let taxes = whole ? folio.taxes : taxLinesFor(folio.taxByKey, lineKeys);
+
+  // The invoice that takes the last charges takes the last paise too, so the
+  // invoices of a stay add up to its bill exactly.
+  const completes = !whole && picked.length === folio.charges.filter((c) => !c.invoice).length;
+  if (completes) {
+    const before = {};
+    for (const inv of liveInvoices) {
+      for (const t of inv.snapshot?.taxes || []) before[t.name] = (before[t.name] || 0) + Number(t.amount);
+    }
+    const owed = {};
+    for (const t of folio.taxes) owed[t.name] = (owed[t.name] || 0) + Number(t.amount);
+    const seen = new Set();
+    taxes = taxes.map((t) => {
+      if (seen.has(t.name)) return t;
+      seen.add(t.name);
+      const rest = Number(((owed[t.name] || 0) - (before[t.name] || 0)).toFixed(2));
+      return Math.abs(rest - t.amount) < 0.05 ? { ...t, amount: rest } : t;
+    });
+  }
+
+  const sum = (rows) => Number(rows.reduce((s, c) => s + c.amount, 0).toFixed(2));
+  const roomCharge = sum(picked.filter((c) => c.room));
+  const extrasCharge = sum(picked.filter((c) => !c.room));
+  const taxAdded = Number(taxes.filter((t) => !t.inclusive).reduce((s, t) => s + t.amount, 0).toFixed(2));
+  const total = whole ? folio.totals.total : Number((roomCharge + extrasCharge + taxAdded).toFixed(2));
+
+  // Payments go to the stay (or the sharer), not to an invoice; each invoice
+  // shows what they cover of it, oldest standing invoice first.
+  const mine = (inv) => !sharer || inv.snapshot?.sharer_id === sharer.id;
+  const earlier = liveInvoices.filter(mine).reduce((s, i) => s + Number(i.total_amount), 0);
+  const bill = sharer ? folio.bills.find((b) => b.id === sharer.id) : null;
+  const paidSoFar = bill ? bill.paid : folio.totals.paid;
+  const paid = whole
+    ? folio.totals.paid
+    : Number(Math.min(total, Math.max(0, paidSoFar - earlier)).toFixed(2));
+  // A sharer's first invoice for their whole bill lists their payments.
+  const wholeOfSharer =
+    sharer && earlier === 0 && picked.length === folio.charges.filter((c) => c.owner === sharer.id).length;
+  const totals = whole
+    ? folio.totals
+    : {
+        room: roomCharge,
+        extras: extrasCharge,
+        tax: taxAdded,
+        taxIncluded: Number(taxes.filter((t) => t.inclusive).reduce((s, t) => s + t.amount, 0).toFixed(2)),
+        total,
+        paid,
+        balance: Number((total - paid).toFixed(2)),
+      };
 
   const year = new Date().getFullYear();
 
@@ -5092,7 +5207,7 @@ export async function createReservationInvoice(reservationId, userId = null) {
       : null,
     // Who the invoice is addressed to when it is not the guest.
     bill_to:
-      company && reservation.bill_to === 'company'
+      company && companyId
         ? {
             name: company.name,
             kind: company.kind,
@@ -5109,9 +5224,12 @@ export async function createReservationInvoice(reservationId, userId = null) {
         : null,
     company: company ? { name: company.name, kind: company.kind } : null,
     currency: reservation.currency || 'INR',
-    guest_name: reservation.guest_name,
-    guest_email: reservation.guest_email,
-    guest_phone: reservation.guest_phone,
+    guest_name: sharer ? sharer.name : reservation.guest_name,
+    guest_email: sharer ? sharer.email : reservation.guest_email,
+    guest_phone: sharer ? sharer.phone : reservation.guest_phone,
+    // Whose bill it is, when guests sharing the room are billed apart.
+    sharer_id: sharer?.id || null,
+    room_share: sharer ? Math.round(sharer.share * 100) / 100 : null,
     reference: reservation.reference,
     check_in: reservation.check_in,
     check_out: reservation.check_out,
@@ -5120,21 +5238,28 @@ export async function createReservationInvoice(reservationId, userId = null) {
     adults: reservation.adults,
     children: reservation.children,
     rate_plan: reservation.rate_plans?.plan_name || null,
-    lines: [
-      ...roomLines,
-      ...folio.extras
-        .filter((e) => e.kind === 'extra')
-        .map((e) => ({
-          description: e.name,
-          quantity: Number(e.quantity),
-          unit_price: Number(e.unit_price),
-          amount: Number(e.unit_price) * Number(e.quantity),
-        })),
-    ],
-    taxes: folio.taxes,
+    lines: picked.map((c) => ({
+      description: c.description,
+      quantity: c.quantity,
+      unit_price: c.unit_price,
+      amount: c.amount,
+    })),
+    // Which charges this invoice carries, so none goes on a second one, and
+    // the categories they fall under, for telling the invoices apart.
+    charge_keys: picked.map((c) => c.key),
+    categories: [...new Set(picked.map((c) => c.category))],
+    split: !whole,
+    taxes,
     guest_residency: reservation.guest_residency || 'domestic',
     totals,
-    payments: folio.payments.filter((p) => !p.voided_at).map((p) => ({
+    // The payments list belongs on an invoice for the whole bill; a split one
+    // shows only how much of it is paid.
+    payments: (whole
+      ? folio.payments
+      : wholeOfSharer
+        ? folio.payments.filter((p) => ownerOf(p, sharers) === sharer.id)
+        : []
+    ).filter((p) => !p.voided_at).map((p) => ({
       amount: Number(p.amount),
       method: p.method,
       paid_at: p.paid_at,
@@ -5151,7 +5276,7 @@ export async function createReservationInvoice(reservationId, userId = null) {
         reservation_id: reservationId,
         property_id: reservation.property_id,
         invoice_number,
-        total_amount: totals.total,
+        total_amount: total,
         currency: reservation.currency || 'INR',
         snapshot,
         created_by: userId,

@@ -316,14 +316,25 @@ export async function voidWalletTransaction(propertyId, id, reason, userId = nul
  * agent's on the booking. Never more than the wallet holds, nor more than
  * the bill still owes.
  */
-export async function payFromWallet(propertyId, reservationId, owner, amount, userId = null, { folio = null } = {}) {
+export async function payFromWallet(propertyId, reservationId, owner, amount, userId = null, { folio = null, billGuestId = null } = {}) {
   const value = round(Number(amount));
   if (!Number.isFinite(value) || value <= 0) throw new WalletError('Enter how much to take from the wallet.');
 
   const bill = folio || (await getReservationFolio(reservationId));
   const r = bill.reservation;
   if (r.property_id !== propertyId) throw new WalletError('Reservation not found.');
-  const allowed = owner.type === 'company' ? r.company_id === owner.id : r.guest_id === owner.id;
+  // With separate bills the payment goes on one sharer's bill: the one named,
+  // or the bill of the sharer this company is billed for.
+  const sharers = bill.sharers || [];
+  const sharer = sharers.length
+    ? sharers.find((s) => s.id === billGuestId) ||
+      (owner.type === 'company' ? sharers.find((s) => s.companyId === owner.id) : null) ||
+      sharers.find((s) => s.isPrimary)
+    : null;
+  const allowed =
+    owner.type === 'company'
+      ? r.company_id === owner.id || sharers.some((s) => s.companyId === owner.id)
+      : r.guest_id === owner.id;
   if (!allowed) {
     throw new WalletError(
       owner.type === 'company'
@@ -334,8 +345,9 @@ export async function payFromWallet(propertyId, reservationId, owner, amount, us
 
   const { balance } = await walletBalance(propertyId, owner);
   if (value > balance + PENNY) throw new WalletError(`The wallet only holds ${balance.toLocaleString('en-IN')}.`);
-  if (value > bill.totals.balance + PENNY) {
-    throw new WalletError(`The bill only owes ${Number(bill.totals.balance).toLocaleString('en-IN')}.`);
+  const owes = sharer ? (bill.bills || []).find((b) => b.id === sharer.id)?.balance ?? 0 : bill.totals.balance;
+  if (value > owes + PENNY) {
+    throw new WalletError(`The bill only owes ${Number(owes).toLocaleString('en-IN')}.`);
   }
 
   const { data, error } = await db()
@@ -346,6 +358,7 @@ export async function payFromWallet(propertyId, reservationId, owner, amount, us
       method: 'wallet',
       [paymentColumn(owner)]: owner.id,
       notes: owner.type === 'company' ? 'Paid from company wallet' : "Paid from guest's wallet",
+      ...(sharer ? { bill_guest_id: sharer.id } : {}),
       paid_at: new Date().toISOString(),
       recorded_by: userId,
     })
