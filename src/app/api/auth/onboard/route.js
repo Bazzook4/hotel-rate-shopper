@@ -49,6 +49,8 @@ export async function POST(request) {
   const email = body?.email?.trim().toLowerCase() || "";
   const password = body?.password ?? "";
   const totalRooms = Number(body?.totalRooms);
+  const contactName = body?.contactName?.trim().slice(0, 120) || "";
+  const contactPhone = body?.contactPhone?.trim().slice(0, 30) || "";
 
   // Bot traps: a field people cannot see, and a form sent too soon after it
   // opened. Told nothing useful, so a script has nothing to tune against.
@@ -75,6 +77,15 @@ export async function POST(request) {
   );
   if (starter.error) {
     return NextResponse.json({ error: starter.error }, { status: 400 });
+  }
+  if (!contactName) {
+    return NextResponse.json({ error: "Your name is required" }, { status: 400 });
+  }
+  if (contactPhone.replace(/\D/g, "").length < 10) {
+    return NextResponse.json(
+      { error: "Enter your mobile number, so we can reach you." },
+      { status: 400 }
+    );
   }
   const { profile, error: profileError } = validateProfile(body?.profile);
   if (profileError) {
@@ -135,6 +146,16 @@ export async function POST(request) {
     await savePropertyProfile(property.id, profile).catch((err) =>
       console.error("Could not save the property profile at onboarding:", err)
     );
+    // Who to call back. Saved apart for the same reason: before migration
+    // 057 the columns are missing, and that must not cost the hotel its
+    // account.
+    {
+      const { error: contactError } = await supabase
+        .from("properties")
+        .update({ contact_name: contactName, contact_phone: contactPhone })
+        .eq("id", property.id);
+      if (contactError) console.error("Could not save the contact at onboarding:", contactError.message);
+    }
 
     // The hotel's rooms and plans, every room sold on every plan. Rates are
     // left blank for the hotel to fill in under Rates & Inventory.

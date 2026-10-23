@@ -23,6 +23,8 @@ export default function OnboardPage() {
   const [linkState, setLinkState] = useState("checking");
   const [propertyName, setPropertyName] = useState("");
   const [totalRooms, setTotalRooms] = useState("");
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -81,6 +83,10 @@ export default function OnboardPage() {
       setError(starter.error);
       return;
     }
+    if (contactPhone.replace(/\D/g, "").length < 10) {
+      setError("Enter your mobile number, so we can reach you.");
+      return;
+    }
     const gaps = profileGaps(profile);
     if (gaps.length) {
       setError(`Still needed: ${gaps.join(", ")}.`);
@@ -97,6 +103,8 @@ export default function OnboardPage() {
           totalRooms: Number(totalRooms),
           roomTypes,
           planCodes,
+          contactName,
+          contactPhone,
           email,
           password,
           profile,
@@ -305,6 +313,36 @@ export default function OnboardPage() {
                   idPrefix="onboard"
                   showTypes={false}
                 />
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
+                <label className="block space-y-2 text-left">
+                  <span className={labelClass}>Your name</span>
+                  <input
+                    type="text"
+                    value={contactName}
+                    onChange={(e) => setContactName(e.target.value)}
+                    required
+                    autoComplete="name"
+                    className="input"
+                  />
+                </label>
+                <label className="block space-y-2 text-left">
+                  <span className={labelClass}>Your mobile</span>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    required
+                    autoComplete="tel"
+                    placeholder="WhatsApp number"
+                    className="input"
+                  />
+                </label>
+                <p className="text-xs text-ink/70 sm:col-span-2">
+                  So we can reach you to help set up. Not shown to guests.
+                </p>
               </div>
 
               <label className="block space-y-2 text-left">

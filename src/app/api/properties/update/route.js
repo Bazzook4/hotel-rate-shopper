@@ -26,7 +26,7 @@ const EDITABLE = [
  * many rooms the hotel can set up (lib/roomCap.js), so the hotel cannot raise
  * it itself.
  */
-const SUPER_ADMIN_ONLY = ["total_rooms"];
+const SUPER_ADMIN_ONLY = ["total_rooms", "contact_name", "contact_phone"];
 
 export async function PATCH(req) {
   const session = await getSessionFromRequest(req);

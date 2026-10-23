@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDialog } from "./Dialog";
+import Icon from "./Icon";
+import { whatsappNumber } from "../dashboard/components/frontDesk";
 
 const inputClass =
   "input mt-1";
@@ -21,6 +23,10 @@ const FIELDS = [
     note: "Set at sign-up. Ask Online Hotelier support to change it.",
     superNote: "Caps the rooms the hotel can set up. Leave blank for no limit.",
   },
+  // Who signed the hotel up, for Online Hotelier to reach. Not the hotel's
+  // own phone, which guests see.
+  { key: "contact_name", label: "Contact person", superOnly: true, hideFromOthers: true },
+  { key: "contact_phone", label: "Contact mobile", type: "tel", superOnly: true, hideFromOthers: true },
   { key: "phone", label: "Phone" },
   { key: "email", label: "Email", type: "email" },
   { key: "website", label: "Website" },
@@ -51,6 +57,31 @@ function Field({ field, value, onChange, readOnly = false }) {
         <span className="mt-1 block text-xs faint">{readOnly ? field.note : field.superNote}</span>
       )}
     </label>
+  );
+}
+
+/** Who signed the hotel up, the number opening a WhatsApp chat with them. */
+function ContactLine({ name, phone }) {
+  const digits = whatsappNumber(phone, "IN");
+  return (
+    <span className="mt-0.5 flex items-center gap-1.5 text-xs muted">
+      {name}
+      {phone &&
+        (digits ? (
+          <a
+            href={`https://wa.me/${digits}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 underline"
+            title="Open a WhatsApp chat"
+          >
+            <Icon name="chat" size={12} />
+            {phone}
+          </a>
+        ) : (
+          phone
+        ))}
+    </span>
   );
 }
 
@@ -472,7 +503,7 @@ export default function PropertyAdmin({ session }) {
             {form.id ? `Edit ${form.name}` : "New property"}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {FIELDS.map((f) => (
+            {FIELDS.filter((f) => canCreate || !f.hideFromOthers).map((f) => (
               <Field
                 key={f.key}
                 field={f}
@@ -539,6 +570,9 @@ export default function PropertyAdmin({ session }) {
                   <span className="block text-ink">{p.name}</span>
                   {p.email && (
                     <span className="block text-xs muted">{p.email}</span>
+                  )}
+                  {canCreate && (p.contact_name || p.contact_phone) && (
+                    <ContactLine name={p.contact_name} phone={p.contact_phone} />
                   )}
                 </td>
                 <td className="px-4 py-3 muted">

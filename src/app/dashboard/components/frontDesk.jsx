@@ -600,7 +600,7 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
  * known here; elsewhere the number must be stored with its +code). Null when
  * there is no usable number.
  */
-function whatsappNumber(phone, countryCode) {
+export function whatsappNumber(phone, countryCode) {
   const raw = String(phone || "").trim();
   let digits = raw.replace(/\D/g, "");
   if (!digits) return null;
