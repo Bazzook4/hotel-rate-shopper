@@ -4,20 +4,36 @@ import Icon from "./Icon";
 const SUPPORT_NUMBER = "918591756934";
 
 /**
- * The bar along the bottom of every page, holding Help via WhatsApp: a chat
- * with us, the hotel's name already written, so we know who is asking
- * without a first question.
+ * The bar along the bottom of every page: Help, and Feedback or a feature
+ * request, each a WhatsApp chat with us with the hotel's name already
+ * written, so we know who is asking without a first question.
  */
 export default function SupportBar({ propertyName, email }) {
-  const lines = [
-    "Hello, I need help with the software.",
-    "",
-    propertyName ? `Property: ${propertyName}` : null,
-    email ? `Login: ${email}` : null,
-    "",
-    "My question: ",
-  ].filter((l) => l !== null);
-  const href = `https://wa.me/${SUPPORT_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
+  const chat = (opening, ask) => {
+    const lines = [
+      opening,
+      "",
+      propertyName ? `Property: ${propertyName}` : null,
+      email ? `Login: ${email}` : null,
+      "",
+      ask,
+    ].filter((l) => l !== null);
+    return `https://wa.me/${SUPPORT_NUMBER}?text=${encodeURIComponent(lines.join("\n"))}`;
+  };
+  const links = [
+    {
+      label: "Feedback / Feature request",
+      short: "Feedback",
+      title: "Tell us what to improve or add, on WhatsApp",
+      href: chat("Hello, I have feedback or a feature request for the software.", "My idea: "),
+    },
+    {
+      label: "Help via WhatsApp",
+      short: "Help",
+      title: "Ask us on WhatsApp",
+      href: chat("Hello, I need help with the software.", "My question: "),
+    },
+  ];
 
   return (
     <footer
@@ -27,16 +43,23 @@ export default function SupportBar({ propertyName, email }) {
       <span className="min-w-0 truncate text-xs" style={{ color: "var(--text-muted)" }}>
         {propertyName || "Online Hotelier"}
       </span>
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="btn btn-ghost flex-shrink-0 px-2 py-0.5 text-xs"
-        title="Ask us on WhatsApp"
-      >
-        <Icon name="chat" size={14} />
-        Help via WhatsApp
-      </a>
+      <div className="flex flex-shrink-0 items-center gap-1.5">
+        {links.map((l) => (
+          <a
+            key={l.short}
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-ghost px-2 py-0.5 text-xs"
+            title={l.title}
+          >
+            <Icon name="chat" size={14} />
+            {/* The short name on a phone, where the bar has little room. */}
+            <span className="sm:hidden">{l.short}</span>
+            <span className="hidden sm:inline">{l.label}</span>
+          </a>
+        ))}
+      </div>
     </footer>
   );
 }

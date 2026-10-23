@@ -284,6 +284,56 @@ export default function PropertyAdmin({ session }) {
     }
   }
 
+  // Erases a hotel and all it holds, for trials no longer wanted. Asks
+  // twice: what will go, then the hotel's name typed back.
+  async function remove(property) {
+    setNotice("");
+    let info;
+    try {
+      const res = await fetch(`/api/properties/delete?id=${property.id}`);
+      info = await res.json();
+      if (!res.ok) throw new Error(info?.error || "Could not check the hotel");
+    } catch (err) {
+      setNotice(err.message);
+      return;
+    }
+    const plural = (n, one) => `${n} ${one}${n === 1 ? "" : "s"}`;
+    const typed = await dialog.prompt({
+      title: `Delete ${info.name} for good?`,
+      message:
+        `This erases the hotel and everything in it: ${plural(info.bookings, "booking")}, ` +
+        `${plural(info.guests, "guest")}, ${plural(info.rooms, "room")}, rates, bills and payments.` +
+        (info.users.length ? `\n\nThese logins are deleted too: ${info.users.join(", ")}.` : "") +
+        "\n\nIt cannot be undone.",
+      label: "Type the hotel name to confirm",
+      placeholder: info.name,
+      danger: true,
+      confirmLabel: "Delete hotel",
+    });
+    if (typed == null) return;
+    if (typed !== info.name.trim()) {
+      setNotice("The name did not match, so nothing was deleted.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/properties/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: property.id, name: typed }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Delete failed");
+      setNotice(`${info.name} and all its data were deleted.`);
+      setForm(null);
+      await load();
+    } catch (err) {
+      setNotice(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -547,6 +597,16 @@ export default function PropertyAdmin({ session }) {
             >
               Cancel
             </button>
+            {canCreate && form.id && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => remove(form)}
+                className="btn btn-danger ml-auto"
+              >
+                Delete hotel
+              </button>
+            )}
           </div>
         </div>
       )}
