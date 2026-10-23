@@ -6,6 +6,7 @@ import Link from "next/link";
 import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
 import AccountMenu from "./components/AccountMenu";
 import ThemeToggle from "./components/ThemeToggle";
+import SupportButton from "./components/SupportButton";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
@@ -585,6 +586,7 @@ export default function V2Dashboard() {
             >
               Admin
             </Link>
+            <SupportButton propertyName={scopedSession?.propertyName} email={session?.email} />
             <ThemeToggle />
             <AccountMenu email={session?.email} />
           </div>

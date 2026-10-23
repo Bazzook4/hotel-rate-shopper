@@ -188,6 +188,7 @@ const PATHS = {
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
   arrowDown: <path d="M12 5v14M6 13l6 6 6-6" />,
   download: <path d="M12 4v11M7 10l5 5 5-5M5 20h14" />,
+  chat: <path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5Z" />,
 };
 
 export default function Icon({ name, size = 18, className = "", strokeWidth = 1.6, filled = false }) {

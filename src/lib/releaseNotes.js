@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Ask us for help on WhatsApp",
+    points: [
+      {
+        page: "today",
+        text: "A Help button at the top of every page opens a WhatsApp chat with our support team, with your hotel's name already written in the message.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Guests on a booking match its adults and children",
     points: [
       {
