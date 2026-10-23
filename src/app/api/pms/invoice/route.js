@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { getReservationInvoice, getPropertyById } from "@/lib/database";
+import { getHotelBrand } from "@/lib/hotelBrand";
 
 /**
  * An issued invoice as a PDF the desk can download, print or email.
@@ -15,10 +16,15 @@ import { getReservationInvoice, getPropertyById } from "@/lib/database";
  * print them. Only Latin-1 survives those fonts, so every string is passed
  * through `plain` before it is drawn rather than letting one guest's name
  * with an unusual character fail the whole document.
+ *
+ * The hotel's logo is the one it has today, not frozen like the rest: it is
+ * the hotel's look, not something the invoice states, and a replaced logo's
+ * old file is deleted anyway.
  */
 
 const PAGE = { width: 595.28, height: 841.89 }; // A4, in points
 const MARGIN = 48;
+const LOGO = { width: 120, height: 60 }; // the box a logo is scaled down to fit
 
 function plain(value) {
   return String(value ?? "")
@@ -52,7 +58,28 @@ function describe(line) {
   );
 }
 
-async function renderInvoice(invoice, fallbackProperty) {
+/**
+ * The hotel's logo ready to draw, or null. pdf-lib draws only PNG and JPG, so
+ * a WebP logo is turned into a PNG first. A logo that cannot be had leaves the
+ * invoice without one rather than failing it.
+ */
+async function loadLogo(pdf, url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes[0] === 0x89 && bytes[1] === 0x50) return await pdf.embedPng(bytes);
+    if (bytes[0] === 0xff && bytes[1] === 0xd8) return await pdf.embedJpg(bytes);
+    const sharp = (await import("sharp")).default;
+    return await pdf.embedPng(await sharp(bytes).png().toBuffer());
+  } catch (err) {
+    console.error("Invoice logo skipped:", err.message);
+    return null;
+  }
+}
+
+async function renderInvoice(invoice, fallbackProperty, logoUrl) {
   const snap = invoice.snapshot || {};
   // Invoices issued before taxes existed carry no `taxes`, and print as before.
   const taxes = snap.taxes || [];
@@ -63,47 +90,136 @@ async function renderInvoice(invoice, fallbackProperty) {
   pdf.setTitle(`Invoice ${invoice.invoice_number}`);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const logo = await loadLogo(pdf, logoUrl);
 
   const ink = rgb(0.1, 0.1, 0.12);
   const muted = rgb(0.42, 0.42, 0.46);
   const rule = rgb(0.82, 0.82, 0.85);
 
+  const shade = rgb(0.94, 0.94, 0.96);
+
   let page = pdf.addPage([PAGE.width, PAGE.height]);
   let y = PAGE.height - MARGIN;
   const right = PAGE.width - MARGIN;
+  const width = right - MARGIN;
 
-  const text = (str, x, opts = {}) => {
+  /** Draw at a given baseline; `text` below draws on the running `y`. */
+  const put = (str, x, at, opts = {}) => {
     const f = opts.bold ? bold : font;
     const size = opts.size || 10;
     const s = plain(str);
-    const at = opts.align === "right" ? x - f.widthOfTextAtSize(s, size) : x;
-    page.drawText(s, { x: at, y, size, font: f, color: opts.color || ink });
+    const left = opts.align === "right" ? x - f.widthOfTextAtSize(s, size) : x;
+    page.drawText(s, { x: left, y: at, size, font: f, color: opts.color || ink });
   };
+  const text = (str, x, opts = {}) => put(str, x, y, opts);
 
-  const line = (from = MARGIN, to = right) => {
-    page.drawLine({
-      start: { x: from, y },
-      end: { x: to, y },
-      thickness: 0.6,
-      color: rule,
-    });
-  };
-
-  /** Start a fresh page when the next row would run into the bottom margin. */
+  /** Start a fresh page when the next block would run into the bottom margin. */
   const ensure = (needed) => {
-    if (y - needed > MARGIN) return;
+    if (y - needed > MARGIN) return false;
     page = pdf.addPage([PAGE.width, PAGE.height]);
     y = PAGE.height - MARGIN;
+    return true;
   };
 
-  // ---- Header: issuer on the left, the document on the right ----
-  text(property.name || "Invoice", MARGIN, { bold: true, size: 16 });
+  /** Break a string into lines that fit `max` points; a word too long for a line is cut. */
+  const wrap = (str, max, f, size) => {
+    const out = [];
+    let cur = "";
+    for (const word of plain(str).split(/\s+/).filter(Boolean)) {
+      const next = cur ? `${cur} ${word}` : word;
+      if (f.widthOfTextAtSize(next, size) <= max) {
+        cur = next;
+        continue;
+      }
+      if (cur) out.push(cur);
+      let w = word;
+      while (w.length > 3 && f.widthOfTextAtSize(w, size) > max) w = `${w.slice(0, -4)}...`;
+      cur = w;
+    }
+    if (cur) out.push(cur);
+    return out.length > 0 ? out : [""];
+  };
+
+  const PAD = 6;
+  const LEAD = 12;
+
+  /**
+   * A bordered table. `columns` are { label, width, align }, one of them may
+   * leave out its width to take what is left. Each row is { cells, bold, fill }
+   * and a cell is a string or a list of lines. A table that runs past the page
+   * carries on with its header row repeated on the next one.
+   */
+  const table = (columns, rows, opts = {}) => {
+    const x0 = opts.x ?? MARGIN;
+    const total = opts.width ?? width;
+    const fixed = columns.reduce((sum, c) => sum + (c.width || 0), 0);
+    const widths = columns.map((c) => c.width || total - fixed);
+    const size = opts.size || 9;
+
+    const drawRow = (row) => {
+      const f = row.bold ? bold : font;
+      const lines = row.cells.map((cell, i) =>
+        (Array.isArray(cell) ? cell : [cell])
+          .filter((v) => v != null && v !== "")
+          .flatMap((v) => wrap(v, widths[i] - PAD * 2, f, size))
+      );
+      const h = Math.max(1, ...lines.map((l) => l.length)) * LEAD + PAD;
+      if (ensure(h) && !row.header && opts.header !== false) drawRow(headerRow);
+
+      if (row.fill) page.drawRectangle({ x: x0, y: y - h, width: total, height: h, color: row.fill });
+      page.drawRectangle({
+        x: x0,
+        y: y - h,
+        width: total,
+        height: h,
+        borderColor: rule,
+        borderWidth: 0.6,
+      });
+      let cx = x0;
+      lines.forEach((cellLines, i) => {
+        if (i > 0) {
+          page.drawLine({ start: { x: cx, y }, end: { x: cx, y: y - h }, thickness: 0.6, color: rule });
+        }
+        const alignRight = columns[i].align === "right";
+        cellLines.forEach((l, n) => {
+          put(l, alignRight ? cx + widths[i] - PAD : cx + PAD, y - PAD - size + 1 - n * LEAD, {
+            size,
+            bold: row.bold || (row.boldFirst && n === 0),
+            color: row.header ? muted : ink,
+            align: alignRight ? "right" : "left",
+          });
+        });
+        cx += widths[i];
+      });
+      y -= h;
+    };
+
+    const headerRow = { cells: columns.map((c) => c.label), bold: true, fill: shade, header: true };
+    if (opts.header !== false) drawRow(headerRow);
+    rows.forEach(drawRow);
+  };
+
+  // ---- Header: logo and issuer on the left, the document's name on the right ----
+  const top = y;
+  let issuerX = MARGIN;
+  let logoBottom = top;
+  if (logo) {
+    const scale = Math.min(LOGO.width / logo.width, LOGO.height / logo.height, 1);
+    const w = logo.width * scale;
+    const h = logo.height * scale;
+    page.drawImage(logo, { x: MARGIN, y: top - h, width: w, height: h });
+    issuerX = MARGIN + w + 14;
+    logoBottom = top - h;
+  }
+
+  y = top - 14;
+  text(property.name || "Invoice", issuerX, { bold: true, size: 16 });
   text(taxes.length > 0 ? "TAX INVOICE" : "INVOICE", right, {
     bold: true,
-    size: 12,
+    size: 13,
     align: "right",
   });
-  y -= 16;
+  y -= 15;
 
   const issuerLines = [
     property.address,
@@ -112,18 +228,11 @@ async function renderInvoice(invoice, fallbackProperty) {
     [property.phone, property.email].filter(Boolean).join("  |  "),
     property.gstin ? `GSTIN: ${property.gstin}` : null,
   ].filter(Boolean);
-
-  const docLines = [
-    `Invoice no. ${invoice.invoice_number}`,
-    `Issued ${day(invoice.issued_at)}`,
-    `Booking ${snap.reference || "-"}`,
-  ];
-
-  for (let i = 0; i < Math.max(issuerLines.length, docLines.length); i += 1) {
-    if (issuerLines[i]) text(issuerLines[i], MARGIN, { size: 9, color: muted });
-    if (docLines[i]) text(docLines[i], right, { size: 9, color: muted, align: "right" });
+  for (const l of issuerLines) {
+    text(l, issuerX, { size: 9, color: muted });
     y -= 12;
   }
+  y = Math.min(y, logoBottom) - 10;
 
   if (invoice.voided_at) {
     y -= 4;
@@ -135,16 +244,7 @@ async function renderInvoice(invoice, fallbackProperty) {
     y -= 14;
   }
 
-  y -= 8;
-  line();
-  y -= 18;
-
-  // ---- Guest and stay ----
-  const col2 = MARGIN + (right - MARGIN) / 2;
-  text("Billed to", MARGIN, { bold: true, size: 9, color: muted });
-  text("Stay", col2, { bold: true, size: 9, color: muted });
-  y -= 13;
-
+  // ---- Invoice, billed to and stay ----
   // Billed to a company, the invoice carries its name, address and GSTIN so
   // the company can claim the input credit, and names the guest who stayed.
   const bill = snap.bill_to;
@@ -155,8 +255,8 @@ async function renderInvoice(invoice, fallbackProperty) {
         [bill.city, bill.state, bill.postal_code].filter(Boolean).join(", "),
         bill.gstin ? `GSTIN: ${bill.gstin}` : null,
         `Guest: ${snap.guest_name}`,
-      ].filter(Boolean)
-    : [snap.guest_name, snap.guest_email, snap.guest_phone].filter(Boolean);
+      ]
+    : [snap.guest_name, snap.guest_email, snap.guest_phone];
   const stayLines = [
     `${day(snap.check_in)} to ${day(snap.check_out)}`,
     [snap.room_type, snap.room_number ? `Room ${snap.room_number}` : null]
@@ -164,50 +264,47 @@ async function renderInvoice(invoice, fallbackProperty) {
       .join(", "),
     snap.rate_plan ? `Rate plan: ${snap.rate_plan}` : null,
     `${snap.adults ?? "-"} adult(s), ${snap.children ?? 0} child(ren)`,
-  ].filter(Boolean);
+  ];
+  const docLines = [
+    `No. ${invoice.invoice_number}`,
+    `Issued ${day(invoice.issued_at)}`,
+    `Booking ${snap.reference || "-"}`,
+  ];
 
-  for (let i = 0; i < Math.max(guestLines.length, stayLines.length); i += 1) {
-    if (guestLines[i]) text(guestLines[i], MARGIN, { size: 10, bold: i === 0 });
-    if (stayLines[i]) text(stayLines[i], col2, { size: 10 });
-    y -= 13;
-  }
+  table(
+    [
+      { label: "Invoice", width: 140 },
+      { label: "Billed to" },
+      { label: "Stay", width: 170 },
+    ],
+    [{ cells: [docLines, guestLines, stayLines], boldFirst: true }],
+    { size: 9.5 }
+  );
 
-  y -= 12;
-
-  // ---- Lines ----
-  const cols = { qty: right - 190, unit: right - 100, amount: right };
-
-  const header = () => {
-    text("Description", MARGIN, { bold: true, size: 9, color: muted });
-    text("Qty", cols.qty, { bold: true, size: 9, color: muted, align: "right" });
-    text("Unit price", cols.unit, { bold: true, size: 9, color: muted, align: "right" });
-    text("Amount", cols.amount, { bold: true, size: 9, color: muted, align: "right" });
-    y -= 6;
-    line();
-    y -= 13;
-  };
-  header();
-
-  for (const l of snap.lines || []) {
-    ensure(20);
-    // Long descriptions are cut to the column rather than drawn over the numbers.
-    let desc = describe(l);
-    const maxWidth = cols.qty - 40 - MARGIN;
-    while (desc.length > 3 && font.widthOfTextAtSize(desc, 10) > maxWidth) {
-      desc = `${desc.slice(0, -4)}...`;
-    }
-    text(desc, MARGIN);
-    if (l.quantity != null) text(String(l.quantity), cols.qty, { align: "right" });
-    if (l.unit_price != null) text(money(l.unit_price, currency), cols.unit, { align: "right" });
-    text(money(l.amount, currency), cols.amount, { align: "right" });
-    y -= 15;
-  }
-
-  y -= 2;
-  line();
   y -= 16;
 
-  // ---- Totals ----
+  // ---- Charges ----
+  const lines = snap.lines || [];
+  table(
+    [
+      { label: "#", width: 26, align: "right" },
+      { label: "Description" },
+      { label: "Qty", width: 42, align: "right" },
+      { label: "Unit price", width: 96, align: "right" },
+      { label: "Amount", width: 100, align: "right" },
+    ],
+    lines.map((l, i) => ({
+      cells: [
+        String(i + 1),
+        describe(l),
+        l.quantity != null ? String(l.quantity) : "",
+        l.unit_price != null ? money(l.unit_price, currency) : "",
+        money(l.amount, currency),
+      ],
+    }))
+  );
+
+  // ---- Totals, under the amounts ----
   const totals = snap.totals || {};
   // A split invoice carries only some of the stay's charges; a heading with
   // nothing under it would only make the reader look for what is missing.
@@ -220,34 +317,39 @@ async function renderInvoice(invoice, fallbackProperty) {
     ["Paid", totals.paid],
     ["Balance due", totals.balance, true],
   ];
-  for (const [label, value, strong] of totalRows) {
-    ensure(18);
-    text(label, cols.unit, { bold: strong, align: "right", size: strong ? 11 : 10 });
-    text(money(value, currency), cols.amount, {
+  const totalsWidth = 238;
+  table(
+    [{ label: "" }, { label: "", width: 100, align: "right" }],
+    totalRows.map(([label, value, strong]) => ({
+      cells: [label, money(value, currency)],
       bold: strong,
-      align: "right",
-      size: strong ? 11 : 10,
-    });
-    y -= strong ? 17 : 14;
-  }
+      fill: strong ? shade : undefined,
+    })),
+    { x: right - totalsWidth, width: totalsWidth, header: false, size: 9.5 }
+  );
 
   // ---- Payments received ----
   if ((snap.payments || []).length > 0) {
-    y -= 12;
-    ensure(40);
-    text("Payments received", MARGIN, { bold: true, size: 9, color: muted });
-    y -= 6;
-    line();
-    y -= 13;
-    for (const p of snap.payments) {
-      ensure(16);
-      const label = [day(p.paid_at), String(p.method || "").replace(/_/g, " "), p.reference]
-        .filter(Boolean)
-        .join("  |  ");
-      text(label, MARGIN, { size: 9 });
-      text(money(p.amount, currency), cols.amount, { size: 9, align: "right" });
-      y -= 13;
-    }
+    y -= 18;
+    ensure(60);
+    text("Payments received", MARGIN, { bold: true, size: 10 });
+    y -= 8;
+    table(
+      [
+        { label: "Date", width: 90 },
+        { label: "Method", width: 110 },
+        { label: "Reference" },
+        { label: "Amount", width: 100, align: "right" },
+      ],
+      snap.payments.map((p) => ({
+        cells: [
+          day(p.paid_at),
+          String(p.method || "").replace(/_/g, " "),
+          p.reference || "",
+          money(p.amount, currency),
+        ],
+      }))
+    );
   }
 
   // ---- Footer on every page ----
@@ -291,7 +393,9 @@ export async function GET(req) {
       ? null
       : await getPropertyById(invoice.property_id).catch(() => null);
 
-    const bytes = await renderInvoice(invoice, fallback);
+    const brand = await getHotelBrand(invoice.property_id).catch(() => null);
+
+    const bytes = await renderInvoice(invoice, fallback, brand?.logoUrl);
 
     return new NextResponse(Buffer.from(bytes), {
       headers: {

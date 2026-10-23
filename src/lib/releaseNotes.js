@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-23",
+    title: "Invoices show your logo, laid out in tables",
+    points: [
+      {
+        page: "reservations",
+        text: "Invoices now carry your hotel logo at the top. The invoice number, who it is billed to and the stay sit side by side in one box, and the charges, totals and payments are each in a ruled table that is easy to read and check. Add or change the logo in Property Setup.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-23",
     title: "Explore: every feature and where to find it",
     points: [
       {
