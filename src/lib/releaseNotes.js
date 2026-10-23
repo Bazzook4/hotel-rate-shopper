@@ -22,6 +22,10 @@ export const RELEASE_NOTES = [
       },
       {
         page: "today",
+        text: "Finish setup on the Today page now lists only the steps every hotel needs. Connecting a channel manager and linking your Google listing are no longer on the list; you can still do both whenever you want.",
+      },
+      {
+        page: "today",
         text: "The bar along the bottom now also has Feedback / Feature request, which opens a WhatsApp chat with us so you can tell us what to improve or add.",
       },
     ],

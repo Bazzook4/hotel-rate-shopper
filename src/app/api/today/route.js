@@ -7,7 +7,6 @@ import { getNightAudit, getStillOwing, localToday, normaliseTz } from "@/lib/fin
 import { getBookingPerformance } from "@/lib/reports";
 import { getFormC } from "@/lib/guestRegister";
 import {
-  getPropertyById,
   getPropertyIntegration,
   listPropertyTaxes,
   listRatePlanRooms,
@@ -152,16 +151,13 @@ async function distributionPart(propertyId) {
 
 /** The setup steps a new property works through, in the order they depend on each other. */
 async function setupPart(propertyId) {
-  const [property, roomTypes, rooms, plans, planRooms, taxes, found] = await Promise.all([
-    getPropertyById(propertyId),
+  const [roomTypes, rooms, plans, planRooms, taxes] = await Promise.all([
     listRoomTypes(propertyId),
     listRooms(propertyId, { includeInactive: false }),
     listRatePlans(propertyId),
     listRatePlanRooms(propertyId),
     listPropertyTaxes(propertyId),
-    getPropertyIntegration(propertyId, "aiosell").catch(() => null),
   ]);
-  const integration = found?.integration;
   const steps = [
     {
       id: "roomTypes",
@@ -197,20 +193,6 @@ async function setupPart(propertyId) {
       label: "Set up taxes",
       hint: "So invoices charge the right tax. Indian GST can be added in one click.",
       done: taxes.length > 0,
-    },
-    {
-      id: "channel",
-      page: "integrations",
-      label: "Connect your channel manager",
-      hint: "Enter your hotel code and switch it on, so rates and availability reach the OTAs.",
-      done: Boolean(integration?.enabled && integration?.hotel_code),
-    },
-    {
-      id: "google",
-      page: "setup",
-      label: "Link your Google listing",
-      hint: "Rate Parity and Competitor Shopper find your hotel through it.",
-      done: Boolean(property?.google_place_query),
     },
   ];
   return { steps, done: steps.filter((s) => s.done).length, total: steps.length };
