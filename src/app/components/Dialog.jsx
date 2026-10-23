@@ -21,7 +21,7 @@ import Select from "@/app/components/Select";
 const DialogContext = createContext(null);
 
 function DialogBox({ request, onDone }) {
-  const { kind, title, message, label, placeholder, options = [], danger, inputMode } = request;
+  const { kind, title, message, label, placeholder, options = [], danger, inputMode, minLength = 0 } = request;
   const [value, setValue] = useState(
     request.value ?? (kind === "choose" ? options[0]?.value ?? "" : "")
   );
@@ -31,11 +31,14 @@ function DialogBox({ request, onDone }) {
 
   const cancel = useCallback(() => onDone(kind === "confirm" ? false : null), [kind, onDone]);
   const required = kind === "prompt" && request.required !== false;
-  const blocked = (required && !String(value).trim()) || (kind === "choose" && !value);
+  // `trim: false` keeps the answer exactly as typed, as for a password.
+  const answer = request.trim === false ? String(value) : String(value).trim();
+  const short = kind === "prompt" && answer && answer.length < minLength;
+  const blocked = (required && !answer) || short || (kind === "choose" && !value);
 
   function ok() {
     if (blocked) return;
-    onDone(kind === "confirm" ? true : kind === "prompt" ? String(value).trim() : value);
+    onDone(kind === "confirm" ? true : kind === "prompt" ? answer : value);
   }
 
   // A dangerous answer (discard, delete, void) is never the one Enter gives:
@@ -74,9 +77,15 @@ function DialogBox({ request, onDone }) {
               className="input w-full"
               placeholder={placeholder}
               inputMode={inputMode}
+              autoComplete="off"
               value={value}
               onChange={(e) => setValue(e.target.value)}
             />
+            {short && (
+              <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                Use at least {minLength} characters.
+              </p>
+            )}
           </div>
         )}
         {kind === "choose" && (

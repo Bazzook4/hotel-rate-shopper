@@ -12,8 +12,9 @@ import { useEscape } from "./useEscape";
  *
  * With a label it is a bordered "More" button for a toolbar, as on a
  * booking; without one, the small dots button at the end of a grid row.
+ * `buttonClass` restyles the button, as for the top bar's Account menu.
  */
-export default function RowMenu({ title, items, label }) {
+export default function RowMenu({ title, items, label, buttonClass }) {
   const [at, setAt] = useState(null);
   const [sub, setSub] = useState(null);
   useEscape(() => {
@@ -65,7 +66,7 @@ export default function RowMenu({ title, items, label }) {
         ref={btn}
         type="button"
         onClick={toggle}
-        className={label ? "btn btn-secondary text-sm" : "btn btn-ghost px-2 py-0.5 text-base leading-none"}
+        className={buttonClass || (label ? "btn btn-secondary text-sm" : "btn btn-ghost px-2 py-0.5 text-base leading-none")}
         style={label ? undefined : { color: "var(--accent)" }}
         aria-haspopup="menu"
         aria-expanded={Boolean(at)}

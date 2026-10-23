@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./dashboard/modules";
-import LogoutButton from "./components/LogoutButton";
+import AccountMenu from "./components/AccountMenu";
 import ThemeToggle from "./components/ThemeToggle";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
@@ -586,7 +586,7 @@ export default function V2Dashboard() {
               Admin
             </Link>
             <ThemeToggle />
-            <LogoutButton className="whitespace-nowrap" />
+            <AccountMenu email={session?.email} />
           </div>
         </header>
 

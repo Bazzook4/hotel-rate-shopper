@@ -992,6 +992,18 @@ export async function listUsersForActor({ propertyId = null } = {}) {
   return users.map((u) => ({ ...u, properties: byUser[u.id] || [] }));
 }
 
+/** Replace a user's password with an already-hashed one. */
+export async function setUserPassword(userId, passwordHash) {
+  const { error } = await supabase
+    .from('users')
+    .update({ password_hash: passwordHash, updated_at: new Date().toISOString() })
+    .eq('id', userId);
+
+  if (error) {
+    throw new Error(`Failed to change password: ${error.message}`);
+  }
+}
+
 /**
  * Update a user's role, status and property link.
  * Modules are handled separately by setUserModules.

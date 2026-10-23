@@ -16,6 +16,7 @@ import {
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
 import Select from "@/app/components/Select";
+import { MIN_PASSWORD_LENGTH } from "@/lib/passwordRules";
 
 /**
  * Users and what each may open, as one grid: a row per page, grouped by
@@ -183,6 +184,30 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
     else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
   }
 
+  /**
+   * Set a new password for someone who has forgotten theirs. Saved at once.
+   * Shown as typed, not hidden: the admin is about to tell it to them, and a
+   * hidden typo would lock them out again.
+   */
+  async function resetPassword(col) {
+    const password = await dialog.prompt({
+      title: `New password for ${col.email}`,
+      message: "Tell them; they can change it from Account at the top.",
+      minLength: MIN_PASSWORD_LENGTH,
+      trim: false,
+      confirmLabel: "Set password",
+    });
+    if (password === null) return;
+    setError(null);
+    setNotice(null);
+    try {
+      await sendJSON("/api/users", "PATCH", { id: col.id, password });
+      setNotice(`Password changed for ${col.email}.`);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const roleOptions = [ROLES.PROPERTY_ADMIN, ROLES.PROPERTY_USER].map((r) => ({
     id: r,
     label: ROLE_LABEL[r],
@@ -207,9 +232,21 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
     }
     if (!isDraft(col.id)) {
       return (
-        <span className="block truncate text-ink" style={{ ...plain, maxWidth: 160 }} title={col.email}>
-          {col.email}
-        </span>
+        <div className="flex items-center gap-1" style={plain}>
+          <span className="block truncate text-ink" style={{ maxWidth: editable(col) ? 110 : 160 }} title={col.email}>
+            {col.email}
+          </span>
+          {editable(col) && (
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              title={`Reset password for ${col.email}`}
+              onClick={() => resetPassword(col)}
+            >
+              Password
+            </button>
+          )}
+        </div>
       );
     }
     // Header cells do not wrap, so each box sits in its own block or the

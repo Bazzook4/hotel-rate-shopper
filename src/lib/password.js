@@ -12,6 +12,8 @@ function decode(str) {
   return Buffer.from(str, "base64");
 }
 
+export { MIN_PASSWORD_LENGTH, passwordProblem } from "./passwordRules";
+
 /**
  * Hash a plain-text password using Node's built-in scrypt implementation.
  * The result is stored as `scrypt:<salt>:<hash>` in base64.

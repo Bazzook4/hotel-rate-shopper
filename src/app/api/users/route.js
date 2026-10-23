@@ -8,6 +8,7 @@ import {
   listUsersForActor,
   listUsersForProperty,
   updateUserAccount,
+  setUserPassword,
   getUserById,
   getUserPropertyId,
 } from "@/lib/database";
@@ -19,7 +20,7 @@ import {
   assignableRoles,
   isPropertyScopedUser,
 } from "@/lib/permissions";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, passwordProblem } from "@/lib/password";
 import { ALL_MODULE_IDS, propertyCeiling } from "@/lib/rights";
 import { SETUP_PAGES, normaliseGrants } from "@/app/dashboard/modules";
 
@@ -113,6 +114,8 @@ export async function POST(request) {
   if (!email || !password) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
   }
+  const weak = passwordProblem(password);
+  if (weak) return NextResponse.json({ error: weak }, { status: 400 });
 
   // A property admin must not be able to create a role above their own.
   const allowedRoles = assignableRoles(session).map((r) => r.value);
@@ -211,6 +214,12 @@ export async function PATCH(request) {
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
+  // A new password set by an admin, for staff who have forgotten theirs.
+  if (body.password !== undefined) {
+    const weak = passwordProblem(body.password);
+    if (weak) return NextResponse.json({ error: weak }, { status: 400 });
+  }
+
   const modules = Array.isArray(body.modules) ? normaliseGrants(body.modules) : null;
   if (modules) {
     const propertyId = body.propertyId !== undefined ? body.propertyId : targetProperty;
@@ -225,6 +234,14 @@ export async function PATCH(request) {
       propertyId: body.propertyId,
     });
     if (modules) await saveRights(body.id, user.role, modules);
+    if (body.password !== undefined) {
+      try {
+        await setUserPassword(body.id, hashPassword(body.password));
+      } catch (err) {
+        console.error("Password reset failed", err);
+        return NextResponse.json({ error: "Password not changed. Please try again." }, { status: 500 });
+      }
+    }
     return NextResponse.json({ user });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

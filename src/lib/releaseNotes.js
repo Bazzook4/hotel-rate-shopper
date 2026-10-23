@@ -13,6 +13,19 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-23",
+    title: "Change your password",
+    points: [
+      {
+        text: "New Account button at the top of every page, with Change password and Sign out. Type your current password and the new one twice to change it.",
+      },
+      {
+        page: "users",
+        text: "Staff forgot their password? On Users & rights, click Password next to their name and give them a new one. Forgot your own? The sign-in page now says to ask your hotel admin.",
+      },
+    ],
+  },
+  {
     date: "2026-10-22",
     title: "Cash book, police report and Form C",
     points: [

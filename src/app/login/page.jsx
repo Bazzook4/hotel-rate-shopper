@@ -89,6 +89,9 @@ export default function LoginPage() {
         >
           {loading ? "Signing in..." : "Sign in"}
         </button>
+        <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
+          Forgot your password? Ask your hotel admin to reset it.
+        </p>
       </form>
     </div>
   );
