@@ -10,6 +10,7 @@ import { countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { shrink } from "./GuestIdPhotos";
 import Icon from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -456,6 +457,63 @@ function SettleDialog({ request, onDone }) {
   );
 }
 
+/** Print an issued invoice's PDF from a hidden frame, without leaving the page. */
+export function printInvoicePdf(invoiceId) {
+  const url = `/api/pms/invoice?id=${invoiceId}&inline=1`;
+  const frame = document.createElement("iframe");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  frame.src = url;
+  frame.onload = () => {
+    try {
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    } catch {
+      // Some browsers will not print a PDF from a frame; a tab can.
+      window.open(url, "_blank", "noopener");
+    }
+    setTimeout(() => frame.remove(), 60000);
+  };
+  document.body.appendChild(frame);
+}
+
+async function folioPost(body) {
+  const res = await fetch("/api/pms/folio", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "The invoice could not be issued.");
+  return data;
+}
+
+/**
+ * The guest's invoice as they leave: whatever is not yet invoiced is issued
+ * now (one invoice per guest when the room keeps separate bills), then every
+ * standing invoice of the stay is printed, so they walk out with all of it.
+ * Returns how many were printed.
+ */
+async function issueAndPrintInvoices(reservationId) {
+  const res = await fetch(`/api/pms/folio?reservationId=${reservationId}`);
+  let folio = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(folio.error || "The bill could not be read.");
+
+  const open = (folio.charges || []).filter((c) => !c.invoice);
+  const live = () => (folio.invoices || []).filter((i) => !i.voided_at);
+  if ((folio.sharers || []).length > 0) {
+    for (const x of folio.sharers.filter((x) => open.some((c) => c.owner === x.id))) {
+      folio = await folioPost({ kind: "invoice", reservationId, sharerId: x.id });
+    }
+  } else if (open.length > 0 || live().length === 0) {
+    // A stay with nothing charged (complimentary) still gets its one invoice.
+    folio = await folioPost({ kind: "invoice", reservationId });
+  }
+
+  const invoices = live();
+  invoices.forEach((inv) => printInvoicePdf(inv.id));
+  return invoices.length;
+}
+
 /**
  * `{ checkIn, checkOut, settleDialog }`. Both actions resolve to the status
  * route's answer (for its inventory warning), or null if the desk backed
@@ -467,6 +525,7 @@ function SettleDialog({ request, onDone }) {
  * need; without it the popup asks for ID numbers only.
  */
 export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
+  const toast = useToast();
   const [settle, setSettle] = useState(null);
 
   const [checkInAsk, setCheckInAsk] = useState(null);
@@ -579,8 +638,17 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
         if (!pay.ok) throw new Error(paid.error || "The payment did not save, so the guest is still checked in.");
       }
     }
-    return postStatus(r.id, "checked_out");
-  }, []);
+    const done = await postStatus(r.id, "checked_out");
+    // The guest is usually still at the desk, waiting for the bill.
+    toast(`${r.guest_name || "Guest"} checked out`, {
+      action: {
+        label: "Print invoice",
+        busyLabel: "Issuing...",
+        run: () => issueAndPrintInvoices(r.id),
+      },
+    });
+    return done;
+  }, [toast]);
 
   // One element for the caller to render, whichever popup is open.
   const settleDialog = settle ? (

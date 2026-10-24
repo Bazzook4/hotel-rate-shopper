@@ -833,6 +833,7 @@ body {
     color: inherit;
   }
   .toast button:hover { background: rgba(127, 127, 127, 0.25); }
+  .toast .toast-action { border: 1px solid currentColor; }
 
   /* The app's own confirm / prompt / pick-one dialog (Dialog.jsx). */
   .dialog-backdrop {

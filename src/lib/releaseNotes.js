@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "Print the invoice right after check-out",
+    points: [
+      {
+        page: "reservations",
+        text: "After you check a guest out, a message at the bottom of the screen has a Print invoice button. One click issues the invoice and prints it, so the guest leaves with their bill. If you don't need it, just ignore the message.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "Buttons that take you straight to setup",
     points: [
       {

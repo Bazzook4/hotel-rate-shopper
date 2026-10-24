@@ -12,6 +12,7 @@ import { countryName, countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { Drawer, Field } from "./RatePlanSetup";
 import GuestIdPhotos from "./GuestIdPhotos";
+import { printInvoicePdf } from "./frontDesk";
 import { hotelToday, hotelZone } from "@/lib/hotelTime";
 import { formatMoney, hotelCurrency } from "@/lib/money";
 
@@ -1258,24 +1259,7 @@ export default function FolioTabs({
     }
   }
 
-  /** Print the PDF from a hidden frame, without leaving the booking. */
-  function printInvoice(inv) {
-    const url = `/api/pms/invoice?id=${inv.id}&inline=1`;
-    const frame = document.createElement("iframe");
-    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-    frame.src = url;
-    frame.onload = () => {
-      try {
-        frame.contentWindow.focus();
-        frame.contentWindow.print();
-      } catch {
-        // Some browsers will not print a PDF from a frame; a tab can.
-        window.open(url, "_blank", "noopener");
-      }
-      setTimeout(() => frame.remove(), 60000);
-    };
-    document.body.appendChild(frame);
-  }
+  const printInvoice = (inv) => printInvoicePdf(inv.id);
 
   /** The PDF to the phone's share sheet (WhatsApp, email), or a download. */
   async function shareInvoice(inv) {
