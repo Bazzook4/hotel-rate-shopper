@@ -14,6 +14,15 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "No more blank error screen",
+    points: [
+      {
+        text: "If the app was left open while we released a new version, opening a page could show a blank \"Application error\" screen. The app now reloads itself to the new version instead. If a page ever does break, you see a short message with a Reload button, and the menu keeps working.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "A tidier date bar on phones",
     points: [
       {

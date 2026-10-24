@@ -11,6 +11,7 @@ import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
 import Hint from "./components/Hint";
+import PageErrorBoundary from "./components/PageErrorBoundary";
 import CommandPalette from "./dashboard/components/CommandPalette";
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
 import { useEscape } from "./components/useEscape";
@@ -812,6 +813,8 @@ export default function V2Dashboard() {
                       is under Front desk, everything about price is under Rates, and Integrations and
                       Activity Log are under Setup. The search at the top finds any page.
                   </Hint>
+                  {/* A crash stays inside the open page; opening another clears it. */}
+                  <PageErrorBoundary key={active}>
                   {active === "today" && (
                     <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} />
                   )}
@@ -933,6 +936,7 @@ export default function V2Dashboard() {
                   {active === "workflow" && <Workflow session={scopedSession} />}
 
                   {active === "compshopper" && <CompetitorShopper session={scopedSession} />}
+                  </PageErrorBoundary>
 
                 </Fragment>
               )}
