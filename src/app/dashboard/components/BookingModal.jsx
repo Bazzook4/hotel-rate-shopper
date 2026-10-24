@@ -548,7 +548,7 @@ export default function BookingModal({
                       onClick={() => runAction(a.status)}
                     >
                       {a.status === "checked_out" && owes
-                        ? `Collect ${money(balance)} & check out`
+                        ? `Collect ${formatMoney(balance, { decimals: 2 })} & check out`
                         : a.label}
                     </button>
                   );

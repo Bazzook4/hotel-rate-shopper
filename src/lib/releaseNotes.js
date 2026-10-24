@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "Checked-in bookings open again",
+    points: [
+      {
+        page: "calendar",
+        text: "Opening a checked-in booking that still had money to pay showed \"This page could not open\". It opens normally again, with the Collect and check out button.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "New hotels see their rooms on the front desk straight away",
     points: [
       {
