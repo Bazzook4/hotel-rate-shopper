@@ -314,6 +314,47 @@ export async function getCityLedger(propertyId, { tz = DEFAULT_ZONE } = {}) {
 }
 
 /**
+ * Each company's ledger in brief, for the Companies & agents list: what has
+ * been billed to it, how much of that is collected, what is still to
+ * collect and how much is overdue. Every company is in the map, owing or
+ * not, and the figures are the ledger's own, so the two pages agree.
+ */
+export async function ledgerByCompany(propertyId, { tz = DEFAULT_ZONE } = {}) {
+  const today = localToday(tz);
+  const { companies, lines, wallets } = await loadLedger(propertyId, { today, tz });
+
+  const per = new Map(companies.map((c) => [c.id, { ...emptyTotals(), billed: 0, collected: 0 }]));
+  for (const line of lines) {
+    const t = per.get(line.companyId);
+    if (!t) continue;
+    addLine(t, line, today);
+    if (line.phase === 'billed') {
+      t.billed += line.charges;
+      t.collected += line.paid;
+    }
+  }
+  for (const [companyId, w] of wallets) {
+    if (w.balance > PENNY && per.has(companyId)) per.get(companyId).credit += w.balance;
+  }
+
+  const out = new Map();
+  for (const c of companies) {
+    const t = roundTotals(per.get(c.id));
+    const exposure = round(t.receivable + t.running);
+    out.set(c.id, {
+      billed: t.billed,
+      collected: t.collected,
+      outstanding: t.receivable,
+      overdue: t.overdue,
+      running: t.running,
+      credit: t.credit,
+      overLimit: c.credit_limit != null && exposure > Number(c.credit_limit) + PENNY,
+    });
+  }
+  return out;
+}
+
+/**
  * One company's statement: every stay billed to it that still has money on
  * it (or every one, with `all`), oldest due first, and its receipts.
  */

@@ -133,6 +133,28 @@ export function normaliseCity(countryCode, value) {
 export const stateKey = (countryCode, value) => normaliseState(countryCode, value).toLowerCase();
 export const cityKey = (countryCode, value) => normaliseCity(countryCode, value).toLowerCase();
 
+/**
+ * The state a GSTIN was issued in: its first two digits are the GST state
+ * code. "" for anything that is not one. 25 is the old Daman and Diu and 28
+ * the old Andhra Pradesh; both still appear on older registrations.
+ */
+const GST_STATE_CODES = {
+  "01": "Jammu and Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+  "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+  10: "Bihar", 11: "Sikkim", 12: "Arunachal Pradesh", 13: "Nagaland", 14: "Manipur",
+  15: "Mizoram", 16: "Tripura", 17: "Meghalaya", 18: "Assam", 19: "West Bengal",
+  20: "Jharkhand", 21: "Odisha", 22: "Chhattisgarh", 23: "Madhya Pradesh", 24: "Gujarat",
+  25: "Dadra and Nagar Haveli and Daman and Diu", 26: "Dadra and Nagar Haveli and Daman and Diu",
+  27: "Maharashtra", 28: "Andhra Pradesh", 29: "Karnataka", 30: "Goa", 31: "Lakshadweep",
+  32: "Kerala", 33: "Tamil Nadu", 34: "Puducherry", 35: "Andaman and Nicobar Islands",
+  36: "Telangana", 37: "Andhra Pradesh", 38: "Ladakh",
+};
+
+export function stateFromGstin(gstin) {
+  const code = String(gstin || "").trim().slice(0, 2);
+  return /^[0-9]{2}$/.test(code) ? GST_STATE_CODES[code] || "" : "";
+}
+
 /** States to choose from, or [] where the region is typed freely. */
 export function stateOptions(countryCode) {
   return placesFor(countryCode).states;

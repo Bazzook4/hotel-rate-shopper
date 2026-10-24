@@ -243,7 +243,8 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
   );
 }
 
-function Statement({ session, propertyId, companyId, startReceiving, onChanged }) {
+/** One company's bills and payments; also the Ledger tab of a company's panel. */
+export function Statement({ session, propertyId, companyId, startReceiving, onChanged, title = null }) {
   const { plans } = useWalletPlans(propertyId);
   const [all, setAll] = useState(false);
   const [receiving, setReceiving] = useState(startReceiving);
@@ -315,7 +316,7 @@ function Statement({ session, propertyId, companyId, startReceiving, onChanged }
 
   return (
     <Section
-      title={`Statement: ${c.name}`}
+      title={title || `Statement: ${c.name}`}
       sub={terms.join(", ")}
       actions={
         <div className="flex flex-wrap gap-2">

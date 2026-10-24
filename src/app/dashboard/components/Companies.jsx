@@ -1,8 +1,8 @@
 "use client";
 
-import { SetUpLink } from "@/app/components/PageNav";
+import { SetUpLink, usePageNav } from "@/app/components/PageNav";
 import Icon from "../../components/Icon";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Grid,
   Messages,
@@ -14,17 +14,26 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { confirmDiscardChanges, useDialog } from "../../components/Dialog";
+import { useToast } from "../../components/Toast";
 import { WEEKDAYS, MONTHS } from "@/lib/contractRates";
 import Select from "@/app/components/Select";
 import { hotelToday } from "@/lib/hotelTime";
+import { formatAmount } from "@/lib/money";
+import { stateFromGstin } from "@/lib/places";
+import { Drawer, Field, Section } from "./RatePlanSetup";
+import { Statement } from "./CityLedger";
+import { Stats, TableFrame, moneyFormatter } from "./reportKit";
+import { SortTh, useSort } from "./useSort";
 
 /**
  * Companies & agents: who books for a guest, may be billed, and may have a
  * contracted rate.
  *
- * Two grids, one above the other, as on Rooms: the companies and agents,
- * then the contract rates of the one chosen. Each grid holds its edits until
- * its own Save, like every setup grid.
+ * A list to read -- each one's business over the last 12 months and, for
+ * those who may see the City Ledger, what was billed, collected and is still
+ * to collect -- and the right-hand panel to change one: a four-step wizard
+ * to add, and Details, Contract rates and Ledger tabs to open. The contract
+ * rates stay a grid with its own Save, like every setup grid.
  *
  * A contract line is a fixed price for a room type -- and a meal plan, or
  * any plan -- over a date range, optionally only on some weekdays or in some
@@ -32,6 +41,8 @@ import { hotelToday } from "@/lib/hotelTime";
  * year-round rate with a weekend line and a December line on top prices the
  * way it reads (src/lib/contractRates.js).
  */
+
+const PENNY = 0.009;
 
 const KINDS = [
   { id: "company", label: "Company" },
@@ -121,7 +132,7 @@ function toLine(row, maxAdults, fields = null) {
   return out;
 }
 
-function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChange }) {
+function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChange, onDirtyChange }) {
   const dialog = useDialog();
   const [lines, setLines] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -140,6 +151,11 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
 
   const rows = useMemo(() => lines.map((l) => toRow(l, maxAdults)), [lines, maxAdults]);
   const grid = useGrid(rows);
+
+  // The panel holding this grid asks before closing over unsaved lines.
+  useEffect(() => {
+    onDirtyChange?.(grid.count > 0);
+  }, [grid.count, onDirtyChange]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -242,9 +258,9 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
     <div className="space-y-4">
       <SetupHeader
         section
-        title={`Contract rates: ${company.name}`}
+        title="Contract rates"
         count={lines.length}
-        sub="Fixed prices per night. Where lines overlap, the one covering the fewest nights wins. Nights no line covers are quoted at your public rate."
+        sub="Fixed prices per night. Where lines overlap, the fewest nights wins. Uncovered nights use your public rate."
       >
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
       </SetupHeader>
@@ -350,7 +366,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
                     title="Copy this line to add a weekend or season on top"
                     aria-label="Copy line"
                   >
-                    ⧉
+                    Copy
                   </button>
                   <button
                     type="button"
@@ -371,33 +387,504 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
   );
 }
 
-export default function Companies({ session }) {
+
+/* ------------------------------------------------------------------ */
+/* A company's details: the wizard's steps and the panel's Details tab  */
+/* ------------------------------------------------------------------ */
+
+const BLANK = {
+  kind: "company",
+  name: "",
+  gstin: "",
+  contact_person: "",
+  phone: "",
+  email: "",
+  billing_address: "",
+  city: "",
+  state: "",
+  postal_code: "",
+  commission_percent: "",
+  credit_days: "",
+  credit_limit: "",
+  is_active: true,
+};
+
+const FIELDS = Object.keys(BLANK);
+
+const STEPS = [
+  { id: "who", label: "Who" },
+  { id: "contact", label: "Contact" },
+  { id: "terms", label: "Terms" },
+  { id: "rates", label: "Rates" },
+];
+
+function formOf(c) {
+  return Object.fromEntries(FIELDS.map((f) => [f, c?.[f] ?? BLANK[f]]));
+}
+
+/** What is wrong with the fields of one step (or all of them), if anything. */
+function problemIn(form, step = null) {
+  const all = step == null;
+  if (all || step === "who") {
+    if (!form.name.trim()) return "Give it a name.";
+    const gstin = form.gstin.toUpperCase().replace(/\s+/g, "");
+    if (gstin && !/^[0-9]{2}[A-Z0-9]{13}$/.test(gstin)) {
+      return "A GSTIN is 15 characters and starts with the two-digit state code.";
+    }
+  }
+  if ((all || step === "contact") && form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+    return "That email address does not look right.";
+  }
+  if (all || step === "terms") {
+    if (form.kind === "travel_agent" && form.commission_percent !== "") {
+      const c = Number(form.commission_percent);
+      if (!Number.isFinite(c) || c < 0 || c > 100) return "Commission must be between 0 and 100%.";
+    }
+    for (const [f, label] of [["credit_days", "Credit days"], ["credit_limit", "Credit limit"]]) {
+      if (form[f] === "" || form[f] == null) continue;
+      const n = Number(form[f]);
+      if (!Number.isFinite(n) || n < 0) return `${label} must be zero or more.`;
+    }
+  }
+  return null;
+}
+
+/** The form as the companies route takes it. */
+function bodyOf(form) {
+  return {
+    ...form,
+    name: form.name.trim(),
+    gstin: form.gstin.toUpperCase().replace(/\s+/g, ""),
+    commission_percent: form.kind === "travel_agent" ? form.commission_percent : "",
+  };
+}
+
+function KindChoice({ value, onChange }) {
+  return (
+    <div className="seg" role="radiogroup" aria-label="Type">
+      {KINDS.map((k) => (
+        <button
+          key={k.id}
+          type="button"
+          role="radio"
+          aria-checked={value === k.id}
+          className={value === k.id ? "seg-on" : ""}
+          onClick={() => onChange(k.id)}
+        >
+          {k.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A titled section on the Details tab; in the wizard the step bar names it. */
+function Part({ bare, title, children }) {
+  return bare ? <div className="space-y-3">{children}</div> : <Section title={title}>{children}</Section>;
+}
+
+/** The fields of one step, or every step one after another. */
+function DetailFields({ form, set, step = null, autoFocus = false }) {
+  const show = (id) => step == null || step === id;
+  const agent = form.kind === "travel_agent";
+  const text = (f, props = {}) => (
+    <input className="input" value={form[f] ?? ""} onChange={(e) => set({ [f]: e.target.value })} {...props} />
+  );
+
+  function setGstin(value) {
+    const patch = { gstin: value };
+    // The GSTIN names the state; fill it in unless the desk already has.
+    const state = stateFromGstin(value);
+    if (state && !form.state.trim()) patch.state = state;
+    set(patch);
+  }
+
+  return (
+    <>
+      {show("who") && (
+        <Part bare={step != null} title="Who">
+          <Field label="Type">
+            <KindChoice value={form.kind} onChange={(kind) => set({ kind })} />
+          </Field>
+          <Field label="Name (needed)">{text("name", { autoFocus, placeholder: agent ? "Agency name" : "Company name" })}</Field>
+          <Field label="GSTIN" hint="Optional. Fills in the state.">
+            <input
+              className="input"
+              value={form.gstin}
+              onChange={(e) => setGstin(e.target.value)}
+              maxLength={20}
+              placeholder="15 characters"
+              style={{ textTransform: "uppercase" }}
+            />
+          </Field>
+        </Part>
+      )}
+
+      {show("contact") && (
+        <Part bare={step != null} title="Contact and billing">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Contact person">{text("contact_person", { autoFocus: autoFocus && step === "contact" })}</Field>
+            <Field label="Phone">{text("phone", { type: "tel", inputMode: "tel" })}</Field>
+          </div>
+          <Field label="Email">{text("email", { type: "email", inputMode: "email" })}</Field>
+          <Field label="Billing address">{text("billing_address")}</Field>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label="City">{text("city")}</Field>
+            <Field label="State">{text("state")}</Field>
+            <Field label="PIN">{text("postal_code", { inputMode: "numeric" })}</Field>
+          </div>
+        </Part>
+      )}
+
+      {show("terms") && (
+        <Part bare={step != null} title="Payment terms">
+          <div className="flex flex-wrap gap-3">
+            {agent && (
+              <Field label="Commission %">
+                {text("commission_percent", { style: { width: "7rem" }, type: "number", min: 0, max: 100, step: "0.5", inputMode: "decimal", autoFocus: autoFocus && step === "terms" })}
+              </Field>
+            )}
+            <Field label="Credit days" hint="Blank = due on bill date">
+              {text("credit_days", { style: { width: "7rem" }, type: "number", min: 0, step: 1, inputMode: "numeric", autoFocus: autoFocus && step === "terms" && !agent })}
+            </Field>
+            <Field label="Credit limit" hint="Flags Over limit">
+              {text("credit_limit", { style: { width: "9rem" }, type: "number", min: 0, inputMode: "decimal" })}
+            </Field>
+          </div>
+        </Part>
+      )}
+    </>
+  );
+}
+
+/** Step 1 of 4 ... as numbered buttons, so a finished step can be gone back to. */
+function StepBar({ steps, at, reached, onGo }) {
+  return (
+    <div className="seg" role="tablist" aria-label="Steps">
+      {steps.map((s, i) => (
+        <button
+          key={s.id}
+          type="button"
+          role="tab"
+          aria-selected={i === at}
+          className={i === at ? "seg-on" : ""}
+          disabled={i > reached}
+          onClick={() => onGo(i)}
+        >
+          {i + 1}. {s.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Add a company or agent in four short steps. Only the name is needed, so
+ * "Save now" is there from the first step; the rest can be filled later
+ * from the company's panel. Contract rates need the company saved, so they
+ * come last, after it is.
+ */
+function AddCompany({ propertyId, kind, roomTypes, ratePlans, onClose, onSaved, onOpen }) {
   const dialog = useDialog();
+  const toast = useToast();
+  const [form, setForm] = useState(() => ({ ...BLANK, kind: kind || "company" }));
+  const [at, setAt] = useState(0);
+  const [reached, setReached] = useState(0);
+  const [company, setCompany] = useState(null);
+  const [ratesDirty, setRatesDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const step = STEPS[at].id;
+  const touched = FIELDS.some((f) => f !== "kind" && form[f] !== BLANK[f]);
+
+  function go(i) {
+    setError("");
+    setAt(i);
+  }
+
+  async function close() {
+    if (company) {
+      if (ratesDirty && !(await confirmDiscardChanges(dialog, "the contract rates"))) return;
+      onClose();
+      return;
+    }
+    if (touched && !(await confirmDiscardChanges(dialog, "this company"))) return;
+    onClose();
+  }
+
+  async function save({ andRates = true } = {}) {
+    const p = problemIn(form);
+    if (p) {
+      // Back to the step the problem is on.
+      const on = STEPS.findIndex((s) => problemIn(form, s.id));
+      if (on >= 0) setAt(on);
+      setError(p);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const { company: saved } = await sendJSON("/api/pms/companies", "POST", { property_id: propertyId, ...bodyOf(form) });
+      onSaved(saved);
+      if (!andRates) {
+        // Most companies have no contract rate: done, with the way to add one.
+        toast(`Saved ${saved.name}.`, { action: { label: "Add contract rates", run: () => onOpen(saved.id, "rates") } });
+        onClose();
+        return;
+      }
+      setCompany(saved);
+      setAt(3);
+      setReached(3);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function next() {
+    const p = problemIn(form, step);
+    if (p) {
+      setError(p);
+      return;
+    }
+    if (at === 2) {
+      save();
+      return;
+    }
+    setReached((r) => Math.max(r, at + 1));
+    go(at + 1);
+  }
+
+  const noun = form.kind === "travel_agent" ? "travel agent" : "company";
+
+  if (company) {
+    return (
+      <Drawer
+        title={company.name}
+        subtitle="Saved. Add contract rates if you agreed any, or Done."
+        onCancel={close}
+        cancelLabel={ratesDirty ? "Close" : "Done"}
+        width={940}
+        tabs={<StepBar steps={STEPS} at={3} reached={3} onGo={() => {}} />}
+      >
+        <ContractRates
+          propertyId={propertyId}
+          company={company}
+          roomTypes={roomTypes}
+          ratePlans={ratePlans}
+          onDirtyChange={setRatesDirty}
+        />
+      </Drawer>
+    );
+  }
+
+  return (
+    <Drawer
+      title={form.name.trim() || `Add ${noun}`}
+      subtitle="Only the name is needed. The rest can be added later."
+      onCancel={at === 0 ? close : () => go(at - 1)}
+      onEscape={close}
+      cancelLabel={at === 0 ? "Cancel" : "Back"}
+      onSave={next}
+      saveLabel={at === 2 ? `Save ${noun}` : "Next"}
+      extraActions={
+        at < 2 && form.name.trim() ? (
+          <button type="button" className="btn btn-secondary" onClick={() => save({ andRates: false })} disabled={busy}>
+            Save now
+          </button>
+        ) : null
+      }
+      busy={busy}
+      error={error}
+      tabs={<StepBar steps={STEPS} at={at} reached={Math.min(reached, 2)} onGo={go} />}
+    >
+      <DetailFields key={step} form={form} set={set} step={step} autoFocus />
+    </Drawer>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* One company's panel                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A company opened from the list: its details, its contract rates and its
+ * ledger, as tabs. Details save with the panel's Save; contract rates keep
+ * their grid's own Save; the ledger is the City Ledger's statement.
+ */
+function CompanyPanel({ session, propertyId, company, startTab, startReceiving = false, canSeeLedger, roomTypes, ratePlans, onClose, onChanged, onRateCount, onDeleted }) {
+  const dialog = useDialog();
+  const toast = useToast();
+  const [tab, setTab] = useState(startTab || "details");
+  const [form, setForm] = useState(() => formOf(company));
+  const [ratesDirty, setRatesDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const original = useMemo(() => formOf(company), [company]);
+  const dirty = FIELDS.some((f) => String(form[f] ?? "") !== String(original[f] ?? ""));
+  const agent = company.kind === "travel_agent";
+
+  async function leaveTab(next) {
+    if (next === tab) return;
+    if (tab === "details" && dirty && !(await confirmDiscardChanges(dialog, "the details"))) return;
+    if (tab === "rates" && ratesDirty && !(await confirmDiscardChanges(dialog, "the contract rates"))) return;
+    if (tab === "details") setForm(original);
+    setRatesDirty(false);
+    setError("");
+    setTab(next);
+  }
+
+  async function close() {
+    if (tab === "details" && dirty && !(await confirmDiscardChanges(dialog, "the details"))) return;
+    if (tab === "rates" && ratesDirty && !(await confirmDiscardChanges(dialog, "the contract rates"))) return;
+    onClose();
+  }
+
+  async function save() {
+    const p = problemIn(form);
+    if (p) {
+      setError(p);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const body = bodyOf(form);
+      const changes = Object.fromEntries(FIELDS.filter((f) => String(body[f] ?? "") !== String(original[f] ?? "")).map((f) => [f, body[f]]));
+      const { company: saved } = await sendJSON("/api/pms/companies", "PATCH", { property_id: propertyId, id: company.id, ...changes });
+      setForm(formOf(saved));
+      onChanged(saved);
+      toast(`Saved ${saved.name}.`);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    const ok = await dialog.confirm({
+      title: `Delete ${company.name}?`,
+      message:
+        "Its contract rates are deleted too. Bookings made for it keep their price and invoices, but are no longer linked to it. To stop using it for a while, untick Active instead.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const qs = propertyId ? `&propertyId=${propertyId}` : "";
+      await sendJSON(`/api/pms/companies?id=${company.id}${qs}`, "DELETE");
+      toast(`Deleted ${company.name}.`);
+      onDeleted(company.id);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  const tabs = [
+    { id: "details", label: "Details" },
+    { id: "rates", label: company.rate_lines ? `Contract rates (${company.rate_lines})` : "Contract rates" },
+    ...(canSeeLedger ? [{ id: "ledger", label: "Ledger" }] : []),
+  ];
+
+  return (
+    <Drawer
+      title={company.name}
+      subtitle={[agent ? "Travel agent" : "Company", company.gstin ? `GSTIN ${company.gstin}` : null, company.is_active === false ? "Inactive" : null]
+        .filter(Boolean)
+        .join(", ")}
+      onCancel={close}
+      onSave={tab === "details" ? save : undefined}
+      saveDisabled={!dirty}
+      busy={busy}
+      error={error}
+      width={940}
+      tabs={
+        <div className="seg" role="tablist">
+          {tabs.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "seg-on" : ""} onClick={() => leaveTab(t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {tab === "details" && (
+        <div className="space-y-6" style={{ maxWidth: 620 }}>
+          <DetailFields form={form} set={set} />
+          <Section title="Status">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.is_active !== false} onChange={(e) => set({ is_active: e.target.checked })} />
+                Active (offered on new bookings)
+              </label>
+              <button type="button" className="btn btn-secondary text-sm" style={{ color: "var(--danger)" }} onClick={remove}>
+                Delete {agent ? "agent" : "company"}
+              </button>
+            </div>
+          </Section>
+        </div>
+      )}
+
+      {tab === "rates" && (
+        <ContractRates
+          propertyId={propertyId}
+          company={company}
+          roomTypes={roomTypes}
+          ratePlans={ratePlans}
+          onCountChange={onRateCount}
+          onDirtyChange={setRatesDirty}
+        />
+      )}
+
+      {tab === "ledger" && (
+        <Statement
+          session={session}
+          propertyId={propertyId}
+          companyId={company.id}
+          startReceiving={startReceiving}
+          onChanged={() => onChanged(null)}
+          title="Bills and payments"
+        />
+      )}
+    </Drawer>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* The page: every company and agent, with its business and ledger      */
+/* ------------------------------------------------------------------ */
+
+export default function Companies({ session }) {
   const propertyId = session?.propertyId || null;
+  const { canOpen } = usePageNav();
+  const canSeeLedger = canOpen("cityledger");
 
   const [companies, setCompanies] = useState([]);
   const [roomTypes, setRoomTypes] = useState([]);
   const [ratePlans, setRatePlans] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const [notice, setNotice] = useState(null);
   const [notReady, setNotReady] = useState(false);
   const [kindFilter, setKindFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedId, setSelectedId] = useState(null);
-
-  const grid = useGrid(companies);
+  const [adding, setAdding] = useState(false);
+  const [open, setOpen] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const qs = propertyId ? `?propertyId=${propertyId}` : "";
+      const qs = propertyId ? `propertyId=${propertyId}&` : "";
       const [cRes, rtRes, rpRes] = await Promise.all([
-        fetch(`/api/pms/companies${qs}`),
-        fetch(`/api/setup/roomTypes${qs}`),
-        fetch(`/api/setup/ratePlans${qs}`),
+        fetch(`/api/pms/companies?${qs}summary=1`),
+        fetch(`/api/setup/roomTypes${propertyId ? `?propertyId=${propertyId}` : ""}`),
+        fetch(`/api/setup/ratePlans${propertyId ? `?propertyId=${propertyId}` : ""}`),
       ]);
       const [c, rt, rp] = await Promise.all([cRes.json(), rtRes.json(), rpRes.json()]);
       if (!cRes.ok) throw new Error(c.error || "Could not load companies");
@@ -416,66 +903,70 @@ export default function Companies({ session }) {
     load();
   }, [load]);
 
+  const money = useMemo(() => moneyFormatter(null), []);
+  const hasBusiness = companies.some((c) => c.business);
+  const hasLedger = companies.some((c) => "ledger" in c);
+
+  const term = search.trim().toLowerCase();
+  const visible = companies.filter((c) => {
+    if (kindFilter && c.kind !== kindFilter) return false;
+    if (!term) return true;
+    return [c.name, c.gstin, c.contact_person, c.phone, c.email, c.city]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(term));
+  });
+
+  const sorter = useSort(
+    visible,
+    {
+      name: (c) => c.name.toLowerCase(),
+      bookings: (c) => c.business?.bookings || 0,
+      nights: (c) => c.business?.nights || 0,
+      value: (c) => c.business?.value || 0,
+      billed: (c) => c.ledger?.billed || 0,
+      collected: (c) => c.ledger?.collected || 0,
+      outstanding: (c) => c.ledger?.outstanding || 0,
+      overdue: (c) => c.ledger?.overdue || 0,
+    },
+    { key: "name", dir: "asc" }
+  );
+
+  // Once the money is in, who owes most comes first.
+  const sortedOnce = useRef(false);
+  useEffect(() => {
+    if (sortedOnce.current || !companies.length) return;
+    sortedOnce.current = true;
+    if (companies.some((c) => "ledger" in c)) sorter.setSort({ key: "outstanding", dir: "desc" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companies]);
+
+  const totals = useMemo(() => {
+    const t = { bookings: 0, value: 0, billed: 0, collected: 0, outstanding: 0, overdue: 0 };
+    for (const c of visible) {
+      t.bookings += c.business?.bookings || 0;
+      t.value += c.business?.value || 0;
+      t.billed += c.ledger?.billed || 0;
+      t.collected += c.ledger?.collected || 0;
+      t.outstanding += c.ledger?.outstanding || 0;
+      t.overdue += c.ledger?.overdue || 0;
+    }
+    return t;
+  }, [visible]);
+
+  const opened = open ? companies.find((c) => c.id === open.id) : null;
+
+  /** A company saved in a panel: patch it in place, then refresh the figures. */
+  function changed(saved) {
+    if (saved) setCompanies((prev) => prev.map((c) => (c.id === saved.id ? { ...c, ...saved } : c)));
+    load();
+  }
+
+  // Stable, since the contract rates grid reloads whenever it changes.
   const setRateCount = useCallback((id, n) => {
     setCompanies((prev) => prev.map((c) => (c.id === id && c.rate_lines !== n ? { ...c, rate_lines: n } : c)));
   }, []);
 
-  const term = search.trim().toLowerCase();
-  const visible = companies.filter((c) => {
-    const m = grid.merged(c);
-    if (kindFilter && m.kind !== kindFilter) return false;
-    if (!term) return true;
-    return [m.name, m.gstin, m.contact_person, m.phone, m.email]
-      .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(term));
-  });
-  const rows = [...visible, ...grid.drafts];
-  const selected = companies.find((c) => c.id === selectedId) || null;
-
-  async function saveAll() {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    const saved = grid.count;
-    const errors = await grid.save({
-      label: (c) => c.name || "New company",
-      update: (c, changes) => sendJSON("/api/pms/companies", "PATCH", { property_id: propertyId, id: c.id, ...changes }),
-      create: (d) => {
-        if (!String(d.name).trim()) throw new Error("Give it a name");
-        const { id, ...row } = d;
-        return sendJSON("/api/pms/companies", "POST", { property_id: propertyId, ...row });
-      },
-    });
-    await load();
-    setBusy(false);
-    if (errors.length) setError(errors.join(". "));
-    else setNotice(`Saved ${saved} change${saved === 1 ? "" : "s"}.`);
-  }
-
-  async function remove(c) {
-    if (isDraft(c.id)) {
-      grid.removeDraft(c.id);
-      return;
-    }
-    const ok = await dialog.confirm({
-      title: `Delete ${c.name}?`,
-      message:
-        "Its contract rates are deleted too. Bookings made for it keep their price and invoices, but are no longer linked to it. To stop using it for a while, untick Active instead.",
-      confirmLabel: "Delete",
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      const qs = propertyId ? `&propertyId=${propertyId}` : "";
-      await sendJSON(`/api/pms/companies?id=${c.id}${qs}`, "DELETE");
-      if (selectedId === c.id) setSelectedId(null);
-      setCompanies((prev) => prev.filter((x) => x.id !== c.id));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
-  const COLS = 15;
+  const cols = 1 + (hasBusiness ? 3 : 0) + (hasLedger ? 5 : 0);
 
   return (
     <div className="space-y-4">
@@ -483,143 +974,212 @@ export default function Companies({ session }) {
         area="Front desk"
         title="Companies & agents"
         count={companies.length}
-        sub="Who books for a guest. Bookings for them can be billed to them with their GSTIN, and use their contract rates."
+        sub="Who books for guests: bill them with their GSTIN and use their contract rates."
       >
-        <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
-      </SetupHeader>
-
-      <Messages
-        error={error}
-        notice={notReady ? "Companies and agents are not switched on for this property yet." : notice}
-      />
-
-      <Toolbar>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm"
-          disabled={notReady}
-          onClick={() =>
-            grid.add({ kind: kindFilter || "company", name: "", gstin: "", contact_person: "", phone: "", email: "", billing_address: "", city: "", state: "", postal_code: "", commission_percent: "", credit_days: "", credit_limit: "", is_active: true })
-          }
-        >
+        <button type="button" className="btn btn-primary" disabled={notReady} onClick={() => setAdding(true)}>
           + Add company or agent
         </button>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Select className="input" style={{ width: "auto" }} value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
-            <option value="">Companies and agents</option>
-            <option value="company">Companies</option>
-            <option value="travel_agent">Travel agents</option>
-          </Select>
-          <input
-            className="input w-56"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Name, GSTIN, contact..."
+      </SetupHeader>
+
+      <Messages error={error} notice={notReady ? "Companies and agents are not switched on for this property yet." : null} />
+
+      {(hasBusiness || hasLedger) && visible.length > 0 && (
+        <div className="card card-pad">
+          <Stats
+            items={[
+              ...(hasBusiness
+                ? [{ label: "Business, last 12 months", value: money(totals.value), sub: `${formatAmount(totals.bookings)} booking${totals.bookings === 1 ? "" : "s"}` }]
+                : []),
+              ...(hasLedger
+                ? [
+                    { label: "Billed to them", value: money(totals.billed), hint: "Bills of checked-out stays sent to the company to pay" },
+                    { label: "Collected", value: money(totals.collected) },
+                    {
+                      label: "Still to collect",
+                      value: money(totals.outstanding),
+                      sub: totals.overdue > PENNY ? `${money(totals.overdue)} overdue` : "Nothing overdue",
+                      tone: totals.overdue > PENNY ? "danger" : undefined,
+                    },
+                  ]
+                : []),
+            ]}
           />
         </div>
+      )}
+
+      <Toolbar>
+        <Select className="input" style={{ width: "auto" }} value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}>
+          <option value="">Companies and agents</option>
+          <option value="company">Companies</option>
+          <option value="travel_agent">Travel agents</option>
+        </Select>
+        <input
+          className="input w-56"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Name, GSTIN, contact, city..."
+        />
       </Toolbar>
 
-      <Grid>
-        <thead>
-          <tr>
-            <th className="cm-sticky" style={{ minWidth: 180 }}>Name</th>
-            <th style={{ width: 130 }}>Type</th>
-            <th style={{ minWidth: 160 }}>GSTIN</th>
-            <th style={{ minWidth: 140 }}>Contact person</th>
-            <th style={{ minWidth: 130 }}>Phone</th>
-            <th style={{ minWidth: 170 }}>Email</th>
-            <th style={{ minWidth: 200 }}>Billing address</th>
-            <th style={{ minWidth: 110 }}>City</th>
-            <th style={{ minWidth: 110 }}>State</th>
-            <th style={{ width: 90 }}>PIN</th>
-            <th style={{ width: 90 }} title="Travel agents only">Commission %</th>
-            <th style={{ width: 80 }} title="Days after the bill that payment is due. Blank = due on the bill date">Credit days</th>
-            <th style={{ width: 110 }} title="How much it may owe before payment is asked for first">Credit limit</th>
-            <th style={{ width: 60 }} title="Inactive ones stay on record but are not offered on new bookings">Active</th>
-            <th style={{ width: 130 }}>Contract rates</th>
-            <th style={{ width: 40 }} />
-          </tr>
-        </thead>
-        <tbody>
-          {loading && companies.length === 0 && (
+      <TableFrame>
+        <table className="grid-table">
+          <thead>
             <tr>
-              <td colSpan={COLS + 1} className="cm-empty">Loading...</td>
+              <SortTh sorter={sorter} col="name">Name</SortTh>
+              {hasBusiness && (
+                <>
+                  <SortTh sorter={sorter} col="bookings" className="text-right">Bookings</SortTh>
+                  <SortTh sorter={sorter} col="nights" className="text-right">Nights</SortTh>
+                  <SortTh sorter={sorter} col="value" className="text-right">Business</SortTh>
+                </>
+              )}
+              {hasLedger && (
+                <>
+                  <SortTh sorter={sorter} col="billed" className="text-right">Billed</SortTh>
+                  <SortTh sorter={sorter} col="collected" className="text-right">Collected</SortTh>
+                  <SortTh sorter={sorter} col="outstanding" className="text-right">To collect</SortTh>
+                  <SortTh sorter={sorter} col="overdue" className="text-right">Overdue</SortTh>
+                  <th />
+                </>
+              )}
             </tr>
-          )}
-          {!loading && rows.length === 0 && (
-            <tr>
-              <td colSpan={COLS + 1} className="cm-empty">
-                {companies.length ? "None match the filters." : "No companies or agents yet."}
-              </td>
-            </tr>
-          )}
-          {rows.map((c) => {
-            const draft = isDraft(c.id);
-            const agent = grid.value(c, "kind") === "travel_agent";
-            const active = grid.value(c, "is_active") !== false;
-            const isSelected = selectedId === c.id;
-            return (
-              <tr
-                key={c.id}
-                className={draft ? "cm-new" : active ? undefined : "cm-muted"}
-                style={isSelected ? { outline: "2px solid var(--accent)", outlineOffset: -2 } : undefined}
-              >
-                <td className="cm-sticky">
-                  {grid.input(c, "name", { placeholder: "Name", invalid: draft && !String(c.name).trim() })}
-                </td>
-                <td>{grid.select(c, "kind", KINDS)}</td>
-                <td>{grid.input(c, "gstin", { placeholder: "15 characters", maxLength: 20, style: { textTransform: "uppercase" } })}</td>
-                <td>{grid.input(c, "contact_person")}</td>
-                <td>{grid.input(c, "phone", { type: "tel" })}</td>
-                <td>{grid.input(c, "email", { type: "email" })}</td>
-                <td>{grid.input(c, "billing_address")}</td>
-                <td>{grid.input(c, "city")}</td>
-                <td>{grid.input(c, "state")}</td>
-                <td>{grid.input(c, "postal_code")}</td>
-                <td className="cm-num">
-                  {agent ? grid.input(c, "commission_percent", { type: "number", min: 0, max: 100, step: "0.5" }) : <span className="sub">-</span>}
-                </td>
-                <td className="cm-num">{grid.input(c, "credit_days", { type: "number", min: 0, step: 1 })}</td>
-                <td className="cm-num">{grid.input(c, "credit_limit", { type: "number", min: 0 })}</td>
-                <td style={{ textAlign: "center" }}>{grid.check(c, "is_active")}</td>
-                <td>
-                  {draft ? (
-                    <span className="sub">Save first</span>
+          </thead>
+          <tbody>
+            {loading && companies.length === 0 && (
+              <tr>
+                <td colSpan={cols} className="sub">Loading...</td>
+              </tr>
+            )}
+            {!loading && visible.length === 0 && (
+              <tr>
+                <td colSpan={cols}>
+                  {companies.length ? (
+                    <span className="sub">None match the filters.</span>
                   ) : (
-                    <button
-                      type="button"
-                      className={isSelected ? "btn btn-primary text-xs" : "btn btn-secondary text-xs"}
-                      onClick={() => setSelectedId(isSelected ? null : c.id)}
-                    >
-                      {c.rate_lines ? `${c.rate_lines} line${c.rate_lines === 1 ? "" : "s"}` : "Add rates"} {isSelected ? "▾" : "▸"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3 py-2">
+                      <span className="sub">No companies or agents yet.</span>
+                      {!notReady && (
+                        <button type="button" className="btn btn-primary text-sm" onClick={() => setAdding(true)}>
+                          + Add the first one
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
-                <td>
-                  <button
-                    type="button"
-                    className="btn btn-ghost text-xs"
-                    onClick={() => remove(c)}
-                    title="Delete"
-                    aria-label={`Delete ${c.name || "company"}`}
-                  >
-                    <Icon name="close" size={14} />
-                  </button>
-                </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </Grid>
+            )}
+            {sorter.rows.map((c) => {
+              const b = c.business;
+              const l = c.ledger;
+              const dash = <span className="faint">-</span>;
+              const cell = (v) => (v > PENNY ? money(v) : dash);
+              return (
+                <tr
+                  key={c.id}
+                  onClick={() => setOpen({ id: c.id })}
+                  style={{ cursor: "pointer", opacity: c.is_active === false ? 0.6 : undefined }}
+                >
+                  <td>
+                    <button
+                      type="button"
+                      className="font-medium underline decoration-dotted underline-offset-2"
+                      style={{ color: "var(--accent)" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpen({ id: c.id });
+                      }}
+                    >
+                      {c.name}
+                    </button>{" "}
+                    <span className="text-xs muted">{c.kind === "travel_agent" ? "Travel agent" : "Company"}</span>
+                    {c.is_active === false && <span className="chip ml-1">Inactive</span>}
+                    {l?.overLimit && <span className="chip chip-warn ml-1">Over limit</span>}
+                  </td>
+                  {hasBusiness && (
+                    <>
+                      <td className="text-right tabular-nums">{b?.bookings ? formatAmount(b.bookings) : dash}</td>
+                      <td className="text-right tabular-nums">{b?.nights ? formatAmount(b.nights) : dash}</td>
+                      <td className="text-right tabular-nums font-medium">{cell(b?.value || 0)}</td>
+                    </>
+                  )}
+                  {hasLedger && (
+                    <>
+                      <td className="text-right tabular-nums">{cell(l?.billed || 0)}</td>
+                      <td className="text-right tabular-nums">{cell(l?.collected || 0)}</td>
+                      <td className="text-right tabular-nums font-medium">{cell(l?.outstanding || 0)}</td>
+                      <td className="text-right tabular-nums" style={{ color: (l?.overdue || 0) > PENNY ? "var(--danger)" : undefined }}>
+                        {(l?.overdue || 0) > PENNY ? (
+                          <button
+                            type="button"
+                            className="underline decoration-dotted underline-offset-2"
+                            style={{ color: "var(--danger)" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpen({ id: c.id, tab: "ledger" });
+                            }}
+                          >
+                            {money(l.overdue)}
+                          </button>
+                        ) : (
+                          dash
+                        )}
+                      </td>
+                      <td className="text-right">
+                        {(l?.outstanding || 0) > PENNY && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpen({ id: c.id, tab: "ledger", receive: true });
+                            }}
+                          >
+                            Receive
+                          </button>
+                        )}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </TableFrame>
 
-      {selected && (
-        <ContractRates
-          key={selected.id}
+      {adding && (
+        <AddCompany
           propertyId={propertyId}
-          company={selected}
+          kind={kindFilter}
           roomTypes={roomTypes}
           ratePlans={ratePlans}
-          onCountChange={setRateCount}
+          onClose={() => {
+            setAdding(false);
+            load();
+          }}
+          onSaved={(saved) => setCompanies((prev) => [...prev, saved])}
+          onOpen={(id, tab) => setOpen({ id, tab })}
+        />
+      )}
+
+      {opened && (
+        <CompanyPanel
+          key={opened.id}
+          session={session}
+          propertyId={propertyId}
+          company={opened}
+          startTab={open.tab}
+          startReceiving={Boolean(open.receive)}
+          canSeeLedger={canSeeLedger}
+          roomTypes={roomTypes}
+          ratePlans={ratePlans}
+          onClose={() => setOpen(null)}
+          onChanged={changed}
+          onRateCount={setRateCount}
+          onDeleted={(id) => {
+            setOpen(null);
+            setCompanies((prev) => prev.filter((c) => c.id !== id));
+          }}
         />
       )}
     </div>

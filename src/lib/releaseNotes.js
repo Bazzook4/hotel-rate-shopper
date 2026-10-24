@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "A clearer Companies & agents page",
+    points: [
+      {
+        page: "companies",
+        text: "Companies & agents is now a list showing the business each one brought in over the last 12 months. If you can see the City Ledger, it also shows what was billed to them, what has been collected and what is still to collect, with overdue amounts in red.",
+      },
+      {
+        page: "companies",
+        text: "Add company or agent opens a short four-step panel on the right: who, contact, payment terms, then contract rates. Only the name is needed, so you can Save now and fill in the rest later. Typing a GSTIN fills in the state.",
+      },
+      {
+        page: "companies",
+        text: "Click a company to open it on the right with three tabs: Details to change it, Contract rates, and Ledger to see its bills and receive a payment.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "Print the invoice right after check-out",
     points: [
       {

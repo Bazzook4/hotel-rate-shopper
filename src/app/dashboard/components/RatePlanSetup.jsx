@@ -546,6 +546,13 @@ function StayRules({ min, max, release, stopSell, own = {} }) {
 /* Drawer and its fields                                                */
 /* ------------------------------------------------------------------ */
 
+/**
+ * The right-hand panel every record opens in. Without `onSave` it only
+ * shows (a record's ledger, a grid with its own Save) and its button reads
+ * Close. `extraActions` sit before Cancel, `tabs` under the title, and
+ * `width` widens it for a record with tables in it. `onEscape` is what
+ * Escape does when it is not the Cancel button's job (a wizard's Back).
+ */
 export function Drawer({
   title,
   subtitle,
@@ -553,17 +560,35 @@ export function Drawer({
   onSave,
   saveLabel = "Save",
   busyLabel = "Saving...",
-  cancelLabel = "Cancel",
+  cancelLabel,
   saveDisabled = false,
   busy,
   error,
+  extraActions = null,
+  tabs = null,
+  width = 620,
+  onEscape = null,
   children,
 }) {
   // Closing mid-save would drop the request's outcome on the floor.
   const cancel = () => {
     if (!busy) onCancel();
   };
-  useEscape(cancel);
+  useEscape(() => {
+    if (!busy) (onEscape || onCancel)();
+  });
+
+  // A form, so Enter in any field presses the main button; a plain panel
+  // when there is nothing to save, so Enter in a grid inside does nothing.
+  const Body = onSave ? "form" : "div";
+  const bodyProps = onSave
+    ? {
+        onSubmit: (e) => {
+          e.preventDefault();
+          if (!busy && !saveDisabled) onSave();
+        },
+      }
+    : {};
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
@@ -574,39 +599,43 @@ export function Drawer({
         className="flex-1"
         style={{ background: "rgba(15, 23, 42, 0.45)" }}
       />
-      {/* A form, so Enter in any field presses the main button. */}
-      <form
+      <Body
         className="flex h-full w-full flex-col"
-        style={{ maxWidth: 620, background: "var(--surface)", borderLeft: "1px solid var(--border)" }}
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!busy && !saveDisabled) onSave();
-        }}
+        style={{ maxWidth: width, background: "var(--surface)", borderLeft: "1px solid var(--border)" }}
+        {...bodyProps}
       >
         <div
-          className="flex items-start justify-between gap-3 px-5 py-4"
-          style={{ borderBottom: "1px solid var(--border)" }}
+          className="flex flex-wrap items-start justify-between gap-3 px-5 py-4"
+          style={{ borderBottom: tabs ? undefined : "1px solid var(--border)" }}
         >
           <div className="min-w-0">
             <h3 className="h2">{title}</h3>
             {subtitle && <p className="sub truncate">{subtitle}</p>}
           </div>
-          <div className="flex flex-shrink-0 gap-2">
+          <div className="flex flex-shrink-0 flex-wrap gap-2">
+            {extraActions}
             <button type="button" className="btn btn-secondary" onClick={cancel} disabled={busy}>
-              {cancelLabel}
+              {cancelLabel || (onSave ? "Cancel" : "Close")}
             </button>
-            <button type="submit" className="btn btn-primary" disabled={busy || saveDisabled}>
-              {busy ? busyLabel : saveLabel}
-            </button>
+            {onSave && (
+              <button type="submit" className="btn btn-primary" disabled={busy || saveDisabled}>
+                {busy ? busyLabel : saveLabel}
+              </button>
+            )}
           </div>
         </div>
+        {tabs && (
+          <div className="px-5 pb-3" style={{ borderBottom: "1px solid var(--border)" }}>
+            {tabs}
+          </div>
+        )}
         {error && (
           <div role="alert" className="px-5 py-2 text-sm" style={{ color: "var(--danger)", background: "var(--danger-soft)" }}>
             {error}
           </div>
         )}
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">{children}</div>
-      </form>
+      </Body>
     </div>
   );
 }

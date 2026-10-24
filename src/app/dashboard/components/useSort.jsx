@@ -46,7 +46,7 @@ export function useSort(rows, columns, initial = null) {
     setSort((s) => (s?.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
 
-  return { rows: sorted, sort, toggle };
+  return { rows: sorted, sort, toggle, setSort };
 }
 
 /**

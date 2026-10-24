@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { COMPANY_LOOKUP_PAGES, COMPANY_EDIT_PAGES, COMPANIES_NOT_READY } from "@/lib/companyAccess";
+import { sessionRights } from "@/lib/propertyScope";
+import { businessByCompany } from "@/lib/companyBusiness";
+import { ledgerByCompany } from "@/lib/cityLedger";
 import {
+  getPropertyClock,
   companiesReady,
   listCompanies,
   getCompany,
@@ -62,7 +66,24 @@ export async function GET(req) {
     const companies = await listCompanies(propertyId, {
       includeInactive: params.get("active") !== "1",
     });
-    return NextResponse.json({ companies });
+    if (params.get("summary") !== "1") return NextResponse.json({ companies });
+
+    // The list page's figures: business done for whoever runs this page,
+    // money owed and collected only for those who may see the City Ledger.
+    const { rights } = await sessionRights(session);
+    const tz = await getPropertyClock(propertyId);
+    const [business, ledger] = await Promise.all([
+      rights.includes("companies") ? businessByCompany(propertyId, { tz }) : null,
+      rights.includes("cityledger") ? ledgerByCompany(propertyId, { tz }) : null,
+    ]);
+    return NextResponse.json({
+      companies: companies.map((c) => ({
+        ...c,
+        ...(business ? { business: business.byCompany.get(c.id) || { bookings: 0, nights: 0, value: 0 } } : {}),
+        ...(ledger ? { ledger: ledger.get(c.id) || null } : {}),
+      })),
+      businessFrom: business?.from || null,
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
