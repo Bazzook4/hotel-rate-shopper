@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "Clean and dirty rooms are easier to spot",
+    points: [
+      {
+        page: "calendar",
+        text: "On the calendar, each room's clean or dirty mark now sits in its own column beside the room number, under a broom, so the marks line up in one straight line. A dirty room shows an amber box with a broom, a clean room an empty box, and an inspected room a green tick. Click the box to switch between clean and dirty, as before.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "Bookings open from the right",
     points: [
       {

@@ -45,10 +45,15 @@ import { formatMoney, hotelCurrency } from "@/lib/money";
 const MIN_DAY_WIDTH = 44;
 /**
  * Width of the fixed room column on the left. A row holds only the number
- * and its clean/dirty dot, so the rest of the width goes to the nights; a
+ * and its clean/dirty box, so the rest of the width goes to the nights; a
  * long type name on a group header wraps instead.
  */
 const ROOM_COL = 100;
+/**
+ * The clean/dirty slot at the right of the room column, the same width on
+ * every row so the boxes run down one straight line under the broom heading.
+ */
+const HK_COL = 28;
 /**
  * The same column on a phone. A room row shows only its number, so on a
  * narrow screen the full width goes to the nights instead.
@@ -1093,9 +1098,23 @@ export default function TapeChart({ session }) {
                     fontSize: "0.75rem",
                     fontWeight: 600,
                     borderRight: "1px solid var(--border-strong)",
+                    display: "flex",
+                    alignItems: "center",
+                    paddingRight: 0,
                   }}
                 >
-                  Room
+                  <span style={{ flex: 1 }}>Room</span>
+                  <span
+                    title="Clean or dirty"
+                    style={{
+                      width: HK_COL,
+                      display: "inline-flex",
+                      justifyContent: "center",
+                      color: "var(--text-faint)",
+                    }}
+                  >
+                    <Icon name="broom" size={14} />
+                  </span>
                 </div>
                 {dates.map((d) => {
                   const parsed = parseDateISO(d);
@@ -1282,7 +1301,7 @@ export default function TapeChart({ session }) {
                         style={{
                           width: roomCol,
                           flexShrink: 0,
-                          padding: "0 0.5rem",
+                          padding: "0 0 0 0.5rem",
                           fontSize: "0.8rem",
                           borderRight: "1px solid var(--border-strong)",
                           background: "var(--surface)",
@@ -1291,25 +1310,34 @@ export default function TapeChart({ session }) {
                           zIndex: 2,
                           display: "flex",
                           alignItems: "center",
-                          gap: 4,
                         }}
                       >
-                        {/* Number and clean/dirty on one line. The type sits
-                            on the group header, so the row shows only what
-                            the header cannot say about this one room. */}
-                        <span style={{ fontWeight: 600 }}>{room.room_number}</span>
-                        {!room.is_active ? (
-                          <span
-                            style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}
-                          >
-                            OOO
-                          </span>
-                        ) : (
-                          <HousekeepingTag
-                            status={room.housekeeping}
-                            onToggle={canHousekeep ? () => toggleHousekeeping(room) : null}
-                          />
-                        )}
+                        {/* Number, then clean/dirty in its own slot at the
+                            right edge, so every room's box sits on the same
+                            line. The type sits on the group header. */}
+                        <span style={{ fontWeight: 600, flex: 1 }}>{room.room_number}</span>
+                        <span
+                          style={{
+                            width: HK_COL,
+                            alignSelf: "stretch",
+                            flexShrink: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            borderLeft: "1px solid var(--border)",
+                          }}
+                        >
+                          {!room.is_active ? (
+                            <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>
+                              OOO
+                            </span>
+                          ) : (
+                            <HousekeepingTag
+                              status={room.housekeeping}
+                              onToggle={canHousekeep ? () => toggleHousekeeping(room) : null}
+                            />
+                          )}
+                        </span>
                       </div>
 
                       {/* The day cells: the drop target, and a click starts a booking */}
@@ -1746,41 +1774,43 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
 }
 
 /**
- * A small marker on a bar for what its colour cannot say: comp, group. Solid
- * in a hue no status uses, so it stands out on a light bar and a solid one
- * alike.
- */
-/**
- * A room's clean/dirty status as a dot beside its number: green clean, amber
- * dirty, and a ring once inspected. A button for anyone with the Housekeeping
- * right -- one tap flips clean and dirty -- with a hit area larger than the
- * dot; a plain dot for everyone else. Out of order is set on the Housekeeping
- * page, not here.
+ * A room's clean/dirty status as a small box in its own slot beside the
+ * number, so the boxes line up down the chart: an amber box with a broom
+ * when dirty, an empty box when clean, a tick once inspected. Clean is
+ * quiet so the dirty rooms stand out. A button for anyone with the
+ * Housekeeping right -- one tap flips clean and dirty -- and a plain box for
+ * everyone else. Out of order is set on the Housekeeping page, not here.
  */
 const HK_LABEL = { dirty: "Dirty", inspected: "Inspected", out_of_order: "Out of order" };
 
 function HousekeepingDot({ status }) {
   const dirty = status === "dirty";
+  const icon = dirty ? "broom" : status === "inspected" ? "check" : status === "out_of_order" ? "blocked" : null;
   return (
     <span
       aria-hidden="true"
       style={{
-        display: "inline-block",
-        width: 8,
-        height: 8,
-        borderRadius: "50%",
-        background: status === "out_of_order" ? "var(--text-faint)" : dirty ? "var(--warn)" : "var(--status-in)",
-        boxShadow: status === "inspected" ? "0 0 0 2px var(--surface), 0 0 0 3px var(--status-in)" : undefined,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 18,
+        height: 18,
+        borderRadius: 4,
+        border: `1px solid ${dirty ? "var(--warn)" : "var(--border-strong)"}`,
+        background: dirty ? "var(--warn-soft)" : "var(--surface)",
+        color: dirty ? "var(--warn)" : status === "inspected" ? "var(--status-in)" : "var(--text-faint)",
         verticalAlign: "middle",
       }}
-    />
+    >
+      {icon && <Icon name={icon} size={12} strokeWidth={2} />}
+    </span>
   );
 }
 
 function HousekeepingTag({ status, onToggle }) {
   const dirty = status === "dirty";
   const label = HK_LABEL[status] || "Clean";
-  const box = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20 };
+  const box = { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 24, height: 24 };
   if (!onToggle || status === "out_of_order") {
     return (
       <span title={label} aria-label={label} role="img" style={box}>
@@ -1801,6 +1831,11 @@ function HousekeepingTag({ status, onToggle }) {
   );
 }
 
+/**
+ * A small marker on a bar for what its colour cannot say: comp, group. Solid
+ * in a hue no status uses, so it stands out on a light bar and a solid one
+ * alike.
+ */
 function BarTag({ children, title, legend = false }) {
   return (
     <span
