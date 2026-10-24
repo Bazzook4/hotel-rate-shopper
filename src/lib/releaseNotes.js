@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "New hotels see their rooms on the front desk straight away",
+    points: [
+      {
+        page: "rooms",
+        text: "A hotel under 60 rooms that signs up through an onboarding link now has its rooms numbered for it (101, 102 for the first room type, 201, 202 for the next), so the front desk shows them from the first day. The numbers can be changed on the Rooms page.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "Invoices say they need no signature",
     points: [
       {

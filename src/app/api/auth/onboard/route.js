@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import {
   addIndianGst,
   createRatePlanWithDerivation,
+  createRoomRange,
   createRoomType,
   createUser,
   findUserByEmail,
@@ -19,6 +20,7 @@ import { savePropertyProfile, validateProfile } from "@/lib/events";
 import { clientIp, recordSignup, signupBlockedBy } from "@/lib/rateLimit";
 import { STARTER_PLANS, validateStarterSetup } from "@/lib/onboardSetup";
 import { sendWelcomeEmail } from "@/lib/welcomeEmail";
+import { planAutoNumbering } from "@/lib/roomNumbering";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -174,6 +176,20 @@ export async function POST(request) {
           max_adults: r.maxAdults,
         }),
       });
+    }
+    // The front desk lays bookings out against numbered rooms, so a small
+    // hotel gets its rooms numbered now (101, 201... per type) rather than
+    // landing on an empty chart. A larger one numbers its own doors under
+    // Room Number Setup. A failure here must not cost the hotel its account.
+    {
+      const { allowed, plan } = planAutoNumbering(rooms.map((r) => r.room), []);
+      if (allowed) {
+        try {
+          for (const step of plan) await createRoomRange({ property_id: property.id, ...step });
+        } catch (err) {
+          console.error("Could not number rooms at onboarding:", err);
+        }
+      }
     }
     for (const code of starter.planCodes) {
       const plan = await createRatePlanWithDerivation({
