@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import {
   addIndianGst,
   createRatePlanWithDerivation,
@@ -18,6 +18,7 @@ import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/li
 import { savePropertyProfile, validateProfile } from "@/lib/events";
 import { clientIp, recordSignup, signupBlockedBy } from "@/lib/rateLimit";
 import { STARTER_PLANS, validateStarterSetup } from "@/lib/onboardSetup";
+import { sendWelcomeEmail } from "@/lib/welcomeEmail";
 
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -215,6 +216,15 @@ export async function POST(request) {
 
     await completeInvite(invite, { userId: user.id, propertyId: property.id });
     if (shared) await recordSignup(ip);
+
+    // Sent after the response, so a slow or failed email never holds up or
+    // costs the hotel its account.
+    const loginUrl = `${request.nextUrl.origin}/login`;
+    after(() =>
+      sendWelcomeEmail({ to: email, propertyName: property.name, contactName, password, loginUrl }).catch((err) =>
+        console.error("Could not send the welcome email:", err.message)
+      )
+    );
 
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, propertyId: property.id, propertyName: property.name },
