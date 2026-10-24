@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "Invoices say they need no signature",
+    points: [
+      {
+        page: "reservations",
+        text: "The bottom of every invoice now says it is a computer-generated invoice and does not need a signature.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "No more blank error screen",
     points: [
       {

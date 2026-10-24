@@ -368,6 +368,14 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
       color: muted,
     });
   });
+  const note = "This is a computer-generated invoice and does not need a signature.";
+  pages[pages.length - 1].drawText(note, {
+    x: PAGE.width / 2 - font.widthOfTextAtSize(note, 8) / 2,
+    y: MARGIN / 2 + 11,
+    size: 8,
+    font,
+    color: muted,
+  });
 
   return pdf.save();
 }
