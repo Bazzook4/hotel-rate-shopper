@@ -24,6 +24,14 @@ export const RELEASE_NOTES = [
         page: "calendar",
         text: "Group bookings, taking a room out of order and the check-in form (room, names and IDs) open the same way. Only quick questions, like Are you sure? or choosing a room, still appear in the middle.",
       },
+      {
+        page: "guests",
+        text: "On Guests, the Stays, ID file and Wallet buttons open the guest on the right, with a tab for each, instead of opening rows under the guest. Click a booking in Stays to open it.",
+      },
+      {
+        page: "cityledger",
+        text: "On City Ledger, clicking a company or Receive opens its bills and payments on the right, the same as the Ledger tab on Companies & agents.",
+      },
     ],
   },
   {

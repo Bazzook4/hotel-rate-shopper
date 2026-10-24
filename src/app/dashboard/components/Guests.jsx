@@ -1,7 +1,7 @@
 "use client";
 
 import Icon from "../../components/Icon";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Grid,
   Messages,
@@ -19,6 +19,7 @@ import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, TiersGrid, WalletPlansGrid, useGuestTiers } from "./GuestSettings";
 import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
 import GuestIdPhotos from "./GuestIdPhotos";
+import { Drawer } from "./RatePlanSetup";
 import { formatAmount } from "@/lib/money";
 
 /**
@@ -60,8 +61,8 @@ function formatDate(iso) {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-/** A guest's bookings, opened under their row. */
-function GuestHistory({ propertyId, guestId, onOpen, colSpan }) {
+/** A guest's bookings, newest first, each one opening the booking. */
+function GuestHistory({ propertyId, guestId, onOpen }) {
   const [state, setState] = useState({ loading: true });
 
   useEffect(() => {
@@ -80,32 +81,92 @@ function GuestHistory({ propertyId, guestId, onOpen, colSpan }) {
     };
   }, [propertyId, guestId]);
 
+  if (state.loading) return <p className="sub">Loading stays...</p>;
+  if (state.error) return <p style={{ color: "var(--danger)" }}>{state.error}</p>;
+  if (!state.reservations.length) return <p className="sub">No bookings on record.</p>;
   return (
-    <tr>
-      <td colSpan={colSpan} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
-        {state.loading && <span className="sub">Loading stays...</span>}
-        {state.error && <span style={{ color: "var(--danger)" }}>{state.error}</span>}
-        {state.reservations?.length === 0 && <span className="sub">No bookings on record.</span>}
-        {state.reservations?.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {state.reservations.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                className="btn btn-secondary text-xs"
-                onClick={() => onOpen(r.id)}
-                title="Open this booking"
-              >
-                {r.reference}, {formatDate(r.check_in)} to {formatDate(r.check_out)}
-                {r.room_types?.room_type_name ? `, ${r.room_types.room_type_name}` : ""}
-                {r.rooms?.room_number ? ` ${r.rooms.room_number}` : ""},{" "}
-                {STATUS_LABELS[r.status] || r.status}
-              </button>
-            ))}
-          </div>
-        )}
-      </td>
-    </tr>
+    <div className="table-frame overflow-auto rounded-lg" style={{ border: "1px solid var(--border)" }}>
+      <table className="grid-table">
+        <thead>
+          <tr>
+            <th>Booking</th>
+            <th>Stay</th>
+            <th>Room</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {state.reservations.map((r) => (
+            <tr key={r.id}>
+              <td>
+                <button
+                  type="button"
+                  className="font-medium underline decoration-dotted underline-offset-2"
+                  style={{ color: "var(--accent)" }}
+                  onClick={() => onOpen(r.id)}
+                >
+                  {r.reference}
+                </button>
+              </td>
+              <td>
+                {formatDate(r.check_in)} to {formatDate(r.check_out)}
+              </td>
+              <td>
+                {[r.room_types?.room_type_name, r.rooms?.room_number].filter(Boolean).join(" ") || "-"}
+              </td>
+              <td>{STATUS_LABELS[r.status] || r.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const PANEL_TABS = [
+  { id: "history", label: "Stays" },
+  { id: "photos", label: "ID file" },
+  { id: "wallet", label: "Wallet" },
+];
+
+/**
+ * A guest opened from the list, on the right: their stays, their ID file
+ * and their wallet as tabs. The guest's details stay in the grid, edited
+ * with its Save like every other row.
+ */
+function GuestPanel({ propertyId, guest: g, startTab, plans, onClose, onChanged, onOpenBooking }) {
+  const [tab, setTab] = useState(startTab || "history");
+  const photoCount = g.id_photos?.length || 0;
+  const label = (t) =>
+    t.id === "history" ? `Stays (${g.stays || 0})` : t.id === "photos" && photoCount ? `ID file (${photoCount})` : t.label;
+  return (
+    <Drawer
+      title={g.full_name || "Guest"}
+      subtitle={[g.phone, g.email].filter(Boolean).join(", ") || null}
+      onCancel={onClose}
+      width={760}
+      tabs={
+        <div className="seg" role="tablist">
+          {PANEL_TABS.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={tab === t.id ? "seg-on" : ""} onClick={() => setTab(t.id)}>
+              {label(t)}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {tab === "history" && <GuestHistory propertyId={propertyId} guestId={g.id} onOpen={onOpenBooking} />}
+      {tab === "photos" && <GuestIdPhotos propertyId={propertyId} guest={g} onChanged={onChanged} />}
+      {tab === "wallet" && (
+        <WalletPanel
+          owner={{ type: "guest", id: g.id, name: g.full_name }}
+          propertyId={propertyId}
+          plans={plans}
+          onChanged={onChanged}
+          onOpenBooking={onOpenBooking}
+        />
+      )}
+    </Drawer>
   );
 }
 
@@ -131,12 +192,9 @@ export default function Guests({ session }) {
   const tierOptions = [{ id: "", label: "-" }, ...tiers.map((t) => ({ id: t.id, label: t.name }))];
   const tierById = Object.fromEntries(tiers.map((t) => [t.id, t]));
 
-  function toggle(g, what) {
-    if (openId === g.id && openWhat === what) setOpenId(null);
-    else {
-      setOpenId(g.id);
-      setOpenWhat(what);
-    }
+  function openPanel(g, what) {
+    setOpenId(g.id);
+    setOpenWhat(what);
   }
 
   const countries = useMemo(
@@ -248,6 +306,11 @@ export default function Guests({ session }) {
   }
 
   const COLS = 15;
+  // The panel keeps its guest while open, even if a search hides the row.
+  const lastOpened = useRef(null);
+  const found = openId ? guests.find((x) => x.id === openId) : null;
+  if (found) lastOpened.current = found;
+  const opened = openId ? found || (lastOpened.current?.id === openId ? lastOpened.current : null) : null;
 
   return (
     <div className="space-y-4">
@@ -352,13 +415,9 @@ export default function Guests({ session }) {
 
           {rows.map((g) => {
             const draft = isDraft(g.id);
-            const open = openId === g.id && openWhat === "history";
-            const walletOpen = openId === g.id && openWhat === "wallet";
-            const photosOpen = openId === g.id && openWhat === "photos";
             const photoCount = g.id_photos?.length || 0;
             return (
-              <Fragment key={g.id}>
-                <tr className={draft ? "cm-new" : undefined}>
+              <tr key={g.id} className={draft ? "cm-new" : undefined}>
                   <td className="cm-sticky">
                     {grid.input(g, "full_name", {
                       placeholder: "Full name",
@@ -392,12 +451,11 @@ export default function Guests({ session }) {
                     ) : (
                       <button
                         type="button"
-                        className={photosOpen ? "btn btn-primary text-xs" : "btn btn-ghost text-xs"}
-                        onClick={() => toggle(g, "photos")}
-                        aria-expanded={photosOpen}
+                        className="btn btn-ghost text-xs"
+                        onClick={() => openPanel(g, "photos")}
                         title={photoCount ? "See this guest's ID" : "Upload a photo of this guest's ID"}
                       >
-                        {photoCount ? `${photoCount} file${photoCount === 1 ? "" : "s"}` : "Add"} {photosOpen ? "▾" : "▸"}
+                        {photoCount ? `${photoCount} file${photoCount === 1 ? "" : "s"}` : "Add"}
                       </button>
                     )}
                   </td>
@@ -409,11 +467,10 @@ export default function Guests({ session }) {
                       <button
                         type="button"
                         className="btn btn-ghost text-xs"
-                        onClick={() => toggle(g, "history")}
-                        aria-expanded={open}
+                        onClick={() => openPanel(g, "history")}
                         title="Show this guest's bookings"
                       >
-                        {g.stays || 0} {open ? "▾" : "▸"}
+                        {g.stays || 0}
                       </button>
                     )}
                   </td>
@@ -433,12 +490,11 @@ export default function Guests({ session }) {
                     ) : (
                       <button
                         type="button"
-                        className={walletOpen ? "btn btn-primary text-xs" : "btn btn-ghost text-xs"}
-                        onClick={() => toggle(g, "wallet")}
-                        aria-expanded={walletOpen}
+                        className="btn btn-ghost text-xs"
+                        onClick={() => openPanel(g, "wallet")}
                         title="Open this guest's wallet"
                       >
-                        {g.wallet ? inr(g.wallet) : "Add"} {walletOpen ? "▾" : "▸"}
+                        {g.wallet ? inr(g.wallet) : "Add"}
                       </button>
                     )}
                   </td>
@@ -453,40 +509,24 @@ export default function Guests({ session }) {
                       <Icon name="close" size={14} />
                     </button>
                   </td>
-                </tr>
-                {walletOpen && (
-                  <tr>
-                    <td colSpan={COLS} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
-                      <WalletPanel
-                        owner={{ type: "guest", id: g.id, name: g.full_name }}
-                        propertyId={propertyId}
-                        plans={plans}
-                        onChanged={load}
-                        onOpenBooking={(id) => openBooking(id)}
-                      />
-                    </td>
-                  </tr>
-                )}
-                {photosOpen && (
-                  <tr>
-                    <td colSpan={COLS} style={{ background: "var(--surface-2)", padding: "0.5rem 0.75rem" }}>
-                      <GuestIdPhotos propertyId={propertyId} guest={g} onChanged={load} />
-                    </td>
-                  </tr>
-                )}
-                {open && (
-                  <GuestHistory
-                    propertyId={propertyId}
-                    guestId={g.id}
-                    onOpen={(id) => openBooking(id)}
-                    colSpan={COLS}
-                  />
-                )}
-              </Fragment>
+              </tr>
             );
           })}
         </tbody>
       </Grid>
+
+      {opened && (
+        <GuestPanel
+          key={opened.id}
+          propertyId={propertyId}
+          guest={opened}
+          startTab={openWhat}
+          plans={plans}
+          onClose={() => setOpenId(null)}
+          onChanged={load}
+          onOpenBooking={(id) => openBooking(id)}
+        />
+      )}
 
       {modal}
     </div>

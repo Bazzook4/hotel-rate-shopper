@@ -578,6 +578,21 @@ export function Drawer({
     if (!busy) (onEscape || onCancel)();
   });
 
+  // Focus moves into the panel when it opens, and back to whatever opened
+  // it when it closes, so a keyboard user keeps their place in the list.
+  const panel = useRef(null);
+  useEffect(() => {
+    const before = document.activeElement;
+    const el = panel.current;
+    if (el && !el.contains(document.activeElement)) {
+      const first = el.querySelector("[autofocus], input:not([type=hidden]):not([disabled]), select, textarea, [role=tab]");
+      (first || el).focus({ preventScroll: true });
+    }
+    return () => {
+      if (before && document.contains(before)) before.focus?.({ preventScroll: true });
+    };
+  }, []);
+
   // A form, so Enter in any field presses the main button; a plain panel
   // when there is nothing to save, so Enter in a grid inside does nothing.
   const Body = onSave ? "form" : "div";
@@ -594,6 +609,8 @@ export function Drawer({
     <div className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" aria-label="Close" onClick={cancel} className="flex-1" style={{ background: "transparent" }} />
       <Body
+        ref={panel}
+        tabIndex={-1}
         className="side-panel flex flex-col"
         style={{ maxWidth: width, overflow: "hidden" }}
         {...bodyProps}

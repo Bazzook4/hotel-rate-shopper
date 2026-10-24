@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookingLink,
   Empty,
@@ -21,6 +21,7 @@ import WalletPanel, { useWalletPlans } from "./WalletPanel";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
 import { hotelToday } from "@/lib/hotelTime";
+import { Drawer } from "./RatePlanSetup";
 
 /**
  * City Ledger: what companies and travel agents owe for stays billed to
@@ -451,6 +452,11 @@ export default function CityLedger({ session }) {
   }
 
   const t = report?.totals;
+  // Kept while open: settling a company's last bill can drop it from the list.
+  const lastOpened = useRef(null);
+  const found = open ? rows.find((r) => r.id === open.id) : null;
+  if (found) lastOpened.current = found;
+  const opened = open ? found || (lastOpened.current?.id === open.id ? lastOpened.current : null) : null;
 
   return (
     <div className="space-y-4">
@@ -484,7 +490,7 @@ export default function CityLedger({ session }) {
             />
           </Section>
 
-          <Section title="By company" sub="Owed split by how far past due. Click a company for its statement.">
+          <Section title="By company" sub="Owed split by how far past due. Click a company to open its bills and payments.">
             {rows.length === 0 ? (
               <Empty>
                 Nothing owed. Stays appear here when a booking for a company or agent is set to Bill to: Company.
@@ -516,7 +522,7 @@ export default function CityLedger({ session }) {
                             type="button"
                             className="font-medium underline decoration-dotted underline-offset-2"
                             style={{ color: "var(--accent)" }}
-                            onClick={() => setOpen(open?.id === r.id ? null : { id: r.id, receive: false })}
+                            onClick={() => setOpen({ id: r.id, receive: false })}
                           >
                             {r.name}
                           </button>{" "}
@@ -558,15 +564,22 @@ export default function CityLedger({ session }) {
             )}
           </Section>
 
-          {open && (
-            <Statement
-              key={open.id}
-              session={session}
-              propertyId={propertyId}
-              companyId={open.id}
-              startReceiving={open.receive}
-              onChanged={reload}
-            />
+          {open && opened && (
+            <Drawer
+              title={opened.name}
+              onCancel={() => setOpen(null)}
+              width={940}
+            >
+              <Statement
+                key={open.id}
+                session={session}
+                propertyId={propertyId}
+                companyId={open.id}
+                startReceiving={open.receive}
+                onChanged={reload}
+                title="Bills and payments"
+              />
+            </Drawer>
           )}
         </>
       )}
