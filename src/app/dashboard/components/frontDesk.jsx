@@ -457,23 +457,13 @@ function SettleDialog({ request, onDone }) {
   );
 }
 
-/** Print an issued invoice's PDF from a hidden frame, without leaving the page. */
+/**
+ * An issued invoice's PDF in a tab of its own, where the browser's viewer
+ * prints or shares it. Printing it from a hidden frame came out blank. Call
+ * it from a click, or the browser blocks the tab.
+ */
 export function printInvoicePdf(invoiceId) {
-  const url = `/api/pms/invoice?id=${invoiceId}&inline=1`;
-  const frame = document.createElement("iframe");
-  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-  frame.src = url;
-  frame.onload = () => {
-    try {
-      frame.contentWindow.focus();
-      frame.contentWindow.print();
-    } catch {
-      // Some browsers will not print a PDF from a frame; a tab can.
-      window.open(url, "_blank", "noopener");
-    }
-    setTimeout(() => frame.remove(), 60000);
-  };
-  document.body.appendChild(frame);
+  window.open(`/api/pms/invoice?id=${invoiceId}&inline=1`, "_blank");
 }
 
 async function folioPost(body) {
@@ -490,10 +480,23 @@ async function folioPost(body) {
 /**
  * The guest's invoice as they leave: whatever is not yet invoiced is issued
  * now (one invoice per guest when the room keeps separate bills), then every
- * standing invoice of the stay is printed, so they walk out with all of it.
- * Returns how many were printed.
+ * standing invoice of the stay is opened in a tab of its own, where it can
+ * be printed or shared.
+ *
+ * Called straight from the click: the first tab is opened before anything
+ * is awaited, or the browser blocks it as a popup.
  */
 async function issueAndPrintInvoices(reservationId) {
+  const tab = window.open("", "_blank");
+  try {
+    return await issueAndOpen(reservationId, tab);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
+async function issueAndOpen(reservationId, tab) {
   const res = await fetch(`/api/pms/folio?reservationId=${reservationId}`);
   let folio = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(folio.error || "The bill could not be read.");
@@ -510,7 +513,12 @@ async function issueAndPrintInvoices(reservationId) {
   }
 
   const invoices = live();
-  invoices.forEach((inv) => printInvoicePdf(inv.id));
+  invoices.forEach((inv, i) => {
+    const url = `/api/pms/invoice?id=${inv.id}&inline=1`;
+    if (i === 0 && tab) tab.location.href = url;
+    else window.open(url, "_blank");
+  });
+  if (invoices.length === 0) tab?.close();
   return invoices.length;
 }
 

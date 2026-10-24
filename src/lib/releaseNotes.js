@@ -18,7 +18,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "reservations",
-        text: "After you check a guest out, a message at the bottom of the screen has a Print invoice button. One click issues the invoice and prints it, so the guest leaves with their bill. If you don't need it, just ignore the message.",
+        text: "After you check a guest out, a message at the bottom of the screen has a Print invoice button. One click issues the invoice and opens it in a new tab, ready to print, so the guest leaves with their bill. The Print button on a booking's Invoices tab opens it the same way, because printing straight from the page came out blank. If you don't need it, just ignore the message.",
       },
     ],
   },
