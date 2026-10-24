@@ -430,25 +430,15 @@ export default function BookingModal({
   return (
     <div
       {...backdrop}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        zIndex: 50,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        padding: "2rem 1rem",
-        overflowY: "auto",
-      }}
+      className="side-panel-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={isNew ? "New booking" : `Reservation ${reservation?.reference || ""}`}
     >
-      <div
-        className="card"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 880, background: "var(--surface)" }}
-      >
+      <div className="side-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 880 }}>
         {/* Header */}
         <div
+          className="side-panel-head"
           style={{
             display: "flex",
             alignItems: "center",

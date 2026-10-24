@@ -227,18 +227,20 @@ function CheckInDialog({ request, onDone }) {
 
   return (
     <div
-      className="dialog-backdrop"
+      className="side-panel-backdrop"
+      // Over any panel already open, as the old check-in box was.
+      style={{ zIndex: 95 }}
       onClick={(e) => {
         e.stopPropagation();
         onDone(null);
       }}
     >
       <form
-        className="dialog card"
+        className="side-panel flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label={`Check in ${guest}`}
-        style={{ maxWidth: lines.length ? 760 : undefined, width: lines.length ? "min(760px, 100%)" : undefined }}
+        style={{ maxWidth: lines.length ? 760 : 440 }}
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
@@ -246,9 +248,16 @@ function CheckInDialog({ request, onDone }) {
           onDone({ roomId, lines });
         }}
       >
-        <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-          Check in {guest}
-        </h3>
+        <div
+          className="side-panel-head flex items-center justify-between gap-3"
+          style={{ padding: "0.85rem 1.1rem", background: "var(--accent)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
+        >
+          <h3>Check in {guest}</h3>
+          <button type="button" className="head-close" onClick={() => onDone(null)} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+        <div className="card-pad flex-1">
         {roomNote && (
           <p className="mt-1 text-sm" style={{ color: "var(--warn)" }}>
             {roomNote}
@@ -368,7 +377,8 @@ function CheckInDialog({ request, onDone }) {
             )}
           </div>
         )}
-        <div className="mt-4 flex flex-wrap justify-end gap-2">
+        </div>
+        <div className="side-panel-foot flex flex-wrap justify-end gap-2" style={{ padding: "0.75rem 1.1rem" }}>
           <button type="button" className="btn btn-ghost text-sm" onClick={() => onDone(null)}>
             Cancel
           </button>

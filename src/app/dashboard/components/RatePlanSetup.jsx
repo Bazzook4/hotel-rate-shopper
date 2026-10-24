@@ -591,17 +591,11 @@ export function Drawer({
     : {};
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label={title}>
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={cancel}
-        className="flex-1"
-        style={{ background: "rgba(15, 23, 42, 0.45)" }}
-      />
+    <div className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={title}>
+      <button type="button" aria-label="Close" onClick={cancel} className="flex-1" style={{ background: "transparent" }} />
       <Body
-        className="flex h-full w-full flex-col"
-        style={{ maxWidth: width, background: "var(--surface)", borderLeft: "1px solid var(--border)" }}
+        className="side-panel flex flex-col"
+        style={{ maxWidth: width, overflow: "hidden" }}
         {...bodyProps}
       >
         <div

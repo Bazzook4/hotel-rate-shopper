@@ -185,6 +185,45 @@ body {
   }
   .head-close:hover { background: rgba(255, 255, 255, 0.15); }
 
+  /* The one way a record opens: a panel sliding in from the right over a
+   * dimmed page. Bookings, groups, room blocks and every setup drawer use
+   * it; only quick questions stay as small boxes in the middle. */
+  .side-panel-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    justify-content: flex-end;
+    background: rgba(15, 23, 42, 0.45);
+  }
+  .side-panel {
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
+    animation: side-panel-in 0.18s ease-out;
+  }
+  /* Above suggestion lists and tooltips in the panel, below menus. */
+  .side-panel-head { position: sticky; top: 0; z-index: 40; }
+  /* The panel's buttons, kept in view however long the form is. */
+  .side-panel-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+  }
+  /* Fades rather than slides: a moved panel would carry its popups with it. */
+  @keyframes side-panel-in {
+    from { opacity: 0.4; }
+    to { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .side-panel { animation: none; }
+  }
+
   .btn-danger { background: var(--danger-soft); color: var(--danger); }
 
   .input {

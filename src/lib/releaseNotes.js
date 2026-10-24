@@ -14,6 +14,20 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "Bookings open from the right",
+    points: [
+      {
+        page: "calendar",
+        text: "A booking, new or existing, now slides in from the right side of the screen instead of opening in the middle. Everything inside is where it was. The calendar or list stays in view on the left, and clicking there or pressing Esc closes it as before.",
+      },
+      {
+        page: "calendar",
+        text: "Group bookings, taking a room out of order and the check-in form (room, names and IDs) open the same way. Only quick questions, like Are you sure? or choosing a room, still appear in the middle.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "A clearer Companies & agents page",
     points: [
       {

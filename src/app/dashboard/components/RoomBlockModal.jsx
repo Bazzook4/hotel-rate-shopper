@@ -24,7 +24,7 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
   const [error, setError] = useState(null);
   const toast = useToast();
 
-  useEscape(onClose);
+  useEscape(() => !busy && onClose());
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -94,24 +94,8 @@ export default function RoomBlockModal({ session, room, block, initial, onClose,
   }
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        zIndex: 50,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        padding: "4rem 1rem",
-      }}
-    >
-      <div
-        className="card card-pad space-y-3"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 440, background: "var(--surface)" }}
-      >
+    <div onClick={() => !busy && onClose()} className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={`Room ${room.room_number} out of order`}>
+      <div className="side-panel card-pad space-y-3" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 440 }}>
         <div style={{ fontWeight: 600 }}>
           {block ? "Out of order" : "Take out of order"}: Room {room.room_number}
         </div>

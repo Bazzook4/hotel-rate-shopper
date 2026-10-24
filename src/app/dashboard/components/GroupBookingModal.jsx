@@ -412,27 +412,10 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
   const planName = (id) => ratePlans.find((p) => p.id === id)?.plan_name;
 
   return (
-    <div
-      {...backdrop}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        zIndex: 50,
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
-        padding: "2rem 1rem",
-        overflowY: "auto",
-      }}
-    >
-      <div
-        className="card booking-form"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 1040, background: "var(--surface)" }}
-      >
+    <div {...backdrop} className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label="Group booking">
+      <div className="side-panel booking-form" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 1040 }}>
         <div
-          className="flex items-center justify-between"
+          className="side-panel-head flex items-center justify-between"
           style={{
             padding: "0.85rem 1.1rem",
             background: "var(--accent)",
