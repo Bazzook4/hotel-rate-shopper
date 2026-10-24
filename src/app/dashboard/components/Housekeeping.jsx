@@ -1,5 +1,6 @@
 "use client";
 
+import { SetUpLink } from "@/app/components/PageNav";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Icon from "../../components/Icon";
 import { usePageState } from "./usePageState";
@@ -479,7 +480,10 @@ export default function Housekeeping({ session }) {
             {!loading && rooms.length === 0 && (
               <tr>
                 <td colSpan={6} className="sub">
-                  No rooms yet. Add them under Setup &gt; Rooms.
+                  No rooms yet.{" "}
+                  <SetUpLink page="rooms" fallback="Ask your admin to add them.">
+                    Set up rooms
+                  </SetUpLink>
                 </td>
               </tr>
             )}

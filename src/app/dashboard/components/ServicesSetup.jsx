@@ -13,7 +13,8 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
-import { useDialog } from "../../components/Dialog";
+import { confirmDiscardChanges, useDialog } from "../../components/Dialog";
+import { SetUpLink } from "../../components/PageNav";
 import { currencySymbol } from "@/lib/money";
 
 /**
@@ -102,6 +103,9 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
   }
 
   const count = svc.count + cat.count;
+
+  // Off to Tax Setup, asking first so unsaved grid edits are not lost.
+  const leaveForTaxes = () => count === 0 || confirmDiscardChanges(dialog, "services");
 
   async function saveAll() {
     setBusy(true);
@@ -228,7 +232,12 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
           + Add category
         </button>
         {liveTaxes.length === 0 && (
-          <span className="chip chip-warn">No taxes yet. Add them under Tax Setup</span>
+          <span className="chip chip-warn">No taxes yet</span>
+        )}
+        {liveTaxes.length === 0 && (
+          <SetUpLink page="taxsetup" className="btn btn-secondary text-sm" confirm={leaveForTaxes}>
+            Set up taxes
+          </SetUpLink>
         )}
         <input
           value={filter}

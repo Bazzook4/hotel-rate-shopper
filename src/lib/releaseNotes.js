@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-24",
+    title: "Buttons that take you straight to setup",
+    points: [
+      {
+        page: "rateplans",
+        text: "Where a page used to tell you to go to another setup page, it now has a button that takes you there. For example, Add a day-use plan when booking day use, Set up services when adding a charge to a bill, and Set up rooms on the Calendar, Housekeeping, Channel Manager and Dynamic Pricing when no rooms exist yet.",
+      },
+      {
+        page: "calendar",
+        text: "If you leave a booking to set something up, a Back to the booking button waits at the top of the setup page. A new booking comes back with everything you typed, and a bill comes back with Add service open, so nothing has to be entered twice.",
+      },
+      {
+        page: "calendar",
+        text: "Until your rooms and rate plans are set up, a short line above the Calendar and Channel Manager shows the next setup step with a Start button. It goes away once those are done.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-24",
     title: "Checked-in bookings open again",
     points: [
       {

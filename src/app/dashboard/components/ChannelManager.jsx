@@ -1,5 +1,6 @@
 "use client";
 
+import { SetUpLink } from "@/app/components/PageNav";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import DateToolbar, { ToolbarField } from "./DateToolbar";
@@ -1613,10 +1614,13 @@ export default function ChannelManager({ session }) {
       {grid && grid.rooms.length === 0 && (
         <div className="card card-pad text-center">
           <p className="sub">No room types set up yet.</p>
-          <p className="mt-1 text-xs muted">
-            Add room types under Setup &gt; Rooms and plans under Rate Plan Setup, then
-            give each its channel manager code under Integrations.
-          </p>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            <SetUpLink page="rooms" fallback={<p className="sub">Ask your admin to set these up.</p>}>
+              1. Set up rooms
+            </SetUpLink>
+            <SetUpLink page="rateplans">2. Set up rate plans</SetUpLink>
+            <SetUpLink page="integrations">3. Add channel codes</SetUpLink>
+          </div>
         </div>
       )}
 

@@ -42,14 +42,17 @@ function matches(text, query) {
     .every((w) => hay.includes(w));
 }
 
-export default function CommandPalette({ open, onClose, areas, session, onOpenPage }) {
+export default function CommandPalette({ open, onClose, areas, session, onOpenPage, page }) {
   const [query, setQuery] = useState("");
   const [bookings, setBookings] = useState([]);
   const [searching, setSearching] = useState(false);
   const [cursor, setCursor] = useState(0);
   const inputRef = useRef(null);
   const listRef = useRef(null);
-  const { openBooking, modal } = useBookingOpener(session);
+  const { openBooking, close: closeBooking, modal } = useBookingOpener(session);
+  // A booking opened from here closes when the page changes under it -- a
+  // "Set up" button inside it has just sent the desk elsewhere.
+  useEffect(() => closeBooking(), [page, closeBooking]);
   const propertyId = session?.propertyId || null;
   const canSeeBookings = BOOKING_PAGES.some((p) => canOpenPage(areas, p));
 

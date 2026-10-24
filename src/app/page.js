@@ -10,9 +10,13 @@ import SupportBar from "./components/SupportBar";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
+import { PageNavProvider } from "./components/PageNav";
 import Hint from "./components/Hint";
 import PageErrorBoundary from "./components/PageErrorBoundary";
 import CommandPalette from "./dashboard/components/CommandPalette";
+import SetupBanner from "./dashboard/components/SetupBanner";
+import BackToBooking from "./dashboard/components/BackToBooking";
+import { useBookingOpener } from "./dashboard/components/reportKit";
 import { RELEASE_NOTES } from "@/lib/releaseNotes";
 import { useEscape } from "./components/useEscape";
 import Select from "@/app/components/Select";
@@ -451,6 +455,9 @@ export default function V2Dashboard() {
   }
 
   function openPage(id, view = null) {
+    // Back on the page a booking was left from, by any route: the way back
+    // has been taken, so it is not offered again on some later page.
+    setBack((b) => (b && b.page === id ? null : b));
     setPageView(view);
     setActive(id);
     setDrawerOpen(false);
@@ -475,6 +482,52 @@ export default function V2Dashboard() {
   }
 
   const canOpen = (id) => canOpenPage(areas, id);
+
+  // A booking left to set something up (a day-use plan, a service), and the
+  // page it was open on, so the setup page can offer the way back to it.
+  const [back, setBack] = useState(null);
+  function leaveFor(id, booking) {
+    closeBackBooking();
+    openPage(id);
+    setBack({ ...booking, page: active });
+  }
+  const pageNav = { openPage, leaveFor, canOpen };
+  // A booking changed in the reopened window redraws the page behind it once,
+  // when the window closes, so the page shows it without losing its place on
+  // every payment. A channel that could not be told is said, as the
+  // Calendar says it.
+  const [pageStamp, setPageStamp] = useState(0);
+  const [backChanged, setBackChanged] = useState(false);
+  const [syncWarning, setSyncWarning] = useState(null);
+  const {
+    openBooking,
+    newBooking,
+    close: closeBackBooking,
+    modal: backModal,
+  } = useBookingOpener(
+    scopedSession,
+    (warning) => {
+      setBackChanged(true);
+      if (warning) setSyncWarning(warning);
+    },
+    () => {
+      if (backChanged) setPageStamp((n) => n + 1);
+      setBackChanged(false);
+    }
+  );
+  function goBack() {
+    const b = back;
+    setBack(null);
+    openPage(b.page);
+    // Fresh services, so one just set up is on the list.
+    if (b.reservationId) openBooking(b.reservationId, b.tab, { fresh: true, prefill: b.prefill, restore: b.restore });
+    else newBooking(b.prefill, b.restore);
+  }
+  // Never offer the way back into another hotel's booking.
+  useEffect(() => {
+    setBack(null);
+    closeBackBooking();
+  }, [propertyId, closeBackBooking]);
 
   // Explore is marked New until its What's new tab is opened, counting only
   // releases with something for this reader, so a change to a page they
@@ -507,6 +560,7 @@ export default function V2Dashboard() {
   return (
     <ToastProvider>
       <DialogProvider>
+      <PageNavProvider value={pageNav}>
       <main className="min-h-screen pb-[34px]" style={{ background: "var(--page)" }}>
         {/* Row 1 — brand, property, account */}
         <header
@@ -813,8 +867,22 @@ export default function V2Dashboard() {
                       is under Front desk, everything about price is under Rates, and Integrations and
                       Activity Log are under Setup. The search at the top finds any page.
                   </Hint>
+                  {back && (
+                    <BackToBooking back={back} onBack={goBack} onForget={() => setBack(null)} onRestore={setBack} />
+                  )}
+                  {syncWarning && (
+                    <div
+                      className="card card-pad mb-3 flex items-start gap-3 text-sm"
+                      style={{ borderColor: "var(--warn)", background: "var(--warn-soft)", color: "var(--warn)" }}
+                    >
+                      <span className="flex-1">{syncWarning}</span>
+                      <button type="button" className="btn btn-ghost text-xs" onClick={() => setSyncWarning(null)}>
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                   {/* A crash stays inside the open page; opening another clears it. */}
-                  <PageErrorBoundary key={active}>
+                  <PageErrorBoundary key={`${active}-${pageStamp}`}>
                   {active === "today" && (
                     <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} />
                   )}
@@ -833,7 +901,10 @@ export default function V2Dashboard() {
                   )}
 
                   {active === "cm" && (
-                    <ChannelManager key={scopedSession?.propertyId || ""} session={scopedSession} />
+                    <>
+                      {!back && <SetupBanner session={scopedSession} skip={["roomTypes"]} />}
+                      <ChannelManager key={scopedSession?.propertyId || ""} session={scopedSession} />
+                    </>
                   )}
 
                   {active === "integrations" && <Integrations session={scopedSession} />}
@@ -923,7 +994,12 @@ export default function V2Dashboard() {
                     <UserRights session={scopedSession} propertyId={scopedSession?.propertyId} />
                   )}
 
-                  {active === "calendar" && <TapeChart session={scopedSession} />}
+                  {active === "calendar" && (
+                    <>
+                      {!back && <SetupBanner session={scopedSession} skip={["roomTypes", "rooms"]} />}
+                      <TapeChart session={scopedSession} />
+                    </>
+                  )}
 
                   {active === "reservations" && <Reservations session={scopedSession} initialView={pageView} />}
 
@@ -951,11 +1027,15 @@ export default function V2Dashboard() {
             areas={areas}
             session={scopedSession}
             onOpenPage={openPage}
+            page={active}
           />
         )}
 
+        {backModal}
+
         <SupportBar propertyName={scopedSession?.propertyName} email={session?.email} />
       </main>
+      </PageNavProvider>
       </DialogProvider>
     </ToastProvider>
   );

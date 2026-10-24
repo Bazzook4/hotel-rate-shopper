@@ -105,6 +105,7 @@ export default function BookingModal({
   reservationId,
   initialTab = "details",
   prefill,
+  restore,
   extras,
   onClose,
   onChanged,
@@ -116,6 +117,12 @@ export default function BookingModal({
   // invoice opens the Bill with that job's drawer already open.
   const [tab, setTab] = useState(isNew ? "details" : BILL_IDS.has(initialTab) ? "bill" : initialTab);
   const [intent, setIntent] = useState(isNew ? null : initialTab);
+  // Typing carried back to a saved booking from a setup page. Used once: a
+  // save, or a look at another tab, and Details shows the booking as stored.
+  const [carried, setCarried] = useState(isNew ? null : { prefill, restore });
+  useEffect(() => {
+    if (tab !== "details") setCarried(null);
+  }, [tab]);
   const [folio, setFolio] = useState(null);
   const [loading, setLoading] = useState(!isNew);
   const [error, setError] = useState(null);
@@ -619,7 +626,8 @@ export default function BookingModal({
               <BookingForm
                 session={session}
                 reservation={reservation}
-                prefill={prefill}
+                prefill={isNew ? prefill : carried?.prefill}
+                restore={isNew ? restore : carried?.restore}
                 roomTypes={roomTypes}
                 rooms={rooms}
                 ratePlans={ratePlans}
@@ -640,6 +648,7 @@ export default function BookingModal({
                     toast(message);
                   }
                   onChanged?.(warning);
+                  setCarried(null);
                   if (isNew) onClose();
                   else await loadFolio();
                 }}

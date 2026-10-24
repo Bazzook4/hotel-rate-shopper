@@ -1,5 +1,6 @@
 "use client";
 
+import { SetUpLink } from "@/app/components/PageNav";
 import Icon from "../../components/Icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -12,7 +13,7 @@ import {
   sendJSON,
   useGrid,
 } from "./SetupGrid";
-import { useDialog } from "../../components/Dialog";
+import { confirmDiscardChanges, useDialog } from "../../components/Dialog";
 import { WEEKDAYS, MONTHS } from "@/lib/contractRates";
 import Select from "@/app/components/Select";
 import { hotelToday } from "@/lib/hotelTime";
@@ -259,7 +260,17 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
         >
           + Add rate line
         </button>
-        {roomTypes.length === 0 && <span className="sub">Add room types under Setup &gt; Rooms first.</span>}
+        {roomTypes.length === 0 && <span className="sub">Add room types first.</span>}
+        {roomTypes.length === 0 && (
+          <SetUpLink
+            page="rooms"
+            className="btn btn-secondary text-sm"
+            confirm={() => grid.count === 0 || confirmDiscardChanges(dialog, "contract rates")}
+            fallback={<span className="sub">Ask your admin to add them.</span>}
+          >
+            Set up rooms
+          </SetUpLink>
+        )}
       </Toolbar>
 
       <Grid>

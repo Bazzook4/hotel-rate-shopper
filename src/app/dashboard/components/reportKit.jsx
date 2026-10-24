@@ -176,16 +176,18 @@ export function useReport(path, query, propertyId) {
  * stay, so a row opens that stay's folio on the tab the fix is made in. The
  * services list the folio's add-a-line form needs is fetched the first time.
  */
-export function useBookingOpener(session, onChanged) {
+export function useBookingOpener(session, onChanged, onClosed) {
   const [open, setOpen] = useState(null);
   const [services, setServices] = useState(null);
   const propertyId = session?.propertyId || null;
 
   const openBooking = useCallback(
-    async (reservationId, tab = "details") => {
+    async (reservationId, tab = "details", { fresh = false, prefill = null, restore = null } = {}) => {
       if (!reservationId) return;
-      setOpen({ reservationId, tab });
-      if (services) return;
+      // A fresh list is waited for, so a service just set up is there when
+      // the bill opens rather than "No services" flashing first.
+      if (!fresh) setOpen({ reservationId, tab, prefill, restore });
+      if (services && !fresh) return;
       try {
         const qs = propertyId ? `?propertyId=${propertyId}` : "";
         const res = await fetch(`/api/pms/services${qs}`);
@@ -194,12 +196,17 @@ export function useBookingOpener(session, onChanged) {
       } catch {
         // The folio still opens; only its add-a-service list is empty.
       }
+      if (fresh) setOpen({ reservationId, tab, prefill, restore });
     },
     [services, propertyId]
   );
 
   /** A new booking, its form already holding `prefill` (a walk-in, say). */
-  const newBooking = useCallback((prefill) => setOpen({ reservationId: null, tab: "details", prefill }), []);
+  const newBooking = useCallback(
+    (prefill, restore = null) => setOpen({ reservationId: null, tab: "details", prefill, restore }),
+    []
+  );
+  const close = useCallback(() => setOpen(null), []);
 
   const modal = open ? (
     <BookingModal
@@ -207,13 +214,17 @@ export function useBookingOpener(session, onChanged) {
       reservationId={open.reservationId}
       initialTab={open.tab}
       prefill={open.prefill}
+      restore={open.restore}
       extras={services || []}
-      onClose={() => setOpen(null)}
-      onChanged={() => onChanged?.()}
+      onClose={() => {
+        setOpen(null);
+        onClosed?.();
+      }}
+      onChanged={(warning) => onChanged?.(warning)}
     />
   ) : null;
 
-  return { openBooking, newBooking, modal };
+  return { openBooking, newBooking, close, modal };
 }
 
 // ------------------------------------------------------------------

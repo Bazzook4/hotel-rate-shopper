@@ -1,5 +1,6 @@
 "use client";
 
+import { SetUpLink } from "@/app/components/PageNav";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { hotelToday } from "@/lib/hotelTime";
@@ -1053,17 +1054,21 @@ export default function TapeChart({ session }) {
         {firstLoad && <p className="sub card-pad">Loading...</p>}
 
         {!firstLoad && allRooms.length === 0 && (
-          <p className="sub card-pad">
-            No rooms set up yet. Add them under Setup &gt; Rooms. The chart needs actual
-            rooms to lay bookings out against.
-          </p>
+          <div className="card-pad flex flex-wrap items-center gap-2">
+            <p className="sub">
+              No rooms set up yet. The chart needs actual rooms to lay bookings out against.
+            </p>
+            <SetUpLink page="rooms" fallback={<p className="sub">Ask your admin to add them.</p>}>
+              Set up rooms
+            </SetUpLink>
+          </div>
         )}
 
         {!firstLoad && allRooms.length > 0 && visibleRooms.length === 0 && (
-          <p className="sub card-pad">
-            That room type has no rooms yet. Add them under Setup &gt; Rooms, or pick
-            another type above.
-          </p>
+          <div className="card-pad flex flex-wrap items-center gap-2">
+            <p className="sub">That room type has no rooms yet. Add them, or pick another type above.</p>
+            <SetUpLink page="rooms">Set up rooms</SetUpLink>
+          </div>
         )}
 
         {!firstLoad && visibleRooms.length > 0 && (

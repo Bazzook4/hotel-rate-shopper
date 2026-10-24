@@ -156,16 +156,26 @@ export function useEdits(extra = 0) {
   // Leaving with unsaved edits loses them silently otherwise.
   useEffect(() => {
     if (count === 0) return undefined;
+    const mark = {};
+    unsavedGrids.add(mark);
     const warn = (e) => {
       e.preventDefault();
       e.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
+    return () => {
+      unsavedGrids.delete(mark);
+      window.removeEventListener("beforeunload", warn);
+    };
   }, [count]);
 
   return { edits, get, set, isEdited, reset, drop, count };
 }
+
+// Every grid on screen holding unsaved edits, so a jump to another page
+// from outside the grid (Back to the booking) can ask first.
+const unsavedGrids = new Set();
+export const hasUnsavedGridEdits = () => unsavedGrids.size > 0;
 
 /** Class for an input in the grid, accented while its edit is pending. */
 export function cellClass(edited, invalid) {

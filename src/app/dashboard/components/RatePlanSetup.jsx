@@ -16,7 +16,8 @@ import {
 } from "@/lib/ratePlanPricing";
 import { isoDate, sendPlanRates } from "@/lib/cmRates";
 import { Grid, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
-import { useDialog } from "../../components/Dialog";
+import { confirmDiscardChanges, useDialog } from "../../components/Dialog";
+import { SetUpLink } from "../../components/PageNav";
 import Icon from "../../components/Icon";
 import RowMenu from "../../components/RowMenu";
 import { useEscape } from "../../components/useEscape";
@@ -1405,6 +1406,11 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
     extra_child_rate: orBlank(existing?.extra_child_rate),
   }));
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  // What the drawer opened with, so leaving for Rooms asks only after a change.
+  const opened = useRef(form);
+  const dialog = useDialog();
+  const leaveForRooms = () =>
+    JSON.stringify(form) === JSON.stringify(opened.current) || confirmDiscardChanges(dialog, "this room rate");
 
   // The room rate as it would be saved, dropped into the property's setup so
   // the resolver can price it -- and anything else -- live.
@@ -1585,13 +1591,18 @@ function RoomRateDrawer({ plan, room, ratePlans, roomTypes, assignments, onClose
 
       <Section title="Occupancy">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Included occupancy" hint="Adults priced individually. Set under Setup > Rooms.">
+          <Field label="Included occupancy" hint="Adults priced individually. Set on the room type.">
             <div className="input" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>{base}</div>
           </Field>
-          <Field label="Maximum occupancy" hint="Set under Setup > Rooms.">
+          <Field label="Maximum occupancy" hint="Set on the room type.">
             <div className="input" style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}>{maxAdults}</div>
           </Field>
         </div>
+        <p className="mt-2 text-xs faint">
+          <SetUpLink page="rooms" confirm={leaveForRooms}>
+            Change on Rooms
+          </SetUpLink>
+        </p>
       </Section>
 
       <Section title="Pricing details">

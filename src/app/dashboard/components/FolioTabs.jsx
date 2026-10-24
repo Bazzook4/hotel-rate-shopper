@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
 import { useToast } from "../../components/Toast";
+import { SetUpLink } from "../../components/PageNav";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
 import { countryName, countryOptions, toCountryCode } from "@/lib/countries";
@@ -469,7 +470,7 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
 
   async function save() {
     if (sellable.length === 0) {
-      setError("No services yet. Add them in Setup > Services Setup.");
+      setError("No services set up yet.");
       return;
     }
     if (!line.extra_id) {
@@ -500,9 +501,17 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
   return (
     <Drawer title="Add service" onCancel={onClose} onSave={save} saveLabel="Add" busyLabel="Adding..." busy={busy} error={error}>
       {sellable.length === 0 ? (
-        <p className="sub">
-          No services set up yet. Add them under Setup &gt; Services Setup, and give each its taxes under Tax Setup.
-        </p>
+        <div>
+          <p className="sub">No services set up yet.</p>
+          <SetUpLink
+            page="servicesetup"
+            back={{ reservationId, tab: "inclusions" }}
+            style={{ marginTop: "0.5rem" }}
+            fallback={<p className="sub">Ask your admin to add them.</p>}
+          >
+            Set up services
+          </SetUpLink>
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {sharers.length > 0 && (

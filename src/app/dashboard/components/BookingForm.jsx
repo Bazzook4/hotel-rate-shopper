@@ -9,6 +9,7 @@ import { plansForRoom } from "@/lib/ratePlanPricing";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, useGuestTiers } from "./GuestSettings";
 import { confirmDiscard, useDialog } from "../../components/Dialog";
+import { SetUpLink } from "../../components/PageNav";
 import {
   DAY_USE_HOLDING_STATUSES,
   dayUseLabel,
@@ -423,6 +424,7 @@ export default function BookingForm({
   session,
   reservation,
   prefill,
+  restore,
   roomTypes,
   rooms,
   ratePlans,
@@ -441,7 +443,7 @@ export default function BookingForm({
   // the room and date already chosen, which is most of the form filled in.
   const [form, setForm] = useState(() =>
     reservation
-      ? toForm(reservation)
+      ? { ...toForm(reservation), ...(prefill || {}) }
       : { ...emptyBooking(homeCountry || ""), ...(prefill || {}) }
   );
   const [saving, setSaving] = useState(false);
@@ -457,7 +459,9 @@ export default function BookingForm({
    * plan and the suggested day-use time fill themselves in -- so a form
    * opened and closed untouched never asks "Discard?".
    */
-  const [touched, setTouched] = useState(false);
+  // A form brought back from a setup page (backHere, with `restore`) holds
+  // the desk's own typing, so it starts touched.
+  const [touched, setTouched] = useState(Boolean(restore));
   useEffect(() => {
     onDirtyChange?.(touched);
   }, [touched, onDirtyChange]);
@@ -472,13 +476,29 @@ export default function BookingForm({
     onCancel();
   }
 
+  // The way back from a setup page: the booking comes back with everything
+  // typed so far, saved or not, so leaving loses nothing and asks nothing.
+  // A saved booking carries only the fields the desk changed, so anything
+  // changed elsewhere meanwhile (a channel, a colleague) is not put back.
+  function backHere() {
+    const label = form.guest_name || reservation?.guest_name || "";
+    const restore = { manualTotal, linked, planChosen: planChosen.current };
+    if (!reservation) return { prefill: form, restore, label };
+    if (!touched) return { reservationId: reservation.id, tab: "details", label };
+    const stored = toForm(reservation);
+    const changed = Object.fromEntries(
+      Object.entries(form).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(stored[k]))
+    );
+    return { reservationId: reservation.id, tab: "details", prefill: changed, restore, label };
+  }
+
   /**
    * The guest database. `linked` is the record this booking is on; while
    * there is none, typing a name or phone looks for one. A booking saved
    * without picking is still matched on phone or email by the server, so the
    * list only ever saves the desk typing -- it is never required.
    */
-  const [linked, setLinked] = useState(null);
+  const [linked, setLinked] = useState(restore?.linked ?? null);
   const [suggest, setSuggest] = useState({ field: null, items: [], active: -1 });
   // "searching" or "none" while the Search button's own search is showing.
   const [searchStatus, setSearchStatus] = useState(null);
@@ -654,7 +674,7 @@ export default function BookingForm({
    */
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
-  const [manualTotal, setManualTotal] = useState(Boolean(reservation));
+  const [manualTotal, setManualTotal] = useState(restore?.manualTotal ?? Boolean(reservation));
 
   // A date that is full is refused once; the second attempt carries the
   // override, so overbooking is always a deliberate second action.
@@ -738,7 +758,7 @@ export default function BookingForm({
    * if theirs is not sold on the new type. An existing booking keeps the plan
    * it was sold on.
    */
-  const planChosen = useRef(Boolean(prefill?.rate_plan_id));
+  const planChosen = useRef(restore?.planChosen ?? Boolean(prefill?.rate_plan_id));
 
   useEffect(() => {
     if (reservation || !assignments) return;
@@ -1181,10 +1201,14 @@ export default function BookingForm({
       )}
 
       {roomTypes.length === 0 && (
-        <p className="sub" style={{ color: "var(--warn)" }}>
-          This property has no room types yet. Add one under Setup &gt; Rooms before
-          taking bookings.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="sub" style={{ color: "var(--warn)" }}>
+            This property has no room types yet. Add one before taking bookings.
+          </p>
+          <SetUpLink page="rooms" back={backHere} fallback={<p className="sub">Ask your admin to add one.</p>}>
+            Set up rooms
+          </SetUpLink>
+        </div>
       )}
 
       {/* What every booking needs, up front. The rest -- country,
@@ -1307,7 +1331,19 @@ export default function BookingForm({
             hint={
               planOptions.length
                 ? dayUseLabel(form.day_use_hours)
-                : "No day-use plan on this room type. Add one in Rate Plans"
+                : (
+                    <>
+                      No day-use plan on this room type.{" "}
+                      <SetUpLink
+                        page="rateplans"
+                        back={backHere}
+                        style={{ marginTop: "0.25rem" }}
+                        fallback="Ask your admin to add one."
+                      >
+                        Add a day-use plan
+                      </SetUpLink>
+                    </>
+                  )
             }
           >
             <Select

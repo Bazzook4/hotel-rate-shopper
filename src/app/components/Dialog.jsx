@@ -192,3 +192,14 @@ export function confirmDiscard(dialog, editing = false) {
     danger: true,
   });
 }
+
+/** The same "Discard?" for leaving a page or drawer, naming what was edited. */
+export function confirmDiscardChanges(dialog, what) {
+  return dialog.confirm({
+    title: "Discard your changes?",
+    message: `Your changes to ${what} have not been saved.`,
+    confirmLabel: "Yes, discard",
+    cancelLabel: "Keep editing",
+    danger: true,
+  });
+}

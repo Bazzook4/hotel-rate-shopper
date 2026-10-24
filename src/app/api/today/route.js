@@ -212,6 +212,12 @@ export async function GET(req) {
   }
 
   const { user, rights } = await sessionRights(session);
+
+  // Just the setup steps, for the reminder on pages a new hotel opens first.
+  if (params.get("part") === "setup") {
+    const setup = user && canManageSetup(user) ? await part(() => setupPart(propertyId)) : null;
+    return NextResponse.json({ setup });
+  }
   const holds = (pages) => pages.some((p) => rights.includes(p));
   const tz = await getPropertyClock(propertyId);
   const today = localToday(tz);

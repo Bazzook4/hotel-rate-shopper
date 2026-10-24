@@ -1,5 +1,6 @@
 "use client";
 
+import { SetUpLink } from "@/app/components/PageNav";
 import Icon from "../../components/Icon";
 import { useMemo, useRef, useState } from "react";
 import { Grid } from "./SetupGrid";
@@ -124,7 +125,10 @@ function TryIt({ rooms, strategy, scales, adjustments }) {
   if (!room) {
     return (
       <div className="card card-pad sub">
-        Give your rooms a base rate in Rate Plan Setup to see a preview here.
+        Give your rooms a base rate to see a preview here.{" "}
+        <SetUpLink page="rateplans" fallback="Ask your admin to set one.">
+          Set up rates
+        </SetUpLink>
       </div>
     );
   }

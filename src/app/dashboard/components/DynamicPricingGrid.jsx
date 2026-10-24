@@ -1,5 +1,6 @@
 "use client";
 
+import { SetUpLink } from "@/app/components/PageNav";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseDateISO } from "@/lib/date";
 import { hotelToday } from "@/lib/hotelTime";
@@ -443,8 +444,11 @@ export default function DynamicPricingGrid({ session }) {
           </div>
         )
       ) : (
-        <div className="card card-pad">
-          <p className="sub">Add your room types under Setup &gt; Rooms before running dynamic pricing.</p>
+        <div className="card card-pad flex flex-wrap items-center gap-2">
+          <p className="sub">Add your room types before running dynamic pricing.</p>
+          <SetUpLink page="rooms" fallback={<p className="sub">Ask your admin to add them.</p>}>
+            Set up rooms
+          </SetUpLink>
         </div>
       )}
 
