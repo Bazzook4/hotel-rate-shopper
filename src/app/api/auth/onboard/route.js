@@ -15,7 +15,7 @@ import { hashPassword } from "@/lib/password";
 import { setSessionCookie } from "@/lib/session";
 import { ROLES } from "@/lib/permissions";
 import { getDefaultAdminModules } from "@/lib/rights";
-import { claimInvite, completeInvite, findOpenInvite, releaseInvite } from "@/lib/onboarding";
+import { claimInvite, completeInvite, findOpenInvite, findOpenLinkToken, releaseInvite } from "@/lib/onboarding";
 import { savePropertyProfile, validateProfile } from "@/lib/events";
 import { clientIp, recordSignup, signupBlockedBy } from "@/lib/rateLimit";
 import { STARTER_PLANS, validateStarterSetup } from "@/lib/onboardSetup";
@@ -37,7 +37,10 @@ const CAPPED = {
 
 /** Whether a link is still good, and the hotel name it was issued for. */
 export async function GET(request) {
-  const token = request.nextUrl.searchParams.get("token");
+  // No token in the address (a hotel arriving from the login page) uses the
+  // always-open link, if the admin has one switched on.
+  const token =
+    request.nextUrl.searchParams.get("token") || (await findOpenLinkToken().catch(() => null));
   const invite = await findOpenInvite(token).catch(() => null);
   if (!invite) return NextResponse.json(GONE, { status: 410 });
   // Where the visitor is, as Vercel reads it from their address. Only a
@@ -51,6 +54,7 @@ export async function GET(request) {
   }
   return NextResponse.json({
     propertyName: invite.property_name,
+    token,
     geo: {
       country: (h.get("x-vercel-ip-country") || "").toUpperCase(),
       region: h.get("x-vercel-ip-country-region") || "",

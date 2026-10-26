@@ -48,14 +48,13 @@ export default function OnboardPage() {
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("token") || "";
     setToken(t);
-    if (!t) {
-      setLinkState("gone");
-      return;
-    }
+    // No token in the address: the login page's "New hotel?" link. The
+    // server answers with the always-open link's token, if there is one.
     fetch(`/api/auth/onboard?token=${encodeURIComponent(t)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error();
         const data = await res.json();
+        setToken(data.token || t);
         if (data.propertyName) setPropertyName(data.propertyName);
         // Fill country, city, time zone and currency from where the visitor
         // is, never over anything already chosen. Device clock first for the

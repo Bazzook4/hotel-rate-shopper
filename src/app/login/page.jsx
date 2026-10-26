@@ -85,13 +85,19 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-2xl px-4 py-2.5 h2 text-sm  transition   disabled:opacity-50 "
+          className="btn btn-primary w-full"
         >
           {loading ? "Signing in..." : "Sign in"}
         </button>
         <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
           Forgot your password? Ask your hotel admin to reset it.
         </p>
+        <div className="space-y-2 border-t border-[var(--border)] pt-4 text-center">
+          <p className="text-xs text-ink/70">Is your hotel new to us?</p>
+          <a href="/onboard" className="btn btn-ghost w-full">
+            Set up your hotel
+          </a>
+        </div>
       </form>
     </div>
   );
