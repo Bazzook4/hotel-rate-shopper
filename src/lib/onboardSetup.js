@@ -58,7 +58,7 @@ export function validateStarterSetup({ roomTypes, planCodes }, totalRooms) {
       return { error: `${name}: adults must be from 1 to ${MAX_ADULTS}.` };
     }
     if (!(maxAdults >= baseAdults && maxAdults <= MAX_ADULTS)) {
-      return { error: `${name}: most adults must be from ${baseAdults} to ${MAX_ADULTS}.` };
+      return { error: `${name}: max adults must be from ${baseAdults} to ${MAX_ADULTS}.` };
     }
     cleaned.push({ name, rooms, baseAdults, maxAdults, raw: r });
   }

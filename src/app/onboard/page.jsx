@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Icon from "../components/Icon";
 import { EMPTY_PROFILE, ProfileFields } from "../dashboard/components/PropertyProfile";
 import { profileGaps } from "@/lib/eventTags";
 import { guessCountry } from "@/lib/places";
+import { browserZone, isZone } from "@/lib/hotelTime";
+import { currencyForCountry } from "@/lib/money";
 import {
   DEFAULT_PLAN_CODES,
   MAX_ADULTS,
@@ -17,6 +20,7 @@ import {
 const labelClass = "text-xs font-semibold uppercase tracking-[0.2em] text-ink/70";
 // Matches the server's limit in api/auth/onboard.
 const MAX_ROOMS = 1000;
+const STEPS = ["Hotel details", "Room types", "Plans and rates", "Sign in"];
 
 export default function OnboardPage() {
   const [token, setToken] = useState("");
@@ -32,6 +36,8 @@ export default function OnboardPage() {
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [roomTypes, setRoomTypes] = useState([emptyRoomType()]);
   const [planCodes, setPlanCodes] = useState(DEFAULT_PLAN_CODES);
+  // 1 = the hotel, 2 = room types, 3 = plans and rates, 4 = email and password.
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   // Bot traps the server checks: when the form opened, and a field only a
@@ -40,9 +46,6 @@ export default function OnboardPage() {
   const [trap, setTrap] = useState("");
 
   useEffect(() => {
-    // A first guess from the browser, after mount so the server render and
-    // the first client render agree.
-    setProfile((p) => (p.country_code ? p : { ...p, country_code: guessCountry() }));
     const t = new URLSearchParams(window.location.search).get("token") || "";
     setToken(t);
     if (!t) {
@@ -54,6 +57,19 @@ export default function OnboardPage() {
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (data.propertyName) setPropertyName(data.propertyName);
+        // Fill country, city, time zone and currency from where the visitor
+        // is, never over anything already chosen. Device clock first for the
+        // zone, then the address, then the browser language for the country.
+        const geo = data.geo || {};
+        const country = geo.country || guessCountry();
+        const zone = browserZone() || (isZone(geo.timezone) ? geo.timezone : "");
+        setProfile((p) => ({
+          ...p,
+          country_code: p.country_code || country,
+          city: p.city || (p.country_code ? "" : geo.city || ""),
+          timezone: p.timezone || zone,
+          currency: p.currency || currencyForCountry(p.country_code || country) || "",
+        }));
         startedAt.current = Date.now();
         setLinkState("open");
       })
@@ -72,26 +88,81 @@ export default function OnboardPage() {
     );
   const roomsPlaced = roomTypes.reduce((n, r) => n + (Number(r.rooms) || 0), 0);
 
-  async function onSubmit(e) {
-    e.preventDefault();
-    setError("");
+  // Checks step 1; returns true when the hotel details are complete.
+  function hotelStepOk() {
+    if (!propertyName.trim()) {
+      setError("Enter the hotel name.");
+      return false;
+    }
     if (!/^\d+$/.test(totalRooms.trim()) || +totalRooms < 1 || +totalRooms > MAX_ROOMS) {
       setError(`Total rooms must be a whole number from 1 to ${MAX_ROOMS}.`);
-      return;
+      return false;
     }
     const gaps = profileGaps(profile);
     if (!profile.timezone) gaps.push("time zone");
     if (gaps.length) {
       setError(`Still needed: ${gaps.join(", ")}.`);
-      return;
+      return false;
+    }
+    if (!contactName.trim()) {
+      setError("Enter your name.");
+      return false;
     }
     if (contactPhone.replace(/\D/g, "").length < 10) {
       setError("Enter your mobile number, so we can reach you.");
+      return false;
+    }
+    return true;
+  }
+
+  // Room types alone, before any plan or price is asked for.
+  function roomStepOk() {
+    const dummy = roomTypes.map((r) => ({ ...r, prices: { EP: 1 } }));
+    const res = validateStarterSetup({ roomTypes: dummy, planCodes: ["EP"] }, Number(totalRooms));
+    if (res.error) setError(res.error);
+    return !res.error;
+  }
+
+  function plansStepOk() {
+    const res = validateStarterSetup({ roomTypes, planCodes }, Number(totalRooms));
+    if (res.error) setError(res.error);
+    return !res.error;
+  }
+
+  function goTo(n) {
+    setStep(n);
+    window.scrollTo({ top: 0 });
+  }
+
+  function goNext() {
+    setError("");
+    const ok = step === 1 ? hotelStepOk() : step === 2 ? roomStepOk() : plansStepOk();
+    if (ok) goTo(step + 1);
+  }
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError("");
+    if (step < 4) {
+      goNext();
+      return;
+    }
+    if (!hotelStepOk()) {
+      setStep(1);
       return;
     }
     const starter = validateStarterSetup({ roomTypes, planCodes }, Number(totalRooms));
     if (starter.error) {
       setError(starter.error);
+      setStep(roomStepOk() ? 3 : 2);
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
     if (password !== confirm) {
@@ -136,13 +207,14 @@ export default function OnboardPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-12">
       <form
         onSubmit={onSubmit}
-        className="w-full max-w-lg space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
+        noValidate
+        className="w-full max-w-3xl space-y-6 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 backdrop-blur-2xl shadow-[0_16px_40px_rgba(15,23,42,0.45)]"
       >
         <div className="space-y-2 text-center">
           <p className="text-xs uppercase tracking-[0.4em] text-ink/70">HMS | Online Hotelier</p>
           <h1 className="h1">Set up your hotel</h1>
           <p className="text-xs text-ink/70">
-            Six short steps. Your rooms, plans and prices are ready when you sign in.
+            Four short steps. Your rooms, plans and prices are ready when you sign in.
           </p>
         </div>
 
@@ -162,6 +234,36 @@ export default function OnboardPage() {
 
         {linkState === "open" && (
           <>
+            <div className="grid gap-6 sm:grid-cols-[11rem_1fr]">
+            <ol className="grid grid-cols-4 gap-2 self-start sm:grid-cols-1 sm:gap-3" aria-label="Steps">
+              {STEPS.map((label, i) => {
+                const n = i + 1;
+                const state = n < step ? "done" : n === step ? "now" : "todo";
+                return (
+                  <li
+                    key={label}
+                    aria-current={state === "now" ? "step" : undefined}
+                    className="flex flex-col items-center gap-1 text-center sm:flex-row sm:gap-3 sm:text-left"
+                  >
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
+                        state === "now"
+                          ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                          : state === "done"
+                            ? "border-[var(--accent)] text-[var(--accent)]"
+                            : "border-[var(--border)] text-ink/70"
+                      }`}
+                    >
+                      {state === "done" ? <Icon name="check" size={14} /> : n}
+                    </span>
+                    <span className={`text-xs sm:text-sm ${state === "now" ? "font-semibold" : "text-ink/70"}`}>
+                      {label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="min-w-0 space-y-6">
             <div className="space-y-4">
               {/* Hidden from people; a form-filling script fills it in. The
                   odd name and autocomplete keep browsers from autofilling it. */}
@@ -178,8 +280,8 @@ export default function OnboardPage() {
                   />
                 </label>
               </div>
-              <section className="space-y-4">
-                <h2 className="h2 text-left">1. Hotel details</h2>
+              <section className={`space-y-4 ${step === 1 ? "" : "hidden"}`}>
+                <h2 className="h2 text-left">Hotel details</h2>
                 <div className="grid gap-4 sm:grid-cols-[1fr_8rem] sm:gap-3">
                   <label className="block space-y-2 text-left">
                     <span className={labelClass}>Hotel name</span>
@@ -224,8 +326,8 @@ export default function OnboardPage() {
                 </div>
               </section>
 
-              <section className="space-y-4 border-t border-[var(--border)] pt-4">
-                <h2 className="h2 text-left">2. Contact details</h2>
+              <section className={`space-y-4 border-t border-[var(--border)] pt-4 ${step === 1 ? "" : "hidden"}`}>
+                <h2 className="h2 text-left">Contact details</h2>
                 <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
                   <label className="block space-y-2 text-left">
                     <span className={labelClass}>Your name</span>
@@ -257,14 +359,14 @@ export default function OnboardPage() {
                 </div>
               </section>
 
-              <section className="space-y-4 border-t border-[var(--border)] pt-4">
-                <h2 className="h2 text-left">3. Room types</h2>
+              <section className={`space-y-4 ${step === 2 ? "" : "hidden"}`}>
+                <h2 className="h2 text-left">Room types</h2>
                 <div className="space-y-2 text-left">
                   <div className="hidden grid-cols-[1fr_4.5rem_4.5rem_4.5rem_auto] gap-2 text-xs text-ink/70 sm:grid">
                     <span>Name</span>
                     <span>Rooms</span>
                     <span>Adults</span>
-                    <span>Most adults</span>
+                    <span>Max adults</span>
                     <span className="w-[4.5rem]" />
                   </div>
                   {roomTypes.map((r, i) => (
@@ -283,7 +385,7 @@ export default function OnboardPage() {
                       {[
                         ["rooms", "Rooms", 1, Number(totalRooms) || undefined],
                         ["baseAdults", "Adults", 1, MAX_ADULTS],
-                        ["maxAdults", "Most adults", 1, MAX_ADULTS],
+                        ["maxAdults", "Max adults", 1, MAX_ADULTS],
                       ].map(([key, label, min, max]) => (
                         <label key={key} className="block space-y-1">
                           <span className="text-xs text-ink/70 sm:hidden">{label}</span>
@@ -330,14 +432,14 @@ export default function OnboardPage() {
                     )}
                   </div>
                   <p className="text-xs text-ink/70">
-                    Adults: guests the room price includes. Most adults: the most it sleeps, extra
+                    Adults: guests the room price includes. Max adults: the most it sleeps, extra
                     adults paying more.
                   </p>
                 </div>
               </section>
 
-              <section className="space-y-4 border-t border-[var(--border)] pt-4">
-                <h2 className="h2 text-left">4. Rate plans</h2>
+              <section className={`space-y-4 border-t border-[var(--border)] pt-4 ${step === 3 ? "" : "hidden"}`}>
+                <h2 className="h2 text-left">Rate plans</h2>
                 <fieldset className="space-y-2 text-left">
                   <legend className={labelClass}>What do you sell?</legend>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -363,8 +465,8 @@ export default function OnboardPage() {
                 </fieldset>
               </section>
 
-              <section className="space-y-4 border-t border-[var(--border)] pt-4">
-                <h2 className="h2 text-left">5. Rates</h2>
+              <section className={`space-y-4 border-t border-[var(--border)] pt-4 ${step === 3 ? "" : "hidden"}`}>
+                <h2 className="h2 text-left">Rates</h2>
                 <div className="space-y-3 text-left">
                   {roomTypes.map((r, i) => (
                     <div key={i} className="space-y-2">
@@ -417,8 +519,8 @@ export default function OnboardPage() {
                 </div>
               </section>
 
-              <section className="space-y-4 border-t border-[var(--border)] pt-4">
-                <h2 className="h2 text-left">6. Email and password</h2>
+              <section className={`space-y-4 border-t border-[var(--border)] pt-4 ${step === 4 ? "" : "hidden"}`}>
+                <h2 className="h2 text-left">Email and password</h2>
                 <p className="text-xs text-ink/70 text-left">You sign in with these.</p>
                 <label className="block space-y-2 text-left">
                   <span className={labelClass}>Email</span>
@@ -466,9 +568,31 @@ export default function OnboardPage() {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="btn btn-primary w-full">
-              {loading ? "Creating your account..." : "Create account"}
-            </button>
+            <div className={step === 1 ? "" : "grid grid-cols-[auto_1fr] gap-3"}>
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    goTo(step - 1);
+                  }}
+                  className="btn btn-ghost"
+                >
+                  Back
+                </button>
+              )}
+              {step < 4 ? (
+                <button type="button" onClick={goNext} className="btn btn-primary w-full">
+                  Next: {STEPS[step].toLowerCase()}
+                </button>
+              ) : (
+                <button type="submit" disabled={loading} className="btn btn-primary w-full">
+                  {loading ? "Creating your account..." : "Create account"}
+                </button>
+              )}
+            </div>
+            </div>
+            </div>
           </>
         )}
       </form>

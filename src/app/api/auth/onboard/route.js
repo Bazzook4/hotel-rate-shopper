@@ -40,7 +40,23 @@ export async function GET(request) {
   const token = request.nextUrl.searchParams.get("token");
   const invite = await findOpenInvite(token).catch(() => null);
   if (!invite) return NextResponse.json(GONE, { status: 410 });
-  return NextResponse.json({ propertyName: invite.property_name });
+  // Where the visitor is, as Vercel reads it from their address. Only a
+  // first guess for the form; every value stays editable there.
+  const h = request.headers;
+  let city = h.get("x-vercel-ip-city") || "";
+  try {
+    city = decodeURIComponent(city);
+  } catch {
+    // Keep the raw value.
+  }
+  return NextResponse.json({
+    propertyName: invite.property_name,
+    geo: {
+      country: (h.get("x-vercel-ip-country") || "").toUpperCase(),
+      city,
+      timezone: h.get("x-vercel-ip-timezone") || "",
+    },
+  });
 }
 
 /**
