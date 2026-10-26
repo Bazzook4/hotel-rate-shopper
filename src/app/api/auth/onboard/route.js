@@ -53,6 +53,7 @@ export async function GET(request) {
     propertyName: invite.property_name,
     geo: {
       country: (h.get("x-vercel-ip-country") || "").toUpperCase(),
+      region: h.get("x-vercel-ip-country-region") || "",
       city,
       timezone: h.get("x-vercel-ip-timezone") || "",
     },

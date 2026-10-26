@@ -155,6 +155,30 @@ export function stateFromGstin(gstin) {
   return /^[0-9]{2}$/.test(code) ? GST_STATE_CODES[code] || "" : "";
 }
 
+// ISO 3166-2 codes for India, as a visitor's address reports them. Both the
+// old and the new code are listed where one changed.
+const IN_REGION_CODES = {
+  AN: "Andaman and Nicobar Islands", AP: "Andhra Pradesh", AR: "Arunachal Pradesh", AS: "Assam",
+  BR: "Bihar", CH: "Chandigarh", CG: "Chhattisgarh", CT: "Chhattisgarh",
+  DH: "Dadra and Nagar Haveli and Daman and Diu", DD: "Dadra and Nagar Haveli and Daman and Diu",
+  DN: "Dadra and Nagar Haveli and Daman and Diu", DL: "Delhi", GA: "Goa", GJ: "Gujarat",
+  HR: "Haryana", HP: "Himachal Pradesh", JK: "Jammu and Kashmir", JH: "Jharkhand",
+  KA: "Karnataka", KL: "Kerala", LA: "Ladakh", LD: "Lakshadweep", MP: "Madhya Pradesh",
+  MH: "Maharashtra", MN: "Manipur", ML: "Meghalaya", MZ: "Mizoram", NL: "Nagaland",
+  OD: "Odisha", OR: "Odisha", PY: "Puducherry", PB: "Punjab", RJ: "Rajasthan", SK: "Sikkim",
+  TN: "Tamil Nadu", TS: "Telangana", TG: "Telangana", TR: "Tripura", UP: "Uttar Pradesh",
+  UT: "Uttarakhand", UK: "Uttarakhand", WB: "West Bengal",
+};
+
+/**
+ * The state a region code from the visitor's address stands for, in the
+ * country's own list. "" where the country has no list to match against.
+ */
+export function stateFromRegionCode(countryCode, code) {
+  if (countryCode !== "IN") return "";
+  return IN_REGION_CODES[String(code || "").trim().toUpperCase()] || "";
+}
+
 /** States to choose from, or [] where the region is typed freely. */
 export function stateOptions(countryCode) {
   return placesFor(countryCode).states;

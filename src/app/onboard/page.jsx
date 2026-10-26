@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Icon from "../components/Icon";
 import { EMPTY_PROFILE, ProfileFields } from "../dashboard/components/PropertyProfile";
 import { profileGaps } from "@/lib/eventTags";
-import { guessCountry } from "@/lib/places";
+import { guessCountry, stateFromRegionCode } from "@/lib/places";
 import { browserZone, isZone } from "@/lib/hotelTime";
 import { currencyForCountry } from "@/lib/money";
 import {
@@ -66,6 +66,7 @@ export default function OnboardPage() {
         setProfile((p) => ({
           ...p,
           country_code: p.country_code || country,
+          state: p.state || (p.country_code ? "" : stateFromRegionCode(country, geo.region)),
           city: p.city || (p.country_code ? "" : geo.city || ""),
           timezone: p.timezone || zone,
           currency: p.currency || currencyForCountry(p.country_code || country) || "",
