@@ -13,7 +13,7 @@ import WhatsNew from "./WhatsNew";
  * Only pages the reader holds are listed, for the same reason What's new
  * leaves them out: a housekeeper has no use for Dynamic Pricing.
  */
-export default function Explore({ areas, onOpenPage, canOpen, pageLabel, hasNews, onNewsSeen, onStartTour }) {
+export default function Explore({ areas, onOpenPage, canOpen, pageLabel, hasNews, onNewsSeen }) {
   // Someone who came because of the New mark is shown the news first.
   const [tab, setTab] = useState(hasNews ? "news" : "features");
   const [query, setQuery] = useState("");
@@ -78,11 +78,6 @@ export default function Explore({ areas, onOpenPage, canOpen, pageLabel, hasNews
             )}
           </button>
         </div>
-        {onStartTour && (
-          <button type="button" className="btn btn-ghost text-sm" onClick={onStartTour}>
-            Booking tour
-          </button>
-        )}
       </div>
 
       {tab === "news" ? (

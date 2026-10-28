@@ -54,6 +54,7 @@ const TodayPage = dynamic(() => import("./dashboard/components/TodayPage"), {
   loading: PageLoading,
 });
 const BookingTour = dynamic(() => import("./dashboard/components/BookingTour"), { ssr: false });
+const TourGuide = dynamic(() => import("./dashboard/components/TourGuide"), { ssr: false });
 const Explore = dynamic(() => import("./dashboard/components/Explore"), {
   ssr: false,
   loading: PageLoading,
@@ -497,7 +498,12 @@ export default function V2Dashboard() {
   // only for the person who signed the hotel up, straight after sign-up;
   // staff added later are offered it on Today. Explore starts it any time.
   const canBook = canOpen("calendar") || canOpen("reservations");
-  const [tourOpen, setTourOpen] = useState(false);
+  // The practice tour running: { tour, firstRun }, or null. `firstRun` is the
+  // new user's own, with the room check first.
+  const [practice, setPractice] = useState(null);
+  const tourOpen = Boolean(practice);
+  // Show me how, from the bar along the bottom (TourGuide.jsx).
+  const [guideOpen, setGuideOpen] = useState(false);
   const [tourOffered, setTourOffered] = useState(false);
   // Finished, skipped or declined in this visit: the session still says due.
   const [tourDone, setTourDone] = useState(false);
@@ -505,16 +511,16 @@ export default function V2Dashboard() {
   useEffect(() => {
     if (tourOffered || !tourDue || !session?.tourAuto || !propertyId) return;
     setTourOffered(true);
-    setTourOpen(true);
+    setPractice({ firstRun: true });
   }, [tourOffered, tourDue, session, propertyId]);
   const endTour = useCallback((done) => {
-    setTourOpen(false);
+    setPractice(null);
     if (done) setTourDone(true);
   }, []);
   const tourOffer =
     tourDue && !tourOpen
       ? {
-          onStart: () => setTourOpen(true),
+          onStart: () => setPractice({ firstRun: true }),
           onDecline: () => {
             fetch("/api/auth/tour", { method: "POST" }).catch(() => {});
             setTourDone(true);
@@ -923,7 +929,6 @@ export default function V2Dashboard() {
                       areas={areas}
                       hasNews={hasNews}
                       onNewsSeen={markNewsSeen}
-                      onStartTour={canBook ? () => setTourOpen(true) : null}
                       onOpenPage={openPage}
                       canOpen={canOpen}
                       pageLabel={(id) => areas.flatMap((a) => a.pages).find((p) => p.id === id)?.label || id}
@@ -1063,11 +1068,31 @@ export default function V2Dashboard() {
 
         {backModal}
 
-        {tourOpen && scopedSession && (
-          <BookingTour session={scopedSession} pageNav={pageNav} onEnd={endTour} />
+        {practice && scopedSession && (
+          <BookingTour
+            session={scopedSession}
+            pageNav={pageNav}
+            onEnd={endTour}
+            firstRun={Boolean(practice.firstRun)}
+            {...(practice.tour ? { tour: practice.tour } : {})}
+          />
         )}
 
-        <SupportBar propertyName={scopedSession?.propertyName} email={session?.email} />
+        {areas.length > 0 && (
+          <TourGuide
+            open={guideOpen}
+            onClose={() => setGuideOpen(false)}
+            canOpen={canOpen}
+            openPage={openPage}
+            onStartPractice={(tour) => setPractice({ tour })}
+          />
+        )}
+
+        <SupportBar
+          propertyName={scopedSession?.propertyName}
+          email={session?.email}
+          onShowMe={areas.length > 0 ? () => setGuideOpen((o) => !o) : null}
+        />
       </main>
       </PageNavProvider>
       </DialogProvider>

@@ -1454,6 +1454,7 @@ export default function TapeChart({ session }) {
                               return (
                                 <div
                                   key={r.id}
+                                  data-tour="stay"
                                   onPointerDown={(e) => beginDrag(e, r, "move")}
                                   title={
                                     geo.dayUse

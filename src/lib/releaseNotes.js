@@ -14,6 +14,15 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-28",
+    title: "Show me how: learn a job on the real page",
+    points: [
+      {
+        text: "Press Show me how on the bar at the bottom of any page and pick a job, such as Check a guest in, Take a payment or Bill a company. The page opens and a small card points at what to press. Nothing is done for you, and the practice bookings are never saved. The Booking tour on Explore has moved here.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-28",
     title: "A practice booking for new staff, and a check on your room count",
     points: [
       {

@@ -513,6 +513,7 @@ export default function Housekeeping({ session }) {
                       {room.housekeeping === "dirty" && (
                         <button
                           className="btn btn-primary text-sm"
+                          data-tour="markclean"
                           style={{ minHeight: 40, padding: "0.35rem 0.8rem", whiteSpace: "nowrap" }}
                           onClick={() => mark([room.id], "clean")}
                         >

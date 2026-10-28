@@ -1347,7 +1347,7 @@ export default function BookingForm({
             </Field>
           </>
         )}
-        <Field label="Stay" tour="stay">
+        <Field label="Stay" tour="dates">
           <Select
             className="input"
             value={form.stay_kind}
@@ -1567,6 +1567,7 @@ export default function BookingForm({
         {company && (
           <Field
             label="Bill to"
+            tour="billto"
             hint={
               form.bill_to === "company"
                 ? company.gstin

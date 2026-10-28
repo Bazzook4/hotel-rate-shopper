@@ -8,61 +8,20 @@ import { useDialog } from "../../components/Dialog";
 import { useToast } from "../../components/Toast";
 import { useEscape } from "../../components/useEscape";
 import { formatMoney } from "@/lib/money";
+import { TOURS } from "@/lib/tours";
+import { CoachCard, StepButtons, usePointAt } from "./TourCard";
 
 /**
- * The booking tour: a practice booking on the real booking panel, a few
- * tips long, offered once to every new user and started again from Explore.
+ * The practice tours (src/lib/tours.js): a practice booking on the real
+ * booking panel, a few tips long. "Book a room" is offered once to every
+ * new user, and any practice tour can be started from Show me how.
  *
- * It opens with a check of what the hotel gave at sign-up, for whoever
- * manages setup: a hotel that said 20 rooms but set up room types for 10
+ * Offered to a new user (`firstRun`), it opens with a check of what the
+ * hotel gave at sign-up, for whoever manages setup: a hotel that said 20 rooms but set up room types for 10
  * would sell only 10, so it is shown the gap and can add the rooms or
  * lower its total. Then the card walks the practice booking. Nothing in it
  * is ever saved: Create booking hands back to the tour.
  */
-
-// Two tips, each on the field it talks about: dates and room explain
-// themselves, so the tips cover what a new desk would not find alone.
-const STEPS = [
-  {
-    id: "company",
-    title: "Company or travel agent",
-    text: "Pick dates and a room as usual. For a company or agent booking, set Booking method to Corporate or Travel agent and the form asks which one.",
-    focus: ["company", "method"],
-  },
-  {
-    id: "guest",
-    title: "Guest and ID",
-    text: "Each guest is saved under their phone number and comes up next time. Their ID photo is added at check-in.",
-    focus: ["phone"],
-  },
-];
-
-/** Points at the first of `names` on screen, waiting a moment for it to draw. */
-function useFocus(names) {
-  const key = names.join(",");
-  useEffect(() => {
-    if (!key) return;
-    let el = null;
-    let tries = 0;
-    const timer = setInterval(() => {
-      tries += 1;
-      el = key
-        .split(",")
-        .map((n) => document.querySelector(`[data-tour="${n}"]`))
-        .find(Boolean);
-      if (el || tries > 20) clearInterval(timer);
-      if (!el) return;
-      el.classList.add("tour-focus");
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      // Keyboard users start where the tip points.
-      el.querySelector("input, button, [tabindex]")?.focus({ preventScroll: true });
-    }, 100);
-    return () => {
-      clearInterval(timer);
-      el?.classList.remove("tour-focus");
-    };
-  }, [key]);
-}
 
 /** What the hotel gave at sign-up, and the rooms still to add. */
 function RoomCheck({ propertyId, onNext, onAddRooms }) {
@@ -184,13 +143,16 @@ function RoomCheck({ propertyId, onNext, onAddRooms }) {
   );
 }
 
-export default function BookingTour({ session, pageNav, onEnd }) {
-  const withCheck = Boolean(session?.canManageSetup);
+const BOOK = TOURS.find((t) => t.id === "book");
+
+export default function BookingTour({ session, pageNav, onEnd, tour = BOOK, firstRun = false }) {
+  const STEPS = tour.steps;
+  const withCheck = firstRun && Boolean(session?.canManageSetup);
   // -1 is the room check.
   const [step, setStep] = useState(withCheck ? -1 : 0);
   const current = STEPS[step] || null;
   const toast = useToast();
-  useFocus(current?.focus || []);
+  usePointAt(current?.point || []);
   // With the practice panel open, its own Escape closes it and ends the tour.
   useEscape(() => end(), !current);
 
@@ -215,8 +177,7 @@ export default function BookingTour({ session, pageNav, onEnd }) {
     },
   };
 
-  const title =
-    step === -1 ? "Check your rooms" : current.title;
+  const title = step === -1 ? "Check your rooms" : current.title || tour.title;
   const counter = step >= 0 ? `${step + 1} of ${STEPS.length}` : null;
 
   // The end of the tour is a note, not another card to close.
@@ -238,24 +199,7 @@ export default function BookingTour({ session, pageNav, onEnd }) {
         </PageNavProvider>
       )}
 
-      <div
-        role="dialog"
-        aria-label="Booking tour"
-        className="card fixed bottom-3 left-3 right-3 space-y-2 p-3 md:right-auto md:w-[380px]"
-        style={{ zIndex: 60, boxShadow: "0 8px 30px rgba(0,0,0,0.18)", border: "2px solid var(--accent)" }}
-      >
-        <div className="flex items-center gap-2">
-          <span style={{ color: "var(--accent)" }}>
-            <Icon name="compass" size={16} />
-          </span>
-          <h3 className="flex-1 text-sm font-semibold" style={{ color: "var(--text)" }}>
-            {title}
-          </h3>
-          {counter && <span className="sub text-xs">{counter}</span>}
-          <button type="button" className="btn btn-ghost min-h-[32px] px-2.5 py-1 text-xs" onClick={() => end()}>
-            Skip tour
-          </button>
-        </div>
+      <CoachCard title={title} counter={counter} label={tour.title} onSkip={() => end()}>
 
         {step === -1 && (
           <RoomCheck
@@ -274,23 +218,15 @@ export default function BookingTour({ session, pageNav, onEnd }) {
             <p className="text-sm" style={{ color: "var(--text)" }}>
               {current.text}
             </p>
-            <div className="flex justify-end gap-2">
-              {step > 0 && (
-                <button type="button" className="btn btn-ghost text-sm" onClick={() => setStep(step - 1)}>
-                  Back
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn btn-primary text-sm"
-                onClick={() => (step < STEPS.length - 1 ? setStep(step + 1) : finish())}
-              >
-                {step < STEPS.length - 1 ? "Next" : "Finish"}
-              </button>
-            </div>
+            <StepButtons
+              step={step}
+              total={STEPS.length}
+              onBack={() => setStep(step - 1)}
+              onNext={() => (step < STEPS.length - 1 ? setStep(step + 1) : finish())}
+            />
           </>
         )}
-      </div>
+      </CoachCard>
     </>
   );
 }
