@@ -14,6 +14,15 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-28",
+    title: "Show me how covers setup too",
+    points: [
+      {
+        text: "Show me how now also walks you through changing your rates, adding a rate plan or a room type, changing room numbers and adding your logo. Search \"generate\" to find Make an invoice.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-28",
     title: "Show me how: learn a job on the real page",
     points: [
       {

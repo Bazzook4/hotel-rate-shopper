@@ -93,7 +93,7 @@ export const TOURS = [
   {
     id: "invoice",
     title: "Make an invoice",
-    words: "invoice bill gst tax print receipt",
+    words: "invoice generate create bill gst tax print receipt",
     page: "reservations",
     view: "current",
     steps: [
@@ -184,6 +184,71 @@ export const TOURS = [
       {
         text: "Below are the day's rooms, earnings and money collected, for the owner.",
         point: ["text:Revenue posted"],
+      },
+    ],
+  },
+  // Setup and changes, for whoever looks after the hotel's setup.
+  {
+    id: "rates",
+    title: "Change the rates",
+    words: "rate price tariff change update publish channel ota bulk",
+    page: "cm",
+    steps: [
+      {
+        text: "Type the new rate in a date's cell. For many dates at once, use Bulk update.",
+        point: ["text:Bulk update"],
+      },
+      {
+        text: "Press Publish. The new rates go to your channels.",
+        point: ["text:Publish"],
+      },
+    ],
+  },
+  {
+    id: "rateplan",
+    title: "Add a rate plan",
+    words: "rate plan meal plan breakfast room only package new plan",
+    page: "rateplans",
+    steps: [
+      {
+        text: "Press Add rate plan. Name it, pick the meal plan, then the rooms it is sold in and their prices.",
+        point: ["text:+ Add rate plan"],
+      },
+    ],
+  },
+  {
+    id: "roomtype",
+    title: "Add a room type",
+    words: "room type category deluxe suite new room inventory",
+    page: "rooms",
+    steps: [
+      {
+        text: "Press Add room type, type its name and how many rooms, then Save. Its price is set in Rate Plan Setup.",
+        point: ["text:+ Add room type"],
+      },
+    ],
+  },
+  {
+    id: "roomnumbers",
+    title: "Change the room numbers",
+    words: "room number renumber floor rename add room range",
+    page: "rooms",
+    steps: [
+      {
+        text: "Type over a room's number, then Save. Add more with + Add room or + Add a range.",
+        point: ["text:Room numbers"],
+      },
+    ],
+  },
+  {
+    id: "logo",
+    title: "Add your logo",
+    words: "logo brand picture image hotel name invoice",
+    page: "setup",
+    steps: [
+      {
+        text: "Press Upload logo and pick a PNG, JPG or WebP picture. It shows on invoices and the guest check-in page.",
+        point: ["text:Upload logo", "text:Change logo"],
       },
     ],
   },
