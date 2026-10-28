@@ -939,6 +939,18 @@ body {
   }
 }
 
+/* The booking tour's pointer at the field it is talking about. */
+.tour-focus {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+/* Only a phone's full-screen panel runs under the tour card. */
+@media (max-width: 767px) {
+  .practice-panel { padding-bottom: 8rem; }
+}
+
 @keyframes skeleton-shimmer {
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }

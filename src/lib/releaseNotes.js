@@ -14,6 +14,20 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-28",
+    title: "A practice booking for new staff, and a check on your room count",
+    points: [
+      {
+        page: "explore",
+        text: "New staff can try a practice booking that is never saved: two short tips show how to book for a company or travel agent, and how guests and their IDs are kept. It is offered on Today, and anyone can start it from the Booking tour button on Explore.",
+      },
+      {
+        page: "rooms",
+        text: "If your room types add up to fewer rooms than your hotel has, Today now says how many are missing so you can add them. A hotel that gave the wrong total at sign-up can lower it to match.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-28",
     title: "Take an advance when you make a booking",
     points: [
       {

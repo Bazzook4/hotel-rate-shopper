@@ -257,9 +257,10 @@ function Section({ title, children }) {
   );
 }
 
-function Field({ label, hint, wide = false, children }) {
+// `tour` names the field for the booking tour, which points at it.
+function Field({ label, hint, wide = false, tour, children }) {
   return (
-    <div className={wide ? "col-span-2" : undefined}>
+    <div className={wide ? "col-span-2" : undefined} data-tour={tour}>
       <label className="label">{label}</label>
       {children}
       {hint && (
@@ -429,6 +430,7 @@ export default function BookingForm({
   rooms,
   ratePlans,
   embedded = false,
+  practice = false,
   onSaved,
   onCancel,
   onDirtyChange,
@@ -1122,6 +1124,13 @@ export default function BookingForm({
       setError("Add who booked, or untick Booked by someone else.");
       return;
     }
+    // The tour's practice booking goes nowhere: no booking, no payment and
+    // nothing told to the channels.
+    if (practice) {
+      setTouched(false);
+      await onSaved("", null, { practice: true });
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -1303,7 +1312,7 @@ export default function BookingForm({
             Booked by someone else
           </label>
         </Field>
-        <Field label="Phone">
+        <Field label="Phone" tour="phone">
           <div style={{ position: "relative" }}>
             <input className="input" type="tel" {...guestBox("guest_phone")} />
             {suggest.field === "guest_phone" && (
@@ -1338,7 +1347,7 @@ export default function BookingForm({
             </Field>
           </>
         )}
-        <Field label="Stay">
+        <Field label="Stay" tour="stay">
           <Select
             className="input"
             value={form.stay_kind}
@@ -1459,7 +1468,7 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
-        <Field label="Room type">
+        <Field label="Room type" tour="room">
           <Select
             className="input"
             value={form.room_type_id}
@@ -1493,7 +1502,7 @@ export default function BookingForm({
             })}
           </Select>
         </Field>
-        <Field label="Booking method" wide={!needsRecord && !companyShown}>
+        <Field label="Booking method" wide={!needsRecord && !companyShown} tour="method">
           <Select
             className="input"
             value={form.source}
@@ -1510,6 +1519,7 @@ export default function BookingForm({
           <Field
             label={needsRecord ? (wantKind === "company" ? "Company" : "Travel agent") : "Company / agent"}
             wide={!company}
+            tour="company"
             hint={
               needsRecord && !company ? (
                 <>
@@ -1789,9 +1799,15 @@ export default function BookingForm({
             submit(false);
           }}
         >
-          {saving && !checkInAfter.current ? "Saving..." : reservation ? "Save changes" : "Create booking"}
+          {saving && !checkInAfter.current
+            ? "Saving..."
+            : reservation
+            ? "Save changes"
+            : practice
+            ? "Create booking (practice)"
+            : "Create booking"}
         </button>
-        {arrivesToday && (
+        {arrivesToday && !practice && (
           <button
             className={`btn text-sm ${form.source === "walkin" ? "btn-primary" : "btn-secondary"}`}
             disabled={saving || roomTypes.length === 0}

@@ -5,6 +5,7 @@ import {
   createRoomRange,
   createRoomType,
   createUser,
+  markTourAutostart,
   findUserByEmail,
   getSupabaseAdmin,
   saveRatePlanRooms,
@@ -250,6 +251,9 @@ export async function POST(request) {
     // be given any of these pages, and no others.
     const modules = await getDefaultAdminModules();
     await setUserModules(user.id, modules);
+    // The booking tour opens for them on first sign-in. Not worth failing
+    // the sign-up over: the tour is still offered on Today without it.
+    await markTourAutostart(user.id).catch((err) => console.error("Could not set the tour:", err.message));
 
     await completeInvite(invite, { userId: user.id, propertyId: property.id });
     if (shared) await recordSignup(ip);

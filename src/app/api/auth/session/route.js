@@ -53,6 +53,8 @@ export async function GET(request) {
       // Null only once migration 060 is in: a missing column reads as
       // undefined, so no one is offered the tour before then.
       tourDue: user.tour_done_at === null,
+      // The person who signed the hotel up: the tour opens by itself.
+      tourAuto: user.tour_autostart === true,
     },
   });
 }

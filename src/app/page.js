@@ -53,6 +53,7 @@ const TodayPage = dynamic(() => import("./dashboard/components/TodayPage"), {
   ssr: false,
   loading: PageLoading,
 });
+const BookingTour = dynamic(() => import("./dashboard/components/BookingTour"), { ssr: false });
 const Explore = dynamic(() => import("./dashboard/components/Explore"), {
   ssr: false,
   loading: PageLoading,
@@ -492,6 +493,34 @@ export default function V2Dashboard() {
     setBack({ ...booking, page: active });
   }
   const pageNav = { openPage, leaveFor, canOpen };
+  // The booking tour, for a new user who takes bookings. It opens by itself
+  // only for the person who signed the hotel up, straight after sign-up;
+  // staff added later are offered it on Today. Explore starts it any time.
+  const canBook = canOpen("calendar") || canOpen("reservations");
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourOffered, setTourOffered] = useState(false);
+  // Finished, skipped or declined in this visit: the session still says due.
+  const [tourDone, setTourDone] = useState(false);
+  const tourDue = Boolean(session?.tourDue) && canBook && !tourDone;
+  useEffect(() => {
+    if (tourOffered || !tourDue || !session?.tourAuto || !propertyId) return;
+    setTourOffered(true);
+    setTourOpen(true);
+  }, [tourOffered, tourDue, session, propertyId]);
+  const endTour = useCallback((done) => {
+    setTourOpen(false);
+    if (done) setTourDone(true);
+  }, []);
+  const tourOffer =
+    tourDue && !tourOpen
+      ? {
+          onStart: () => setTourOpen(true),
+          onDecline: () => {
+            fetch("/api/auth/tour", { method: "POST" }).catch(() => {});
+            setTourDone(true);
+          },
+        }
+      : null;
   // A booking changed in the reopened window redraws the page behind it once,
   // when the window closes, so the page shows it without losing its place on
   // every payment. A channel that could not be told is said, as the
@@ -884,7 +913,7 @@ export default function V2Dashboard() {
                   {/* A crash stays inside the open page; opening another clears it. */}
                   <PageErrorBoundary key={`${active}-${pageStamp}`}>
                   {active === "today" && (
-                    <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} />
+                    <TodayPage session={scopedSession} onOpenPage={openPage} canOpen={canOpen} tourOffer={tourOffer} />
                   )}
 
                   {/* Keyed by property so a switch starts the grid afresh:
@@ -894,6 +923,7 @@ export default function V2Dashboard() {
                       areas={areas}
                       hasNews={hasNews}
                       onNewsSeen={markNewsSeen}
+                      onStartTour={canBook ? () => setTourOpen(true) : null}
                       onOpenPage={openPage}
                       canOpen={canOpen}
                       pageLabel={(id) => areas.flatMap((a) => a.pages).find((p) => p.id === id)?.label || id}
@@ -1032,6 +1062,10 @@ export default function V2Dashboard() {
         )}
 
         {backModal}
+
+        {tourOpen && scopedSession && (
+          <BookingTour session={scopedSession} pageNav={pageNav} onEnd={endTour} />
+        )}
 
         <SupportBar propertyName={scopedSession?.propertyName} email={session?.email} />
       </main>

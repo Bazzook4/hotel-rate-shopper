@@ -109,8 +109,12 @@ export default function BookingModal({
   extras,
   onClose,
   onChanged,
+  // The booking tour's practice booking: the real form, but Create booking
+  // hands back to the tour and nothing is ever sent (BookingTour.jsx).
+  onPracticeSaved,
 }) {
   const isNew = !reservationId;
+  const practice = Boolean(onPracticeSaved);
 
   // Opened from the tape chart's menu, a booking starts on the tab for the job
   // it was opened for. Adding a service, taking a payment or issuing an
@@ -435,7 +439,13 @@ export default function BookingModal({
       aria-modal="true"
       aria-label={isNew ? "New booking" : `Reservation ${reservation?.reference || ""}`}
     >
-      <div className="side-panel" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 880 }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        // Room below the form for the tour's card, which sits over the
+        // panel's bottom edge on a phone.
+        className={`side-panel${practice ? " practice-panel" : ""}`}
+        style={{ maxWidth: 880 }}
+      >
         {/* Header */}
         <div
           className="side-panel-head"
@@ -452,7 +462,9 @@ export default function BookingModal({
           }}
         >
           <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-            {isNew
+            {practice
+              ? "Practice booking, not saved"
+              : isNew
               ? prefill?.booking_type === "complimentary"
                 ? "New complimentary stay"
                 : "New booking"
@@ -622,7 +634,13 @@ export default function BookingModal({
                 rooms={rooms}
                 ratePlans={ratePlans}
                 embedded
+                practice={practice}
                 onSaved={async (message, warning, saved) => {
+                  if (practice) {
+                    setDirty(false);
+                    onPracticeSaved();
+                    return;
+                  }
                   if (saved?.checkIn) {
                     try {
                       const data = await desk.checkIn(saved.reservation, { roomSeenDirty: saved.roomSeenDirty });

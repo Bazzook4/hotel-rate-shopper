@@ -1068,6 +1068,12 @@ export async function setUserPassword(userId, passwordHash) {
  * Update a user's role, status and property link.
  * Modules are handled separately by setUserModules.
  */
+/** The booking tour opens by itself for this user: the one who signed the hotel up. */
+export async function markTourAutostart(userId) {
+  const { error } = await supabase.from('users').update({ tour_autostart: true }).eq('id', userId);
+  if (error) throw new Error(`Failed to save the tour: ${error.message}`);
+}
+
 /** The booking tour is done for this user: finished or skipped. */
 export async function markTourDone(userId) {
   const { error } = await supabase

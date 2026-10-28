@@ -133,6 +133,35 @@ function PartError({ title, error }) {
 }
 
 // ------------------------------------------------------------------
+// Booking tour offer
+
+/**
+ * The booking tour, offered to a new member of staff rather than opened on
+ * them: they may be signing in with a guest at the desk. Stays until they
+ * take it or say no.
+ */
+function TourOffer({ onStart, onDecline }) {
+  return (
+    <div
+      className="flex flex-wrap items-center gap-3 rounded-lg px-3 py-2"
+      style={{ background: "var(--accent-soft)", border: "1px solid var(--border)" }}
+    >
+      <span style={{ color: "var(--accent)" }}>
+        <Icon name="compass" size={16} />
+      </span>
+      <p className="min-w-0 flex-1 text-sm font-medium" style={{ color: "var(--text)" }}>
+        New here? Try a 1-minute practice booking.
+      </p>
+      <button type="button" className="btn btn-ghost text-xs" onClick={onDecline}>
+        Not now
+      </button>
+      <button type="button" className="btn btn-primary text-xs" onClick={onStart}>
+        Show me
+      </button>
+    </div>
+  );
+}
+
 // Setup checklist
 // ------------------------------------------------------------------
 
@@ -672,7 +701,7 @@ function MonthToDate({ month, onOpenPage, canOpen }) {
 // Page
 // ------------------------------------------------------------------
 
-export default function TodayPage({ session, onOpenPage, canOpen }) {
+export default function TodayPage({ session, onOpenPage, canOpen, tourOffer }) {
   const propertyId = session?.propertyId || null;
   // Held until the header has settled on a property: asked before then, the
   // server answers for the user's own, and a second, slow answer follows.
@@ -724,6 +753,8 @@ export default function TodayPage({ session, onOpenPage, canOpen }) {
           onChanged={reload}
         />
       )}
+
+      {tourOffer && <TourOffer {...tourOffer} />}
 
       {setup && setup.done < setup.total && (
         <SetupChecklist setup={setup} onOpenPage={onOpenPage} canOpen={canOpen} />
