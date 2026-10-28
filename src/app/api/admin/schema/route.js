@@ -32,6 +32,7 @@ const CHECKS = [
   { migration: "033_user_rights", table: "app_settings", column: "key" },
   { migration: "052_shareable_onboarding_links", table: "onboarding_invites", column: "max_uses" },
   { migration: "062_follow_ups", table: "follow_ups", column: "activity" },
+  { migration: "063_booking_discounts", table: "reservation_discounts", column: "reason" },
 ];
 
 export async function GET(req) {

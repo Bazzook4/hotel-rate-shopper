@@ -1,5 +1,5 @@
 /**
- * A booking's discount (migration 062).
+ * A booking's discount (migration 063).
  *
  * One discount per booking, as a percent or a fixed amount, given either
  * before tax or after it:
