@@ -13,6 +13,16 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-29",
+    title: "Morning report on WhatsApp",
+    points: [
+      {
+        page: "today",
+        text: "Ask us and we can send your hotel's contact a WhatsApp at 8 AM each day with today's arrivals and departures, rooms sold tonight and yesterday's revenue. Reply to it any time if you need help.",
+      },
+    ],
+  },
+  {
     date: "2026-10-28",
     title: "Channel manager only when connected",
     points: [

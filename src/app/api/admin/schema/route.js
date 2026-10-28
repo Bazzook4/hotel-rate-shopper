@@ -33,6 +33,10 @@ const CHECKS = [
   { migration: "052_shareable_onboarding_links", table: "onboarding_invites", column: "max_uses" },
   { migration: "062_follow_ups", table: "follow_ups", column: "activity" },
   { migration: "063_booking_discounts", table: "reservation_discounts", column: "reason" },
+  { migration: "064_whatsapp", table: "wa_contacts", column: "bot_paused" },
+  { migration: "064_whatsapp", table: "wa_leads", column: "misses" },
+  { migration: "065_whatsapp_ai", table: "wa_contacts", column: "handoff_at" },
+  { migration: "065_whatsapp_ai", table: "wa_leads", column: "current_otas" },
 ];
 
 export async function GET(req) {

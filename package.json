@@ -10,6 +10,7 @@
     "deploy": "git add . && git commit -m 'Deploy update' && git push && npm run build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@prisma/client": "^6.16.2",
     "@prisma/extension-accelerate": "^2.0.2",
     "@supabase/supabase-js": "^2.84.0",

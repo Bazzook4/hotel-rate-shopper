@@ -9,6 +9,7 @@ const PUBLIC_PATHS = new Set([
   "/api/auth/logout",
   // Vercel's daily cron has no session; the route checks CRON_SECRET itself.
   "/api/workflow/cron",
+  "/api/whatsapp/daily-report",
   // A guest's online check-in. The link in the request is the key, checked
   // by the routes themselves.
   "/api/checkin",

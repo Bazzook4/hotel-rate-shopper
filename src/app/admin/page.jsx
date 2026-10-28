@@ -8,6 +8,7 @@ import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
 import HotelUsage from "../components/HotelUsage";
 import FollowUps from "../components/FollowUps";
+import WhatsAppInbox from "../components/WhatsAppInbox";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
 import { DialogProvider } from "../components/Dialog";
@@ -80,6 +81,7 @@ export default function AdminPage() {
                 ? [
                     ["usage", "Usage"],
                     ["follow", "Follow up"],
+                    ["whatsapp", "WhatsApp"],
                     ["partners", "Partners"],
                   ]
                 : []),
@@ -112,6 +114,7 @@ export default function AdminPage() {
           )}
           {tab === "usage" && isSuperAdmin(session) && <HotelUsage />}
           {tab === "follow" && isSuperAdmin(session) && <FollowUps />}
+          {tab === "whatsapp" && isSuperAdmin(session) && <WhatsAppInbox />}
           {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
         </div>
       </main>
