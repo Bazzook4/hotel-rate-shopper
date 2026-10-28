@@ -72,7 +72,8 @@ export async function POST(req, { params }) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (integration.reservations_in !== true) {
+  // A switched-off connection takes nothing in, whatever its activities say.
+  if (integration.enabled !== true || integration.reservations_in !== true) {
     // Logged, because a partner sending bookings we refuse is something the
     // hotel needs to see rather than discover from a missing reservation.
     await recordSyncLog({
@@ -82,7 +83,10 @@ export async function POST(req, { params }) {
       direction: "in",
       status: "skipped",
       source: "aiosell",
-      summary: "Reservation refused: reservations in is turned off",
+      summary:
+        integration.enabled !== true
+          ? "Reservation refused: the connection is turned off"
+          : "Reservation refused: reservations in is turned off",
     });
     return NextResponse.json(
       { error: "Reservations are not enabled for this property." },

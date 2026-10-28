@@ -125,6 +125,13 @@ async function fetchPage(url, { sessionId, expect, attempts = 2 }) {
     // address, not another go from the one that just failed.
     const session = attempt === 1 ? sessionId : `${sessionId}r${attempt}`;
     const dispatcher = await agentFor(session);
+    // Never reach Google straight from the server: without the proxy the
+    // request would leave from our own address, which Google blocks.
+    if (!dispatcher) {
+      const err = new Error("Google rate lookup is not set up.");
+      err.code = "unconfigured";
+      throw err;
+    }
 
     try {
       const res = await fetch(url, {

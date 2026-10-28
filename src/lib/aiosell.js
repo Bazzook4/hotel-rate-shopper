@@ -33,7 +33,9 @@ export function createAiosellClient({ partner, hotelCode } = {}) {
   const user = partner?.api_username || process.env.AIOSELL_USER;
   const password = partner?.api_password || process.env.AIOSELL_PASSWORD;
   const pms = partner?.partner_id || process.env.AIOSELL_PARTNER_ID;
-  const hotel = hotelCode || process.env.AIOSELL_HOTEL_CODE;
+  // The hotel code is never defaulted: a connection without its own code
+  // would otherwise push to whichever hotel the server default names.
+  const hotel = hotelCode;
 
   // Rates and inventory have separate paths. They are stored per partner so
   // a provider with different routing does not need a code change; {pms} is

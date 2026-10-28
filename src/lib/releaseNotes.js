@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-28",
+    title: "Channel manager only when connected",
+    points: [
+      {
+        page: "integrations",
+        text: "Rates, rooms and bookings now go to and from your channel manager only when your connection is switched on and has your own hotel code. Turning the connection off stops OTA bookings coming in too, and each refused booking is listed so you can see it.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-28",
     title: "Discounts on a booking",
     points: [
       {
