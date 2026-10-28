@@ -23,14 +23,22 @@ const ai = () => (client ||= new Anthropic());
 
 function systemPrompt() {
   const now = minutesNowInZone("Asia/Kolkata");
-  const online = now >= 13 * 60 && now < 21 * 60;
+  const online = now >= 10 * 60 && now < 22 * 60;
   const link = process.env.WA_CALENDAR_LINK;
   return `You are the WhatsApp assistant for Online Hotelier (onlinehotelier.com), run by SJ.
-Online Hotelier helps independent hotels with:
-- OTA listing and management (MakeMyTrip, Goibibo, Booking.com, Agoda, Airbnb)
-- OTA audits and rate parity
+Online Hotelier helps independent hotels and homestays with:
+- OTA listing and management
+- Free OTA audits
 - A free hotel PMS (front desk, bookings, rooms)
-- Revenue optimisation and hotel websites
+- Hotel websites
+- Revenue optimisation
+
+Services and prices (all in Indian rupees):
+- OTA listing: Rs 2,500 per channel. For hotels we put MakeMyTrip, Booking.com and Agoda first. Airbnb, Expedia or Cleartrip are added depending on whether it is a homestay and what they need. Payment is 70% advance and 30% once the listing is handed over.
+- If they push back on the OTA listing price, you may offer Rs 2,000 per channel as the best price. Never go lower; if they still want less, hand over to the team.
+- Website: Rs 10,000 for 5 pages, Rs 15,000 for 10 pages. They choose a design and can send us websites they like as reference.
+- OTA audit: free. They get 3 recommendations from us. If they want us to implement them, it is a one-time Rs 5,000.
+- PMS: free.
 
 Style:
 - Warm, short, conversational. 1 to 3 short sentences per message. No long paragraphs.
@@ -43,12 +51,13 @@ Style:
 Goal:
 - Understand what they need, then naturally collect: hotel name, city, number of rooms, which OTAs they use today.
 - Call save_lead as soon as you learn any of these details.
-- For pricing, custom quotes, complaints, or anything you are unsure about: say SJ will personally follow up, then call handoff_to_sj.
-${link ? `- Offer a call booking link when they are interested: ${link}\n` : ""}- SJ is available 1 PM to 9 PM IST. SJ is ${online ? "available now" : "offline now, back from 1 PM IST"}.
+- You may quote the prices above. For custom quotes, discounts beyond the above, complaints, or anything you are unsure about: say our team will contact them, then call handoff_to_sj.
+- Always say "our team will contact you", never that SJ or a named person will.
+${link ? `- Offer a call booking link when they are interested: ${link}\n` : ""}- The team is available 10 AM to 10 PM IST. The team is ${online ? "available now" : "offline now, back from 10 AM IST"}.
 
 A first message from the website ends with a tag naming the page they came from: [ota] OTA listing, [pms] the free PMS, [audit] an OTA audit, [home] the home page. Use it as context, never repeat the tag.
 
-Never invent prices, guarantees, or features not listed here. Stay on Online Hotelier topics; politely decline unrelated requests.`;
+Never invent prices, discounts, guarantees, or features not listed here. Stay on Online Hotelier topics; politely decline unrelated requests.`;
 }
 
 const TOOLS = [
@@ -69,7 +78,7 @@ const TOOLS = [
   },
   {
     name: "handoff_to_sj",
-    description: "Pause the assistant on this chat and alert SJ to take over. Use for pricing, quotes, complaints or anything unsure.",
+    description: "Pause the assistant on this chat and alert SJ to take over. Use for custom quotes, discounts beyond the listed prices, complaints or anything unsure.",
     input_schema: {
       type: "object",
       properties: { reason: { type: "string", description: "Why SJ is needed, in one line" } },
@@ -194,7 +203,7 @@ export async function aiReply(contact, history) {
     }
     messages.push({ role: "user", content: results });
   }
-  return { text: "Thanks! SJ will get back to you shortly.", handedOff };
+  return { text: "Thanks! Our team will contact you shortly.", handedOff };
 }
 
 /** A draft reply for SJ to edit and send from the inbox. */

@@ -15,14 +15,14 @@ import { alertAdmin, sendButtons, sendText } from "@/lib/whatsapp";
  *
  * Website links carry a tag in the prefilled text ([ota], [pms], [audit],
  * [home]), which names the page and, but for [home], skips the first
- * question. "Talk to SJ", or two replies in a row the bot cannot use, pause
+ * question. "Talk to our team", or two replies in a row the bot cannot use, pause
  * the bot for that contact and alert SJ. A hotel's own contact never gets
  * the sales questions; their message is passed to SJ instead.
  */
 
 const OWNER = "SJ";
 const OPEN_FROM = 10 * 60; // 10 AM IST
-const OPEN_UNTIL = 21 * 60; // 9 PM IST
+const OPEN_UNTIL = 22 * 60; // 10 PM IST
 const MAX_MISSES = 2;
 
 export const INTERESTS = {
@@ -37,7 +37,7 @@ const TAGS = { ota: "ota_listing", pms: "pms", audit: "ota_audit", home: null };
 const BUTTONS = [
   { id: "ota_listing", title: "OTA Listing" },
   { id: "pms", title: "Free PMS" },
-  { id: "talk", title: `Talk to ${OWNER}` },
+  { id: "talk", title: "Talk to our team" },
 ];
 
 const QUESTIONS = {
@@ -51,7 +51,7 @@ function offline() {
   return now < OPEN_FROM || now >= OPEN_UNTIL;
 }
 
-const offlineNote = () => (offline() ? `\n\n${OWNER} is offline now, will reply from 10 AM.` : "");
+const offlineNote = () => (offline() ? `\n\nOur team is offline now, will reply from 10 AM.` : "");
 
 function tagOf(text) {
   const m = /\[(ota|pms|audit|home)\]/i.exec(text || "");
@@ -87,7 +87,7 @@ function leadLine(lead) {
 
 async function handOver(contact, lead, why) {
   await pause(contact.phone);
-  await sendText(contact.phone, `${OWNER} will reply shortly.${offlineNote()}`);
+  await sendText(contact.phone, `Our team will contact you shortly.${offlineNote()}`);
   await alertAdmin(
     `${why} from ${contact.name || contact.phone} (+${contact.phone}).${lead ? ` ${leadLine(lead)}` : ""}`,
     lead ? [lead.hotel_name || contact.name || contact.phone, INTERESTS[lead.interest] || "-", String(lead.rooms ?? "-"), lead.city || "-"] : null
@@ -116,7 +116,7 @@ export async function handleIncoming(contact, msg) {
     .maybeSingle();
   let lead = latest;
 
-  if (msg.buttonId === "talk" || new RegExp(`talk to ${OWNER}`, "i").test(text)) {
+  if (msg.buttonId === "talk" || new RegExp(`talk to (${OWNER}|our team|team)`, "i").test(text)) {
     await handOver(contact, lead, `Asked for ${OWNER}`);
     return;
   }
@@ -175,9 +175,9 @@ export async function handleIncoming(contact, msg) {
       return miss(() => sendText(contact.phone, "Please send the number of rooms, like 12."));
     }
     lead = await saveLead(lead.id, { rooms, step: "done", misses: 0 });
-    const when = offline() ? "between 1 and 9 PM" : "today between 1 and 9 PM";
+    const when = offline() ? "between 10 AM and 10 PM" : "today between 10 AM and 10 PM";
     const calendar = process.env.WA_CALENDAR_LINK ? ` Prefer to book a time? ${process.env.WA_CALENDAR_LINK}` : "";
-    await sendText(contact.phone, `Thanks! ${OWNER} will call you ${when}.${calendar}${offlineNote()}`);
+    await sendText(contact.phone, `Thanks! Our team will call you ${when}.${calendar}${offlineNote()}`);
     await alertAdmin(leadLine(lead), [lead.hotel_name, INTERESTS[lead.interest] || "-", String(rooms), lead.city || "-"]);
   }
 }

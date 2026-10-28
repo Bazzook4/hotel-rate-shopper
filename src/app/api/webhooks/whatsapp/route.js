@@ -132,7 +132,7 @@ async function aiAnswer(phone, id) {
   if (contact.property_id) return handOff(contact, "Message from a hotel contact");
 
   const { text, handedOff } = await aiReply(contact, await loadHistory(phone));
-  const parts = (text || (handedOff ? "SJ will personally follow up with you shortly." : ""))
+  const parts = (text || (handedOff ? "Our team will contact you shortly." : ""))
     .split(/\n\s*\n/)
     .map((p) => p.trim())
     .filter(Boolean);
