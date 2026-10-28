@@ -15,6 +15,7 @@ import {
   useGrid,
 } from "./SetupGrid";
 import { useDialog } from "../../components/Dialog";
+import { Facts, Fact } from "../../components/Facts";
 
 /**
  * Room types and rate plans for one property.
@@ -230,13 +231,6 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
         count={roomTypes.length}
         sub="The room types you sell and how many of each. Prices are set in Rate Plans."
       >
-        {/* Counted from the room types, not the numbered rooms, which show
-            their own count in the section below. */}
-        {roomCap && (
-          <span className="text-sm muted" title="Rooms across all room types, out of the hotel's total">
-            {declared} of {roomCap} rooms on room types
-          </span>
-        )}
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
       </SetupHeader>
 
@@ -250,6 +244,18 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
         >
           + Add room type
         </button>
+        {/* The total the hotel gave against what its room types add up to:
+            rooms missing here cannot be sold. Counted from the room types,
+            not the numbered rooms, which have their own count below. */}
+        {roomCap && (
+          <Facts>
+            <Fact label="Hotel total">{roomCap} rooms</Fact>
+            <Fact label="On room types">{declared}</Fact>
+            <Fact label="Still to add" tone={declared < roomCap ? "warn" : "ok"}>
+              {declared < roomCap ? roomCap - declared : "None"}
+            </Fact>
+          </Facts>
+        )}
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}

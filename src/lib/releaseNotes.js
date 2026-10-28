@@ -24,6 +24,10 @@ export const RELEASE_NOTES = [
         page: "rooms",
         text: "If your room types add up to fewer rooms than your hotel has, Today now says how many are missing so you can add them. A hotel that gave the wrong total at sign-up can lower it to match.",
       },
+      {
+        page: "rooms",
+        text: "Rooms now shows your hotel's total, how many rooms your room types add up to, and how many are still to add, right above the room types.",
+      },
     ],
   },
   {
