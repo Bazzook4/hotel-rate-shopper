@@ -653,14 +653,10 @@ export default function BookingForm({
   }
 
   // More details starts open only when something in it is already filled
-  // in beyond the usual -- an emailed guest, a note, a comp or an inquiry
-  // started from the calendar -- so nothing set is ever hidden.
+  // in beyond the usual -- children or an international guest -- so nothing set is ever hidden.
   const [more, setMore] = useState(
     () =>
-      Boolean(form.notes) ||
       Number(form.children) > 0 ||
-      form.booking_type !== "standard" ||
-      form.status === "inquiry" ||
       form.guest_residency !== "domestic"
   );
 
@@ -715,6 +711,15 @@ export default function BookingForm({
 
   const company = companies.find((c) => c.id === form.company_id) || null;
   const companyChoices = companies.filter((c) => c.is_active || c.id === form.company_id);
+  // Corporate and agent bookings come through a record, so the form asks
+  // for it (and offers to create one) instead of leaving it to be found later.
+  const wantKind =
+    form.source === "corporate" ? "company" : form.source === "travel_agent" ? "travel_agent" : null;
+  const needsRecord = Boolean(wantKind);
+  const methodChoices = needsRecord
+    ? companyChoices.filter((c) => c.kind === wantKind || c.id === form.company_id)
+    : companyChoices;
+  const companyShown = needsRecord || companyChoices.length > 0;
 
   /**
    * The agent's commission on this booking: what was agreed when it was
@@ -1462,8 +1467,42 @@ export default function BookingForm({
             })}
           </Select>
         </Field>
-        {companyChoices.length > 0 && (
-          <Field label="Company / agent" wide={!company}>
+        <Field label="Booking method" wide={!needsRecord && !companyShown}>
+          <Select
+            className="input"
+            value={form.source}
+            onChange={(e) => set("source", e.target.value)}
+          >
+            {sourceOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {companyShown && (
+          <Field
+            label={needsRecord ? (wantKind === "company" ? "Company" : "Travel agent") : "Company / agent"}
+            wide={!company}
+            hint={
+              needsRecord && !company ? (
+                <>
+                  {form.source === "corporate"
+                    ? "Without a company this can't be billed to one. "
+                    : "Optional. "}
+                  {methodChoices.length ? "Pick one or " : "None on record yet. "}
+                  <SetUpLink
+                    page="companies"
+                    back={backHere}
+                    style={{ marginTop: "0.25rem" }}
+                    fallback="Ask your admin to add one."
+                  >
+                    {wantKind === "company" ? "Add a company" : "Add a travel agent"}
+                  </SetUpLink>
+                </>
+              ) : undefined
+            }
+          >
             <Select
               className="input"
               value={form.company_id}
@@ -1474,7 +1513,7 @@ export default function BookingForm({
                 ["company", "Companies"],
                 ["travel_agent", "Travel agents"],
               ].map(([kind, label]) => {
-                const group = companyChoices.filter((c) => c.kind === kind);
+                const group = methodChoices.filter((c) => c.kind === kind);
                 return group.length ? (
                   <optgroup key={kind} label={label}>
                     {group.map((c) => (
@@ -1512,7 +1551,7 @@ export default function BookingForm({
         )}
       </Section>
 
-      <Section title="Price">
+      <Section title="Price and status">
         {!dayUse && (
           <Field label="Rate plan" wide>
             <Select
@@ -1532,6 +1571,32 @@ export default function BookingForm({
             </Select>
           </Field>
         )}
+          {/* Complimentary stays occupy a room like any other but are owed
+              nothing; revenue reports leave them out of ADR. */}
+          <Field label="Booking type">
+            <Select
+              className="input"
+              value={form.booking_type}
+              onChange={(e) => set("booking_type", e.target.value)}
+            >
+              <option value="standard">Standard</option>
+              <option value="complimentary">Complimentary</option>
+            </Select>
+          </Field>
+          {/* An inquiry holds the room like a confirmed booking, but is left
+              out of revenue until it is confirmed. */}
+          {!reservation && (
+            <Field label="Status">
+              <Select
+                className="input"
+                value={form.status}
+                onChange={(e) => set("status", e.target.value)}
+              >
+                <option value="confirmed">Confirmed</option>
+                <option value="inquiry">Inquiry</option>
+              </Select>
+            </Field>
+          )}
         <Field label={dayUse ? "Total amount (day use)" : "Total amount (whole stay)"} wide>
           <input
             className="input"
@@ -1565,6 +1630,16 @@ export default function BookingForm({
             </p>
           )}
         </Field>
+          <Field label="Notes" wide>
+          <textarea
+            className="input"
+            rows={2}
+            style={{ resize: "vertical" }}
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            placeholder="Late arrival, dietary needs, anything the desk should know"
+          />
+        </Field>
       </Section>
 
       <button
@@ -1576,7 +1651,7 @@ export default function BookingForm({
         <Icon name={more ? "down" : "right"} size={14} /> More details
         {!more && (
           <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            country, children, booking method{reservation ? "" : ", inquiry"}, notes
+            country, guest is, children
           </span>
         )}
       </button>
@@ -1618,55 +1693,6 @@ export default function BookingForm({
               onChange={(e) => set("children", e.target.value)}
             />
           </Field>
-          <Field label="Booking method">
-            <Select
-              className="input"
-              value={form.source}
-              onChange={(e) => set("source", e.target.value)}
-            >
-              {sourceOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {/* Complimentary stays occupy a room like any other but are owed
-              nothing; revenue reports leave them out of ADR. */}
-          <Field label="Booking type">
-            <Select
-              className="input"
-              value={form.booking_type}
-              onChange={(e) => set("booking_type", e.target.value)}
-            >
-              <option value="standard">Standard</option>
-              <option value="complimentary">Complimentary</option>
-            </Select>
-          </Field>
-          {/* An inquiry holds the room like a confirmed booking, but is left
-              out of revenue until it is confirmed. */}
-          {!reservation && (
-            <Field label="Status">
-              <Select
-                className="input"
-                value={form.status}
-                onChange={(e) => set("status", e.target.value)}
-              >
-                <option value="confirmed">Confirmed</option>
-                <option value="inquiry">Inquiry</option>
-              </Select>
-            </Field>
-          )}
-        <Field label="Notes" wide>
-          <textarea
-            className="input"
-            rows={2}
-            style={{ resize: "vertical" }}
-            value={form.notes}
-            onChange={(e) => set("notes", e.target.value)}
-            placeholder="Late arrival, dietary needs, anything the desk should know"
-          />
-        </Field>
         </Section>
       )}
 

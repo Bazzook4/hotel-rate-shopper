@@ -13,6 +13,16 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-28",
+    title: "New booking asks how it was booked, up front",
+    points: [
+      {
+        page: "calendar",
+        text: "On a new booking, Booking method, Booking type, Status and Notes now sit on the main form instead of under More details. Choose Corporate or Travel agent and the form asks which company or travel agent it came through (optional), with an Add a company or Add a travel agent button if none is on record yet. You come back to your booking exactly as you left it.",
+      },
+    ],
+  },
+  {
     date: "2026-10-24",
     title: "Clean and dirty rooms are easier to spot",
     points: [
