@@ -16,7 +16,7 @@ import PageUsage from "./PageUsage";
 const DAY = 24 * 60 * 60 * 1000;
 const QUIET_DAYS = 14;
 
-const STATUS = {
+export const STATUS = {
   setup: { label: "Not set up", chip: "chip-warn", order: 0 },
   nobook: { label: "No bookings", chip: "chip-warn", order: 1 },
   quiet: { label: "Quiet", chip: "chip-off", order: 2 },
@@ -25,7 +25,7 @@ const STATUS = {
 
 const daysAgo = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / DAY) : null);
 
-function statusOf(r) {
+export function statusOf(r) {
   if (!r.room_types || !r.rooms) return "setup";
   if (!r.bookings) return "nobook";
   const open = daysAgo(r.last_open);
@@ -33,7 +33,7 @@ function statusOf(r) {
   return "active";
 }
 
-function ago(iso) {
+export function ago(iso) {
   const d = daysAgo(iso);
   if (d == null) return "Never";
   if (d <= 0) return "Today";

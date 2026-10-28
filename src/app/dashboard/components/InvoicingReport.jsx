@@ -14,6 +14,8 @@ import {
   downloadCsv,
   longDate,
   moneyFormatter,
+  shortDate,
+  timeOf,
   useBookingOpener,
   usePeriod,
   useReport,
@@ -39,6 +41,7 @@ const TABS = [
   { id: "register", label: "Invoice register" },
   { id: "outstanding", label: "Outstanding balances" },
   { id: "uninvoiced", label: "Not invoiced" },
+  { id: "discounts", label: "Discounts" },
 ];
 
 const STATUS_LABEL = { in_house: "In house", checked_out: "Checked out" };
@@ -76,6 +79,7 @@ function Register({ report, money, onOpen }) {
   const { taxNames, totals, taxSummary, gaps } = report.register;
   const sorter = useSort(report.register.rows, REGISTER_SORT);
   const rows = sorter.rows;
+  const anyDiscount = rows.some((r) => r.discount);
   return (
     <div className="space-y-5">
       <div className="card card-pad">
@@ -170,6 +174,11 @@ function Register({ report, money, onOpen }) {
                       {n}
                     </th>
                   ))}
+                  {anyDiscount && (
+                    <th className="text-right" title="Before-tax discounts are already out of Taxable">
+                      Discount
+                    </th>
+                  )}
                   <SortTh sorter={sorter} col="total" className="text-right">Total</SortTh>
                 </tr>
               </thead>
@@ -206,6 +215,7 @@ function Register({ report, money, onOpen }) {
                         {r.taxes[n] ? money(r.taxes[n]) : "-"}
                       </td>
                     ))}
+                    {anyDiscount && <td className="text-right tabular-nums">{r.discount ? money(-r.discount) : "-"}</td>}
                     <td
                       className="text-right font-medium tabular-nums"
                       style={r.voided ? { textDecoration: "line-through" } : undefined}
@@ -224,6 +234,7 @@ function Register({ report, money, onOpen }) {
                       {money(totals.taxes[n])}
                     </td>
                   ))}
+                  {anyDiscount && <td className="text-right font-semibold tabular-nums">{money(-(totals.discount || 0))}</td>}
                   <td className="text-right font-semibold tabular-nums">{money(totals.total)}</td>
                 </tr>
               </tbody>
@@ -435,6 +446,61 @@ function Uninvoiced({ report, money, onOpen }) {
 }
 
 // ------------------------------------------------------------------
+// Discounts
+// ------------------------------------------------------------------
+
+function Discounts({ report, money, onOpen }) {
+  const { rows, total } = report.discounts || { rows: [], total: 0 };
+  return (
+    <div className="space-y-5">
+      <Section title="Discount log" sub={`${whole.format(rows.length)} change${rows.length === 1 ? "" : "s"}, ${money(total)} net off`}>
+        {rows.length === 0 ? (
+          <Empty>No discounts given or changed in this period.</Empty>
+        ) : (
+          <TableFrame tall>
+            <table className="grid-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Booking</th>
+                  <th>Guest</th>
+                  <th>Discount</th>
+                  <th>Reason</th>
+                  <th>By</th>
+                  <th className="text-right">Off the bill</th>
+                  <th className="text-right">More or less off</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td className="whitespace-nowrap">
+                      {shortDate(r.day)} {timeOf(r.at)}
+                    </td>
+                    <td>
+                      <BookingLink reference={r.reference} reservationId={r.reservationId} tab="bill" onOpen={onOpen} />
+                    </td>
+                    <td>{r.guest || "-"}</td>
+                    <td>{r.previous ? `${r.previous} to ${r.discount}` : r.discount}</td>
+                    <td>
+                      {r.reason || "-"}
+                      {r.note ? <span className="faint">, {r.note}</span> : null}
+                    </td>
+                    <td>{r.by ? r.by.split("@")[0] : "-"}</td>
+                    <td className="text-right tabular-nums">{money(r.amount)}</td>
+                    <td className="text-right tabular-nums">{money(r.change)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableFrame>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------
 // CSV
 // ------------------------------------------------------------------
 
@@ -445,9 +511,9 @@ function exportCsv(report, tab) {
     r.push(["Invoice register", report.start, report.end]);
     r.push(["Currency", report.currency]);
     r.push([]);
-    r.push(["Invoice", "Issued", "Guest", "Booking", "Check-in", "Check-out", "Residency", "Taxable", ...taxNames, "Tax", "Total", "Voided", "Void reason", "Issued by"]);
+    r.push(["Invoice", "Issued", "Guest", "Booking", "Check-in", "Check-out", "Residency", "Taxable", ...taxNames, "Tax", "Discount", "Total", "Voided", "Void reason", "Issued by"]);
     for (const x of rows) {
-      r.push([x.number, x.day, x.guest, x.reference, x.checkIn, x.checkOut, x.residency, x.taxable, ...taxNames.map((n) => x.taxes[n] || 0), x.taxTotal, x.total, x.voided ? "yes" : "", x.voidReason || "", x.issuedBy || ""]);
+      r.push([x.number, x.day, x.guest, x.reference, x.checkIn, x.checkOut, x.residency, x.taxable, ...taxNames.map((n) => x.taxes[n] || 0), x.taxTotal, x.discount || 0, x.total, x.voided ? "yes" : "", x.voidReason || "", x.issuedBy || ""]);
     }
     r.push([]);
     r.push(["Tax", "Invoices", "Taxable base", "Amount", "Included in price"]);
@@ -459,6 +525,14 @@ function exportCsv(report, tab) {
     r.push(["Booking", "Guest", "Check-in", "Check-out", "Status", "Days owed", "Bill", "Paid", "Balance", "Last payment", "Invoice"]);
     for (const x of [...report.outstanding.owing, ...report.outstanding.credits]) {
       r.push([x.reference, x.guest, x.checkIn, x.checkOut, x.status, x.age, x.total, x.paid, x.balance, x.lastPayment || "", x.invoice || ""]);
+    }
+  } else if (tab === "discounts") {
+    r.push(["Discounts given or changed", report.start, report.end]);
+    r.push(["Currency", report.currency]);
+    r.push([]);
+    r.push(["Date", "Booking", "Guest", "Before", "Discount", "Reason", "Note", "By", "Off the bill", "More or less off"]);
+    for (const x of report.discounts?.rows || []) {
+      r.push([x.day, x.reference, x.guest, x.previous || "", x.discount, x.reason, x.note || "", x.by || "", x.amount, x.change]);
     }
   } else {
     r.push(["Not invoiced, checked out between", report.start, report.end]);
@@ -492,6 +566,7 @@ export default function InvoicingReport({ session }) {
         register: report.register.rows.length,
         outstanding: report.outstanding.owing.length + report.outstanding.credits.length,
         uninvoiced: report.uninvoiced.length,
+        discounts: report.discounts?.rows.length || 0,
       }
     : {};
 
@@ -531,6 +606,7 @@ export default function InvoicingReport({ session }) {
           {tab === "register" && <Register report={report} money={money} onOpen={openBooking} />}
           {tab === "outstanding" && <Outstanding report={report} money={money} onOpen={openBooking} />}
           {tab === "uninvoiced" && <Uninvoiced report={report} money={money} onOpen={openBooking} />}
+          {tab === "discounts" && <Discounts report={report} money={money} onOpen={openBooking} />}
         </div>
       )}
 

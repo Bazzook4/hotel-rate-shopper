@@ -158,10 +158,26 @@ const EVERYONE_PAGES = new Set(["today", "explore"]);
  */
 export const PLACEHOLDER_PAGES = new Set([]);
 
-/** Pages a right can be given for, in navigation order. */
-export const GRANTABLE_MODULES = MODULES.filter(
-  (m) => !ADMIN_PAGES.has(m.id) && !PLACEHOLDER_PAGES.has(m.id) && !EVERYONE_PAGES.has(m.id)
-);
+/**
+ * Rights to do something rather than to open a page. They are ticked in the
+ * same grid, under the area they belong to, but never appear in the menu.
+ */
+export const ACTION_RIGHTS = [
+  { id: "discounts", label: "Give discounts", icon: "tag", area: "frontoffice", action: true },
+];
+
+/** Pages and actions a right can be given for, in navigation order. */
+export const GRANTABLE_MODULES = [
+  ...MODULES.filter(
+    (m) => !ADMIN_PAGES.has(m.id) && !PLACEHOLDER_PAGES.has(m.id) && !EVERYONE_PAGES.has(m.id)
+  ),
+  ...ACTION_RIGHTS,
+];
+
+/** Whether this session holds a right, page or action. A super admin holds every one. */
+export function hasRight(session, id) {
+  return session?.isSuperAdmin === true || normaliseGrants(session?.modules).includes(id);
+}
 
 /**
  * The pages this session may see, grouped by area.

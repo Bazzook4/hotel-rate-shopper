@@ -15,6 +15,7 @@ import GuestIdPhotos from "./GuestIdPhotos";
 import { printInvoicePdf } from "./frontDesk";
 import { hotelToday, hotelZone } from "@/lib/hotelTime";
 import { formatMoney, hotelCurrency } from "@/lib/money";
+import { DISCOUNT_REASONS, DISCOUNT_TIMINGS, describeDiscount, discountAmount, reasonLabel } from "@/lib/discounts";
 
 /**
  * The parts of a booking that hang off its folio: who is staying, and the bill.
@@ -107,6 +108,29 @@ function Statement({ folio, currency, actions, busy }) {
     .join(", ");
   const faint = { color: "var(--text-faint)", fontSize: "0.75rem" };
   const cell = actions ? <td /> : null;
+  // The discount, under the room when it came off before tax, or above the
+  // total when it came off after.
+  const discountRow = folio.discount && (
+    <tr>
+      <td>
+        Discount {describeDiscount(folio.discount, (v) => money(v, currency))}
+        <span style={faint}>
+          , {reasonLabel(folio.discount.reason)}
+          {folio.discount.note ? `, ${folio.discount.note}` : ""}
+        </span>
+      </td>
+      <td className="text-right">-{money(totals.discount, currency)}</td>
+      {actions && (
+        <td className="text-right">
+          {actions.editDiscount && (
+            <button type="button" className="btn btn-ghost text-xs" disabled={busy} onClick={actions.editDiscount}>
+              {actions.discountLocked ? "Void invoices to change" : "Change"}
+            </button>
+          )}
+        </td>
+      )}
+    </tr>
+  );
   // With separate bills, whose bill each service is on.
   const sharers = folio.sharers || [];
   const sharerName = (e) => {
@@ -127,7 +151,7 @@ function Statement({ folio, currency, actions, busy }) {
               </div>
             )}
           </td>
-          <td className="text-right">{money(totals.room, currency)}</td>
+          <td className="text-right">{money(totals.roomBefore ?? totals.room, currency)}</td>
           {actions && (
             <td className="text-right">
               {nights.length > 0 && (
@@ -138,6 +162,8 @@ function Statement({ folio, currency, actions, busy }) {
             </td>
           )}
         </tr>
+
+        {totals.discountTiming === "before_tax" && discountRow}
 
         {folio.extras.map((e) => {
           const qty = Number(e.quantity);
@@ -186,6 +212,8 @@ function Statement({ folio, currency, actions, busy }) {
               {cell}
             </tr>
           ))}
+
+        {totals.discountTiming === "after_tax" && discountRow}
 
         <tr style={{ fontWeight: 600 }}>
           <td>
@@ -1055,6 +1083,180 @@ function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRef
 }
 
 /** The room charge night by night. The room charge becomes the sum of these. */
+/**
+ * The booking's discount: a percent or an amount, before or after tax, with
+ * a reason. Every change is logged, and the log is shown under the form.
+ */
+function DiscountDrawer({ folio, reservationId, currency, onClose, onSaved }) {
+  const toast = useToast();
+  const current = folio.discount;
+  const [kind, setKind] = useState(current?.kind || "percent");
+  const [value, setValue] = useState(current ? String(current.value) : "");
+  const [timing, setTiming] = useState(current?.timing || "before_tax");
+  const [reason, setReason] = useState(current?.reason || "");
+  const [note, setNote] = useState(current?.note || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  // What it comes to, from the bill as it stands without this discount. Before
+  // tax the tax then drops with the room, so the bill falls by a little more.
+  const { totals } = folio;
+  const after = totals.discountTiming === "after_tax" ? totals.discount : 0;
+  const base = timing === "before_tax" ? totals.roomBefore ?? totals.room : totals.total + after;
+  const n = Number(value);
+  const off = n > 0 ? discountAmount({ kind, value: n }, base) : 0;
+
+  // 10 percent is not 10 rupees: a new kind starts empty.
+  function pickKind(next) {
+    if (next !== kind) setValue("");
+    setKind(next);
+  }
+
+  async function send(discount) {
+    await sendFolio(reservationId, "discount", { discount });
+  }
+
+  async function save() {
+    if (!(n > 0)) return setError("Enter a discount more than zero.");
+    if (kind === "percent" && n > 100) return setError("A percent discount is 100 at most.");
+    if (!reason) return setError("Choose a reason.");
+    if (reason === "other" && !note.trim()) return setError("Say why in the note.");
+    setBusy(true);
+    setError(null);
+    try {
+      await send({ kind, value: n, timing, reason, note: note.trim() });
+      toast(`Discount of ${money(off, currency)} saved`);
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  async function takeOff() {
+    setBusy(true);
+    setError(null);
+    try {
+      await send(null);
+      toast("Discount taken off", {
+        undo: async () => {
+          await send(current);
+          await onSaved();
+        },
+      });
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  const choice = (on) => `btn ${on ? "btn-primary" : "btn-secondary"}`;
+  const log = folio.discountLog || [];
+
+  return (
+    <Drawer
+      title={current ? "Change discount" : "Give discount"}
+      subtitle={
+        timing === "before_tax"
+          ? `Room ${money(base, currency)}, after discount ${money(base - off, currency)}`
+          : `Bill ${money(base, currency)}, after discount ${money(base - off, currency)}`
+      }
+      onCancel={onClose}
+      onSave={save}
+      saveLabel={off > 0 ? `Save ${money(off, currency)} off` : "Save discount"}
+      busy={busy}
+      error={error}
+      extraActions={
+        current ? (
+          <button type="button" className="btn btn-secondary text-sm" disabled={busy} onClick={takeOff}>
+            Take off discount
+          </button>
+        ) : null
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="seg" role="group" aria-label="Discount as">
+              <button type="button" aria-pressed={kind === "percent"} className={kind === "percent" ? "seg-on" : ""} onClick={() => pickKind("percent")}>
+                Percent
+              </button>
+              <button type="button" aria-pressed={kind === "amount"} className={kind === "amount" ? "seg-on" : ""} onClick={() => pickKind("amount")}>
+                Amount
+              </button>
+            </div>
+            <input
+              className="input"
+              type="number"
+              inputMode="decimal"
+              autoFocus
+              aria-label={kind === "percent" ? "Percent off" : "Amount off"}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              style={{ width: 100 }}
+            />
+            <span className="text-sm">{kind === "percent" ? "% off" : `${currency} off`}</span>
+            <div className="seg" role="group" aria-label="Comes off">
+              {DISCOUNT_TIMINGS.map((t) => (
+                <button key={t.id} type="button" aria-pressed={timing === t.id} className={timing === t.id ? "seg-on" : ""} onClick={() => setTiming(t.id)}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <span className="mt-1 block text-xs faint">
+            {timing === "before_tax"
+              ? "Off the room price. Tax is worked out on the lower price."
+              : "Off the final bill. Tax stays as it is."}
+          </span>
+        </div>
+
+        <div>
+          <span className="label">Reason (needed)</span>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Reason">
+            {DISCOUNT_REASONS.map((r) => (
+              <button key={r.id} type="button" aria-pressed={reason === r.id} className={`${choice(reason === r.id)} text-xs`} onClick={() => setReason(r.id)}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Field label={reason === "other" ? "Note" : "Note (optional)"}>
+          <input className="input" maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} />
+        </Field>
+
+        {log.length > 0 && (
+          <div>
+            <div style={smallHeading}>Changes</div>
+            <table className="grid-table w-full text-sm">
+              <tbody>
+                {log.map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      {d.kind
+                        ? describeDiscount({ kind: d.kind, value: Number(d.value), timing: d.timing }, (v) => money(v, currency))
+                        : "Taken off"}
+                      {d.reason ? `, ${reasonLabel(d.reason)}` : ""}
+                      {d.note ? `, ${d.note}` : ""}
+                      <div style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
+                        {when(d.changed_at)}
+                        {d.changed_by_email ? `, ${d.changed_by_email.split("@")[0]}` : ""}
+                      </div>
+                    </td>
+                    <td className="text-right">{d.kind ? `-${money(d.amount, currency)}` : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Drawer>
+  );
+}
+
 function NightsDrawer({ folio, reservationId, currency, onClose, onSaved, onRefresh }) {
   const [rates, setRates] = useState(() =>
     Object.fromEntries(folio.nights.map((n) => [n.stay_date, n.rate == null ? "" : String(n.rate)]))
@@ -1142,6 +1344,7 @@ export default function FolioTabs({
   canSeeIds = false,
   propertyId = null,
   onTab = null,
+  canDiscount = false,
 }) {
   const dialog = useDialog();
   const toast = useToast();
@@ -1576,6 +1779,16 @@ export default function FolioTabs({
             >
               {balance < 0 ? "Give a refund" : "Collect payment"}
             </button>
+            {canDiscount && !folio.discount && folio.reservation?.booking_type !== "complimentary" &&
+              (standingInvoice ? (
+                <button type="button" className="btn btn-secondary text-sm" onClick={() => onTab?.("invoices")}>
+                  Discount: void invoices to change
+                </button>
+              ) : (
+                <button type="button" className="btn btn-secondary text-sm" onClick={() => setDrawer("discount")}>
+                  <Icon name="tag" size={14} /> Give discount
+                </button>
+              ))}
             {/* Guests sharing the room, each on a bill of their own. Not while an
                 invoice stands: it was issued for the bill as it is. */}
             {(folio.sharers?.length > 0 || (folio.guests || []).length >= 2) &&
@@ -1632,6 +1845,8 @@ export default function FolioTabs({
             busy={busy}
             actions={{
               editNights: () => setDrawer("nights"),
+              editDiscount: canDiscount ? () => (standingInvoice ? onTab?.("invoices") : setDrawer("discount")) : null,
+              discountLocked: standingInvoice,
               removeExtra,
               voidPayment: async (p) => {
                 const reason = await dialog.prompt({
@@ -1810,6 +2025,7 @@ export default function FolioTabs({
               />
             )}
             {drawer === "nights" && <NightsDrawer {...drawerProps} onRefresh={onChanged} />}
+            {drawer === "discount" && <DiscountDrawer {...drawerProps} />}
           </>,
           document.body
         )}

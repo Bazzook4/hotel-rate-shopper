@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-28",
+    title: "Discounts on a booking",
+    points: [
+      {
+        page: "reservations",
+        text: "Give a discount from a booking's Bill: a percent or an amount, before tax (the room price drops and tax is worked out on the lower price) or after tax (taken off the final bill). Pick a reason, and every change is kept with who made it and when.",
+      },
+      {
+        page: "invoicing",
+        text: "Invoicing has a Discounts tab listing every discount given, changed or taken off, and the invoice register shows the discount on each invoice. The Night Audit lists the day's discounts too.",
+      },
+      {
+        page: "users",
+        text: "Only people with the new Give discounts right can give one. Hotel admins have it; tick it in Users & rights for the staff you trust.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-28",
     title: "Show me how covers setup too",
     points: [
       {

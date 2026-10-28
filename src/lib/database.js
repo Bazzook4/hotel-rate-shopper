@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals, indianGstPreset, taxLinesFor } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
+import { discountOf } from '@/lib/discounts';
 import { toCountryCode } from '@/lib/countries';
 import { DEFAULT_DAY_START, DEFAULT_ZONE, parseDayStart, todayInZone, zoneOr } from '@/lib/hotelTime';
 import { DEFAULT_CURRENCY, currencyOr } from '@/lib/money';
@@ -5005,6 +5006,83 @@ export async function setSeparateBills(reservationId, on) {
 }
 
 /**
+ * Give, change or take off a booking's discount, and log the change.
+ *
+ * `discount` is { kind: 'percent' | 'amount', value, timing, reason, note },
+ * or null to take it off. The money it comes to is worked out by the folio,
+ * so it follows the room if the rates or dates change later; the log keeps
+ * the amount as it stood at the change. Not while an invoice stands: it was
+ * issued for the bill as it is now.
+ */
+export async function setReservationDiscount(reservationId, discount, userId = null) {
+  const before = await getReservationFolio(reservationId);
+  const reservation = before.reservation;
+  if (before.invoices.some((i) => !i.voided_at)) {
+    throw new Error('Void the invoices on this booking first; they were issued for the bill as it is now.');
+  }
+  if (discount && reservation.booking_type === 'complimentary') {
+    throw new Error('A complimentary stay is already free.');
+  }
+
+  const row = discount
+    ? {
+        discount_kind: discount.kind,
+        discount_value: Number(discount.value),
+        discount_timing: discount.timing,
+        discount_reason: discount.reason,
+        discount_note: discount.note || null,
+      }
+    : { discount_kind: null, discount_value: null, discount_timing: null, discount_reason: null, discount_note: null };
+  const { error } = await supabase
+    .from('reservations')
+    .update({ ...row, updated_at: new Date().toISOString() })
+    .eq('id', reservationId);
+  if (error) {
+    throw new Error(notMigrated(error) ? 'Discounts are not switched on for this hotel yet.' : 'Could not save the discount. Try again.');
+  }
+
+  const after = await getReservationFolio(reservationId);
+  const { error: logError } = await supabase.from('reservation_discounts').insert({
+    property_id: reservation.property_id,
+    reservation_id: reservationId,
+    reference: reservation.reference || null,
+    guest_name: reservation.guest_name || null,
+    kind: row.discount_kind,
+    value: row.discount_value,
+    timing: row.discount_timing,
+    amount: after.totals.discount || 0,
+    previous_kind: reservation.discount_kind || null,
+    previous_value: reservation.discount_value ?? null,
+    previous_timing: reservation.discount_timing || null,
+    previous_amount: before.totals.discount || 0,
+    // Taking a discount off is logged with the reason it had.
+    reason: discount ? discount.reason : reservation.discount_reason || null,
+    note: discount ? discount.note || null : null,
+    currency: reservation.currency || null,
+    changed_by: userId,
+  });
+  if (logError) throw new Error('The discount is saved but could not be logged. Tell your admin.');
+}
+
+/**
+ * The discount log: every discount given, changed or taken off, newest
+ * first. For one booking, or for a property between two instants.
+ */
+export async function listDiscountLog({ reservationId = null, propertyId = null, from = null, to = null } = {}) {
+  let query = supabase.from('reservation_discounts').select('*').order('changed_at', { ascending: false });
+  if (reservationId) query = query.eq('reservation_id', reservationId);
+  if (propertyId) query = query.eq('property_id', propertyId);
+  if (from) query = query.gte('changed_at', from);
+  if (to) query = query.lt('changed_at', to);
+  const { data, error } = await query.limit(1000);
+  if (error) {
+    if (notMigrated(error)) return [];
+    throw new Error(`Failed to load the discount log: ${error.message}`);
+  }
+  return data || [];
+}
+
+/**
  * A sharer's share of the room (blank for an even split) and the company
  * their invoices go to. A share cannot change once one of their room
  * charges is invoiced.
@@ -5070,12 +5148,13 @@ export async function voidReservationPayment(id, reason, userId = null) {
  * tell which one is lying.
  */
 export async function getReservationFolio(reservationId) {
-  const [reservation, extras, payments, guests, invoices] = await Promise.all([
+  const [reservation, extras, payments, guests, invoices, discountLog] = await Promise.all([
     getReservation(reservationId),
     listReservationExtras(reservationId),
     listReservationPayments(reservationId),
     listReservationGuests(reservationId),
     listReservationInvoices(reservationId),
+    listDiscountLog({ reservationId }),
   ]);
 
   const room = Number(reservation.total_amount) || 0;
@@ -5095,7 +5174,7 @@ export async function getReservationFolio(reservationId) {
     listPropertyTaxes(reservation.property_id),
     listPropertyExtras(reservation.property_id, { includeInactive: true }),
   ]);
-  const { tax, roomService, totals } = folioTotals({
+  const { tax, roomService, totals, keep } = folioTotals({
     reservation,
     nights,
     extras,
@@ -5122,7 +5201,7 @@ export async function getReservationFolio(reservationId) {
     groups[name].tax += taxes;
   };
   const roomCategory = roomService ? categoryOf(roomService.id) : 'Accommodation';
-  addTo(roomCategory, room, tax.byService[roomService?.id]?.added || 0);
+  addTo(roomCategory, totals.room, tax.byService[roomService?.id]?.added || 0);
   for (const e of extras.filter((x) => x.kind === 'extra')) {
     addTo(categoryOf(e.extra_id), Number(e.unit_price) * Number(e.quantity), 0);
   }
@@ -5130,15 +5209,18 @@ export async function getReservationFolio(reservationId) {
     const t = tax.byService[sv.id]?.added || 0;
     if (t) addTo(categoryOf(sv.id), 0, t);
   }
+  const nightsMatch = nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01;
+  // Guests sharing the room on bills of their own (migration 056).
+  const sharers = sharersOf(reservation, guests);
+  const charges = folioCharges({
+    reservation, nights, nightsMatch, extras, invoices, tax, roomCategory, categoryOf, room: totals.room, sharers, keep, totals,
+  });
+  if (totals.discountTiming === 'after_tax') addTo('Discount', -totals.discount, 0);
   const categories = Object.values(groups).map((g) => ({
     name: g.name,
     amount: Number(g.amount.toFixed(2)),
     tax: Number(g.tax.toFixed(2)),
   }));
-  const nightsMatch = nights.every((n) => n.rate != null) && Math.abs(nightsSum - room) < 0.01;
-  // Guests sharing the room on bills of their own (migration 056).
-  const sharers = sharersOf(reservation, guests);
-  const charges = folioCharges({ reservation, nights, nightsMatch, extras, invoices, tax, roomCategory, categoryOf, room, sharers });
 
   return {
     reservation,
@@ -5156,6 +5238,8 @@ export async function getReservationFolio(reservationId) {
     bills: sharerBills({ sharers, charges, payments, totals }),
     roomServiceId: roomService?.id || null,
     totals,
+    discount: discountOf(reservation),
+    discountLog,
   };
 }
 
@@ -5240,9 +5324,16 @@ export async function createReservationInvoice(reservationId, userId = null, { c
 
   const sum = (rows) => Number(rows.reduce((s, c) => s + c.amount, 0).toFixed(2));
   const roomCharge = sum(picked.filter((c) => c.room));
-  const extrasCharge = sum(picked.filter((c) => !c.room));
+  const extrasCharge = sum(picked.filter((c) => !c.room && !c.discount));
+  // A discount after tax, as a charge below zero; one before tax is already
+  // inside the room charge, and the invoice says how much it was.
+  const billDiscount = -sum(picked.filter((c) => c.discount));
+  const keep = folio.totals.roomBefore > 0 ? folio.totals.room / folio.totals.roomBefore : 1;
+  const roomDiscount =
+    folio.totals.discountTiming === 'before_tax' && keep > 0 ? Number((roomCharge / keep - roomCharge).toFixed(2)) : 0;
   const taxAdded = Number(taxes.filter((t) => !t.inclusive).reduce((s, t) => s + t.amount, 0).toFixed(2));
-  const total = whole ? folio.totals.total : Number((roomCharge + extrasCharge + taxAdded).toFixed(2));
+  const total = whole ? folio.totals.total : Number((roomCharge + extrasCharge + taxAdded - billDiscount).toFixed(2));
+  if (total < 0) throw new Error('The discount cannot go on an invoice by itself. Tick a charge with it.');
 
   // Payments go to the stay (or the sharer), not to an invoice; each invoice
   // shows what they cover of it, oldest standing invoice first.
@@ -5260,6 +5351,9 @@ export async function createReservationInvoice(reservationId, userId = null, { c
     ? folio.totals
     : {
         room: roomCharge,
+        roomBefore: Number((roomCharge + roomDiscount).toFixed(2)),
+        discount: roomDiscount || billDiscount,
+        discountTiming: roomDiscount ? 'before_tax' : billDiscount ? 'after_tax' : null,
         extras: extrasCharge,
         tax: taxAdded,
         taxIncluded: Number(taxes.filter((t) => t.inclusive).reduce((s, t) => s + t.amount, 0).toFixed(2)),
@@ -5328,7 +5422,8 @@ export async function createReservationInvoice(reservationId, userId = null, { c
     adults: reservation.adults,
     children: reservation.children,
     rate_plan: reservation.rate_plans?.plan_name || null,
-    lines: picked.map((c) => ({
+    // The discount is shown with the totals, not as a line.
+    lines: picked.filter((c) => !c.discount).map((c) => ({
       description: c.description,
       quantity: c.quantity,
       unit_price: c.unit_price,
@@ -5337,7 +5432,7 @@ export async function createReservationInvoice(reservationId, userId = null, { c
     // Which charges this invoice carries, so none goes on a second one, and
     // the categories they fall under, for telling the invoices apart.
     charge_keys: picked.map((c) => c.key),
-    categories: [...new Set(picked.map((c) => c.category))],
+    categories: [...new Set(picked.filter((c) => !c.discount).map((c) => c.category))],
     split: !whole,
     taxes,
     guest_residency: reservation.guest_residency || 'domestic',

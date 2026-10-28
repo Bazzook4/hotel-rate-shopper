@@ -3,9 +3,12 @@ import {
   listPropertyExtras,
   listPropertyTaxes,
   listRoomBlocks,
+  listDiscountLog,
   listRooms,
 } from '@/lib/database';
 import { folioTotals } from '@/lib/taxes';
+import { describeDiscount, reasonLabel, roomKeep } from '@/lib/discounts';
+import { formatMoney } from '@/lib/money';
 import { folioCharges, sharersOf, sharerBills } from '@/lib/folioBills';
 import { capacityOf, channelOf, chunks, notMigrated, readAll, round } from '@/lib/reports';
 import { DEFAULT_ZONE, dayInZone, todayInZone, zoneDayStart } from '@/lib/hotelTime';
@@ -209,7 +212,7 @@ export async function loadFolios(propertyId, reservations) {
       .sort((a, b) => a.stay_date.localeCompare(b.stay_date));
     const stayExtras = extrasBy.get(r.id) || [];
     const stayPayments = paymentsBy.get(r.id) || [];
-    const { tax, totals, roomService } = folioTotals({
+    const { tax, totals, roomService, keep } = folioTotals({
       reservation: r,
       nights: stayNights,
       extras: stayExtras,
@@ -231,8 +234,10 @@ export async function loadFolios(propertyId, reservations) {
         tax,
         roomCategory: roomService ? categoryOf(roomService.id) : 'Accommodation',
         categoryOf,
-        room,
+        room: totals.room,
         sharers,
+        keep,
+        totals,
       });
       bills = sharerBills({ sharers, charges, payments: stayPayments, totals });
     }
@@ -247,9 +252,38 @@ export async function loadFolios(propertyId, reservations) {
         .sort((a, b) => String(b.issued_at).localeCompare(String(a.issued_at))),
       tax,
       totals,
+      keep,
     });
   }
   return { folios, services };
+}
+
+/**
+ * The discount log between two instants: one row per discount given,
+ * changed or taken off, oldest first, with who did it. `change` is how much
+ * more (or, below zero, less) money came off the bill.
+ */
+async function loadDiscounts(propertyId, from, to, tz) {
+  const log = (await listDiscountLog({ propertyId, from, to })).reverse();
+  const emails = await userEmails(log.map((d) => d.changed_by));
+  const label = (kind, value, timing, currency) =>
+    kind ? describeDiscount({ kind, value: Number(value), timing }, (v) => formatMoney(v, { currency, decimals: 2 })) : 'None';
+  const rows = log.map((d) => ({
+    id: d.id,
+    at: d.changed_at,
+    day: localDay(d.changed_at, tz),
+    reservationId: d.reservation_id,
+    reference: d.reference,
+    guest: d.guest_name,
+    discount: d.kind ? label(d.kind, d.value, d.timing, d.currency) : 'Taken off',
+    previous: d.previous_kind ? label(d.previous_kind, d.previous_value, d.previous_timing, d.currency) : null,
+    amount: Number(d.amount) || 0,
+    change: round((Number(d.amount) || 0) - (Number(d.previous_amount) || 0)),
+    reason: reasonLabel(d.reason) || null,
+    note: d.note || null,
+    by: emails[d.changed_by] || null,
+  }));
+  return { rows, total: round(rows.reduce((s, r) => s + r.change, 0)) };
 }
 
 /** Payments taken (or voided) between two instants, with their booking. */
@@ -496,6 +530,8 @@ function registerRow(inv, tz, emails) {
     checkOut: snap.check_out || null,
     residency: snap.guest_residency || null,
     taxable: round(charges - included),
+    // Money off, before tax (already out of the taxable value) or after.
+    discount: Number(t.discount) || 0,
     taxes,
     taxTotal: round(taxTotal),
     total: Number(inv.total_amount) || 0,
@@ -734,6 +770,7 @@ export async function getInvoicingReport(propertyId, { start, end, tz = DEFAULT_
         taxable: round(standing.reduce((s, r) => s + r.taxable, 0)),
         taxes: taxTotals,
         taxTotal: round(standing.reduce((s, r) => s + r.taxTotal, 0)),
+        discount: round(standing.reduce((s, r) => s + r.discount, 0)),
         total: round(standing.reduce((s, r) => s + r.total, 0)),
         voidedCount: rows.length - standing.length,
         voidedTotal: round(rows.filter((r) => r.voided).reduce((s, r) => s + r.total, 0)),
@@ -749,6 +786,7 @@ export async function getInvoicingReport(propertyId, { start, end, tz = DEFAULT_
       totalCredit: round(credits.reduce((s, r) => s - r.balance, 0)),
     },
     uninvoiced,
+    discounts: await loadDiscounts(propertyId, dayStart(start, tz), dayStart(shiftDay(end, 1), tz), tz),
   };
 }
 
@@ -836,7 +874,7 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
     guests: tonight.reduce((s, r) => s + (Number(r.adults) || 0) + (Number(r.children) || 0), 0),
     newBookings: created.filter((r) => r.status !== 'inquiry').length,
     newBookingValue: round(
-      created.filter((r) => r.status !== 'inquiry').reduce((s, r) => s + (Number(r.total_amount) || 0), 0)
+      created.filter((r) => r.status !== 'inquiry').reduce((s, r) => s + (Number(r.total_amount) || 0) * roomKeep(r), 0)
     ),
   };
 
@@ -856,7 +894,7 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
     const comp = r.booking_type === 'complimentary';
     const night = f.nights.find((n) => n.stay_date === date);
     if (night) {
-      const value = comp ? 0 : night.rate ?? (Number(r.total_amount) || 0) / Math.max(1, f.nights.length);
+      const value = comp ? 0 : (night.rate ?? (Number(r.total_amount) || 0) / Math.max(1, f.nights.length)) * f.keep;
       roomRevenue += value;
       if (comp) compRooms += 1;
       else if (value <= PENNY) zeroNights.push({ ...stayRow(r), amount: 0 });
@@ -898,6 +936,8 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
   const emails = await userEmails([...paid, ...voidedPayments].flatMap((p) => [p.recorded_by, p.voided_by]));
   const paymentRows = paid.map((p) => paymentRow(p, tz, emails));
   const voidedRows = voidedPayments.map((p) => paymentRow(p, tz, emails));
+
+  const discounts = await loadDiscounts(propertyId, from, to, tz);
 
   // ---- What the desk still has to put right ----
   const balanceOf = (r) => folios.get(r.id)?.totals.balance ?? 0;
@@ -979,6 +1019,21 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
         guest: p.guest,
         detail: [p.methodLabel, p.voidReason, p.voidedBy && `by ${p.voidedBy}`].filter(Boolean).join(', '),
         amount: p.amount,
+      })),
+    },
+    {
+      id: 'discounts',
+      tone: 'info',
+      title: 'Discounts given or changed',
+      hint: 'Every discount given, changed or taken off on this day, and who did it.',
+      rows: discounts.rows.map((d) => ({
+        reservationId: d.reservationId,
+        reference: d.reference,
+        guest: d.guest,
+        detail: [d.previous ? `${d.previous} to ${d.discount}` : d.discount, d.reason, d.note, d.by && `by ${d.by}`]
+          .filter(Boolean)
+          .join(', '),
+        amount: d.change,
       })),
     },
     {

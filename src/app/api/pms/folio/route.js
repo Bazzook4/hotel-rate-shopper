@@ -16,8 +16,12 @@ import {
   setNightRate,
   setSeparateBills,
   setSharer,
+  setReservationDiscount,
 } from "@/lib/database";
 import { walletBalance } from "@/lib/wallets";
+import { userEmails } from "@/lib/financeReports";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
+import { DISCOUNT_REASONS, DISCOUNT_RIGHT } from "@/lib/discounts";
 
 /**
  * Everything hanging off one reservation: guests, nights, extras, payments,
@@ -32,7 +36,12 @@ import { walletBalance } from "@/lib/wallets";
 
 async function folioResponse(reservationId) {
   const folio = await getReservationFolio(reservationId);
-  return NextResponse.json({ ...folio, wallets: await folioWallets(folio.reservation, folio.sharers) });
+  // Who made each discount change, by email, as the reports name them.
+  const emails = folio.discountLog.length
+    ? await userEmails(folio.discountLog.map((d) => d.changed_by)).catch(() => ({}))
+    : {};
+  const discountLog = folio.discountLog.map((d) => ({ ...d, changed_by_email: emails[d.changed_by] || null }));
+  return NextResponse.json({ ...folio, discountLog, wallets: await folioWallets(folio.reservation, folio.sharers) });
 }
 
 /**
@@ -209,6 +218,38 @@ export async function POST(req) {
           return NextResponse.json({ error: "That guest is not on this booking." }, { status: 400 });
         }
         await addReservationPayment(reservationId, body.payment, session.userId);
+        break;
+      }
+
+      // Giving, changing or taking off the discount needs its own right.
+      case "discount": {
+        const denied = await moduleDeniedResponse(session, DISCOUNT_RIGHT);
+        if (denied) {
+          return NextResponse.json({ error: "You do not have the right to give discounts. Ask your admin." }, { status: 403 });
+        }
+        const d = body.discount;
+        if (d) {
+          const value = Number(d.value);
+          if (!["percent", "amount"].includes(d.kind) || !Number.isFinite(value) || value <= 0) {
+            return NextResponse.json({ error: "Enter a discount more than zero." }, { status: 400 });
+          }
+          if (d.kind === "percent" && value > 100) {
+            return NextResponse.json({ error: "A percent discount is 100 at most." }, { status: 400 });
+          }
+          if (!["before_tax", "after_tax"].includes(d.timing)) {
+            return NextResponse.json({ error: "Choose before tax or after tax." }, { status: 400 });
+          }
+          if (!DISCOUNT_REASONS.some((r) => r.id === d.reason)) {
+            return NextResponse.json({ error: "Choose a reason." }, { status: 400 });
+          }
+          const note = String(d.note || "").trim().slice(0, 300);
+          if (d.reason === "other" && !note) {
+            return NextResponse.json({ error: "Say why in the note." }, { status: 400 });
+          }
+          await setReservationDiscount(reservationId, { kind: d.kind, value, timing: d.timing, reason: d.reason, note }, session.userId);
+        } else {
+          await setReservationDiscount(reservationId, null, session.userId);
+        }
         break;
       }
 

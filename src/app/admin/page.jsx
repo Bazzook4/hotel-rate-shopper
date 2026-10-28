@@ -7,6 +7,7 @@ import UserList from "../components/UserList";
 import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
 import HotelUsage from "../components/HotelUsage";
+import FollowUps from "../components/FollowUps";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
 import { DialogProvider } from "../components/Dialog";
@@ -78,6 +79,7 @@ export default function AdminPage() {
               ...(isSuperAdmin(session)
                 ? [
                     ["usage", "Usage"],
+                    ["follow", "Follow up"],
                     ["partners", "Partners"],
                   ]
                 : []),
@@ -109,6 +111,7 @@ export default function AdminPage() {
             </div>
           )}
           {tab === "usage" && isSuperAdmin(session) && <HotelUsage />}
+          {tab === "follow" && isSuperAdmin(session) && <FollowUps />}
           {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
         </div>
       </main>

@@ -12,7 +12,8 @@ import { confirmDiscard, useDialog } from "../../components/Dialog";
 import { useBackdropClose, useEscape } from "../../components/useEscape";
 import { useFrontDesk, whatsappLink } from "./frontDesk";
 import { toCountryCode } from "@/lib/countries";
-import { visibleModules } from "../modules";
+import { hasRight, visibleModules } from "../modules";
+import { DISCOUNT_RIGHT } from "@/lib/discounts";
 import RowMenu from "../../components/RowMenu";
 import OnlineCheckinPanel, {
   CheckinFact,
@@ -694,6 +695,7 @@ export default function BookingModal({
             <FolioTabs
               tab={tab}
               folio={folio}
+              canDiscount={hasRight(session, DISCOUNT_RIGHT)}
               extras={extras}
               reservationId={reservationId}
               intent={intent}

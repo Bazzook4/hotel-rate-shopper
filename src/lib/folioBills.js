@@ -86,23 +86,30 @@ function divide(amount, sharers) {
  * an invoice carries the tax on its own charges and no others. One room charge
  * stands for every night when the nights do not add up to it.
  */
-export function folioCharges({ reservation, nights, nightsMatch, extras, invoices = [], tax, roomCategory, categoryOf, room, sharers = [] }) {
+export function folioCharges({ reservation, nights, nightsMatch, extras, invoices = [], tax, roomCategory, categoryOf, room, sharers = [], keep = 1, totals = null }) {
   const roomName = reservation.room_types?.room_type_name || 'room';
   const base = [];
+  // `room` is the room as charged, after any discount before tax, and
+  // `keep` the share of each night's rate that leaves.
+  const discounted = keep < 1 ? ', after discount' : '';
 
   if (nightsMatch && nights.length > 0) {
-    for (const n of nights) {
+    // The last night takes what rounding leaves, so the nights add up to the room.
+    let left = round2(room);
+    nights.forEach((n, i) => {
+      const rate = keep < 1 ? (i === nights.length - 1 ? left : round2(n.rate * keep)) : n.rate;
+      left = round2(left - rate);
       base.push({
         key: `night:${n.stay_date}`,
         keys: [`night:${n.stay_date}`],
         category: roomCategory,
-        description: `Accommodation: ${roomName}, night of ${n.stay_date}`,
+        description: `Accommodation: ${roomName}, night of ${n.stay_date}${discounted}`,
         quantity: 1,
-        unit_price: n.rate,
-        amount: n.rate,
+        unit_price: rate,
+        amount: rate,
         room: true,
       });
-    }
+    });
   } else if (room > 0 || nights.length > 0) {
     const dayUse = reservation.stay_kind === 'day_use';
     const keys = nights.length > 0
@@ -116,7 +123,7 @@ export function folioCharges({ reservation, nights, nightsMatch, extras, invoice
       category: roomCategory,
       description: dayUse
         ? `Day use: ${roomName}, ${dayUseLabel(reservation.day_use_hours)} on ${reservation.check_in}`
-        : `Accommodation: ${roomName} (${nights.length} night${nights.length === 1 ? '' : 's'})`,
+        : `Accommodation: ${roomName} (${nights.length} night${nights.length === 1 ? '' : 's'})${discounted}`,
       quantity: dayUse ? 1 : undefined,
       unit_price: dayUse ? room : undefined,
       amount: room,
@@ -137,11 +144,26 @@ export function folioCharges({ reservation, nights, nightsMatch, extras, invoice
     });
   }
 
+  // A discount after tax is a charge of its own, below zero and untaxed, so
+  // it goes on an invoice and a sharer's bill like any other charge.
+  if (totals?.discountTiming === 'after_tax' && totals.discount > 0) {
+    base.push({
+      key: 'discount',
+      keys: [],
+      category: 'Discount',
+      description: 'Discount after tax',
+      amount: -totals.discount,
+      discount: true,
+      divide: true,
+    });
+  }
+
   // With sharers the room is divided: each night becomes one charge per
-  // sharer, carrying that sharer's part of the night and of its tax.
+  // sharer, carrying that sharer's part of the night and of its tax. A
+  // discount after tax is divided the same way.
   const out = [];
   for (const c of base) {
-    if (!c.room || sharers.length === 0) {
+    if ((!c.room && !c.divide) || sharers.length === 0) {
       out.push({ ...c, weight: 1, owner: c.owner || null });
       continue;
     }

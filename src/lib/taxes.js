@@ -16,6 +16,8 @@
  * a rule start or end part-way through a stay.
  */
 
+import { discountOf, discountAmount } from "@/lib/discounts";
+
 export const TAX_BASES = [
   { id: "per_night", label: "Per night / per unit" },
   { id: "per_stay", label: "Per booking" },
@@ -336,7 +338,13 @@ export function taxLinesFor(byKey, keys) {
  * as they do everywhere else.
  */
 export function folioTotals({ reservation, nights = [], extras = [], payments = [], taxRules = [], services = [] }) {
-  const room = Number(reservation.total_amount) || 0;
+  const roomBefore = Number(reservation.total_amount) || 0;
+  // A discount before tax lowers every night by the same share, and the tax
+  // is worked out on what is left; one after tax comes off the final bill.
+  const discount = discountOf(reservation);
+  const roomDiscount = discount?.timing === "before_tax" ? discountAmount(discount, roomBefore) : 0;
+  const keep = roomBefore > 0 ? (roomBefore - roomDiscount) / roomBefore : 1;
+  const room = round2(roomBefore - roomDiscount);
   // Inclusions come with the rate, so they are shown but never charged.
   const extrasTotal = extras
     .filter((e) => e.kind === "extra")
@@ -353,15 +361,20 @@ export function folioTotals({ reservation, nights = [], extras = [], payments = 
   // as one unit on the day -- a 6-hour slot at 1,800 is in the 5% slab, as a
   // night at 1,800 would be.
   const roomUnits =
-    nights.length === 0 && reservation.stay_kind === "day_use" && room > 0
-      ? [{ stay_date: reservation.check_in, rate: room }]
+    nights.length === 0 && reservation.stay_kind === "day_use" && roomBefore > 0
+      ? [{ stay_date: reservation.check_in, rate: roomBefore }]
       : nights;
+  // Each night as charged, after any discount before tax.
+  const chargedNights = roomUnits.map((n) => ({
+    ...n,
+    rate: (n.rate ?? roomBefore / Math.max(1, roomUnits.length)) * keep,
+  }));
 
   const tax = computeTaxes(
     taxRules,
     serviceTaxes,
     stayLines({
-      nights: roomUnits.map((n) => ({ ...n, rate: n.rate ?? room / Math.max(1, roomUnits.length) })),
+      nights: chargedNights,
       extras,
       roomServiceId: roomService?.id || null,
     }),
@@ -372,12 +385,23 @@ export function folioTotals({ reservation, nights = [], extras = [], payments = 
     }
   );
 
-  const grandTotal = room + extrasTotal + tax.added;
+  const beforeDiscount = room + extrasTotal + tax.added;
+  const billDiscount = discount?.timing === "after_tax" ? discountAmount(discount, round2(beforeDiscount)) : 0;
+  const grandTotal = beforeDiscount - billDiscount;
   return {
     tax,
     roomService,
+    discount,
+    // The share of each night's rate that is charged: 1 with no discount
+    // before tax. The folio's charges and the reports price nights with it.
+    keep,
     totals: {
+      // The room as charged. `roomBefore` is the price before a discount
+      // before tax, and `discount` the money off, before or after tax.
       room,
+      roomBefore: round2(roomBefore),
+      discount: round2(roomDiscount + billDiscount),
+      discountTiming: discount ? discount.timing : null,
       extras: round2(extrasTotal),
       // Exclusive taxes, added to the bill. Inclusive ones are already inside
       // the room and extras figures and are reported separately.

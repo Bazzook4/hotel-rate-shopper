@@ -312,10 +312,17 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
   const totals = snap.totals || {};
   // A split invoice carries only some of the stay's charges; a heading with
   // nothing under it would only make the reader look for what is missing.
+  // A discount before tax shows the room at its price, then the money off;
+  // one after tax comes off once the taxes are added.
+  const discount = Number(totals.discount) || 0;
+  const before = discount > 0 && totals.discountTiming === "before_tax";
+  const after = discount > 0 && totals.discountTiming === "after_tax";
   const totalRows = [
-    ...(snap.split && !Number(totals.room) ? [] : [["Room", totals.room]]),
+    ...(snap.split && !Number(totals.room) ? [] : [["Room", before ? totals.roomBefore : totals.room]]),
+    ...(before ? [["Discount before tax", -discount]] : []),
     ...(snap.split && !Number(totals.extras) ? [] : [["Extras", totals.extras]]),
     ...taxes.filter((t) => !t.inclusive).map((t) => [t.name, t.amount]),
+    ...(after ? [["Discount after tax", -discount]] : []),
     ["Total", totals.total, true],
     ...taxes.filter((t) => t.inclusive).map((t) => [`Includes ${t.name}`, t.amount]),
     ["Paid", totals.paid],
