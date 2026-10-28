@@ -74,6 +74,25 @@ export async function findOpenInvite(token) {
 }
 
 /**
+ * The always-open link's token, for a hotel that arrives from the login page
+ * without one. The newest if there are several; null when none is switched on.
+ */
+export async function findOpenLinkToken() {
+  const { data, error } = await getSupabaseAdmin()
+    .from("onboarding_invites")
+    .select("share_token")
+    .gte("max_uses", OPEN_LINK.maxUses)
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .not("share_token", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to read onboarding links: ${error.message}`);
+  return data?.share_token || null;
+}
+
+/**
  * Take one place on an invite. The database function is the single point
  * where two hotels racing for the last place are told apart: only one
  * update matches, and the other gets null back.
