@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../../components/Icon";
 import { canOpenPage } from "../modules";
 import { longDate, shortDate, useBookingOpener } from "./reportKit";
+import { track } from "@/lib/track";
 
 /**
  * Ctrl+K (⌘K on a Mac): go to any page, or find a booking by guest,
@@ -122,6 +123,7 @@ export default function CommandPalette({ open, onClose, areas, session, onOpenPa
 
   function choose(item) {
     if (!item) return;
+    track("palette_go", { target: item.kind === "page" ? item.page.id : "booking" });
     onClose();
     if (item.kind === "page") onOpenPage(item.page.id);
     else openBooking(item.booking.id);
@@ -142,6 +144,11 @@ export default function CommandPalette({ open, onClose, areas, session, onOpenPa
       onClose();
     }
   }
+
+  // Counted for Admin > Usage: how many find their way by Ctrl+K.
+  useEffect(() => {
+    if (open) track("palette");
+  }, [open]);
 
   const firstBooking = pages.length;
 

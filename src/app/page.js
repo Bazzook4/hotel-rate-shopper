@@ -7,6 +7,7 @@ import { visibleAreas, areaForPage, canOpenPage, PLACEHOLDER_PAGES } from "./das
 import AccountMenu from "./components/AccountMenu";
 import ThemeToggle from "./components/ThemeToggle";
 import SupportBar from "./components/SupportBar";
+import { startTracking, setTrackContext, track } from "@/lib/track";
 import Icon from "./components/Icon";
 import { ToastProvider } from "./components/Toast";
 import { DialogProvider } from "./components/Dialog";
@@ -396,6 +397,15 @@ export default function V2Dashboard() {
     // Once per page opened; a property switch is not a new open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, sessionLoading]);
+
+  // What is done on the open page: clicks, time on it, guides (lib/track.js),
+  // as anonymous as the count above.
+  useEffect(() => startTracking(), []);
+  useEffect(() => {
+    if (sessionLoading || !session) return;
+    const canSee = (id) => areas.some((a) => a.pages.some((p) => p.id === id));
+    setTrackContext({ page: active || null, profile: jobProfile(canSee), propertyId });
+  }, [active, sessionLoading, session, areas, propertyId]);
 
   // Back and forward still move between pages when the hash does change --
   // from a pasted link, or from the browser's own history.
@@ -1091,7 +1101,14 @@ export default function V2Dashboard() {
         <SupportBar
           propertyName={scopedSession?.propertyName}
           email={session?.email}
-          onShowMe={areas.length > 0 ? () => setGuideOpen((o) => !o) : null}
+          onShowMe={
+            areas.length > 0
+              ? () => {
+                  if (!guideOpen) track("guide");
+                  setGuideOpen(!guideOpen);
+                }
+              : null
+          }
         />
       </main>
       </PageNavProvider>

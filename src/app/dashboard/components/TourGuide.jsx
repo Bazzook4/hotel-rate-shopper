@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useEscape } from "../../components/useEscape";
 import { TOURS, findTours } from "@/lib/tours";
+import { track } from "@/lib/track";
 import { CoachCard, StepButtons, usePointAt, useWaitFor } from "./TourCard";
 
 /**
@@ -24,24 +25,34 @@ function PageTour({ tour, onEnd }) {
   // Off after Back: the step's waitFor is often still on screen, and would
   // move straight on again.
   const [follow, setFollow] = useState(true);
+  useEffect(() => {
+    track("tour", { target: tour.id });
+  }, [tour.id]);
+  const quit = () => {
+    track("tour_quit", { target: tour.id, value: step + 1 });
+    onEnd();
+  };
   const next = () => {
     setFollow(true);
     if (step < total - 1) setStep(step + 1);
-    else onEnd();
+    else {
+      track("tour_done", { target: tour.id });
+      onEnd();
+    }
   };
   const back = () => {
     setFollow(false);
     setStep(step - 1);
   };
   useWaitFor(follow ? current.waitFor : null, next);
-  useEscape(onEnd);
+  useEscape(quit);
 
   return (
     <CoachCard
       title={tour.title}
       label={tour.title}
       counter={total > 1 ? `${step + 1} of ${total}` : null}
-      onSkip={onEnd}
+      onSkip={quit}
       skipLabel="Close"
     >
       <p className="text-sm" style={{ color: "var(--text)" }}>

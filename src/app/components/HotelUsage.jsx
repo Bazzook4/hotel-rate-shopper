@@ -5,6 +5,7 @@ import { Facts, Fact } from "./Facts";
 import { ContactLine } from "./PropertyAdmin";
 import { useSort, SortTh } from "../dashboard/components/useSort";
 import { inr } from "../dashboard/components/WalletPanel";
+import PageUsage from "./PageUsage";
 
 /**
  * Super admin only: every onboarded hotel with what it has set up, the
@@ -59,6 +60,8 @@ export default function HotelUsage() {
   const [rows, setRows] = useState(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState(null);
+  // Hotels, or how pages and help are used (PageUsage.jsx).
+  const [view, setView] = useState("hotels");
 
   useEffect(() => {
     let cancelled = false;
@@ -106,11 +109,39 @@ export default function HotelUsage() {
   }
   if (!rows) return <p className="sub">Loading...</p>;
 
+  const switcher = (
+    <div className="flex gap-2">
+      {[
+        ["hotels", "Hotels"],
+        ["pages", "Pages & help"],
+      ].map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          className={view === id ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"}
+          aria-pressed={view === id}
+          onClick={() => setView(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+  if (view === "pages") {
+    return (
+      <div className="space-y-3">
+        {switcher}
+        <PageUsage hotels={rows} />
+      </div>
+    );
+  }
+
   const pick = (key) => () => setFilter((f) => (f === key || key === "all" ? null : key));
   const on = (key) => (filter === key ? "ok" : undefined);
 
   return (
     <div className="space-y-3">
+      {switcher}
       <Facts>
         <Fact label="Hotels" onClick={pick("all")}>{counts.all}</Fact>
         <Fact label="New, last 30 days" tone={on("new")} onClick={pick("new")}>{counts.new}</Fact>

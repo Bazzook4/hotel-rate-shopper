@@ -307,8 +307,9 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
       {/* Said where users are managed, since that is where an owner would
           ask what the app records about their staff. */}
       <p className="flex items-start gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-        To improve the app, we count how often each page is opened, by role only. We never record who
-        opened it or anything typed.
+        To improve the app, we count how often each page is opened, how long it stays open, which
+        buttons are pressed and whether the guides are used, by role only. We never record who did it,
+        anything typed, or any guest or amount.
       </p>
 
       <Messages error={error} notice={notice} />

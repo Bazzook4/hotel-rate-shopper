@@ -90,6 +90,7 @@ export function useWaitFor(spec, onSeen) {
 export function CoachCard({ title, counter, label = "Tour", onSkip, skipLabel = "Skip tour", children }) {
   return (
     <div
+      data-no-track
       role="dialog"
       aria-label={label}
       data-tour-card

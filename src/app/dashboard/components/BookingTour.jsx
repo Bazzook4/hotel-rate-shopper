@@ -9,6 +9,7 @@ import { useToast } from "../../components/Toast";
 import { useEscape } from "../../components/useEscape";
 import { formatMoney } from "@/lib/money";
 import { TOURS } from "@/lib/tours";
+import { track } from "@/lib/track";
 import { CoachCard, StepButtons, usePointAt } from "./TourCard";
 
 /**
@@ -156,9 +157,15 @@ export default function BookingTour({ session, pageNav, onEnd, tour = BOOK, firs
   // With the practice panel open, its own Escape closes it and ends the tour.
   useEscape(() => end(), !current);
 
+  useEffect(() => {
+    track("tour", { target: tour.id });
+  }, [tour.id]);
+
   // Done for good: finished, skipped or closed. Saved quietly; a failure
   // only means the tour is offered again next time.
-  function end(done = true) {
+  function end(done = true, finished = false) {
+    if (finished) track("tour_done", { target: tour.id });
+    else track("tour_quit", { target: tour.id, value: step + 1 });
     if (done) fetch("/api/auth/tour", { method: "POST" }).catch(() => {});
     onEnd(done);
   }
@@ -183,7 +190,7 @@ export default function BookingTour({ session, pageNav, onEnd, tour = BOOK, firs
   // The end of the tour is a note, not another card to close.
   function finish() {
     toast("Practice done, nothing was saved. Book for real from the Calendar.");
-    end();
+    end(true, true);
   }
 
   return (

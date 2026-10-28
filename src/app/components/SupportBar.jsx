@@ -49,6 +49,7 @@ export default function SupportBar({ propertyName, email, onShowMe }) {
           <button
             type="button"
             className="btn btn-ghost px-2 py-0.5 text-xs"
+            data-track="Show me how"
             title="Walk through an everyday job on the real page"
             onClick={onShowMe}
           >
@@ -64,6 +65,7 @@ export default function SupportBar({ propertyName, email, onShowMe }) {
             target="_blank"
             rel="noopener noreferrer"
             className="btn btn-ghost px-2 py-0.5 text-xs"
+            data-track={`${l.short} on WhatsApp`}
             title={l.title}
           >
             <Icon name="chat" size={14} />
