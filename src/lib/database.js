@@ -1068,6 +1068,15 @@ export async function setUserPassword(userId, passwordHash) {
  * Update a user's role, status and property link.
  * Modules are handled separately by setUserModules.
  */
+/** The booking tour is done for this user: finished or skipped. */
+export async function markTourDone(userId) {
+  const { error } = await supabase
+    .from('users')
+    .update({ tour_done_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error) throw new Error(`Failed to save the tour: ${error.message}`);
+}
+
 export async function updateUserAccount(userId, { role, status, propertyId } = {}) {
   const patch = { updated_at: new Date().toISOString() };
   if (role !== undefined) patch.role = role;

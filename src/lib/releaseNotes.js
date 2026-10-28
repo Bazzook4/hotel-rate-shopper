@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-28",
+    title: "Take an advance when you make a booking",
+    points: [
+      {
+        page: "calendar",
+        text: "A new booking now has an Advance received box under the total. Type what the guest paid and choose Cash, Card, UPI, Bank transfer or Other, and the payment is on the bill as soon as the booking is saved. Leave it empty if nothing was paid.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-28",
     title: "New booking asks how it was booked, up front",
     points: [
       {

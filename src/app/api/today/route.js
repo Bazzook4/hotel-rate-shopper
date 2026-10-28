@@ -16,6 +16,7 @@ import {
   listRoomTypes,
   listSyncLogs,
 } from "@/lib/database";
+import { roomCap, roomGap } from "@/lib/roomCap";
 
 /**
  * The home page: how today looks, how the month is going, what needs doing,
@@ -152,13 +153,15 @@ async function distributionPart(propertyId) {
 
 /** The setup steps a new property works through, in the order they depend on each other. */
 async function setupPart(propertyId) {
-  const [roomTypes, rooms, plans, planRooms, taxes] = await Promise.all([
+  const [roomTypes, rooms, plans, planRooms, taxes, cap] = await Promise.all([
     listRoomTypes(propertyId),
     listRooms(propertyId, { includeInactive: false }),
     listRatePlans(propertyId),
     listRatePlanRooms(propertyId),
     listPropertyTaxes(propertyId),
+    roomCap(propertyId),
   ]);
+  const gap = roomGap(roomTypes, cap);
   const steps = [
     {
       id: "roomTypes",
@@ -167,6 +170,19 @@ async function setupPart(propertyId) {
       hint: "Deluxe, Suite and so on, with how many of each you have.",
       done: roomTypes.length > 0,
     },
+    // Only while some are missing, so a hotel whose count matched from the
+    // start never sees a step it did not need.
+    ...(roomTypes.length > 0 && gap.missing > 0
+      ? [
+          {
+            id: "allRooms",
+            page: "rooms",
+            label: `Add your other ${gap.missing} rooms`,
+            hint: `You said ${gap.total} rooms, and your room types add up to ${gap.setUp}.`,
+            done: false,
+          },
+        ]
+      : []),
     {
       id: "rooms",
       page: "rooms",

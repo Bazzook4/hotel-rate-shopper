@@ -26,6 +26,16 @@ export function capProblem(cap, before, after) {
   return `That makes ${after} rooms, over the hotel's total of ${cap}. Ask Online Hotelier support to raise it`;
 }
 
+/**
+ * The rooms a hotel said it has against the rooms its room types add up to.
+ * `missing` is how many are not set up yet: zero when they match, when the
+ * types hold more, or when no total was given.
+ */
+export function roomGap(roomTypes, cap) {
+  const setUp = roomTypes.reduce((n, rt) => n + (Number(rt.number_of_rooms) || 0), 0);
+  return { total: cap, setUp, missing: cap === null ? 0 : Math.max(0, cap - setUp) };
+}
+
 /** How many of the rooms in a numbered range do not exist yet. */
 export function newRoomsInRange(current, { from, to, prefix = "" }) {
   const existing = new Set(current.map((r) => r.room_number));

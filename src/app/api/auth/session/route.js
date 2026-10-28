@@ -50,6 +50,9 @@ export async function GET(request) {
       propertyCurrency: property?.currency || null,
       propertyDayChange: property?.day_change_time || null,
       modules,
+      // Null only once migration 060 is in: a missing column reads as
+      // undefined, so no one is offered the tour before then.
+      tourDue: user.tour_done_at === null,
     },
   });
 }

@@ -447,6 +447,9 @@ export default function BookingForm({
       : { ...emptyBooking(homeCountry || ""), ...(prefill || {}) }
   );
   const [saving, setSaving] = useState(false);
+  // Money taken when the booking is made. Only on a new booking; later
+  // payments go through Collect payment on the bill.
+  const [advance, setAdvance] = useState({ amount: "", method: "cash" });
   const [error, setError] = useState(null);
   // Set by "Save and check in", and kept through "Book anyway" after a clash.
   const checkInAfter = useRef(false);
@@ -1172,12 +1175,35 @@ export default function BookingForm({
       if (!res.ok) throw new Error(data.error || "Could not save the booking");
 
       setTouched(false);
+
+      // The booking now exists, so a payment that fails must not look like a
+      // booking that failed: say so and let the desk collect it from the bill.
+      let paymentNote = "";
+      const advanceAmount = Number(advance.amount);
+      if (!reservation && advanceAmount > 0) {
+        try {
+          const payRes = await fetch("/api/pms/folio", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              kind: "payment",
+              reservationId: data.reservation.id,
+              payment: { amount: advanceAmount, method: advance.method, notes: "Advance at booking" },
+            }),
+          });
+          if (!payRes.ok) throw new Error();
+          paymentNote = ` ${formatMoney(advanceAmount)} received.`;
+        } catch {
+          paymentNote = " The advance was not saved. Collect it from the bill.";
+        }
+      }
+
       // Awaited, so the form stays locked while the check-in that may follow
       // asks for a room: a second click would otherwise book the guest twice.
       await onSaved(
         reservation
           ? `Booking ${data.reservation.reference} updated.`
-          : `Booking ${data.reservation.reference} created for ${data.reservation.guest_name}.`,
+          : `Booking ${data.reservation.reference} created for ${data.reservation.guest_name}.${paymentNote}`,
         inventoryWarning(data),
         {
           reservation: data.reservation,
@@ -1630,6 +1656,38 @@ export default function BookingForm({
             </p>
           )}
         </Field>
+        {!reservation && !complimentary && (
+          <>
+            <Field label="Advance received">
+              <input
+                className="input"
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                max={Number(form.total_amount) > 0 ? Number(form.total_amount) : undefined}
+                value={advance.amount}
+                onChange={(e) => setAdvance((a) => ({ ...a, amount: e.target.value }))}
+                placeholder="Leave empty if none"
+              />
+            </Field>
+            {Number(advance.amount) > 0 && (
+              <Field label="Paid by">
+                <Select
+                  className="input"
+                  value={advance.method}
+                  onChange={(e) => setAdvance((a) => ({ ...a, method: e.target.value }))}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="upi">UPI</option>
+                  <option value="bank_transfer">Bank transfer</option>
+                  <option value="other">Other</option>
+                </Select>
+              </Field>
+            )}
+          </>
+        )}
           <Field label="Notes" wide>
           <textarea
             className="input"
