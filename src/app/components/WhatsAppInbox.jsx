@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Facts, Fact } from "./Facts";
 import Icon from "./Icon";
 import Select from "./Select";
+import { shrink } from "../dashboard/components/GuestIdPhotos";
 
 /**
  * Super admin only: the business WhatsApp number's inbox (migration 064).
@@ -17,11 +18,18 @@ import Select from "./Select";
  * an answer to edit and send.
  *
  * A free reply reaches them only within 24 hours of their last message;
- * after that the box gives way to an approved template. New messages are
- * checked every 15 seconds while the tab is open.
+ * after that the box gives way to an approved template. A photo or PDF goes
+ * with the typed text as its caption; pick one or paste it into the box.
+ * Photos, files and voice notes show in the chat, and a reaction sits on
+ * the message it is for.
+ *
+ * The open chat checks for new messages every 4 seconds and the list every
+ * 15, both only while the tab is in front.
  */
 
 const POLL_MS = 15000;
+const THREAD_POLL_MS = 4000;
+const ATTACH_TYPES = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 const LEAD_STATUS = { new: "New", contacted: "Contacted", won: "Won", lost: "Lost" };
 const INTEREST = {
   ota_listing: "OTA listing",
@@ -83,8 +91,17 @@ export default function WhatsAppInbox() {
 
   useEffect(() => {
     load();
-    const t = setInterval(load, POLL_MS);
-    return () => clearInterval(t);
+    const t = setInterval(() => {
+      if (!document.hidden) load();
+    }, POLL_MS);
+    const back = () => {
+      if (!document.hidden) load();
+    };
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", back);
+    };
   }, [load]);
 
   // Chats waiting on you first, then newest.
@@ -291,7 +308,11 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
   const [saved, setSaved] = useState("");
   const [drafting, setDrafting] = useState(false);
   const [details, setDetails] = useState(false);
+  const [file, setFile] = useState(null);
+  const [preparing, setPreparing] = useState(false);
+  const [stale, setStale] = useState(false);
   const box = useRef(null);
+  const picker = useRef(null);
   const reply = useRef(null);
   const firstBlank = useRef(null);
   const lastAt = contact.last?.created_at;
@@ -301,17 +322,51 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
     try {
       setMessages((await call("GET", null, `?phone=${contact.phone}`)).messages);
       onContact({ phone: contact.phone, unread: 0 });
-    } catch (e) {
-      setError(e.message);
+      setStale(false);
+    } catch {
+      // A blip on one check is tried again on the next; it never hides a send error.
+      setStale(true);
     }
     // onContact is a fresh function each render; the thread only depends on the phone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contact.phone]);
 
-  // Again whenever the list sees a newer message in this chat.
+  // Again whenever the list sees a newer message in this chat, and every
+  // few seconds while it is open and the tab is in front.
   useEffect(() => {
     loadThread();
   }, [loadThread, lastAt]);
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!document.hidden) loadThread();
+    }, THREAD_POLL_MS);
+    return () => clearInterval(t);
+  }, [loadThread]);
+
+  // A picked photo shows above the box until sent or removed.
+  const preview = useMemo(() => (file?.type.startsWith("image/") ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
+
+  async function attach(picked) {
+    if (!picked) return;
+    setError("");
+    setPreparing(true);
+    const ready = await shrink(picked).finally(() => setPreparing(false));
+    if (!["image/jpeg", "image/png", "application/pdf"].includes(ready.type)) {
+      setError(
+        /heic|heif/i.test(ready.type || ready.name)
+          ? "This browser cannot open iPhone (HEIC) photos. Send a screenshot of it instead."
+          : "Send a JPEG or PNG photo, or a PDF."
+      );
+      return;
+    }
+    if (ready.size > 4 * 1024 * 1024) {
+      setError("That file is over 4 MB.");
+      return;
+    }
+    setFile(ready);
+    reply.current?.focus();
+  }
 
   // Follow new messages only when already at the bottom, inside the thread alone.
   const atBottom = useRef(true);
@@ -337,14 +392,25 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
     setParams(blanks.map((label) => (label === "Name" ? first : label === "Hotel" ? hotelName || contact.lead?.hotel_name || "" : "")));
   }
 
-  const canText = !busy && ready && text.trim();
+  const canText = !busy && !preparing && ready && (text.trim() || file);
   const canTemplate = !busy && ready && template && params.every((p) => p.trim());
 
   async function send(body) {
     setBusy(true);
     setError("");
     try {
-      await call("POST", { phone: contact.phone, ...body });
+      if (body.text !== undefined && file) {
+        const form = new FormData();
+        form.append("phone", contact.phone);
+        form.append("file", file);
+        form.append("caption", body.text);
+        const r = await fetch("/api/admin/whatsapp/media", { method: "POST", body: form });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || "Could not send the file");
+        setFile(null);
+      } else {
+        await call("POST", { phone: contact.phone, ...body });
+      }
       setText("");
       setTemplate("");
       atBottom.current = true;
@@ -459,7 +525,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
         {!messages && <p className="sub text-sm">Loading...</p>}
         {messages?.length === 0 && <p className="sub text-sm">No messages yet.</p>}
         {messages?.map((m) => (
-          <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
+          <div key={m.id} className={`flex gap-1 ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
             <div
               className="max-w-[80%] rounded-xl px-3 py-1.5 text-sm"
               style={{
@@ -467,7 +533,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
                 border: m.status === "failed" ? "1px solid var(--danger)" : undefined,
               }}
             >
-              <span className="whitespace-pre-wrap text-ink">{m.body}</span>
+              <Body m={m} />
               <span className="float-right ml-2 mt-1 text-xs muted">
                 {when(m.created_at)}
                 {m.direction === "out" && ` ${TICK[m.status] || ""}`}
@@ -476,6 +542,15 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
               </span>
               {m.error && <div className="clear-both text-xs text-[var(--danger)]">{m.error}</div>}
             </div>
+            {m.reaction && (
+              <span
+                className="-mb-1 self-end rounded-full border border-[var(--border)] bg-[var(--surface)] px-1 text-sm"
+                style={{ order: m.direction === "out" ? -1 : 1 }}
+                title="Their reaction"
+              >
+                {m.reaction}
+              </span>
+            )}
           </div>
         ))}
       </div>
@@ -483,20 +558,63 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
       <div className="border-t border-[var(--border)] px-3 py-2">
         {contact.in_window ? (
           <form
-            className="flex items-end gap-2"
+            className="flex flex-wrap items-end gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               if (canText) send({ text });
             }}
           >
+            {preparing && <div className="w-full text-sm muted">Adding photo...</div>}
+            {file && (
+              <div className="flex w-full items-center gap-2 text-sm">
+                {preview ? (
+                  <img src={preview} alt="" className="h-8 w-8 rounded object-cover" />
+                ) : (
+                  <Icon name="file" size={20} />
+                )}
+                <span className="min-w-0 truncate text-ink">{file.name}</span>
+                <button type="button" className="btn btn-ghost shrink-0 text-sm" onClick={() => setFile(null)}>
+                  Remove
+                </button>
+              </div>
+            )}
+            <input
+              ref={picker}
+              type="file"
+              accept={ATTACH_TYPES}
+              className="hidden"
+              onChange={(e) => {
+                attach(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-ghost text-sm"
+              onClick={() => picker.current?.click()}
+              disabled={busy || preparing}
+              aria-label="Attach a photo or PDF"
+              title="Attach a photo or PDF"
+            >
+              <Icon name="file" size={16} />
+              <span className="max-md:hidden">Attach</span>
+            </button>
             <textarea
               ref={reply}
-              className="input w-full"
+              className="input min-w-0 flex-1"
               rows={2}
               style={{ resize: "vertical" }}
-              placeholder="Type a reply (Shift+Enter for a new line)"
+              placeholder={file ? "Add a caption, or just Send" : "Type a reply (Shift+Enter for a new line)"}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={(e) => {
+                const pasted = [...(e.clipboardData?.files || [])][0];
+                // Copied text that comes with a picture (from Word or a web page) pastes as text.
+                if (pasted && !e.clipboardData.getData("text/plain")) {
+                  e.preventDefault();
+                  attach(pasted);
+                }
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -511,7 +629,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
                 </button>
               )}
               <button type="submit" className="btn btn-primary" disabled={!canText}>
-                Send
+                {busy && file ? "Sending" : "Send"}
               </button>
             </div>
           </form>
@@ -554,6 +672,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
           </form>
         )}
         {error && <p className="mt-1 text-xs text-[var(--danger)]">{error}</p>}
+        {stale && !error && <p className="mt-1 text-xs muted">Could not refresh the chat. Trying again.</p>}
       </div>
 
       {/* On a phone the details stay folded behind the Details button, so the messages get the screen. */}
@@ -611,6 +730,40 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
         {saved && <span role="status">{saved}</span>}
       </div>
     </div>
+  );
+}
+
+const MEDIA_WORD = { image: "photo", sticker: "sticker", video: "video", audio: "voice note" };
+
+/** What a message shows: its photo, file, voice note or place, and its words. */
+function Body({ m }) {
+  const [broken, setBroken] = useState(false);
+  const src = `/api/admin/whatsapp/media?id=${m.id}`;
+  const words = m.media ? m.media.caption : m.body;
+  const kind = broken ? "document" : m.media?.kind;
+  const failed = () => setBroken(true);
+  return (
+    <>
+      {broken && <span className="block text-xs muted">Could not show this {MEDIA_WORD[m.media.kind] || "file"}.</span>}
+      {(kind === "image" || kind === "sticker") && (
+        <a href={src} target="_blank" rel="noopener" className="block">
+          <img src={src} alt={kind === "sticker" ? "Sticker" : "Photo"} loading="lazy" onError={failed} className={`rounded-lg ${kind === "sticker" ? "h-24 w-24 object-contain" : "max-h-48 max-w-[240px]"}`} />
+        </a>
+      )}
+      {kind === "video" && <video src={src} controls preload="metadata" onError={failed} className="max-h-48 max-w-[240px] rounded-lg" />}
+      {kind === "audio" && <audio src={src} controls preload="none" onError={failed} className="max-w-full" />}
+      {kind === "document" && (
+        <a href={src} target="_blank" rel="noopener" className="btn btn-secondary px-2 py-1 text-sm">
+          <Icon name="file" size={16} /> {m.media.name || (broken ? "Try opening it" : "Open file")}
+        </a>
+      )}
+      {m.location && (
+        <a href={m.location} target="_blank" rel="noopener" className="btn btn-secondary px-2 py-1 text-sm">
+          <Icon name="pin" size={16} /> {m.body.replace(/^Location: /, "")}
+        </a>
+      )}
+      {words && !m.location && <span className={`${m.media ? "block " : ""}whitespace-pre-wrap text-ink`}>{words}</span>}
+    </>
   );
 }
 

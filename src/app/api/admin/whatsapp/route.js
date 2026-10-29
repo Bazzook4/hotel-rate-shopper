@@ -4,13 +4,16 @@ import { isSuperAdmin } from "@/lib/permissions";
 import { getSupabaseAdmin } from "@/lib/database";
 import { TEMPLATES, inWindow, sendTemplate, sendText, waPhone, whatsappReady } from "@/lib/whatsapp";
 import { aiReady } from "@/lib/aiAgent";
+import { MEDIA_TYPES } from "@/lib/whatsappMedia";
 
 /**
  * Admin > WhatsApp: the business number's inbox (migration 064).
  *
  * GET               every contact, newest chat first, with unread count,
  *                   last message and open lead; plus hotels to link to
- * GET ?phone=       that chat's messages, and marks it read
+ * GET ?phone=       that chat's messages, and marks it read; each reaction
+ *                   rides on the message it is for, and a photo or file
+ *                   comes as `media`, opened through ./media
  * POST              { phone, text } a reply, only within 24 hours of their
  *                   last message; { phone, template, params } at any time;
  *                   { add_property_id } adds a hotel's contact mobile
@@ -21,6 +24,33 @@ import { aiReady } from "@/lib/aiAgent";
  */
 
 const LEAD_STATUSES = ["new", "contacted", "won", "lost"];
+
+/** A chat's messages as the inbox shows them: reactions folded onto their message, media named. */
+function thread(rows) {
+  const reacted = new Map();
+  for (const m of rows) {
+    if (m.type !== "reaction") continue;
+    const r = m.payload?.reaction;
+    // The latest one stands; an empty emoji takes the reaction away.
+    if (r?.message_id) reacted.set(r.message_id, r.emoji || null);
+  }
+  return rows
+    .filter((m) => m.type !== "reaction")
+    .map(({ payload, wa_message_id, ...m }) => {
+      const media = MEDIA_TYPES.includes(m.type) ? payload?.[m.type] : null;
+      return {
+        ...m,
+        reaction: (wa_message_id && reacted.get(wa_message_id)) || null,
+        media: media
+          ? { kind: m.type, name: media.filename || payload?.stored?.name || null, caption: media.caption || null }
+          : null,
+        location:
+          m.type === "location" && payload?.location
+            ? `https://www.google.com/maps?q=${payload.location.latitude},${payload.location.longitude}`
+            : null,
+      };
+    });
+}
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -43,13 +73,13 @@ export async function GET(req) {
   if (phone) {
     const { data, error } = await db
       .from("wa_messages")
-      .select("id, direction, type, body, status, error, sent_by, created_at")
+      .select("id, wa_message_id, direction, type, body, payload, status, error, sent_by, created_at")
       .eq("phone", phone)
       .order("created_at", { ascending: false })
-      .limit(300);
+      .limit(400);
     if (error) return failure(error);
     await db.from("wa_contacts").update({ seen_at: new Date().toISOString() }).eq("phone", phone);
-    return NextResponse.json({ messages: (data || []).reverse() });
+    return NextResponse.json({ messages: thread((data || []).reverse()) });
   }
 
   const [contacts, recent, leads, hotels] = await Promise.all([
@@ -57,6 +87,7 @@ export async function GET(req) {
     db
       .from("wa_messages")
       .select("phone, direction, body, created_at")
+      .neq("type", "reaction")
       .order("created_at", { ascending: false })
       .limit(3000),
     db.from("wa_leads").select("*").order("created_at", { ascending: false }).limit(2000),

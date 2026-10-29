@@ -42,10 +42,14 @@ export function signatureValid(rawBody, header) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-async function callMeta(payload) {
+/** A Graph API address, like graph("123/messages"). */
+export function graph(path) {
   if (!whatsappReady()) throw new Error("WhatsApp is not connected: WA_TOKEN and WA_PHONE_NUMBER_ID are not set.");
-  const version = process.env.WA_API_VERSION || "v23.0";
-  const res = await fetch(`https://graph.facebook.com/${version}/${process.env.WA_PHONE_NUMBER_ID}/messages`, {
+  return `https://graph.facebook.com/${process.env.WA_API_VERSION || "v23.0"}/${path}`;
+}
+
+async function callMeta(payload) {
+  const res = await fetch(graph(`${process.env.WA_PHONE_NUMBER_ID}/messages`), {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.WA_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
@@ -55,8 +59,12 @@ async function callMeta(payload) {
   return data;
 }
 
-/** Sends one message and logs it, sent or failed. Throws on failure after logging. */
-async function sendLogged(to, type, body, payload, sentBy) {
+/**
+ * Sends one message and logs it, sent or failed. Throws on failure after
+ * logging. `kept` is saved with the payload but not sent, like where a
+ * photo we sent is stored.
+ */
+export async function sendLogged(to, type, body, payload, sentBy, kept) {
   const db = getSupabaseAdmin();
   const now = new Date().toISOString();
   let data = null;
@@ -72,7 +80,7 @@ async function sendLogged(to, type, body, payload, sentBy) {
     direction: "out",
     type,
     body,
-    payload,
+    payload: kept ? { ...payload, ...kept } : payload,
     status: failure ? "failed" : "sent",
     error: failure ? failure.message.slice(0, 500) : null,
     sent_by: sentBy || null,

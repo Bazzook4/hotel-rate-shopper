@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/database";
 import { markRead, sendText, signatureValid, waPhone } from "@/lib/whatsapp";
 import { handleIncoming } from "@/lib/salesFlow";
 import { aiReady, aiReply, loadHistory } from "@/lib/aiAgent";
+import { storeIncoming } from "@/lib/whatsappMedia";
 
 // The AI reply waits a few seconds and sends in parts, so allow for it.
 export const maxDuration = 60;
@@ -19,6 +20,10 @@ export const maxDuration = 60;
  *
  * With ANTHROPIC_API_KEY set the AI assistant answers (migration 065);
  * without it, the fixed questions in salesFlow.js do.
+ *
+ * A reaction is saved with no text, so it is shown on the message it is
+ * for and never answered. A photo or file is copied into storage before
+ * the reply, while Meta still has it.
  */
 
 const STATUS_RANK = { sent: 1, delivered: 2, read: 3, failed: 4 };
@@ -40,8 +45,20 @@ function readMessage(msg) {
     return { text: r?.title || "", buttonId: r?.id || null };
   }
   if (msg.type === "button") return { text: msg.button?.text || "", buttonId: msg.button?.payload || null };
-  const caption = msg[msg.type]?.caption;
-  return { text: caption ? `[${msg.type}] ${caption}` : `[${msg.type}]` };
+  if (msg.type === "reaction") return { text: null, reaction: true };
+  const m = msg[msg.type] || {};
+  const caption = m.caption ? `: ${m.caption}` : "";
+  if (msg.type === "image") return { text: `Photo${caption}` };
+  if (msg.type === "sticker") return { text: "Sticker" };
+  if (msg.type === "video") return { text: `Video${caption}` };
+  if (msg.type === "audio") return { text: m.voice ? "Voice note" : "Audio" };
+  if (msg.type === "document") return { text: `File: ${m.filename || "document"}${m.caption ? `, ${m.caption}` : ""}` };
+  if (msg.type === "location") {
+    const place = [m.name, m.address].filter(Boolean).join(", ");
+    return { text: `Location: ${place || `${m.latitude}, ${m.longitude}`}` };
+  }
+  if (msg.type === "contacts") return { text: `Contact card: ${msg.contacts?.map((c) => c.name?.formatted_name).filter(Boolean).join(", ") || "no name"}` };
+  return { text: `[${msg.type}]` };
 }
 
 /** Links a new contact to a hotel whose contact mobile is the same number. */
@@ -61,7 +78,7 @@ async function receive(value) {
     const read = readMessage(msg);
     const at = msg.timestamp ? new Date(Number(msg.timestamp) * 1000).toISOString() : new Date().toISOString();
 
-    const { error: dup } = await db.from("wa_messages").insert({
+    const { data: saved, error: dup } = await db.from("wa_messages").insert({
       wa_message_id: msg.id,
       phone,
       direction: "in",
@@ -69,7 +86,7 @@ async function receive(value) {
       body: read.text,
       payload: msg,
       created_at: at,
-    });
+    }).select("id, phone, type, payload").single();
     if (dup) {
       if (dup.code !== "23505") console.error("WhatsApp message not saved:", dup.message);
       continue;
@@ -85,7 +102,7 @@ async function receive(value) {
     }
     const { data: contact } = await db.from("wa_contacts").upsert(changes, { onConflict: "phone" }).select("*").single();
 
-    replies.push({ id: msg.id, contact, read });
+    replies.push({ id: msg.id, contact, read, saved });
   }
 
   for (const s of value.statuses || []) {
@@ -113,6 +130,7 @@ async function overtaken(phone, id) {
     .select("wa_message_id")
     .eq("phone", phone)
     .eq("direction", "in")
+    .neq("type", "reaction")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -141,8 +159,13 @@ async function aiAnswer(phone, id) {
 }
 
 /** One at a time, so two quick messages from one phone cannot answer the same question twice. */
-async function reply(replies) {
-  for (const { id } of replies) await markRead(id);
+async function reply(all) {
+  for (const { id } of all) await markRead(id);
+  for (const { saved } of all) {
+    await storeIncoming(saved).catch((err) => console.error("WhatsApp file not kept:", err.message));
+  }
+  // A thumbs up is not a question.
+  const replies = all.filter((r) => !r.read.reaction);
 
   if (aiReady()) {
     // Only the last message of each phone in this batch; the history carries the rest.
