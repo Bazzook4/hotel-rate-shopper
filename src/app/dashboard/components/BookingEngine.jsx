@@ -603,6 +603,7 @@ export default function BookingEngine({ session }) {
 
       {tab === "offers" && (
         <OffersTab
+          propertyId={propertyId}
           promotions={content.promotions || []}
           coupons={content.coupons || []}
           rules={content.offerRules}

@@ -21,7 +21,7 @@ import {
   getPropertyCurrency,
 } from "@/lib/database";
 import { folioTotals } from "@/lib/taxes";
-import { cleanCode, codeOutcome, hasCoupons, offerDiscount } from "@/lib/promotions";
+import { cleanCode, codeOutcome, explainOffers, hasCoupons, offerDiscount } from "@/lib/promotions";
 import { todayInZone } from "@/lib/hotelTime";
 import { isDayUsePlan } from "@/lib/dayUse";
 import { mealPlan } from "@/lib/mealPlans";
@@ -304,6 +304,32 @@ function hotelDetails(property, content) {
   return details;
 }
 
+/**
+ * The Booking Engine's simulator: prices a stay exactly as a guest would see
+ * it, with the hotel's saved offers, as if booked on `bookedOn`, on a phone
+ * or not, with a code. Works while the page is still closed to guests, and
+ * books nothing.
+ */
+export async function simulateOffers(propertyId, input) {
+  const { data: property, error } = await getSupabaseAdmin().from("properties").select("*").eq("id", propertyId).maybeSingle();
+  if (error || !property) throw new Error("Property not found");
+  const [clock, currency] = await Promise.all([getPropertyClock(propertyId), getPropertyCurrency(propertyId)]);
+  const realToday = todayInZone(clock);
+  const bookedOn = isDate(input?.bookedOn) && input.bookedOn <= input?.checkIn ? input.bookedOn : realToday;
+  const hotel = {
+    property,
+    prefs: cleanBookingPrefs(property.booking_engine),
+    content: cleanBookingContent(property.booking_engine?.content),
+    currency,
+    today: bookedOn,
+    payUpi: false,
+  };
+  const read = readStay(hotel, input, { mobile: input?.mobile === true });
+  if (read.error) return { error: read.error };
+  const result = await searchOffers(hotel, read.stay, { explain: true });
+  return { ...result, currency, bookedOn };
+}
+
 /** What the booking page shows before any dates are picked. */
 export function hotelView(hotel) {
   const { property, prefs, currency, today, payUpi } = hotel;
@@ -415,6 +441,7 @@ function withTax(quote, stay, taxRules, services, discount = null) {
             label: discount.label,
             kind: discount.kind,
             coupon: discount.coupon || null,
+            steps: discount.steps,
           },
         }
       : {}),
@@ -465,7 +492,7 @@ async function couponUsedUp(hotel, code) {
  * plans costs for the stay. A plan the room is not assigned to, or that has
  * no price on one of the nights, is left out rather than sold at a guess.
  */
-export async function searchOffers(hotel, stay) {
+export async function searchOffers(hotel, stay, { explain = false } = {}) {
   const propertyId = hotel.property.id;
   const lastNight = stay.nights[stay.nights.length - 1];
   const [grid, quoteData, restrictions, taxRules, services] = await Promise.all([
@@ -521,7 +548,7 @@ export async function searchOffers(hotel, stay) {
         quoteData
       );
       if (!(quote.total > 0) || quote.partial || quote.source === "base_price") continue;
-      const discount = offerDiscount(offerContent, {
+      const offerArgs = {
         planId: plan.id,
         roomTypeId: type.id,
         stay,
@@ -529,7 +556,8 @@ export async function searchOffers(hotel, stay) {
         mobile: stay.mobile,
         code: stay.code,
         nights: quote.nights.map((n) => ({ stay_date: n.stay_date, rate: Number(n.rate) })),
-      });
+      };
+      const discount = offerDiscount(offerContent, offerArgs);
       const priced = withTax(quote, stay, taxRules, services, discount);
       const meal = mealPlan(plan.meal_plan);
       const words = content.plans[plan.id] || {};
@@ -542,6 +570,8 @@ export async function searchOffers(hotel, stay) {
         cancellation: words.cancellation || (plan.refundable === false ? "Non-refundable" : null),
         refundable: plan.refundable !== false,
         ...priced,
+        // The simulator's "why": every offer, and whether and why it applied.
+        ...(explain ? { why: explainOffers(offerContent, offerArgs, discount) } : {}),
       });
     }
     if (options.length === 0) continue;

@@ -20,7 +20,9 @@ import {
   offerWhen,
   promotionProblem,
 } from "@/lib/promotions";
-import { Grid } from "./SetupGrid";
+import { Grid, sendJSON } from "./SetupGrid";
+import Select from "@/app/components/Select";
+import { hotelToday } from "@/lib/hotelTime";
 
 /**
  * The Booking Engine's Offers tab: every discount in one list -- promotions
@@ -74,7 +76,7 @@ const toForm = (o) => ({
   bookTo: o.bookTo || "",
 });
 
-export default function OffersTab({ promotions, coupons, rules, rooms, plans, currency, onSave, usedCounts = {} }) {
+export default function OffersTab({ propertyId, promotions, coupons, rules, rooms, plans, currency, onSave, usedCounts = {} }) {
   const [editing, setEditing] = useState(null);
   const [cap, setCap] = useState(rules?.maxTotalPercent ? String(rules.maxTotalPercent) : "");
   const toast = useToast();
@@ -243,6 +245,8 @@ export default function OffersTab({ promotions, coupons, rules, rooms, plans, cu
         </tbody>
       </Grid>
 
+      <Simulator propertyId={propertyId} currency={currency} hasOffers={rows.length > 0} />
+
       {editing && (
         <OfferPanel
           initial={editing}
@@ -259,6 +263,197 @@ export default function OffersTab({ promotions, coupons, rules, rooms, plans, cu
         />
       )}
     </>
+  );
+}
+
+function addDays(iso, n) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Try it: what a guest would pay for a stay with the offers as saved, room
+ * by room and plan by plan, each offer that came off and what it took, and
+ * on Why, every offer and why it did or did not apply. Set the booking date
+ * to try early bird or last minute, and tick phone to try mobile offers.
+ * Prices only; it books nothing, and works before the page is open.
+ */
+function Simulator({ propertyId, currency, hasOffers }) {
+  const today = hotelToday();
+  const [form, setForm] = useState({
+    checkIn: addDays(today, 14),
+    checkOut: addDays(today, 16),
+    adults: "2",
+    bookedOn: today,
+    mobile: false,
+    code: "",
+  });
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [why, setWhy] = useState(null);
+  const money = (v) => formatMoney(v, { currency, decimals: 2 });
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  async function run(e) {
+    e?.preventDefault();
+    setBusy(true);
+    setError("");
+    setWhy(null);
+    try {
+      setResult(
+        await sendJSON("/api/setup/bookingEngine/simulate", "POST", {
+          propertyId: propertyId || undefined,
+          ...form,
+          adults: Number(form.adults),
+        })
+      );
+    } catch (err) {
+      setError(err.message);
+      setResult(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const rows = (result?.offers || []).flatMap((o) => o.options.map((x) => ({ room: o.name, ...x })));
+
+  return (
+    <section className="card card-pad space-y-3">
+      <div>
+        <h3 className="h2">Try it</h3>
+        <p className="sub text-xs">
+          See what a guest would pay with your offers as saved, and why each offer did or did not apply. Nothing is booked.
+        </p>
+      </div>
+      <form onSubmit={run} className="flex flex-wrap items-end gap-3">
+        <Field label="Check-in">
+          <DateField className="input" style={{ width: "9rem" }} value={form.checkIn} onChange={(e) => e.target.value && set({ checkIn: e.target.value, checkOut: e.target.value >= form.checkOut ? addDays(e.target.value, 1) : form.checkOut })} />
+        </Field>
+        <Field label="Check-out">
+          <DateField className="input" style={{ width: "9rem" }} value={form.checkOut} min={addDays(form.checkIn, 1)} onChange={(e) => e.target.value && set({ checkOut: e.target.value })} />
+        </Field>
+        <Field label="Adults">
+          <Select className="input" style={{ width: "5rem" }} value={form.adults} onChange={(e) => set({ adults: e.target.value })}>
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Booked on">
+          <DateField className="input" style={{ width: "9rem" }} value={form.bookedOn} max={form.checkIn} onChange={(e) => e.target.value && set({ bookedOn: e.target.value })} />
+        </Field>
+        <Field label="Coupon code">
+          <input
+            className="input font-mono"
+            style={{ width: "8rem", textTransform: "uppercase" }}
+            value={form.code}
+            placeholder="None"
+            onChange={(e) => set({ code: e.target.value })}
+          />
+        </Field>
+        <label className="flex items-center gap-1.5 pb-2 text-sm">
+          <input type="checkbox" checked={form.mobile} onChange={(e) => set({ mobile: e.target.checked })} />
+          On a phone
+        </label>
+        <button type="submit" className="btn btn-primary" disabled={busy}>
+          {busy ? "Working..." : "Show prices"}
+        </button>
+      </form>
+      {!hasOffers && <p className="sub text-xs">You have no offers yet, so guests pay the full price.</p>}
+      {error && (
+        <p className="text-sm" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+      {result && rows.length === 0 && (
+        <p className="sub">
+          {result.minStay ? `These dates need at least ${result.minStay} nights.` : "No room is free and priced for these dates."}
+        </p>
+      )}
+      {result?.code && result.code !== "applied" && (
+        <p className="text-xs" style={{ color: "var(--warn)" }}>
+          {result.code === "unknown"
+            ? "There is no coupon with that code."
+            : result.code === "full"
+              ? "That coupon has been used as often as allowed."
+              : "That coupon does not apply to these dates or rooms."}
+        </p>
+      )}
+      {rows.length > 0 && (
+        <Grid>
+          <thead>
+            <tr>
+              <th>Room</th>
+              <th>Plan</th>
+              <th className="text-right">Full price</th>
+              <th style={{ minWidth: 220 }}>Offers taken off</th>
+              <th className="text-right">Guest pays</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const key = `${r.room}|${r.ratePlanId}`;
+              const open = why === key;
+              return [
+                <tr key={key}>
+                  <td className="font-medium">{r.room}</td>
+                  <td>{r.name}</td>
+                  <td className="text-right whitespace-nowrap">{money(r.fullTotal ?? r.total)}</td>
+                  <td className="text-xs">
+                    {r.discount?.steps?.length ? (
+                      <ol className="space-y-0.5">
+                        {r.discount.steps.map((st, i) => (
+                          <li key={st.id || i}>
+                            {i > 0 ? "then " : ""}
+                            {st.label}: {money(st.amount)} off
+                          </li>
+                        ))}
+                        {r.discount.capped && <li style={{ color: "var(--warn)" }}>Held to your most off in total</li>}
+                      </ol>
+                    ) : (
+                      <span className="sub">None</span>
+                    )}
+                  </td>
+                  <td className="text-right whitespace-nowrap font-semibold">
+                    {money(r.total)}
+                    <div className="sub text-xs font-normal">incl. {money(r.tax)} tax</div>
+                  </td>
+                  <td>
+                    <button type="button" className="btn btn-ghost text-xs" aria-expanded={open} onClick={() => setWhy(open ? null : key)}>
+                      {open ? "Hide" : "Why"}
+                    </button>
+                  </td>
+                </tr>,
+                open && (
+                  <tr key={`${key}-why`}>
+                    <td colSpan={6}>
+                      <ul className="space-y-0.5 py-1 text-xs">
+                        {(r.why || []).map((w) => (
+                          <li key={w.id} className="flex flex-wrap gap-x-2">
+                            <span className="font-medium" style={{ color: "var(--text)" }}>
+                              {w.name}
+                            </span>
+                            <span style={{ color: w.applied ? "var(--accent-text)" : "var(--text-muted)" }}>
+                              {w.applied ? `Applied, ${money(w.amount)} off` : w.reason}
+                            </span>
+                          </li>
+                        ))}
+                        {(r.why || []).length === 0 && <li className="sub">No offers saved.</li>}
+                      </ul>
+                    </td>
+                  </tr>
+                ),
+              ];
+            })}
+          </tbody>
+        </Grid>
+      )}
+    </section>
   );
 }
 
