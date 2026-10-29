@@ -98,6 +98,56 @@ function DateCell({ grid, row, field, invalid }) {
   );
 }
 
+/**
+ * The hotel's booking page link, always at the top: copy it to share, or
+ * open it. While the page is closed it says so, since guests opening the
+ * link would only be told it is not open.
+ */
+function LinkBar({ url, open, onTurnOn }) {
+  const toast = useToast();
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("Booking page link copied");
+    } catch {
+      toast("Could not copy. Select the link and copy it yourself.", { tone: "error" });
+    }
+  }
+  return (
+    <div className="card flex flex-wrap items-center gap-2 p-3">
+      <span className="label" style={{ margin: 0 }}>
+        Your booking page
+      </span>
+      <input
+        className="input min-w-0 flex-1 font-mono text-sm"
+        style={{ minWidth: "14rem" }}
+        readOnly
+        value={url}
+        onFocus={(e) => e.target.select()}
+        aria-label="Booking page link"
+      />
+      <button type="button" className="btn btn-secondary text-sm" onClick={copy}>
+        Copy link
+      </button>
+      <a className="btn btn-secondary text-sm" href={url} target="_blank" rel="noreferrer">
+        Open
+      </a>
+      {open ? (
+        <span className="text-xs font-medium" style={{ color: "var(--accent-text)" }}>
+          Open to guests
+        </span>
+      ) : (
+        <span className="flex items-center gap-2 text-xs" style={{ color: "var(--warn)" }}>
+          Closed to guests until you add how they pay.
+          <button type="button" className="btn btn-ghost text-xs" onClick={onTurnOn}>
+            Set up payment
+          </button>
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Remove, or Put back for a row waiting to be removed on Save. */
 function RemoveButton({ gone, label, onRemove, onRestore }) {
   return gone ? (
@@ -369,13 +419,10 @@ export default function BookingEngine({ session }) {
   return (
     <div className="space-y-3">
       <SetupHeader area="Rates" title="Booking Engine" sub="Your own booking page: your rooms, rates, photos and offers. Guests pay straight to you.">
-        {url && data.prefs?.enabled && (
-          <a className="btn btn-secondary" href={url} target="_blank" rel="noreferrer">
-            Open booking page
-          </a>
-        )}
         {(tab !== "link" || pending > 0) && <SaveActions count={pending} busy={busy} onSave={save} onDiscard={discard} />}
       </SetupHeader>
+
+      {url && <LinkBar url={url} open={data.prefs?.enabled === true} onTurnOn={() => switchTab("link")} />}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="max-w-full overflow-x-auto">

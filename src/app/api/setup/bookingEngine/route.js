@@ -5,7 +5,7 @@ import { isDayUsePlan } from "@/lib/dayUse";
 import { mealPlan } from "@/lib/mealPlans";
 import {
   BOOKING_NOT_READY,
-  getBookingSettings,
+  ensureBookingKey,
   saveBookingContent,
   saveBookingSettings,
 } from "@/lib/bookingEngine";
@@ -30,7 +30,7 @@ export async function GET(req) {
 
   try {
     const [settings, roomTypes, ratePlans, canSetup] = await Promise.all([
-      getBookingSettings(propertyId),
+      ensureBookingKey(propertyId),
       listRoomTypes(propertyId),
       listRatePlans(propertyId),
       canManageSetup(session.userId),

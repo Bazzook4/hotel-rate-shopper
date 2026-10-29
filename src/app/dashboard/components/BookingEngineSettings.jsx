@@ -235,9 +235,8 @@ export default function BookingEngineSettings({ propertyId, initial, canChange =
         <section className="card card-pad space-y-4">
           <div>
             <h3 className="h2">Send guests to your booking page</h3>
-            <p className="sub">Share the link on WhatsApp and Instagram, and put a Book now button on your website.</p>
+            <p className="sub">Share the link at the top on WhatsApp and Instagram, and put a Book now button on your website.</p>
           </div>
-          <CopyRow label="Booking page link" value={url} copyLabel="Copy link" />
 
           <div className="space-y-2">
             <span className="label">Book now button for your website</span>

@@ -137,6 +137,24 @@ export async function saveBookingSettings(propertyId, input) {
 }
 
 /**
+ * The page key, made now if the hotel has none, so its link can be shown
+ * from the first visit rather than only after something is saved. The page
+ * stays closed to guests until it is turned on.
+ */
+export async function ensureBookingKey(propertyId) {
+  const current = await getBookingSettings(propertyId);
+  if (current.key || !current.ready) return current;
+  const key = randomBytes(9).toString("base64url");
+  const { error } = await getSupabaseAdmin()
+    .from("properties")
+    .update({ booking_key: key })
+    .eq("id", propertyId)
+    .is("booking_key", null);
+  if (error) throw new Error(error.message);
+  return getBookingSettings(propertyId);
+}
+
+/**
  * Saves the booking page's content: rooms, plans, promotions and long-stay
  * discounts. The hotel's payment choices are kept as they were.
  */
