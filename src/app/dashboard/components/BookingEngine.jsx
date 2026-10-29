@@ -9,8 +9,9 @@ import { useBackdropClose, useEscape } from "@/app/components/useEscape";
 import {
   MAX_LONG_STAY_RULES,
   MAX_PROMOTIONS,
-  MAX_ROOM_PHOTOS,
+  BANNER,
   longStayProblem,
+  maxPhotosFor,
   promotionProblem,
   promotionWhen,
 } from "@/lib/bookingEngineShared";
@@ -52,7 +53,8 @@ function shortDay(iso) {
 
 /** Photos go up one at a time, shrunk first so a phone picture uploads quickly. */
 async function uploadPhotos(room, files, propertyId, onSaved, onProgress) {
-  let left = MAX_ROOM_PHOTOS - room.photos.length;
+  const max = maxPhotosFor(room.id);
+  let left = max - room.photos.length;
   const list = [...files].slice(0, Math.max(0, left));
   for (let i = 0; i < list.length; i += 1) {
     onProgress?.(i + 1, list.length);
@@ -66,7 +68,9 @@ async function uploadPhotos(room, files, propertyId, onSaved, onProgress) {
     onSaved(json);
     left -= 1;
   }
-  if (files.length > list.length) throw new Error(`A room can have up to ${MAX_ROOM_PHOTOS} photos.`);
+  if (files.length > list.length) {
+    throw new Error(room.id === BANNER ? `The banner can have up to ${max} photos.` : `A room can have up to ${max} photos.`);
+  }
 }
 
 /** A date cell that can be emptied again, since blank means any date. */
@@ -145,6 +149,27 @@ function LinkBar({ url, open, onTurnOn }) {
         </span>
       )}
     </div>
+  );
+}
+
+/** Small previews of the first few photos, so a row shows what guests will see. */
+function Thumbs({ photos }) {
+  if (!photos?.length) return null;
+  return (
+    <span className="mr-2 inline-flex gap-1 align-middle">
+      {photos.slice(0, 3).map((url) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={url}
+          src={url}
+          alt=""
+          width={40}
+          height={30}
+          className="rounded"
+          style={{ width: 40, height: 30, objectFit: "cover", border: "1px solid var(--border)" }}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -386,7 +411,8 @@ export default function BookingEngine({ session }) {
   const planOptions = [{ id: "", label: "All plans" }, ...planRows.map((p) => ({ id: p.id, label: p.planName || "Plan" }))];
   const promoList = [...promoRows, ...promos.drafts];
   const longList = [...longRows, ...longs.drafts];
-  const photoRoom = photosFor && roomRows.find((r) => r.id === photosFor);
+  const banner = { id: BANNER, name: "the banner", photos: content?.banner || [] };
+  const photoRoom = photosFor === BANNER ? banner : photosFor && roomRows.find((r) => r.id === photosFor);
   const bad = (row, field) => error?.rowId === row.id && error?.field === field;
   const promoInput = (row, field, props = {}) =>
     promos.input(row, field, { ...props, invalid: bad(row, field), onChange: (e) => changed(promos)(row, field, e.target.value) });
@@ -470,6 +496,23 @@ export default function BookingEngine({ session }) {
 
       {tab === "rooms" && (
         <>
+          <section className="card flex flex-wrap items-center gap-3 p-3">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">Banner</div>
+              <p className="sub text-xs">
+                Photos of your hotel across the top of your booking page: the building, the view, the pool. Wide photos look
+                best.
+              </p>
+            </div>
+            <Thumbs photos={banner.photos} />
+            <button type="button" className="btn btn-secondary text-sm" disabled={Boolean(uploading)} onClick={() => photosClicked(banner)}>
+              {uploading?.id === BANNER
+                ? `Uploading ${uploading.done} of ${uploading.of}...`
+                : banner.photos.length
+                  ? "Change banner"
+                  : "Add banner photos"}
+            </button>
+          </section>
           <p className="sub">Untick a room to hide it on your website. Blank text uses what Rooms says.</p>
           <Grid>
             <thead>
@@ -488,7 +531,8 @@ export default function BookingEngine({ session }) {
                   <td className="text-center">{rooms.check(r, "shown", { "aria-label": `Show ${r.name}` })}</td>
                   <td>{rooms.input(r, "description", { placeholder: r.fallbackDescription || "A line about the room", maxLength: 600 })}</td>
                   <td>{rooms.input(r, "amenities", { placeholder: r.fallbackAmenities || "AC, Wi-Fi, TV", maxLength: 400 })}</td>
-                  <td>
+                  <td className="whitespace-nowrap">
+                    <Thumbs photos={r.photos} />
                     <button
                       type="button"
                       className="btn btn-ghost text-xs"
@@ -725,6 +769,7 @@ export default function BookingEngine({ session }) {
  * is the one guests see first), remove one. Each change saves at once.
  */
 function RoomPhotos({ room, propertyId, onSaved, onClose }) {
+  const max = maxPhotosFor(room.id);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState("");
@@ -785,7 +830,7 @@ function RoomPhotos({ room, propertyId, onSaved, onClose }) {
           className="side-panel-head flex items-center justify-between gap-3"
           style={{ padding: "0.85rem 1.1rem", background: "var(--accent)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
         >
-          <h3>Photos of {room.name}</h3>
+          <h3>{room.id === BANNER ? "Banner photos" : `Photos of ${room.name}`}</h3>
           <button type="button" className="head-close" onClick={onClose} disabled={busy} aria-label="Close">
             <Icon name="close" size={16} />
           </button>
@@ -793,7 +838,7 @@ function RoomPhotos({ room, propertyId, onSaved, onClose }) {
 
         <div className="card-pad space-y-3">
           <p className="sub text-xs">
-            {room.photos.length} of {MAX_ROOM_PHOTOS}. Photos save straight away. The first is the one guests see first.
+            {room.photos.length} of {max}. Photos save straight away. The first is the one guests see first.
           </p>
           <input
             ref={fileRef}
@@ -807,7 +852,7 @@ function RoomPhotos({ room, propertyId, onSaved, onClose }) {
             ref={addRef}
             type="button"
             className="btn btn-primary"
-            disabled={busy || room.photos.length >= MAX_ROOM_PHOTOS}
+            disabled={busy || room.photos.length >= max}
             onClick={() => fileRef.current?.click()}
           >
             {progress || (busy ? "Saving..." : "Add photos")}
@@ -817,7 +862,9 @@ function RoomPhotos({ room, propertyId, onSaved, onClose }) {
               {error}
             </p>
           )}
-          {room.photos.length === 0 && <p className="sub">No photos yet. Rooms with photos get booked more.</p>}
+          {room.photos.length === 0 && (
+            <p className="sub">{room.id === BANNER ? "No banner yet." : "No photos yet. Rooms with photos get booked more."}</p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {room.photos.map((url, i) => (
               <figure key={url} className="space-y-1">

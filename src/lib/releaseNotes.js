@@ -22,7 +22,7 @@ export const RELEASE_NOTES = [
       },
       {
         page: "bookingengine",
-        text: "On the same page: add room photos, say what each plan includes and its cancellation terms, hide rooms or plans from your website, run promotions for dates or a promo code, and give money off longer stays. The discount shows on the guest's bill.",
+        text: "On the same page: add a banner of your hotel's photos across the top of your booking page, add room photos, say what each plan includes and its cancellation terms, hide rooms or plans from your website, run promotions for dates or a promo code, and give money off longer stays. The discount shows on the guest's bill.",
       },
       {
         page: "reservations",

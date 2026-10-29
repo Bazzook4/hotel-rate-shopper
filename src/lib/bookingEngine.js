@@ -27,8 +27,11 @@ import { mealPlan } from "@/lib/mealPlans";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import {
   GUEST_PAYMENT_TEXT,
-  MAX_ROOM_PHOTOS,
+  BANNER,
   bestDiscount,
+  maxPhotosFor,
+  photosOf,
+  withPhotos,
   cleanBookingContent,
   codeOutcome,
   MAX_DAYS_AHEAD,
@@ -198,19 +201,22 @@ function photoPath(url) {
   return at < 0 ? null : decodeURIComponent(url.slice(at + marker.length).split("?")[0]);
 }
 
-/** Adds a photo to a room type's photos and returns the page's content. */
-export async function addRoomPhoto(propertyId, roomTypeId, file) {
+/** Adds a photo to a room type's photos, or the banner's, and returns the page's content. */
+export async function addRoomPhoto(propertyId, target, file) {
   const ext = PHOTO_TYPES[file.type];
   if (!ext) throw new Error("The photo must be a JPG, PNG or WebP picture.");
   if (file.size > MAX_PHOTO_BYTES) throw new Error("The photo must be 3 MB or smaller.");
   const current = await getBookingSettings(propertyId);
   if (!current.ready) throw new Error(BOOKING_NOT_READY);
-  const room = current.content.rooms[roomTypeId] || { hidden: false, description: "", amenities: [], photos: [] };
-  if (room.photos.length >= MAX_ROOM_PHOTOS) throw new Error(`A room can have up to ${MAX_ROOM_PHOTOS} photos.`);
+  const photos = photosOf(current.content, target);
+  const max = maxPhotosFor(target);
+  if (photos.length >= max) {
+    throw new Error(target === BANNER ? `The banner can have up to ${max} photos.` : `A room can have up to ${max} photos.`);
+  }
 
   const supabase = getSupabaseAdmin();
   await ensurePhotoBucket(supabase);
-  const path = `${propertyId}/${roomTypeId}/${Date.now()}.${ext}`;
+  const path = `${propertyId}/${target}/${Date.now()}.${ext}`;
   const { error } = await supabase.storage
     .from(PHOTO_BUCKET)
     .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
@@ -219,29 +225,21 @@ export async function addRoomPhoto(propertyId, roomTypeId, file) {
     throw new Error("The photo did not save. Please try again.");
   }
   const url = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
-  const content = {
-    ...current.content,
-    rooms: { ...current.content.rooms, [roomTypeId]: { ...room, photos: [...room.photos, url] } },
-  };
   try {
-    return await saveBookingContent(propertyId, content);
+    return await saveBookingContent(propertyId, withPhotos(current.content, target, [...photos, url]));
   } catch (err) {
     await supabase.storage.from(PHOTO_BUCKET).remove([path]).catch(() => {});
     throw err;
   }
 }
 
-/** Takes a photo off a room type, or moves it first when `makeCover` is set. */
-export async function changeRoomPhoto(propertyId, roomTypeId, url, { makeCover = false } = {}) {
+/** Takes a photo off, or moves it first when `makeCover` is set. */
+export async function changeRoomPhoto(propertyId, target, url, { makeCover = false } = {}) {
   const current = await getBookingSettings(propertyId);
-  const room = current.content.rooms[roomTypeId];
-  if (!room || !room.photos.includes(url)) return current;
-  const rest = room.photos.filter((u) => u !== url);
-  const photos = makeCover ? [url, ...rest] : rest;
-  const saved = await saveBookingContent(propertyId, {
-    ...current.content,
-    rooms: { ...current.content.rooms, [roomTypeId]: { ...room, photos } },
-  });
+  const photos = photosOf(current.content, target);
+  if (!photos.includes(url)) return current;
+  const rest = photos.filter((u) => u !== url);
+  const saved = await saveBookingContent(propertyId, withPhotos(current.content, target, makeCover ? [url, ...rest] : rest));
   const path = !makeCover && photoPath(url);
   if (path) await getSupabaseAdmin().storage.from(PHOTO_BUCKET).remove([path]).catch(() => {});
   return saved;
@@ -283,6 +281,7 @@ export function hotelView(hotel) {
     payUpi,
     payAtHotel: prefs.payAtHotel,
     note: prefs.note || null,
+    banner: hotel.content.banner,
     // The promo code box is only offered where there is a code to type.
     hasCodes: hotel.content.promotions.some((p) => p.active && p.code),
   };

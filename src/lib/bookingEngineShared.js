@@ -88,6 +88,26 @@ export const MAX_DAYS_AHEAD = 500;
 // ------------------------------------------------------------------
 
 export const MAX_ROOM_PHOTOS = 8;
+export const MAX_BANNER_PHOTOS = 5;
+/** The photo target for the banner across the top of the page, in place of a room type id. */
+export const BANNER = "banner";
+
+const photoList = (v, max) =>
+  (Array.isArray(v) ? v : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, max);
+
+/** The photos of a room type, or of the banner. */
+export function photosOf(content, target) {
+  return target === BANNER ? content.banner || [] : content.rooms?.[target]?.photos || [];
+}
+
+/** The content with a room type's photos, or the banner's, replaced. */
+export function withPhotos(content, target, photos) {
+  if (target === BANNER) return { ...content, banner: photos };
+  const room = content.rooms?.[target] || { hidden: false, description: "", amenities: [], photos: [] };
+  return { ...content, rooms: { ...content.rooms, [target]: { ...room, photos } } };
+}
+
+export const maxPhotosFor = (target) => (target === BANNER ? MAX_BANNER_PHOTOS : MAX_ROOM_PHOTOS);
 export const MAX_PROMOTIONS = 30;
 export const MAX_LONG_STAY_RULES = 10;
 export const MAX_DISCOUNT_PERCENT = 90;
@@ -105,6 +125,7 @@ const percentOrNull = (v) => {
 
 /**
  * The booking page's content, kept with the hotel's choices:
+ *   banner      photos across the top of the page, the hotel itself
  *   rooms       per room type: hidden, description, amenities, photo links
  *   plans       per rate plan: hidden, the name guests see, what is
  *               included, the cancellation terms
@@ -125,9 +146,7 @@ export function cleanBookingContent(raw) {
         .map((a) => text(a, 40))
         .filter(Boolean)
         .slice(0, 20),
-      photos: (Array.isArray(r.photos) ? r.photos : [])
-        .filter((u) => typeof u === "string" && /^https:\/\//.test(u))
-        .slice(0, MAX_ROOM_PHOTOS),
+      photos: photoList(r.photos, MAX_ROOM_PHOTOS),
     };
   }
   const plans = {};
@@ -161,7 +180,7 @@ export function cleanBookingContent(raw) {
     .filter((r) => r.nights && r.percent)
     .sort((a, b) => a.nights - b.nights)
     .slice(0, MAX_LONG_STAY_RULES);
-  return { rooms, plans, promotions, longStays };
+  return { banner: photoList(c.banner, MAX_BANNER_PHOTOS), rooms, plans, promotions, longStays };
 }
 
 const blank = (v) => v === null || v === undefined || String(v).trim() === "";

@@ -139,6 +139,8 @@ export default function BookingPage() {
         }
       />
 
+      <Banner photos={hotel.banner} name={hotel.name} />
+
       {hotel.note && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
           {hotel.note}
@@ -301,6 +303,34 @@ function PromoCode({ code, outcome, onApply }) {
           {said.say(code)}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * The hotel's banner across the top: one photo full width, or several to
+ * swipe through. Wide on a computer, a little taller on a phone.
+ */
+function Banner({ photos, name }) {
+  if (!photos?.length) return null;
+  return (
+    <div className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "thin" }}>
+      {photos.map((url, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={url}
+          src={url}
+          alt={i === 0 ? name : `${name}, photo ${i + 1}`}
+          loading={i === 0 ? "eager" : "lazy"}
+          className="aspect-[16/10] snap-start rounded-lg sm:aspect-[5/2]"
+          style={{
+            flex: photos.length === 1 ? "1 0 100%" : "0 0 92%",
+            width: "100%",
+            objectFit: "cover",
+            border: "1px solid var(--border)",
+          }}
+        />
+      ))}
     </div>
   );
 }
