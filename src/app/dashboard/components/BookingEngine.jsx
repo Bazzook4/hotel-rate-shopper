@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import DateField from "@/app/components/DateField";
+import Select from "@/app/components/Select";
 import Icon from "@/app/components/Icon";
 import { useToast } from "@/app/components/Toast";
 import { useDialog } from "@/app/components/Dialog";
@@ -10,7 +11,9 @@ import {
   MAX_LONG_STAY_RULES,
   MAX_PROMOTIONS,
   BANNER,
+  HOTEL_AMENITIES,
   longStayProblem,
+  timeLabel,
   maxPhotosFor,
   promotionProblem,
   promotionWhen,
@@ -36,6 +39,7 @@ import { Grid, Loading, Messages, SaveActions, SetupHeader, cellClass, isDraft, 
 
 const TABS = [
   { id: "link", label: "Link & payment" },
+  { id: "hotel", label: "Hotel" },
   { id: "rooms", label: "Rooms" },
   { id: "plans", label: "Plans" },
   { id: "promotions", label: "Promotions" },
@@ -152,6 +156,132 @@ function LinkBar({ url, open, onTurnOn }) {
   );
 }
 
+const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
+
+/**
+ * The hotel itself, as guests see it on the booking page: about the hotel,
+ * its amenities, when guests arrive and leave, where it is and how to reach
+ * it, and the house rules. A blank box uses what Property Setup holds,
+ * shown in grey inside it.
+ */
+function HotelTab({ form, setForm, defaults }) {
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const ticked = new Set(form.amenities);
+  const others = form.amenities.filter((a) => !HOTEL_AMENITIES.includes(a));
+  const usingDefaults = form.amenities.length === 0 && (defaults.amenities || []).length > 0;
+  const toggle = (a) =>
+    setForm((f) => ({ ...f, amenities: ticked.has(a) ? f.amenities.filter((x) => x !== a) : [...f.amenities, a] }));
+  const [othersText, setOthersText] = useState(others.join(", "));
+  const setOthers = (value) =>
+    setForm((f) => ({
+      ...f,
+      amenities: [...f.amenities.filter((a) => HOTEL_AMENITIES.includes(a)), ...value.split(",").map((a) => a.trim()).filter(Boolean)],
+    }));
+  const timeSelect = (k, label) => (
+    <label className="block space-y-1">
+      <span className="label">{label}</span>
+      <Select className="input w-full" value={form[k] || ""} onChange={set(k)}>
+        <option value="">{defaults[k] ? `As in Property Setup (${timeLabel(defaults[k])})` : "Not shown"}</option>
+        {TIMES.map((t) => (
+          <option key={t} value={t}>
+            {timeLabel(t)}
+          </option>
+        ))}
+      </Select>
+    </label>
+  );
+
+  return (
+    <div className="space-y-3">
+      <p className="sub">What guests read about your hotel on the booking page. Blank boxes use what Property Setup says.</p>
+      <section className="card card-pad space-y-3">
+        <label className="block space-y-1">
+          <span className="label">About the hotel</span>
+          <textarea
+            className="input w-full"
+            rows={4}
+            maxLength={1500}
+            value={form.about}
+            placeholder={defaults.about || "A few lines about your hotel: where it is, what is nearby, what guests love."}
+            onChange={set("about")}
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {timeSelect("checkIn", "Check-in from")}
+          {timeSelect("checkOut", "Check-out by")}
+          <label className="block space-y-1">
+            <span className="label">Phone for guests</span>
+            <input className="input w-full" type="tel" value={form.phone} placeholder={defaults.phone || ""} onChange={set("phone")} maxLength={30} />
+          </label>
+          <label className="block space-y-1">
+            <span className="label">Email for guests</span>
+            <input className="input w-full" type="email" value={form.email} placeholder={defaults.email || ""} onChange={set("email")} maxLength={120} />
+          </label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="label">Address</span>
+            <input className="input w-full" value={form.address} placeholder={defaults.address || ""} onChange={set("address")} maxLength={300} />
+          </label>
+          <label className="block space-y-1">
+            <span className="label">Google Maps link (optional)</span>
+            <input
+              className="input w-full"
+              value={form.mapUrl}
+              placeholder={defaults.mapUrl || "Blank finds you on Maps from the address"}
+              onChange={set("mapUrl")}
+              spellCheck={false}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="card card-pad space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="h2">Hotel amenities</h3>
+          {usingDefaults && (
+            <span className="sub text-xs">Until you tick some, guests see the list in Property Setup: {defaults.amenities.join(", ")}</span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3 lg:grid-cols-5">
+          {HOTEL_AMENITIES.map((a) => (
+            <label key={a} className="flex items-center gap-1.5 text-sm">
+              <input type="checkbox" checked={ticked.has(a)} onChange={() => toggle(a)} />
+              {a}
+            </label>
+          ))}
+        </div>
+        <label className="block space-y-1 pt-1">
+          <span className="label">Others, with commas</span>
+          <input
+            className="input w-full"
+            value={othersText}
+            placeholder="Rooftop cafe, Bonfire, Temple 2 km"
+            onChange={(e) => {
+              setOthersText(e.target.value);
+              setOthers(e.target.value);
+            }}
+          />
+        </label>
+      </section>
+
+      <section className="card card-pad">
+        <label className="block space-y-1">
+          <span className="label">House rules</span>
+          <textarea
+            className="input w-full"
+            rows={3}
+            maxLength={1500}
+            value={form.rules}
+            placeholder="ID needed for every adult at check-in. No smoking in rooms. Couples welcome."
+            onChange={set("rules")}
+          />
+        </label>
+      </section>
+    </div>
+  );
+}
+
 /** Small previews of the first few photos, so a row shows what guests will see. */
 function Thumbs({ photos }) {
   if (!photos?.length) return null;
@@ -199,6 +329,8 @@ export default function BookingEngine({ session }) {
   const [uploading, setUploading] = useState(null);
   const [removed, setRemoved] = useState({ promotions: new Set(), longStays: new Set() });
   const [open, setOpen] = useState(new Set());
+  const [hotelForm, setHotelForm] = useState(null);
+  const [hotelKey, setHotelKey] = useState(0);
   const pickerRef = useRef(null);
   const pickFor = useRef(null);
   const toast = useToast();
@@ -274,17 +406,24 @@ export default function BookingEngine({ session }) {
     [content]
   );
 
+  // The Hotel tab is one record, so it is a form; it counts as one change.
+  const hotelSaved = content?.hotel;
+  useEffect(() => setHotelForm(hotelSaved || null), [hotelSaved]);
+  const hotelDirty = Boolean(hotelForm && hotelSaved && JSON.stringify(hotelForm) !== JSON.stringify(hotelSaved));
+
   const rooms = useGrid(roomRows);
   const plans = useGrid(planRows);
   const promos = useGrid(promoRows, removed.promotions.size);
   const longs = useGrid(longRows, removed.longStays.size);
-  const pending = rooms.count + plans.count + promos.count + longs.count;
+  const pending = rooms.count + plans.count + promos.count + longs.count + (hotelDirty ? 1 : 0);
 
   function discard() {
     rooms.discard();
     plans.discard();
     promos.discard();
     longs.discard();
+    setHotelForm(hotelSaved || null);
+    setHotelKey((k) => k + 1);
     setRemoved({ promotions: new Set(), longStays: new Set() });
     setError(null);
   }
@@ -334,6 +473,8 @@ export default function BookingEngine({ session }) {
     }
 
     const next = {
+      ...content,
+      hotel: hotelForm || hotelSaved,
       rooms: Object.fromEntries(
         roomRows.map(rooms.merged).map((r) => [
           r.id,
@@ -493,6 +634,10 @@ export default function BookingEngine({ session }) {
         className="hidden"
         onChange={(e) => picked([...e.target.files])}
       />
+
+      {tab === "hotel" && hotelForm && (
+        <HotelTab key={hotelKey} form={hotelForm} setForm={setHotelForm} defaults={data.hotelDefaults || {}} />
+      )}
 
       {tab === "rooms" && (
         <>

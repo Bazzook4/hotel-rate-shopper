@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { canManageSetup, listRatePlans, listRoomTypes } from "@/lib/database";
+import { canManageSetup, getPropertyById, listRatePlans, listRoomTypes } from "@/lib/database";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { isDayUsePlan } from "@/lib/dayUse";
 import { mealPlan } from "@/lib/mealPlans";
 import {
   BOOKING_NOT_READY,
   ensureBookingKey,
+  hotelDefaults,
   saveBookingContent,
   saveBookingSettings,
 } from "@/lib/bookingEngine";
@@ -29,15 +30,18 @@ export async function GET(req) {
   if (!propertyId) return NextResponse.json({ error: "No property selected" }, { status: 400 });
 
   try {
-    const [settings, roomTypes, ratePlans, canSetup] = await Promise.all([
+    const [settings, roomTypes, ratePlans, canSetup, property] = await Promise.all([
       ensureBookingKey(propertyId),
       listRoomTypes(propertyId),
       listRatePlans(propertyId),
       canManageSetup(session.userId),
+      getPropertyById(propertyId),
     ]);
     return NextResponse.json({
       ...settings,
       canChangePayment: canSetup,
+      // What the Hotel tab falls back to, shown in its empty boxes.
+      hotelDefaults: hotelDefaults(property),
       roomTypes: roomTypes.map((t) => ({
         id: t.id,
         name: t.room_type_name,

@@ -268,6 +268,43 @@ export async function findHotelByKey(key) {
   };
 }
 
+/**
+ * What Property Setup already says about the hotel, which the booking page
+ * uses wherever the Hotel tab is left blank.
+ */
+export function hotelDefaults(property) {
+  const amenities = Array.isArray(property?.amenities)
+    ? property.amenities
+    : String(property?.amenities || "").split(",");
+  return {
+    about: String(property?.description || "").trim(),
+    amenities: amenities.map((a) => String(a).trim()).filter(Boolean),
+    checkIn: String(property?.check_in_time || "").slice(0, 5),
+    checkOut: String(property?.check_out_time || "").slice(0, 5),
+    address: [property?.address, property?.city, property?.state, property?.postal_code]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean)
+      .join(", "),
+    mapUrl: /^https:\/\//.test(property?.google_business_url || "") ? property.google_business_url : "",
+    phone: property?.phone || property?.contact_phone || "",
+    email: property?.email || "",
+    rules: "",
+  };
+}
+
+/** The hotel's details as guests see them: its own words, else Property Setup's. */
+function hotelDetails(property, content) {
+  const base = hotelDefaults(property);
+  const own = content.hotel || {};
+  const pick = (k) => (Array.isArray(own[k]) ? (own[k].length ? own[k] : base[k]) : own[k] || base[k]);
+  const details = Object.fromEntries(Object.keys(base).map((k) => [k, pick(k)]));
+  // A map link from the address when the hotel gave none, so Directions always works.
+  if (!details.mapUrl && details.address) {
+    details.mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${property.name || ""} ${details.address}`)}`;
+  }
+  return details;
+}
+
 /** What the booking page shows before any dates are picked. */
 export function hotelView(hotel) {
   const { property, prefs, currency, today, payUpi } = hotel;
@@ -282,6 +319,7 @@ export function hotelView(hotel) {
     payAtHotel: prefs.payAtHotel,
     note: prefs.note || null,
     banner: hotel.content.banner,
+    details: hotelDetails(property, hotel.content),
     // The promo code box is only offered where there is a code to type.
     hasCodes: hotel.content.promotions.some((p) => p.active && p.code),
   };

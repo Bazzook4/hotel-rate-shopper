@@ -107,6 +107,69 @@ export function withPhotos(content, target, photos) {
   return { ...content, rooms: { ...content.rooms, [target]: { ...room, photos } } };
 }
 
+/** Amenities most hotels have, ticked on the Hotel tab; anything else is typed. */
+export const HOTEL_AMENITIES = [
+  "Free Wi-Fi",
+  "Free parking",
+  "Air conditioning",
+  "24-hour front desk",
+  "Restaurant",
+  "Room service",
+  "Lift",
+  "Power backup",
+  "Laundry",
+  "Hot water",
+  "Swimming pool",
+  "Gym",
+  "Spa",
+  "Bar",
+  "Airport pickup",
+  "Garden",
+  "Kids play area",
+  "Banquet hall",
+  "Pet friendly",
+  "Wheelchair access",
+];
+
+const timeOrEmpty = (v) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(v || ""));
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return "";
+  return `${m[1].padStart(2, "0")}:${m[2]}`;
+};
+
+/** "14:00" as "2:00 pm". */
+export function timeLabel(hhmm) {
+  const t = timeOrEmpty(hhmm);
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+}
+
+/** The hotel's own details for its booking page: blank uses what Property Setup holds. */
+function cleanHotel(raw) {
+  const h = raw && typeof raw === "object" ? raw : {};
+  const long = (v, max) => String(v ?? "").trim().slice(0, max);
+  const link = (v) => {
+    const u = String(v || "").trim();
+    return /^https:\/\/\S+$/.test(u) ? u.slice(0, 500) : "";
+  };
+  return {
+    about: long(h.about, 1500),
+    amenities: (Array.isArray(h.amenities) ? h.amenities : String(h.amenities || "").split(","))
+      .map((a) => text(a, 40))
+      .filter(Boolean)
+      .filter((a, i, all) => all.indexOf(a) === i)
+      .slice(0, 40),
+    checkIn: timeOrEmpty(h.checkIn),
+    checkOut: timeOrEmpty(h.checkOut),
+    address: text(h.address, 300),
+    mapUrl: link(h.mapUrl),
+    phone: text(h.phone, 30),
+    email: text(h.email, 120),
+    rules: long(h.rules, 1500),
+  };
+}
+
 export const maxPhotosFor = (target) => (target === BANNER ? MAX_BANNER_PHOTOS : MAX_ROOM_PHOTOS);
 export const MAX_PROMOTIONS = 30;
 export const MAX_LONG_STAY_RULES = 10;
@@ -125,6 +188,8 @@ const percentOrNull = (v) => {
 
 /**
  * The booking page's content, kept with the hotel's choices:
+ *   hotel       about the hotel, its amenities, check-in and out times,
+ *               address and map, phone, email and house rules
  *   banner      photos across the top of the page, the hotel itself
  *   rooms       per room type: hidden, description, amenities, photo links
  *   plans       per rate plan: hidden, the name guests see, what is
@@ -180,7 +245,7 @@ export function cleanBookingContent(raw) {
     .filter((r) => r.nights && r.percent)
     .sort((a, b) => a.nights - b.nights)
     .slice(0, MAX_LONG_STAY_RULES);
-  return { banner: photoList(c.banner, MAX_BANNER_PHOTOS), rooms, plans, promotions, longStays };
+  return { hotel: cleanHotel(c.hotel), banner: photoList(c.banner, MAX_BANNER_PHOTOS), rooms, plans, promotions, longStays };
 }
 
 const blank = (v) => v === null || v === undefined || String(v).trim() === "";

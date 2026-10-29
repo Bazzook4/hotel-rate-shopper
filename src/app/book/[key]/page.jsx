@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import DateField from "@/app/components/DateField";
 import Select from "@/app/components/Select";
+import Icon from "@/app/components/Icon";
+import { timeLabel } from "@/lib/bookingEngineShared";
 import { HotelHeader, Field, addDaysIso, ask, day, lastBookingKey, money, nightsOf, plural, useFrameHeight } from "../kit";
 
 /**
@@ -140,6 +142,7 @@ export default function BookingPage() {
       />
 
       <Banner photos={hotel.banner} name={hotel.name} />
+      <HotelFacts details={hotel.details} />
 
       {hotel.note && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -210,6 +213,8 @@ export default function BookingPage() {
           <Results results={results} stay={shown} currency={hotel.currency} onPick={setPicked} />
         </>
       )}
+
+      {!picked && <AboutHotel name={hotel.name} details={hotel.details} />}
 
       {picked && shown && (
         <GuestDetails
@@ -304,6 +309,91 @@ function PromoCode({ code, outcome, onApply }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** Check-in and check-out times and where the hotel is, in one line under the banner. */
+function HotelFacts({ details }) {
+  if (!details) return null;
+  const times = [
+    details.checkIn && `Check-in from ${timeLabel(details.checkIn)}`,
+    details.checkOut && `check-out by ${timeLabel(details.checkOut)}`,
+  ].filter(Boolean);
+  if (!times.length && !details.address) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" style={{ color: "var(--text-muted)" }}>
+      {times.length > 0 && <span>{times.join(", ")}</span>}
+      {details.address && <span className="min-w-0">{details.address}</span>}
+      {details.mapUrl && (
+        <a className="btn btn-ghost text-xs" href={details.mapUrl} target="_blank" rel="noreferrer">
+          Directions
+        </a>
+      )}
+    </div>
+  );
+}
+
+/**
+ * About the hotel, below the rooms: what it says about itself, its
+ * amenities, house rules, and ways to reach it. Only what the hotel has
+ * filled in is shown.
+ */
+function AboutHotel({ name, details }) {
+  if (!details) return null;
+  const { about, amenities = [], rules, phone, email, mapUrl } = details;
+  if (!about && !amenities.length && !rules && !phone && !email) return null;
+  const tel = phone ? phone.replace(/[^\d+]/g, "") : "";
+  return (
+    <section className="card card-pad space-y-3">
+      <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
+        About {name}
+      </h2>
+      {about && (
+        <p className="whitespace-pre-line text-sm" style={{ color: "var(--text)" }}>
+          {about}
+        </p>
+      )}
+      {amenities.length > 0 && (
+        <div className="space-y-1">
+          <h3 className="label">Amenities</h3>
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3" style={{ color: "var(--text)" }}>
+            {amenities.map((a) => (
+              <li key={a} className="flex items-center gap-1.5">
+                <Icon name="check" size={14} />
+                {a}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {rules && (
+        <div className="space-y-1">
+          <h3 className="label">House rules</h3>
+          <p className="whitespace-pre-line text-sm" style={{ color: "var(--text-muted)" }}>
+            {rules}
+          </p>
+        </div>
+      )}
+      {(tel || email || mapUrl) && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {tel && (
+            <a className="btn btn-secondary text-sm" href={`tel:${tel}`}>
+              Call {phone}
+            </a>
+          )}
+          {email && (
+            <a className="btn btn-secondary text-sm" href={`mailto:${email}`}>
+              Email
+            </a>
+          )}
+          {mapUrl && (
+            <a className="btn btn-secondary text-sm" href={mapUrl} target="_blank" rel="noreferrer">
+              Directions
+            </a>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
