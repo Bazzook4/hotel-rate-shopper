@@ -21,7 +21,7 @@ import {
   getPropertyCurrency,
 } from "@/lib/database";
 import { folioTotals } from "@/lib/taxes";
-import { cleanCode, codeOutcome, explainOffers, hasCoupons, offerDiscount } from "@/lib/promotions";
+import { cleanCode, codeOutcome, explainOffers, guestOffers, hasCoupons, nearestLongStay, offerDiscount } from "@/lib/promotions";
 import { todayInZone } from "@/lib/hotelTime";
 import { isDayUsePlan } from "@/lib/dayUse";
 import { mealPlan } from "@/lib/mealPlans";
@@ -347,6 +347,8 @@ export function hotelView(hotel) {
     details: hotelDetails(property, hotel.content),
     // The promo code box is only offered where there is a code to type.
     hasCodes: hasCoupons(hotel.content),
+    // Offers open to any guest, so they can plan their dates around them.
+    offers: guestOffers(hotel.content, today),
   };
 }
 
@@ -492,7 +494,7 @@ async function couponUsedUp(hotel, code) {
  * plans costs for the stay. A plan the room is not assigned to, or that has
  * no price on one of the nights, is left out rather than sold at a guess.
  */
-export async function searchOffers(hotel, stay, { explain = false } = {}) {
+export async function searchOffers(hotel, stay, { explain = false, nudge = true } = {}) {
   const propertyId = hotel.property.id;
   const lastNight = stay.nights[stay.nights.length - 1];
   const [grid, quoteData, restrictions, taxRules, services] = await Promise.all([
@@ -589,6 +591,8 @@ export async function searchOffers(hotel, stay, { explain = false } = {}) {
     });
   }
 
+  if (nudge && !explain) await addLongerStays(hotel, stay, offers);
+
   return {
     offers,
     minStay: offers.length === 0 ? minStayHint : null,
@@ -601,6 +605,47 @@ export async function searchOffers(hotel, stay, { explain = false } = {}) {
           offers.some((o) => o.options.some((x) => x.discount?.coupon))
         ),
   };
+}
+
+/**
+ * "Stay 2 more nights and save 15%": when a stay is a few nights short of a
+ * long-stay offer, the longer stay is searched as it would be booked, and
+ * each room and plan that is free for it, and gets the long-stay offer
+ * there, carries what it would cost. Nothing is offered that the guest
+ * could not then book.
+ */
+async function addLongerStays(hotel, stay, offers) {
+  if (offers.length === 0) return;
+  const longer = nearestLongStay(hotel.content, { checkIn: stay.checkIn, nights: stay.nights.length, today: hotel.today });
+  if (!longer) return;
+  const extra = longer - stay.nights.length;
+  const read = readStay(hotel, { ...stay, checkOut: addDaysISO(stay.checkOut, extra) }, { mobile: stay.mobile });
+  if (read.error) return;
+  let found;
+  try {
+    found = await searchOffers(hotel, read.stay, { nudge: false });
+  } catch (err) {
+    console.error("Booking engine: could not price the longer stay:", err.message);
+    return;
+  }
+  const longIds = new Set(hotel.content.promotions.filter((p) => p.type === "long").map((p) => p.id));
+  for (const offer of offers) {
+    const room = found.offers.find((o) => o.roomTypeId === offer.roomTypeId);
+    for (const option of offer.options) {
+      const there = room?.options.find((o) => o.ratePlanId === option.ratePlanId);
+      const step = there?.discount?.steps?.find((x) => longIds.has(x.id));
+      if (!step || !(there.discount.amount > (option.discount?.amount || 0))) continue;
+      option.longer = {
+        extraNights: extra,
+        nights: longer,
+        checkOut: read.stay.checkOut,
+        total: there.total,
+        // In money, as the room's own "Save" line says it, so the two never
+        // disagree when a mobile offer or code is added on top.
+        save: there.discount.amount,
+      };
+    }
+  }
 }
 
 // ------------------------------------------------------------------
@@ -633,7 +678,7 @@ export async function createOnlineBooking(hotel, input, { mobile = false } = {})
   if (payBy === "upi" && !hotel.payUpi) return { error: "Online payment is not available. Please pick Pay at the hotel." };
   if (payBy === "hotel" && !hotel.prefs.payAtHotel) return { error: "This hotel asks for payment when you book." };
 
-  const { offers } = await searchOffers(hotel, stay);
+  const { offers } = await searchOffers(hotel, stay, { nudge: false });
   const offer = offers.find((o) => o.roomTypeId === input?.roomTypeId);
   const option = offer?.options.find((o) => o.ratePlanId === input?.ratePlanId);
   if (!offer || !option) {

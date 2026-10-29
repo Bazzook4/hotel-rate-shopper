@@ -14,6 +14,20 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-29",
+    title: "Guests see your offers before they pick dates",
+    points: [
+      {
+        page: "bookingengine",
+        text: "Your booking page now lists your offers above the dates, in plain words, so guests can plan around them: for example 15% off when you stay 5 nights or more. Coupon codes stay hidden.",
+      },
+      {
+        page: "bookingengine",
+        text: "When a guest's stay is up to 3 nights short of a long stay offer, each room shows what the longer stay would cost and how much they save, with one button to add the nights. It only shows when those nights are free and the offer really applies.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-29",
     title: "Pages no longer stuck on Working",
     points: [
       {

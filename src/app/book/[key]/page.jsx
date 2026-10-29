@@ -6,6 +6,7 @@ import DateField from "@/app/components/DateField";
 import Select from "@/app/components/Select";
 import Icon from "@/app/components/Icon";
 import { timeLabel } from "@/lib/bookingEngineShared";
+import { offerForGuests } from "@/lib/promotions";
 import { Gallery, HotelHeader, Field, addDaysIso, ask, day, lastBookingKey, money, nightsOf, plural, useFrameHeight } from "../kit";
 
 /**
@@ -150,6 +151,8 @@ export default function BookingPage() {
         </p>
       )}
 
+      <Offers offers={hotel.offers} currency={hotel.currency} />
+
       <section className="card card-pad grid grid-cols-6 gap-3 sm:grid-cols-4">
         <Field label="Check-in" className="col-span-3 sm:col-span-1">
           <DateField
@@ -210,7 +213,13 @@ export default function BookingPage() {
               Tonight is full. These are the next nights with rooms free.
             </p>
           )}
-          <Results results={results} stay={shown} currency={hotel.currency} onPick={setPicked} />
+          <Results
+            results={results}
+            stay={shown}
+            currency={hotel.currency}
+            onPick={setPicked}
+            onLonger={(checkOut) => change({ checkOut })}
+          />
         </>
       )}
 
@@ -238,6 +247,44 @@ export default function BookingPage() {
         />
       )}
     </main>
+  );
+}
+
+/**
+ * The hotel's offers, before any dates are picked, so a guest can plan
+ * around them: stay a night longer, book earlier. One line each.
+ */
+/** "30 Nov", short enough that an offer line fits a phone. */
+const shortDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+function Offers({ offers, currency }) {
+  const [all, setAll] = useState(false);
+  if (!offers?.length) return null;
+  // Two lines at most until asked, so the dates stay in view on a phone.
+  const shown = all ? offers : offers.slice(0, 2);
+  return (
+    <section className="card card-pad space-y-1" aria-label="Offers">
+      <ul className="space-y-1">
+        {shown.map((o, i) => (
+          <li key={i} className="flex items-start gap-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
+            <span className="mt-0.5 flex-none" style={{ color: "var(--accent-text)" }}>
+              <Icon name="tag" size={14} />
+            </span>
+            <span>
+              <span className="font-medium" style={{ color: "var(--text)" }}>
+                {o.name}:
+              </span>{" "}
+              {offerForGuests(o, { money: (v) => money(v, currency), day: shortDay })}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {offers.length > 2 && (
+        <button type="button" className="btn btn-ghost text-xs" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+          {all ? "Show fewer offers" : `Show all ${offers.length} offers`}
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -531,7 +578,7 @@ function Price({ option, currency, nights, big }) {
   );
 }
 
-function Results({ results, stay, currency, onPick }) {
+function Results({ results, stay, currency, onPick, onLonger }) {
   const nights = nightsOf(stay.checkIn, stay.checkOut);
   if (results.offers.length === 0) {
     return (
@@ -544,7 +591,7 @@ function Results({ results, stay, currency, onPick }) {
   }
   return (
     <section className="space-y-3">
-      <p className="sub">
+      <p className="sub" aria-live="polite">
         {day(stay.checkIn)} to {day(stay.checkOut)}, {plural(nights, "night")}. Prices include taxes.
       </p>
       {results.offers.map((offer) => (
@@ -599,10 +646,42 @@ function Results({ results, stay, currency, onPick }) {
                 </li>
               ))}
             </ul>
+            <Longer options={offer.options} currency={currency} onLonger={onLonger} />
           </div>
         </article>
       ))}
     </section>
+  );
+}
+
+/**
+ * A stay a few nights short of a long-stay offer: the cheapest this room
+ * would cost for the longer stay, and one click to search it. Only shown
+ * when those nights are free and the offer applies to them.
+ */
+function Longer({ options, currency, onLonger }) {
+  const longer = options
+    .map((o) => o.longer)
+    .filter(Boolean)
+    .sort((a, b) => a.total - b.total)[0];
+  if (!longer) return null;
+  const some = options.some((o) => !o.longer);
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-2 rounded px-2.5 py-1.5 text-xs"
+      style={{ background: "var(--accent-soft)", color: "var(--accent-text)" }}
+    >
+      <span>
+        <span className="font-medium">
+          Stay {plural(longer.nights, "night")} and save {money(longer.save, currency)}
+        </span>
+        : {some ? "from " : ""}
+        {money(longer.total, currency)} in all
+      </span>
+      <button type="button" className="btn btn-ghost text-sm" onClick={() => onLonger(longer.checkOut)}>
+        Stay {longer.extraNights === 1 ? "1 more night" : `${longer.extraNights} more nights`}
+      </button>
+    </div>
   );
 }
 

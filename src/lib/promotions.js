@@ -444,3 +444,88 @@ export function codeOutcome(content, code, applied) {
 
 /** Whether the hotel has any coupon a guest could type. */
 export const hasCoupons = (content) => (content.coupons || []).some((c) => c.active);
+
+// ------------------------------------------------------------------
+// What guests are told before they book
+// ------------------------------------------------------------------
+
+/**
+ * The offers a guest can plan around, shown on the booking page before any
+ * dates are picked: switched on, not yet over, and open to anyone (coupon
+ * codes stay with the people they were given to). Only what the line needs
+ * goes to the page.
+ */
+export function guestOffers(content, today) {
+  return (content.promotions || [])
+    // Not yet open for booking is left out too: a guest could not have it today.
+    .filter(
+      (p) =>
+        p.active &&
+        p.value &&
+        !(p.checkInTo && p.checkInTo < today) &&
+        !(p.bookTo && p.bookTo < today) &&
+        !(p.bookFrom && p.bookFrom > today)
+    )
+    .map((p) => ({
+      name: p.name,
+      type: p.type,
+      kind: p.kind,
+      value: p.value,
+      days: p.days,
+      minNights: p.minNights,
+      maxNights: p.maxNights,
+      checkInFrom: p.checkInFrom && p.checkInFrom > today ? p.checkInFrom : null,
+      checkInTo: p.checkInTo,
+      bookTo: p.bookTo,
+      weekdays: p.weekdays?.length && p.weekdays.length < 7 ? p.weekdays : [],
+      someDatesOut: Boolean(p.blackout?.length),
+      someRooms: Boolean(p.roomTypeIds?.length || p.planIds?.length),
+    }))
+    .slice(0, 8);
+}
+
+/** One offer as a guest reads it: "15% off when you stay 5 nights or more, for check-in until 30 Nov". */
+export function offerForGuests(o, { money = (v) => String(v), day = (d) => d } = {}) {
+  // An amount comes off the stay once, never each night: say so.
+  const parts = [o.kind === "amount" ? `${money(o.value)} off your stay` : offerAmount(o, money)];
+  if (o.type === "long") {
+    parts.push(o.maxNights ? `when you stay ${o.minNights} to ${o.maxNights} nights` : `when you stay ${o.minNights} nights or more`);
+  }
+  if (o.type === "early") parts.push(`when you book ${o.days} days or more before you arrive`);
+  if (o.type === "last") parts.push(o.days ? `when you book within ${o.days} days of arrival` : "when you book on the day you arrive");
+  if (o.type === "mobile") parts.push("when you book on your phone");
+  const extra = [];
+  if (o.type !== "long" && o.minNights && o.maxNights) extra.push(`on stays of ${o.minNights} to ${o.maxNights} nights`);
+  else if (o.type !== "long" && o.minNights) extra.push(`on stays of ${o.minNights} nights or more`);
+  else if (o.type !== "long" && o.maxNights) extra.push(`on stays of up to ${o.maxNights} nights`);
+  if (o.weekdays?.length) extra.push(`on ${o.weekdays.map((d) => WEEKDAYS[d]).join(", ")} nights`);
+  if (o.checkInFrom && o.checkInTo) extra.push(`for check-in ${day(o.checkInFrom)} to ${day(o.checkInTo)}`);
+  else if (o.checkInFrom) extra.push(`for check-in from ${day(o.checkInFrom)}`);
+  else if (o.checkInTo) extra.push(`for check-in until ${day(o.checkInTo)}`);
+  if (o.bookTo) extra.push(`book by ${day(o.bookTo)}`);
+  if (o.someRooms) extra.push("on selected rooms");
+  if (o.someDatesOut) extra.push("some dates excluded");
+  return [parts.join(" "), ...extra].join(", ");
+}
+
+/** The most extra nights a guest is asked to add for a long-stay offer. */
+export const NUDGE_MAX_EXTRA_NIGHTS = 3;
+
+/**
+ * The nearest long-stay offer a stay falls just short of: the fewest nights
+ * that would start it, when that is at most NUDGE_MAX_EXTRA_NIGHTS more than
+ * booked and its dates fit. Null when there is none. Whether the longer stay
+ * can really be had, and what it costs, is the search's to work out.
+ */
+export function nearestLongStay(content, { checkIn, nights, today }) {
+  let best = null;
+  for (const p of content.promotions || []) {
+    if (p.type !== "long" || !p.active || !p.value || !p.minNights) continue;
+    if (p.minNights <= nights || p.minNights - nights > NUDGE_MAX_EXTRA_NIGHTS) continue;
+    if (p.maxNights && p.minNights > p.maxNights) continue;
+    if ((p.checkInFrom && checkIn < p.checkInFrom) || (p.checkInTo && checkIn > p.checkInTo)) continue;
+    if ((p.bookFrom && today < p.bookFrom) || (p.bookTo && today > p.bookTo)) continue;
+    if (!best || p.minNights < best) best = p.minNights;
+  }
+  return best;
+}
