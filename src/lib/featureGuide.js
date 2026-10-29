@@ -93,6 +93,14 @@ export const FEATURE_GUIDE = {
       "Stop selling a room or a plan, on all channels or just one",
     ],
   },
+  bookingengine: {
+    what: "Your own booking page for your website, where guests book and pay you by UPI.",
+    use: [
+      "Copy your booking page link or the code for your website",
+      "Add room photos and say what each plan includes and its cancellation terms",
+      "Run promotions for dates or a promo code, and give money off longer stays",
+    ],
+  },
   pricing: {
     what: "Suggested rates for each room and night, worked out from your bookings, events and competitors.",
     use: [

@@ -52,6 +52,8 @@ export const AREAS = [
     label: "Rates",
     pages: [
       { id: "cm", label: "Rates & Inventory", icon: "channel" },
+      // The hotel's own booking page: its link, rooms, plans and promotions.
+      { id: "bookingengine", label: "Booking Engine", icon: "home" },
       { id: "pricing", label: "Dynamic Pricing", icon: "tag" },
       { id: "compshopper", label: "Competitor Shopper", icon: "chart" },
       { id: "parity", label: "Rate Parity", icon: "compass" },
@@ -198,6 +200,9 @@ export function visibleAreas(session) {
       if (ADMIN_PAGES.has(p.id)) return canUsers;
       if (SETUP_PAGES.has(p.id) && !canSetup) return false;
       if (PLACEHOLDER_PAGES.has(p.id)) return true;
+      // New with the booking engine: whoever already sells rooms on Rates &
+      // Inventory has it, so no hotel has to be given it one by one.
+      if (p.id === "bookingengine" && effective.has("cm")) return true;
       return superAdmin || effective.has(p.id);
     });
     return { ...area, pages };

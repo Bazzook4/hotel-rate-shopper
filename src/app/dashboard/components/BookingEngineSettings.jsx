@@ -57,7 +57,7 @@ function CopyRow({ label, value, multiline }) {
   );
 }
 
-export default function BookingEngineSettings({ propertyId }) {
+export default function BookingEngineSettings({ propertyId, canChange = true, onSaved }) {
   const [state, setState] = useState(null);
   const [prefs, setPrefs] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -111,6 +111,7 @@ export default function BookingEngineSettings({ propertyId }) {
       if (!res.ok) throw new Error(json?.error || "Could not save the booking engine settings.");
       setState(json);
       setPrefs(json.prefs);
+      onSaved?.(json);
       setNotice(json.prefs.enabled ? "Saved. Your booking page is open." : "Saved. Your booking page is closed to guests.");
     } catch (err) {
       setError(err.message);
@@ -141,7 +142,7 @@ export default function BookingEngineSettings({ propertyId }) {
     );
   }
 
-  const off = !prefs.enabled;
+  const off = !prefs.enabled || !canChange;
   const upiAllowed = !state || state.currency === "INR";
   const url = state?.key && typeof window !== "undefined" ? `${window.location.origin}/book/${state.key}` : null;
 
@@ -150,7 +151,7 @@ export default function BookingEngineSettings({ propertyId }) {
       <div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h3 className="h2">Booking engine</h3>
-          <Check checked={prefs.enabled} onChange={(v) => set({ enabled: v })}>
+          <Check checked={prefs.enabled} disabled={!canChange} onChange={(v) => set({ enabled: v })}>
             <span className="font-medium">Turn on</span>
           </Check>
         </div>
@@ -204,7 +205,8 @@ export default function BookingEngineSettings({ propertyId }) {
         <Check checked={prefs.payAtHotel} disabled={off} onChange={(v) => set({ payAtHotel: v })}>
           Guests may also pay at the hotel
         </Check>
-        <button type="submit" className="btn btn-primary sm:ml-auto" style={{ padding: "0.3rem 0.75rem" }} disabled={busy}>
+        {!canChange && <span className="sub">Only someone who may change property setup can change how guests pay.</span>}
+        <button type="submit" className="btn btn-primary sm:ml-auto" disabled={busy || !canChange}>
           {busy ? "Saving..." : "Save"}
         </button>
       </div>

@@ -1215,7 +1215,7 @@ function DiscountDrawer({ folio, reservationId, currency, onClose, onSaved }) {
         <div>
           <span className="label">Reason (needed)</span>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Reason">
-            {DISCOUNT_REASONS.map((r) => (
+            {DISCOUNT_REASONS.filter((r) => r.id !== "promotion").map((r) => (
               <button key={r.id} type="button" aria-pressed={reason === r.id} className={`${choice(reason === r.id)} text-xs`} onClick={() => setReason(r.id)}>
                 {r.label}
               </button>

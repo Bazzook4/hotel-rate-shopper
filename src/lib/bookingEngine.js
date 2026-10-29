@@ -27,6 +27,10 @@ import { mealPlan } from "@/lib/mealPlans";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import {
   GUEST_PAYMENT_TEXT,
+  MAX_ROOM_PHOTOS,
+  bestDiscount,
+  cleanBookingContent,
+  isKnownCode,
   MAX_DAYS_AHEAD,
   MAX_NIGHTS,
   cleanBookingPrefs,
@@ -94,6 +98,7 @@ export async function getBookingSettings(propertyId) {
   const currency = await getPropertyCurrency(propertyId);
   return {
     prefs: cleanBookingPrefs(data?.booking_engine),
+    content: cleanBookingContent(data?.booking_engine?.content),
     key: data?.booking_key || null,
     currency,
     ready: data ? "booking_engine" in data : false,
@@ -123,11 +128,105 @@ export async function saveBookingSettings(propertyId, input) {
     };
   }
 
-  const updates = { booking_engine: prefs, updated_at: new Date().toISOString() };
+  // The page's content is kept as it was; it is saved on its own tabs.
+  const updates = { booking_engine: { ...prefs, content: current.content }, updated_at: new Date().toISOString() };
   if (!current.key) updates.booking_key = randomBytes(9).toString("base64url");
   const { error } = await getSupabaseAdmin().from("properties").update(updates).eq("id", propertyId);
   if (error) throw new Error(/booking_/.test(error.message) ? BOOKING_NOT_READY : error.message);
   return getBookingSettings(propertyId);
+}
+
+/**
+ * Saves the booking page's content: rooms, plans, promotions and long-stay
+ * discounts. The hotel's payment choices are kept as they were.
+ */
+export async function saveBookingContent(propertyId, input) {
+  const current = await getBookingSettings(propertyId);
+  if (!current.ready) throw new Error(BOOKING_NOT_READY);
+  const content = cleanBookingContent(input);
+  const updates = { booking_engine: { ...current.prefs, content }, updated_at: new Date().toISOString() };
+  if (!current.key) updates.booking_key = randomBytes(9).toString("base64url");
+  const { error } = await getSupabaseAdmin().from("properties").update(updates).eq("id", propertyId);
+  if (error) throw new Error(/booking_/.test(error.message) ? BOOKING_NOT_READY : error.message);
+  return getBookingSettings(propertyId);
+}
+
+// ------------------------------------------------------------------
+// Room photos
+// ------------------------------------------------------------------
+
+/** Photos are meant to be seen, so they sit in a public bucket guests' pages link directly. */
+const PHOTO_BUCKET = "booking-photos";
+export const MAX_PHOTO_BYTES = 3 * 1024 * 1024;
+const PHOTO_TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+let photoBucketSeen = false;
+
+async function ensurePhotoBucket(supabase) {
+  if (photoBucketSeen) return;
+  const { data } = await supabase.storage.getBucket(PHOTO_BUCKET);
+  if (!data) {
+    const { error } = await supabase.storage.createBucket(PHOTO_BUCKET, { public: true });
+    if (error && !/already exists/i.test(error.message)) {
+      console.error("Booking photo bucket setup failed:", error.message);
+      throw new Error("The photo did not save. Please try again.");
+    }
+  }
+  photoBucketSeen = true;
+}
+
+function photoPath(url) {
+  const marker = `/storage/v1/object/public/${PHOTO_BUCKET}/`;
+  const at = String(url || "").indexOf(marker);
+  return at < 0 ? null : decodeURIComponent(url.slice(at + marker.length).split("?")[0]);
+}
+
+/** Adds a photo to a room type's photos and returns the page's content. */
+export async function addRoomPhoto(propertyId, roomTypeId, file) {
+  const ext = PHOTO_TYPES[file.type];
+  if (!ext) throw new Error("The photo must be a JPG, PNG or WebP picture.");
+  if (file.size > MAX_PHOTO_BYTES) throw new Error("The photo must be 3 MB or smaller.");
+  const current = await getBookingSettings(propertyId);
+  if (!current.ready) throw new Error(BOOKING_NOT_READY);
+  const room = current.content.rooms[roomTypeId] || { hidden: false, description: "", amenities: [], photos: [] };
+  if (room.photos.length >= MAX_ROOM_PHOTOS) throw new Error(`A room can have up to ${MAX_ROOM_PHOTOS} photos.`);
+
+  const supabase = getSupabaseAdmin();
+  await ensurePhotoBucket(supabase);
+  const path = `${propertyId}/${roomTypeId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, Buffer.from(await file.arrayBuffer()), { contentType: file.type, upsert: false });
+  if (error) {
+    console.error("Booking photo upload failed:", error.message);
+    throw new Error("The photo did not save. Please try again.");
+  }
+  const url = supabase.storage.from(PHOTO_BUCKET).getPublicUrl(path).data.publicUrl;
+  const content = {
+    ...current.content,
+    rooms: { ...current.content.rooms, [roomTypeId]: { ...room, photos: [...room.photos, url] } },
+  };
+  try {
+    return await saveBookingContent(propertyId, content);
+  } catch (err) {
+    await supabase.storage.from(PHOTO_BUCKET).remove([path]).catch(() => {});
+    throw err;
+  }
+}
+
+/** Takes a photo off a room type, or moves it first when `makeCover` is set. */
+export async function changeRoomPhoto(propertyId, roomTypeId, url, { makeCover = false } = {}) {
+  const current = await getBookingSettings(propertyId);
+  const room = current.content.rooms[roomTypeId];
+  if (!room || !room.photos.includes(url)) return current;
+  const rest = room.photos.filter((u) => u !== url);
+  const photos = makeCover ? [url, ...rest] : rest;
+  const saved = await saveBookingContent(propertyId, {
+    ...current.content,
+    rooms: { ...current.content.rooms, [roomTypeId]: { ...room, photos } },
+  });
+  const path = !makeCover && photoPath(url);
+  if (path) await getSupabaseAdmin().storage.from(PHOTO_BUCKET).remove([path]).catch(() => {});
+  return saved;
 }
 
 /** The hotel behind a booking page, or null when the page is unknown or switched off. */
@@ -146,6 +245,7 @@ export async function findHotelByKey(key) {
   return {
     property: data,
     prefs,
+    content: cleanBookingContent(data.booking_engine?.content),
     currency,
     today: todayInZone(clock),
     payUpi: currency === "INR" && isUpiId(prefs.upiId),
@@ -165,6 +265,8 @@ export function hotelView(hotel) {
     payUpi,
     payAtHotel: prefs.payAtHotel,
     note: prefs.note || null,
+    // The promo code box is only offered where there is a code to type.
+    hasCodes: hotel.content.promotions.some((p) => p.active && p.code),
   };
 }
 
@@ -188,7 +290,8 @@ export function readStay(hotel, input) {
   }
   if (!Number.isFinite(adults) || adults < 1 || adults > 20) return { error: "Choose how many adults." };
   if (children > 10) return { error: "Choose how many children." };
-  return { stay: { checkIn, checkOut, adults, children, nights } };
+  const code = String(input?.code || "").trim().toUpperCase().slice(0, 20);
+  return { stay: { checkIn, checkOut, adults, children, nights, code } };
 }
 
 /**
@@ -217,22 +320,35 @@ function restrictionsAllow(plan, roomTypeId, stay, restrictions) {
   return { ok: true };
 }
 
-/** Taxes on a room charge, as the folio will work them out once booked. */
-function withTax(quote, stay, taxRules, services) {
-  const { totals } = folioTotals({
-    reservation: {
-      total_amount: quote.total,
-      adults: stay.adults,
-      children: stay.children,
-      guest_residency: "domestic",
-      stay_kind: "overnight",
-      check_in: stay.checkIn,
-    },
-    nights: quote.nights.map((n) => ({ stay_date: n.stay_date, rate: Number(n.rate) })),
-    taxRules,
-    services,
-  });
-  return { room: totals.room, tax: round2(totals.tax), total: totals.total };
+/**
+ * Taxes on a room charge, as the folio will work them out once booked. A
+ * discount comes off before tax, so a night can drop into a lower slab, as
+ * it does on the bill.
+ */
+function withTax(quote, stay, taxRules, services, discount = null) {
+  const priced = (d) =>
+    folioTotals({
+      reservation: {
+        total_amount: quote.total,
+        adults: stay.adults,
+        children: stay.children,
+        guest_residency: "domestic",
+        stay_kind: "overnight",
+        check_in: stay.checkIn,
+        ...(d ? { discount_kind: "percent", discount_value: d.percent, discount_timing: "before_tax" } : {}),
+      },
+      nights: quote.nights.map((n) => ({ stay_date: n.stay_date, rate: Number(n.rate) })),
+      taxRules,
+      services,
+    }).totals;
+  const totals = priced(discount);
+  const full = discount ? priced(null) : totals;
+  return {
+    room: totals.room,
+    tax: round2(totals.tax),
+    total: totals.total,
+    ...(discount ? { fullTotal: full.total, discount: { percent: discount.percent, label: discount.label, kind: discount.kind } } : {}),
+  };
 }
 
 /**
@@ -251,14 +367,17 @@ export async function searchOffers(hotel, stay) {
     listPropertyExtras(propertyId, { includeInactive: true }),
   ]);
 
+  const { content } = hotel;
   const plans = quoteData.ratePlans.filter(
-    (p) => !isDayUsePlan(p) && p.is_active !== false && p.active !== false
+    (p) => !isDayUsePlan(p) && p.is_active !== false && p.active !== false && !content.plans[p.id]?.hidden
   );
   const nightSet = new Set(stay.nights);
   const offers = [];
   let minStayHint = null;
 
   for (const type of quoteData.roomTypes) {
+    const shown = content.rooms[type.id] || {};
+    if (shown.hidden) continue;
     const row = grid.roomTypes.find((r) => r.id === type.id);
     if (!row) continue;
     const free = Math.min(...row.days.filter((d) => nightSet.has(d.date)).map((d) => d.free));
@@ -290,12 +409,15 @@ export async function searchOffers(hotel, stay) {
         quoteData
       );
       if (!(quote.total > 0) || quote.partial || quote.source === "base_price") continue;
-      const priced = withTax(quote, stay, taxRules, services);
+      const discount = bestDiscount(content, { planId: plan.id, stay, today: hotel.today, code: stay.code });
+      const priced = withTax(quote, stay, taxRules, services, discount);
       const meal = mealPlan(plan.meal_plan);
+      const words = content.plans[plan.id] || {};
       options.push({
         ratePlanId: plan.id,
-        name: plan.plan_name || meal?.name || "Room",
-        meals: meal?.hint || null,
+        name: words.name || plan.plan_name || meal?.name || "Room",
+        meals: words.description || meal?.hint || null,
+        cancellation: words.cancellation || null,
         refundable: plan.refundable !== false,
         ...priced,
       });
@@ -305,8 +427,9 @@ export async function searchOffers(hotel, stay) {
     offers.push({
       roomTypeId: type.id,
       name: type.room_type_name,
-      description: type.description || "",
-      amenities: Array.isArray(type.amenities) ? type.amenities.slice(0, 12) : [],
+      description: shown.description || type.description || "",
+      amenities: (shown.amenities?.length ? shown.amenities : Array.isArray(type.amenities) ? type.amenities : []).slice(0, 12),
+      photos: shown.photos || [],
       maxAdults,
       // "Only 2 left" is worth saying; the count past a few is not.
       fewLeft: free <= 3 ? free : null,
@@ -314,7 +437,12 @@ export async function searchOffers(hotel, stay) {
     });
   }
 
-  return { offers, minStay: offers.length === 0 ? minStayHint : null };
+  return {
+    offers,
+    minStay: offers.length === 0 ? minStayHint : null,
+    // A code that matches nothing is said so, rather than silently ignored.
+    badCode: Boolean(stay.code) && !isKnownCode(content, stay.code),
+  };
 }
 
 // ------------------------------------------------------------------
@@ -397,6 +525,17 @@ export async function createOnlineBooking(hotel, input) {
       .filter(Boolean)
       .join("\n"),
     status: "confirmed",
+    // The website price the guest saw: the discount sits on the booking like
+    // one the desk gives, so the bill, the invoice and the reports show it.
+    ...(option.discount
+      ? {
+          discount_kind: "percent",
+          discount_value: option.discount.percent,
+          discount_timing: "before_tax",
+          discount_reason: option.discount.kind === "long_stay" ? "long_stay" : "promotion",
+          discount_note: `Website: ${option.discount.label}`,
+        }
+      : {}),
   };
   try {
     const guestId = await linkGuestForBooking(propertyId, fields, null);
@@ -419,6 +558,7 @@ export async function createOnlineBooking(hotel, input) {
   }
 
   const folio = await getReservationFolio(reservation.id);
+  if (option.discount) await logWebsiteDiscount(reservation, option.discount, folio.totals.discount);
   const { data: row, error } = await getSupabaseAdmin()
     .from(TABLE)
     .insert({
@@ -438,6 +578,29 @@ export async function createOnlineBooking(hotel, input) {
   await syncInventory(propertyId, [staySpan(reservation)], { actor: "Website booking" });
 
   return { token: row.token };
+}
+
+/** The discount log keeps every discount given, the website's too. Never costs the booking. */
+async function logWebsiteDiscount(reservation, discount, amount) {
+  const { error } = await getSupabaseAdmin().from("reservation_discounts").insert({
+    property_id: reservation.property_id,
+    reservation_id: reservation.id,
+    reference: reservation.reference || null,
+    guest_name: reservation.guest_name || null,
+    kind: "percent",
+    value: discount.percent,
+    timing: "before_tax",
+    amount: amount || 0,
+    previous_kind: null,
+    previous_value: null,
+    previous_timing: null,
+    previous_amount: 0,
+    reason: discount.kind === "long_stay" ? "long_stay" : "promotion",
+    note: `Website: ${discount.label}`,
+    currency: reservation.currency || null,
+    changed_by: null,
+  });
+  if (error) console.error("Booking engine: could not log the discount:", error.message);
 }
 
 // ------------------------------------------------------------------

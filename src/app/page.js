@@ -92,7 +92,7 @@ const CheckinSettings = dynamic(() => import("./dashboard/components/CheckinSett
   ssr: false,
   loading: PageLoading,
 });
-const BookingEngineSettings = dynamic(() => import("./dashboard/components/BookingEngineSettings"), {
+const BookingEngine = dynamic(() => import("./dashboard/components/BookingEngine"), {
   ssr: false,
   loading: PageLoading,
 });
@@ -956,6 +956,10 @@ export default function V2Dashboard() {
                     </>
                   )}
 
+                  {active === "bookingengine" && (
+                    <BookingEngine key={scopedSession?.propertyId || ""} session={scopedSession} />
+                  )}
+
                   {active === "integrations" && <Integrations session={scopedSession} />}
 
                   {active === "logs" && <ActivityLog session={scopedSession} />}
@@ -1036,7 +1040,6 @@ export default function V2Dashboard() {
                       <GoogleListingSetup propertyId={scopedSession?.propertyId} />
                       <DisplaySettings propertyId={scopedSession?.propertyId} />
                       <CheckinSettings propertyId={scopedSession?.propertyId} />
-                      <BookingEngineSettings propertyId={scopedSession?.propertyId} />
                     </div>
                   )}
 

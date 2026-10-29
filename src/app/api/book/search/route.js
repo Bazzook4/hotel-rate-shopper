@@ -14,6 +14,7 @@ export async function GET(req) {
     checkOut: params.get("checkOut"),
     adults: params.get("adults"),
     children: params.get("children"),
+    code: params.get("code"),
   });
   if (read.error) return NextResponse.json({ error: read.error }, { status: 400 });
 

@@ -17,8 +17,12 @@ export const RELEASE_NOTES = [
     title: "Booking engine for your website",
     points: [
       {
-        page: "setup",
-        text: "Turn on Booking engine in Property Setup and add your UPI ID. You get a booking page link to share and a code to paste into your website. Guests see your free rooms and rates with taxes, book, and pay straight to your UPI ID by app or QR code.",
+        page: "bookingengine",
+        text: "New Booking Engine page under Rates. Add your UPI ID to get a booking page link to share and a code to paste into your website. Guests see your free rooms and rates with taxes, book, and pay straight to your UPI ID by app or QR code.",
+      },
+      {
+        page: "bookingengine",
+        text: "On the same page: add room photos, say what each plan includes and its cancellation terms, hide rooms or plans from your website, run promotions for dates or a promo code, and give money off longer stays. The discount shows on the guest's bill.",
       },
       {
         page: "reservations",

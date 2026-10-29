@@ -19,6 +19,8 @@ export const DISCOUNT_REASONS = [
   { id: 'repeat_guest', label: 'Repeat guest' },
   { id: 'complaint', label: 'Complaint' },
   { id: 'long_stay', label: 'Long stay' },
+  // Given by the booking engine's promotions, never picked by the desk.
+  { id: 'promotion', label: 'Website promotion' },
   { id: 'manager', label: 'Manager approved' },
   { id: 'other', label: 'Other' },
 ];
