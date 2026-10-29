@@ -18,7 +18,12 @@ export default function AdminPage() {
   const router = useRouter();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("properties");
+  const [tab, setTabState] = useState("properties");
+
+  function setTab(id) {
+    setTabState(id);
+    localStorage.setItem("adminTab", id);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +42,12 @@ export default function AdminPage() {
           router.push("/");
           return;
         }
-        if (!cancelled) setSession(data.user);
+        if (cancelled) return;
+        setSession(data.user);
+        // The last tab opened comes back next time, so a daily WhatsApp check is
+        // one tap; a super admin's tab is not restored for a property admin.
+        const saved = localStorage.getItem("adminTab");
+        if (saved === "users" || (saved && isSuperAdmin(data.user))) setTabState(saved);
       } catch {
         router.push("/login");
       } finally {
@@ -73,7 +83,7 @@ export default function AdminPage() {
             <ThemeToggle />
           </div>
           {isSuperAdmin(session) && <SchemaStatus />}
-          <div className="flex gap-2">
+          <div className="flex gap-2 overflow-x-auto">
             {[
               ["properties", "Properties"],
               ["users", "Users"],
@@ -90,7 +100,7 @@ export default function AdminPage() {
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`rounded-xl px-3 py-1.5 text-sm transition ${
+                className={`shrink-0 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm transition ${
                   tab === id
                     ? "bg-[var(--accent-soft)] text-ink"
                     : "muted hover:bg-[var(--surface-2)] hover:text-ink"

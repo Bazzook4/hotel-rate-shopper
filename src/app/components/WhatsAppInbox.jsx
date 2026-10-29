@@ -169,8 +169,19 @@ export default function WhatsAppInbox() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Facts>
+      <div className="flex items-center justify-between gap-2 md:flex-wrap">
+        {/* On a phone the counts fold into one picker, so the chats get the screen. */}
+        <div className="min-w-0 flex-1 md:hidden">
+          <Select value={filter || ""} onChange={(e) => setFilter(e.target.value || null)} aria-label="Show" className="input w-full text-sm">
+            <option value="">All chats ({contacts.length})</option>
+            <option value="needs">Needs you ({counts.needs})</option>
+            <option value="unread">Unread ({counts.unread})</option>
+            <option value="leads">Open leads ({counts.leads})</option>
+            <option value="paused">Bot off ({counts.paused})</option>
+            <option value="hotels">Hotels ({counts.hotels})</option>
+          </Select>
+        </div>
+        <Facts className="max-md:hidden">
           <Fact label="Chats" onClick={pick("all")}>{contacts.length}</Fact>
           <Fact label="Needs you" tone={on("needs") || (counts.needs ? "warn" : undefined)} onClick={pick("needs")}>{counts.needs}</Fact>
           <Fact label="Unread" tone={on("unread") || (counts.unread ? "warn" : undefined)} onClick={pick("unread")}>{counts.unread}</Fact>
@@ -178,9 +189,9 @@ export default function WhatsAppInbox() {
           <Fact label="Bot off" tone={on("paused")} onClick={pick("paused")}>{counts.paused}</Fact>
           <Fact label="Hotels" tone={on("hotels")} onClick={pick("hotels")}>{counts.hotels}</Fact>
         </Facts>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
           {addError && <span className="text-xs text-[var(--danger)]">{addError}</span>}
-          <Select value="" onChange={(e) => add(e.target.value)} disabled={adding} aria-label="Add a hotel's contact" className="input text-sm">
+          <Select value="" onChange={(e) => add(e.target.value)} disabled={adding} aria-label="Add a hotel's contact" className="input w-full text-sm">
             <option value="">{adding ? "Adding..." : "Add a hotel's contact..."}</option>
             {data.hotels.map((h) => (
               <option key={h.id} value={h.has_mobile ? h.id : ""}>
