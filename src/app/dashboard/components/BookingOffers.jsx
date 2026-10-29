@@ -457,21 +457,6 @@ function Simulator({ propertyId, currency, hasOffers }) {
   );
 }
 
-/** A small titled block of the panel. */
-function Block({ title, hint, children }) {
-  return (
-    <section className="space-y-2">
-      <div>
-        <h4 className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-          {title}
-        </h4>
-        {hint && <p className="sub text-xs">{hint}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 function Field({ label, error, children, className = "" }) {
   return (
     <label className={`block min-w-0 space-y-1 ${className}`}>
@@ -521,11 +506,47 @@ function Picks({ all, picked, onChange, noun }) {
   );
 }
 
+/**
+ * One optional condition, folded to a line that says what it is set to.
+ * Opening one closes the others, so the panel stays short. A condition with
+ * a problem opens itself.
+ */
+function Condition({ id, open, setOpen, title, summary, error, last, children }) {
+  const isOpen = open === id || Boolean(error);
+  const set = summary && !/^(Any|Any day|Every day|All|No most)$/.test(summary);
+  return (
+    <div style={last ? undefined : { borderBottom: "1px solid var(--border)" }}>
+      <button
+        type="button"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm"
+        aria-expanded={isOpen}
+        onClick={() => setOpen(isOpen ? null : id)}
+      >
+        <span style={{ color: "var(--text)" }}>{title}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-xs" style={{ color: set ? "var(--accent-text)" : "var(--text-muted)", fontWeight: set ? 600 : 400 }}>
+            {summary}
+          </span>
+          <Icon name={isOpen ? "up" : "down"} size={14} />
+        </span>
+      </button>
+      {isOpen && <div className="px-3 pb-3">{children}</div>}
+    </div>
+  );
+}
+
+const range = (from, to, none) =>
+  from && to ? `${shortDay(from)} to ${shortDay(to)}` : from ? `From ${shortDay(from)}` : to ? `Until ${shortDay(to)}` : none;
+
+const picked = (ids, all) =>
+  ids?.length ? (ids.length <= 2 ? ids.map((id) => all.find((x) => x.id === id)?.name).filter(Boolean).join(", ") : `${ids.length} ticked`) : "All";
+
 function OfferPanel({ initial, isNew, coupons, promotionsFull, couponsFull, rooms, plans, currency, onSave, onDelete, onClose }) {
   const [form, setForm] = useState(initial);
   const [problem, setProblem] = useState(null);
   const [busy, setBusy] = useState(false);
   const [blackoutDay, setBlackoutDay] = useState("");
+  const [openPart, setOpenPart] = useState(null);
   const firstRef = useRef(null);
   const isCoupon = form.type === "coupon";
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
@@ -598,22 +619,32 @@ function OfferPanel({ initial, isNew, coupons, promotionsFull, couponsFull, room
           </button>
         </div>
 
-        <div className="card-pad flex-1 space-y-5">
-          <Block title="Type">
-            <div className="seg flex-wrap" role="radiogroup" aria-label="Offer type">
-              {OFFER_TYPES.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={form.type === t.id}
-                  className={form.type === t.id ? "seg-on" : ""}
-                  onClick={() => set({ type: t.id })}
-                  title={t.hint}
-                >
-                  {t.label}
-                </button>
-              ))}
+        <div className="card-pad flex-1 space-y-4">
+          <div className="space-y-1.5">
+            <span className="label">Type</span>
+            <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Offer type">
+              {OFFER_TYPES.map((t) => {
+                const on = form.type === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => set({ type: t.id })}
+                    className="btn text-sm"
+                    style={{
+                      justifyContent: "center",
+                      background: on ? "var(--accent-soft)" : "var(--surface)",
+                      color: on ? "var(--accent-text)" : "var(--text)",
+                      borderColor: on ? "var(--accent)" : "var(--border-strong)",
+                      fontWeight: on ? 600 : 400,
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
             </div>
             <p className="sub text-xs">{OFFER_TYPES.find((t) => t.id === form.type)?.hint}.</p>
             {problem?.field === "type" && (
@@ -621,187 +652,197 @@ function OfferPanel({ initial, isNew, coupons, promotionsFull, couponsFull, room
                 {problem.message}
               </p>
             )}
-          </Block>
+          </div>
 
-          <Block title={isCoupon ? "Code and discount" : "Name and discount"}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {isCoupon ? (
-                <Field label="Code guests type" error={err("code")}>
-                  <input
-                    ref={firstRef}
-                    className="input w-full font-mono"
-                    style={{ textTransform: "uppercase" }}
-                    maxLength={20}
-                    placeholder="INSTA10"
-                    autoCapitalize="characters"
-                    spellCheck={false}
-                    {...bind("code")}
-                  />
-                </Field>
-              ) : (
-                <Field label="Name guests see" error={err("name")}>
-                  <input ref={firstRef} className="input w-full" maxLength={60} placeholder="Diwali offer" {...bind("name")} />
-                </Field>
-              )}
-              <Field label="Discount" error={err("value")}>
-                <span className="flex gap-2">
-                  <input className="input w-full" inputMode="decimal" placeholder={form.kind === "amount" ? "500" : "10"} {...bind("value")} />
-                  <span className="seg" role="radiogroup" aria-label="Percent or amount">
-                    <button type="button" role="radio" aria-checked={form.kind === "percent"} className={form.kind === "percent" ? "seg-on" : ""} onClick={() => set({ kind: "percent" })}>
-                      %
-                    </button>
-                    <button type="button" role="radio" aria-checked={form.kind === "amount"} className={form.kind === "amount" ? "seg-on" : ""} onClick={() => set({ kind: "amount" })}>
-                      Amount
-                    </button>
-                  </span>
+          {isCoupon ? (
+            <Field label="Code guests type" error={err("code")}>
+              <input
+                ref={firstRef}
+                className="input w-full font-mono"
+                style={{ textTransform: "uppercase" }}
+                maxLength={20}
+                placeholder="INSTA10"
+                autoCapitalize="characters"
+                spellCheck={false}
+                {...bind("code")}
+              />
+            </Field>
+          ) : (
+            <Field label="Name guests see" error={err("name")}>
+              <input ref={firstRef} className="input w-full" maxLength={60} placeholder="Diwali offer" {...bind("name")} />
+            </Field>
+          )}
+
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            <Field label="Discount" error={err("value")}>
+              <span className="flex gap-2">
+                <input
+                  className="input"
+                  style={{ width: "6.5rem" }}
+                  inputMode="decimal"
+                  placeholder={form.kind === "amount" ? "500" : "10"}
+                  {...bind("value")}
+                />
+                <span className="seg" role="radiogroup" aria-label="Percent or amount">
+                  <button type="button" role="radio" aria-checked={form.kind === "percent"} className={form.kind === "percent" ? "seg-on" : ""} onClick={() => set({ kind: "percent" })}>
+                    %
+                  </button>
+                  <button type="button" role="radio" aria-checked={form.kind === "amount"} className={form.kind === "amount" ? "seg-on" : ""} onClick={() => set({ kind: "amount" })}>
+                    {currencySymbol(currency)}
+                  </button>
                 </span>
+              </span>
+            </Field>
+            {form.type === "long" && (
+              <Field label="Nights or more" error={err("minNights")}>
+                <input className="input" style={{ width: "5.5rem" }} inputMode="numeric" placeholder="3" {...bind("minNights")} />
               </Field>
-              {isCoupon && (
-                <Field label="Name guests see (optional)" className="sm:col-span-2">
-                  <input className="input w-full" maxLength={60} placeholder={`Code ${cleanCode(form.code) || "INSTA10"}`} {...bind("name")} />
-                </Field>
-              )}
-            </div>
-            <p className="sub text-xs">
-              {form.kind === "amount"
-                ? `${currencySymbol(currency)} off the whole stay, before tax.`
-                : "Off each night that qualifies, before tax."}
-            </p>
-          </Block>
-
-          {form.type === "long" && (
-            <Block title="Long stay">
-              <Field label="Staying this many nights or more" error={err("minNights")}>
-                <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="3" {...bind("minNights")} />
+            )}
+            {(form.type === "early" || form.type === "last") && (
+              <Field label={form.type === "early" ? "Booked at least, days ahead" : "Booked within, days of arrival"} error={err("days")}>
+                <input className="input" style={{ width: "5.5rem" }} inputMode="numeric" placeholder={form.type === "early" ? "30" : "3"} {...bind("days")} />
               </Field>
-            </Block>
-          )}
-
-          {!isCoupon && (form.type === "early" || form.type === "last") && (
-            <Block title={form.type === "early" ? "Early bird" : "Last minute"}>
-              <Field label={form.type === "early" ? "Booked at least this many days before arrival" : "Booked this many days before arrival, or fewer"} error={err("days")}>
-                <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder={form.type === "early" ? "30" : "3"} {...bind("days")} />
+            )}
+            {isCoupon && (
+              <Field label="Most uses" error={err("maxUses")}>
+                <input className="input" style={{ width: "6.5rem" }} inputMode="numeric" placeholder="No limit" {...bind("maxUses")} />
               </Field>
-            </Block>
-          )}
+            )}
+          </div>
+          <p className="sub -mt-2 text-xs">
+            {form.kind === "amount" ? "Off the whole stay, before tax." : "Off each night that qualifies, before tax."}
+          </p>
 
           {(isCoupon || form.type === "mobile") && (
-            <Block title="Combining">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={form.stack} onChange={(e) => set({ stack: e.target.checked })} />
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={form.stack} onChange={(e) => set({ stack: e.target.checked })} />
+              <span>
                 Combine with other offers
-              </label>
-              <p className="sub text-xs">
-                {form.stack
-                  ? "Added on top of the best deal, off the price that is left."
-                  : "Competes with the deal: the guest gets whichever is worth more."}
-              </p>
-              {isCoupon && (
-                <Field label="Most uses (optional)" error={err("maxUses")}>
-                  <input className="input" style={{ width: "7rem" }} inputMode="numeric" placeholder="No limit" {...bind("maxUses")} />
-                </Field>
-              )}
-            </Block>
-          )}
-          {!isCoupon && form.type !== "mobile" && (
-            <p className="sub text-xs">A deal never combines with another deal. Mobile offers and coupon codes can add on top of it.</p>
+                <span className="sub block text-xs">
+                  {form.stack ? "Added on top of the best deal, off the price that is left." : "Competes with the deal: the guest gets whichever is worth more."}
+                </span>
+              </span>
+            </label>
           )}
 
-          <Block title="Check-in dates" hint="When guests arrive. Blank means any date.">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="From">
-                <OptionalDate label="First check-in date" value={form.checkInFrom} onChange={(v) => set({ checkInFrom: v })} />
-              </Field>
-              <Field label="To" error={err("checkInTo")}>
-                <OptionalDate label="Last check-in date" value={form.checkInTo} min={form.checkInFrom || undefined} onChange={(v) => set({ checkInTo: v })} />
-              </Field>
-            </div>
-          </Block>
-
-          <Block title="Booking dates" hint="When guests book. Blank means any day.">
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="From">
-                <OptionalDate label="First booking date" value={form.bookFrom} onChange={(v) => set({ bookFrom: v })} />
-              </Field>
-              <Field label="To" error={err("bookTo")}>
-                <OptionalDate label="Last booking date" value={form.bookTo} min={form.bookFrom || undefined} onChange={(v) => set({ bookTo: v })} />
-              </Field>
-            </div>
-          </Block>
-
-          {!isCoupon && (
-            <Block title="Nights it applies to" hint="Untick days to leave them out. Blackout nights never get the discount.">
-              <div className="seg flex-wrap" role="group" aria-label="Days of the week">
-                {WEEKDAYS.map((d, i) => {
-                  const on = form.weekdays.length === 0 || form.weekdays.includes(i);
-                  return (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={on}
-                      className={on ? "seg-on" : ""}
-                      onClick={() => {
-                        const current = form.weekdays.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : form.weekdays;
-                        const next = on ? current.filter((x) => x !== i) : [...current, i].sort();
-                        set({ weekdays: next.length === 7 ? [] : next });
-                      }}
-                    >
-                      {d}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <Field label="Blackout dates">
-                  <OptionalDate label="Blackout date" value={blackoutDay} onChange={(v) => (v ? addBlackout(v) : setBlackoutDay(""))} />
-                </Field>
-              </div>
-              {form.blackout.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {form.blackout.map((d) => (
-                    <span key={d} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs" style={{ border: "1px solid var(--border)" }}>
-                      {shortDay(d)}
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        style={{ padding: "0.15rem" }}
-                        onClick={() => set({ blackout: form.blackout.filter((x) => x !== d) })}
-                        aria-label={`Remove blackout ${shortDay(d)}`}
-                      >
-                        <Icon name="close" size={12} />
-                      </button>
-                    </span>
-                  ))}
+          <div className="space-y-0">
+            <span className="label">Conditions, all optional</span>
+            <div className="rounded" style={{ border: "1px solid var(--border)" }}>
+              <Condition id="checkin" open={openPart} setOpen={setOpenPart} title="Check-in dates" summary={range(form.checkInFrom, form.checkInTo, "Any")} error={err("checkInTo")}>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="From">
+                    <OptionalDate label="First check-in date" value={form.checkInFrom} onChange={(v) => set({ checkInFrom: v })} />
+                  </Field>
+                  <Field label="To" error={err("checkInTo")}>
+                    <OptionalDate label="Last check-in date" value={form.checkInTo} min={form.checkInFrom || undefined} onChange={(v) => set({ checkInTo: v })} />
+                  </Field>
                 </div>
+              </Condition>
+              <Condition id="booking" open={openPart} setOpen={setOpenPart} title="Booking dates" summary={range(form.bookFrom, form.bookTo, "Any day")} error={err("bookTo")}>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="From">
+                    <OptionalDate label="First booking date" value={form.bookFrom} onChange={(v) => set({ bookFrom: v })} />
+                  </Field>
+                  <Field label="To" error={err("bookTo")}>
+                    <OptionalDate label="Last booking date" value={form.bookTo} min={form.bookFrom || undefined} onChange={(v) => set({ bookTo: v })} />
+                  </Field>
+                </div>
+              </Condition>
+              {!isCoupon && (
+                <Condition
+                  id="nights"
+                  open={openPart}
+                  setOpen={setOpenPart}
+                  title="Days and blackout dates"
+                  summary={[
+                    form.weekdays.length ? form.weekdays.map((d) => WEEKDAYS[d]).join(" ") : "Every day",
+                    form.blackout.length ? `${form.blackout.length} blackout` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                >
+                  <div className="space-y-3">
+                    <div className="seg" role="group" aria-label="Days of the week">
+                      {WEEKDAYS.map((d, i) => {
+                        const on = form.weekdays.length === 0 || form.weekdays.includes(i);
+                        return (
+                          <button
+                            key={d}
+                            type="button"
+                            aria-pressed={on}
+                            className={on ? "seg-on" : ""}
+                            onClick={() => {
+                              const current = form.weekdays.length === 0 ? [0, 1, 2, 3, 4, 5, 6] : form.weekdays;
+                              const next = on ? current.filter((x) => x !== i) : [...current, i].sort();
+                              set({ weekdays: next.length === 7 ? [] : next });
+                            }}
+                          >
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Field label="Add a blackout date">
+                      <OptionalDate label="Blackout date" value={blackoutDay} onChange={(v) => (v ? addBlackout(v) : setBlackoutDay(""))} />
+                    </Field>
+                    {form.blackout.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {form.blackout.map((d) => (
+                          <span key={d} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs" style={{ border: "1px solid var(--border)" }}>
+                            {shortDay(d)}
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{ padding: "0.15rem" }}
+                              onClick={() => set({ blackout: form.blackout.filter((x) => x !== d) })}
+                              aria-label={`Remove blackout ${shortDay(d)}`}
+                            >
+                              <Icon name="close" size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Condition>
               )}
-            </Block>
-          )}
-
-          <Block title="Length of stay" hint="Blank means any.">
-            <div className="flex gap-3">
-              {form.type !== "long" && (
-                <Field label="Fewest nights" error={err("minNights")}>
-                  <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("minNights")} />
-                </Field>
-              )}
-              <Field label="Most nights" error={err("maxNights")}>
-                <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("maxNights")} />
-              </Field>
+              <Condition
+                id="stay"
+                open={openPart}
+                setOpen={setOpenPart}
+                title="Length of stay"
+                summary={
+                  form.type === "long"
+                    ? form.maxNights
+                      ? `Up to ${form.maxNights} nights`
+                      : "No most"
+                    : form.minNights || form.maxNights
+                      ? `${form.minNights || 1} to ${form.maxNights || "any"} nights`
+                      : "Any"
+                }
+                error={err("maxNights") || (form.type !== "long" ? err("minNights") : null)}
+              >
+                <div className="flex gap-3">
+                  {form.type !== "long" && (
+                    <Field label="Fewest nights" error={err("minNights")}>
+                      <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("minNights")} />
+                    </Field>
+                  )}
+                  <Field label="Most nights" error={err("maxNights")}>
+                    <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("maxNights")} />
+                  </Field>
+                </div>
+              </Condition>
+              <Condition id="rooms" open={openPart} setOpen={setOpenPart} title="Room types" summary={picked(form.roomTypeIds, rooms)}>
+                <Picks all={rooms} picked={form.roomTypeIds} onChange={(v) => set({ roomTypeIds: v })} noun="room types" />
+              </Condition>
+              <Condition id="plans" open={openPart} setOpen={setOpenPart} title="Rate plans" summary={picked(form.planIds, plans)} last>
+                <Picks all={plans} picked={form.planIds} onChange={(v) => set({ planIds: v })} noun="rate plans" />
+              </Condition>
             </div>
-          </Block>
+          </div>
 
-          <Block title="Room types">
-            <Picks all={rooms} picked={form.roomTypeIds} onChange={(v) => set({ roomTypeIds: v })} noun="room types" />
-          </Block>
-          <Block title="Rate plans">
-            <Picks all={plans} picked={form.planIds} onChange={(v) => set({ planIds: v })} noun="rate plans" />
-          </Block>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
-            Switched on
-          </label>
-          {problem && (
+          {problem?.field === "form" && (
             <p className="text-sm" style={{ color: "var(--danger)" }}>
               {problem.message}
             </p>
@@ -815,8 +856,12 @@ function OfferPanel({ initial, isNew, coupons, promotionsFull, couponsFull, room
           <button type="button" className="btn btn-secondary" onClick={close} disabled={busy}>
             Cancel
           </button>
+          <label className="ml-auto flex items-center gap-1.5 text-sm">
+            <input type="checkbox" checked={form.active} onChange={(e) => set({ active: e.target.checked })} />
+            Switched on
+          </label>
           {!isNew && (
-            <button type="button" className="btn btn-ghost ml-auto" style={{ color: "var(--danger)" }} onClick={onDelete} disabled={busy}>
+            <button type="button" className="btn btn-ghost" style={{ color: "var(--danger)" }} onClick={onDelete} disabled={busy}>
               Delete
             </button>
           )}
