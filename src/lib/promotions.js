@@ -19,10 +19,15 @@
  * stay leaves two nights discounted. An amount comes off the stay once, if
  * any night qualifies.
  *
- * The guest gets the promotion (or long-stay step) worth the most, never two
- * of them. A coupon then comes off what is left, or, when the hotel says it
- * may not be added on top, is used only if it is worth more than the
- * promotion. Never more than MAX_OFF_SHARE of the room comes off.
+ * Combining follows Booking.com's way. Offers fall in two groups:
+ *   deals     basic, early bird, last minute, long stay -- never combined
+ *             with each other; the guest gets the one worth most
+ *   targeted  mobile and coupon codes -- each added on top of the best deal,
+ *             one after the other, off the price that is left (10% then 10%
+ *             is 19%), unless the hotel switched "Combine" off for it, when
+ *             it competes with the deal instead and the bigger one wins
+ * Whatever combines, the total never passes the hotel's "Most off in total"
+ * (offerRules.maxTotalPercent), and never MAX_OFF_SHARE of the room.
  */
 
 export const PROMOTION_TYPES = [
@@ -41,6 +46,16 @@ export const MAX_PROMOTIONS = 30;
 export const MAX_COUPONS = 50;
 export const MAX_BLACKOUTS = 60;
 export const MAX_DISCOUNT_PERCENT = 90;
+
+/** The types that are deals; the rest (mobile, coupons) are targeted and may combine. */
+export const DEAL_TYPES = new Set(["basic", "early", "last", "long"]);
+export const isTargeted = (o) => o.type === "coupon" || o.type === "mobile" || Boolean(o.code);
+
+/** The hotel's rule over all offers: the most that may come off in total, as a percent. */
+export function cleanOfferRules(raw) {
+  const n = Math.round(Number(raw?.maxTotalPercent));
+  return { maxTotalPercent: Number.isFinite(n) && n >= 1 && n <= MAX_DISCOUNT_PERCENT ? n : null };
+}
 const MAX_OFF_SHARE = 0.9;
 
 const text = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -107,6 +122,8 @@ export function cleanPromotions(list) {
       type: PROMOTION_TYPES.some((t) => t.id === p?.type) ? p.type : "basic",
       days: whole(p?.days, 0, 365),
       weekdays: [...new Set((Array.isArray(p?.weekdays) ? p.weekdays : []).map(Number).filter((d) => d >= 0 && d <= 6))].sort(),
+      // Only a mobile offer combines; deals never do.
+      stack: p?.type === "mobile" ? p?.stack !== false : false,
       blackout: [...new Set((Array.isArray(p?.blackout) ? p.blackout : []).map(iso).filter(Boolean))].sort().slice(0, MAX_BLACKOUTS),
       ...cleanTerms(p),
     }))
@@ -217,7 +234,6 @@ export function offerWhen(o, day = (d) => d) {
   if (o.type === "early") parts.push(`booked ${o.days}+ days ahead`);
   if (o.type === "last") parts.push(`booked within ${o.days} days of arrival`);
   if (o.type === "mobile") parts.push("on a phone");
-  if (o.type === "coupon" || o.code) parts.push(o.stack === false ? "instead of a promotion" : "on top of a promotion");
   if (o.checkInFrom || o.checkInTo) {
     parts.push(
       o.checkInFrom && o.checkInTo
@@ -294,55 +310,73 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
   const room = nights.reduce((s, n) => s + n.rate, 0);
   if (!(room > 0)) return null;
   const ctx = { planId, roomTypeId, stay, today };
+  const ahead = daysBetween(today, stay.checkIn);
 
-  let best = null;
-  for (const p of content.promotions || []) {
-    if (!fits(p, ctx)) continue;
-    const ahead = daysBetween(today, stay.checkIn);
-    if (p.type === "early" && ahead < p.days) continue;
-    if (p.type === "last" && ahead > p.days) continue;
-    if (p.type === "mobile" && !mobile) continue;
+  /** What one promotion takes off the full price, night by night. */
+  const offOf = (p) => {
     const blackout = new Set(p.blackout || []);
     const eligible = nights.filter(
       (n) => !blackout.has(n.stay_date) && (!p.weekdays?.length || p.weekdays.includes(weekdayOf(n.stay_date)))
     );
-    const off = moneyOff(p, nights, eligible);
-    if (off > 0 && (!best || off > best.amount)) {
-      best = { amount: off, label: p.name, kind: p.type === "long" ? "long_stay" : "promotion" };
+    return moneyOff(p, nights, eligible);
+  };
+
+  // The best deal, and the best mobile offer, each priced on the full room.
+  let deal = null;
+  let phone = null;
+  for (const p of content.promotions || []) {
+    if (!fits(p, ctx)) continue;
+    if (p.type === "early" && ahead < p.days) continue;
+    if (p.type === "last" && ahead > p.days) continue;
+    if (p.type === "mobile" && !mobile) continue;
+    const off = offOf(p);
+    if (!(off > 0)) continue;
+    const found = { amount: off, label: p.name, kind: p.type === "long" ? "long_stay" : "promotion", stack: p.stack };
+    if (p.type === "mobile") {
+      if (!phone || off > phone.amount) phone = found;
+    } else if (!deal || off > deal.amount) {
+      deal = found;
     }
   }
 
   const typed = cleanCode(code);
-  let coupon = null;
-  if (typed) {
-    const c = (content.coupons || []).find((x) => x.code === typed);
-    if (c && fits(c, ctx)) {
-      const base = c.stack && best ? room - best.amount : room;
-      const off = c.kind === "amount" ? Math.min(c.value, base) : (base * c.value) / 100;
-      if (off > 0) coupon = { amount: off, code: c.code, stack: c.stack, label: c.name || `Code ${c.code}` };
-    }
-  }
+  const c = typed ? (content.coupons || []).find((x) => x.code === typed && fits(x, ctx)) : null;
+  const coupon = c
+    ? { coupon: c.code, label: c.name || `Code ${c.code}`, stack: c.stack, take: (left) => (c.kind === "amount" ? Math.min(c.value, left) : (left * c.value) / 100) }
+    : null;
 
-  let amount = best?.amount || 0;
-  let label = best?.label || null;
-  let kind = best?.kind || null;
-  let used = null;
-  if (coupon) {
-    if (coupon.stack) {
-      amount += coupon.amount;
-      label = label ? `${label} + ${coupon.code}` : coupon.label;
-      kind = kind || "promotion";
-      used = coupon.code;
-    } else if (coupon.amount > amount) {
-      amount = coupon.amount;
-      label = coupon.label;
-      kind = "promotion";
-      used = coupon.code;
+  // The deal first, then each targeted offer: on top of what is left when it
+  // combines, or in place of everything so far when it is worth more and does not.
+  let amount = deal?.amount || 0;
+  let parts = deal ? [deal] : [];
+  const addTargeted = (t, takeFromLeft) => {
+    if (!t) return;
+    const alone = takeFromLeft(room);
+    if (t.stack) {
+      const share = takeFromLeft(room - amount);
+      if (share > 0) {
+        amount += share;
+        parts = [...parts, t];
+      }
+    } else if (alone > amount) {
+      amount = alone;
+      parts = [t];
     }
-  }
-  amount = round2(Math.min(amount, room * MAX_OFF_SHARE));
+  };
+  addTargeted(phone, (left) => (phone.amount * left) / room);
+  addTargeted(coupon, (left) => coupon.take(left));
+
+  const cap = Math.min(MAX_OFF_SHARE, (content.offerRules?.maxTotalPercent || 100) / 100);
+  amount = round2(Math.min(amount, room * cap));
   if (!(amount > 0)) return null;
-  return { amount, label, kind, coupon: used, percent: Math.round((amount / room) * 100) };
+  return {
+    amount,
+    label: parts.map((p) => (p.coupon ? (parts.length > 1 ? p.coupon : p.label) : p.label)).join(" + "),
+    kind: parts.some((p) => p.kind === "long_stay") && parts.length === 1 ? "long_stay" : "promotion",
+    coupon: parts.find((p) => p.coupon)?.coupon || null,
+    percent: Math.round((amount / room) * 100),
+    capped: Boolean(content.offerRules?.maxTotalPercent) && amount >= round2(room * cap) - 0.01,
+  };
 }
 
 /**

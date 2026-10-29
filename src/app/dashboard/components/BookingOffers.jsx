@@ -12,6 +12,7 @@ import {
   MAX_COUPONS,
   MAX_PROMOTIONS,
   OFFER_TYPES,
+  isTargeted,
   WEEKDAYS,
   cleanCode,
   couponProblem,
@@ -73,8 +74,9 @@ const toForm = (o) => ({
   bookTo: o.bookTo || "",
 });
 
-export default function OffersTab({ promotions, coupons, rooms, plans, currency, onSave, usedCounts = {} }) {
+export default function OffersTab({ promotions, coupons, rules, rooms, plans, currency, onSave, usedCounts = {} }) {
   const [editing, setEditing] = useState(null);
+  const [cap, setCap] = useState(rules?.maxTotalPercent ? String(rules.maxTotalPercent) : "");
   const toast = useToast();
   const dialog = useDialog();
   const money = (v) => formatMoney(v, { currency });
@@ -87,7 +89,7 @@ export default function OffersTab({ promotions, coupons, rooms, plans, currency,
     const isCoupon = offer.type === "coupon";
     // Each list keeps only its own fields, so a type moved across leaves nothing behind.
     const { type: _type, days: _d, weekdays: _w, blackout: _b, ...coupon } = offer;
-    const { code: _c, stack: _s, maxUses: _m, ...promotion } = offer;
+    const { code: _c, maxUses: _m, ...promotion } = offer;
     const nextPromotions = promotions.filter((p) => p.id !== offer.id);
     const nextCoupons = coupons.filter((c) => c.id !== offer.id);
     const at = (list) => list.findIndex((o) => o.id === offer.id);
@@ -130,17 +132,56 @@ export default function OffersTab({ promotions, coupons, rooms, plans, currency,
   }
 
   const full = promotions.length >= MAX_PROMOTIONS && coupons.length >= MAX_COUPONS;
+  const savedCap = rules?.maxTotalPercent ? String(rules.maxTotalPercent) : "";
+
+  async function saveCap() {
+    const n = cap.trim() === "" ? null : Math.round(Number(cap));
+    if (n !== null && !(n >= 1 && n <= 90)) {
+      toast("Most off in total is a percent from 1 to 90, or blank for no limit.", { tone: "error" });
+      return;
+    }
+    await onSave({ offerRules: { maxTotalPercent: n } });
+    toast(n ? `Guests never get more than ${n}% off in total` : "No limit on the total discount");
+  }
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="sub">
-          Every discount on your booking page. The guest gets the one promotion or long stay worth most, never two; a coupon
-          code can add on top.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="sub max-w-3xl space-y-1 text-sm">
+          <p>
+            <b style={{ color: "var(--text)" }}>Deals</b> (basic, early bird, last minute, long stay) never combine: the guest
+            gets the one worth most.
+          </p>
+          <p>
+            <b style={{ color: "var(--text)" }}>Mobile and coupon codes</b> add on top of the deal, one after the other, each off
+            the price that is left. Switch Combine off on one to make it compete with the deal instead.
+          </p>
+        </div>
         <button type="button" className="btn btn-primary text-sm" disabled={full} onClick={() => setEditing(toForm({ id: newId() }))}>
           <Icon name="plus" /> Add offer
         </button>
+      </div>
+      <div className="card flex flex-wrap items-center gap-2 p-3 text-sm">
+        <label className="flex items-center gap-2">
+          Most off in total
+          <input
+            className="input"
+            style={{ width: "5rem" }}
+            inputMode="numeric"
+            placeholder="No limit"
+            value={cap}
+            onChange={(e) => setCap(e.target.value.replace(/[^\d]/g, ""))}
+            onKeyDown={(e) => e.key === "Enter" && saveCap()}
+            aria-label="Most percent off in total"
+          />
+          %
+        </label>
+        {cap !== savedCap && (
+          <button type="button" className="btn btn-secondary text-xs" onClick={saveCap}>
+            Save
+          </button>
+        )}
+        <span className="sub text-xs">However offers combine, guests never get more than this off the room.</span>
       </div>
       <Grid>
         <thead>
@@ -149,6 +190,7 @@ export default function OffersTab({ promotions, coupons, rooms, plans, currency,
             <th>Name or code</th>
             <th>Type</th>
             <th>Discount</th>
+            <th>Combines</th>
             <th style={{ minWidth: 220 }}>When</th>
             <th>Rooms and plans</th>
             <th>Used</th>
@@ -171,6 +213,9 @@ export default function OffersTab({ promotions, coupons, rooms, plans, currency,
                 </td>
                 <td>{OFFER_TYPES.find((t) => t.id === o.type)?.label}</td>
                 <td className="whitespace-nowrap">{offerAmount(o, money)}</td>
+                <td className="whitespace-nowrap text-xs" style={{ color: "var(--text-muted)" }}>
+                  {!isTargeted(o) ? "Best deal only" : o.stack === false ? "Instead of a deal" : "Adds on top"}
+                </td>
                 <td className="text-xs" style={{ color: when.open ? "var(--warn)" : "var(--text-muted)" }}>
                   {when.text}
                 </td>
@@ -190,7 +235,7 @@ export default function OffersTab({ promotions, coupons, rooms, plans, currency,
           })}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={8} className="sub">
+              <td colSpan={9} className="sub">
                 No offers yet. Add one for a festival, early bookers, long stays, phone bookings, or a code to share on Instagram.
               </td>
             </tr>
@@ -445,21 +490,26 @@ function OfferPanel({ initial, isNew, coupons, promotionsFull, couponsFull, room
             </Block>
           )}
 
-          {isCoupon && (
-            <Block title="With promotions">
+          {(isCoupon || form.type === "mobile") && (
+            <Block title="Combining">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={form.stack} onChange={(e) => set({ stack: e.target.checked })} />
-                Add on top of a running promotion
+                Combine with other offers
               </label>
               <p className="sub text-xs">
                 {form.stack
-                  ? "A guest gets the promotion and then this code off what is left."
-                  : "A guest gets this code or the promotion, whichever is worth more."}
+                  ? "Added on top of the best deal, off the price that is left."
+                  : "Competes with the deal: the guest gets whichever is worth more."}
               </p>
-              <Field label="Most uses (optional)" error={err("maxUses")}>
-                <input className="input" style={{ width: "7rem" }} inputMode="numeric" placeholder="No limit" {...bind("maxUses")} />
-              </Field>
+              {isCoupon && (
+                <Field label="Most uses (optional)" error={err("maxUses")}>
+                  <input className="input" style={{ width: "7rem" }} inputMode="numeric" placeholder="No limit" {...bind("maxUses")} />
+                </Field>
+              )}
             </Block>
+          )}
+          {!isCoupon && form.type !== "mobile" && (
+            <p className="sub text-xs">A deal never combines with another deal. Mobile offers and coupon codes can add on top of it.</p>
           )}
 
           <Block title="Check-in dates" hint="When guests arrive. Blank means any date.">

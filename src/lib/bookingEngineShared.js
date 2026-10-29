@@ -1,4 +1,4 @@
-import { cleanCoupons, cleanPromotions, longStaysAsPromotions, promotionsWithoutCodes } from "@/lib/promotions";
+import { cleanCoupons, cleanOfferRules, cleanPromotions, longStaysAsPromotions, promotionsWithoutCodes } from "@/lib/promotions";
 
 /**
  * Booking engine (migration 066): what the guest's booking page, the desk and
@@ -226,5 +226,6 @@ export function cleanBookingContent(raw) {
     plans,
     promotions,
     coupons,
+    offerRules: cleanOfferRules(c.offerRules),
   };
 }

@@ -605,6 +605,7 @@ export default function BookingEngine({ session }) {
         <OffersTab
           promotions={content.promotions || []}
           coupons={content.coupons || []}
+          rules={content.offerRules}
           rooms={roomRows.map((r) => ({ id: r.id, name: r.name }))}
           plans={planRows.map((p) => ({ id: p.id, name: p.planName }))}
           currency={data.currency}
