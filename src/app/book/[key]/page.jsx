@@ -6,7 +6,7 @@ import DateField from "@/app/components/DateField";
 import Select from "@/app/components/Select";
 import Icon from "@/app/components/Icon";
 import { timeLabel } from "@/lib/bookingEngineShared";
-import { HotelHeader, Field, addDaysIso, ask, day, lastBookingKey, money, nightsOf, plural, useFrameHeight } from "../kit";
+import { Gallery, HotelHeader, Field, addDaysIso, ask, day, lastBookingKey, money, nightsOf, plural, useFrameHeight } from "../kit";
 
 /**
  * The hotel's booking page, on its own website or opened from a link: pick
@@ -402,26 +402,46 @@ function AboutHotel({ name, details }) {
  * swipe through. Wide on a computer, a little taller on a phone.
  */
 function Banner({ photos, name }) {
+  const [viewing, setViewing] = useState(null);
   if (!photos?.length) return null;
   return (
-    <div className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "thin" }}>
-      {photos.map((url, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={url}
-          src={url}
-          alt={i === 0 ? name : `${name}, photo ${i + 1}`}
-          loading={i === 0 ? "eager" : "lazy"}
-          className="aspect-[16/10] snap-start rounded-lg sm:aspect-[5/2]"
-          style={{
-            flex: photos.length === 1 ? "1 0 100%" : "0 0 92%",
-            width: "100%",
-            objectFit: "cover",
-            border: "1px solid var(--border)",
-          }}
-        />
-      ))}
-    </div>
+    <>
+      <div className="-mx-4 flex snap-x snap-mandatory gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" style={{ scrollbarWidth: "thin" }}>
+        {photos.map((url, i) => (
+          <button
+            key={url}
+            type="button"
+            onClick={() => setViewing(i)}
+            className="relative snap-start overflow-hidden rounded-lg"
+            style={{
+              flex: photos.length === 1 ? "1 0 100%" : "0 0 92%",
+              padding: 0,
+              border: "1px solid var(--border)",
+              cursor: "zoom-in",
+            }}
+            aria-label={`See photo ${i + 1} of ${name} larger`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt={i === 0 ? name : `${name}, photo ${i + 1}`}
+              loading={i === 0 ? "eager" : "lazy"}
+              className="block aspect-[16/10] w-full sm:aspect-[5/2]"
+              style={{ objectFit: "cover" }}
+            />
+            {i === 0 && photos.length > 1 && (
+              <span
+                className="absolute bottom-2 right-2 rounded px-2 py-1 text-xs font-medium"
+                style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+              >
+                See all {photos.length} photos
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      {viewing != null && <Gallery photos={photos} start={viewing} title={name} onClose={() => setViewing(null)} />}
+    </>
   );
 }
 
@@ -432,17 +452,33 @@ function Banner({ photos, name }) {
  */
 function Photos({ photos, name }) {
   const [shown, setShown] = useState(0);
+  const [viewing, setViewing] = useState(false);
   if (!photos?.length) return null;
   const current = photos[Math.min(shown, photos.length - 1)];
   return (
     <div className="space-y-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={current}
-        alt={`${name}, photo ${shown + 1} of ${photos.length}`}
-        className="aspect-video w-full rounded sm:aspect-[4/3]"
-        style={{ objectFit: "cover", border: "1px solid var(--border)" }}
-      />
+      <button
+        type="button"
+        onClick={() => setViewing(true)}
+        className="relative block w-full overflow-hidden rounded"
+        style={{ padding: 0, border: "1px solid var(--border)", cursor: "zoom-in" }}
+        aria-label={`See ${name} photos larger`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={current}
+          alt={`${name}, photo ${shown + 1} of ${photos.length}`}
+          className="block aspect-video w-full sm:aspect-[4/3]"
+          style={{ objectFit: "cover" }}
+        />
+        <span
+          className="absolute bottom-2 right-2 rounded px-2 py-1 text-xs font-medium"
+          style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+        >
+          {photos.length > 1 ? `See all ${photos.length} photos` : "See larger"}
+        </span>
+      </button>
+      {viewing && <Gallery photos={photos} start={shown} title={name} onClose={() => setViewing(false)} />}
       {photos.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
           {photos.map((url, i) => (
