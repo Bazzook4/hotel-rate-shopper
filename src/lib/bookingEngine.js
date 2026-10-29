@@ -30,7 +30,7 @@ import {
   MAX_ROOM_PHOTOS,
   bestDiscount,
   cleanBookingContent,
-  isKnownCode,
+  codeOutcome,
   MAX_DAYS_AHEAD,
   MAX_NIGHTS,
   cleanBookingPrefs,
@@ -347,7 +347,12 @@ function withTax(quote, stay, taxRules, services, discount = null) {
     room: totals.room,
     tax: round2(totals.tax),
     total: totals.total,
-    ...(discount ? { fullTotal: full.total, discount: { percent: discount.percent, label: discount.label, kind: discount.kind } } : {}),
+    ...(discount
+      ? {
+          fullTotal: full.total,
+          discount: { percent: discount.percent, label: discount.label, kind: discount.kind, code: discount.code || null },
+        }
+      : {}),
   };
 }
 
@@ -417,7 +422,9 @@ export async function searchOffers(hotel, stay) {
         ratePlanId: plan.id,
         name: words.name || plan.plan_name || meal?.name || "Room",
         meals: words.description || meal?.hint || null,
-        cancellation: words.cancellation || null,
+        // One line on cancelling: the hotel's own words, or else what the
+        // plan's refundable setting says, so a guest never reads two that disagree.
+        cancellation: words.cancellation || (plan.refundable === false ? "Non-refundable" : null),
         refundable: plan.refundable !== false,
         ...priced,
       });
@@ -440,8 +447,12 @@ export async function searchOffers(hotel, stay) {
   return {
     offers,
     minStay: offers.length === 0 ? minStayHint : null,
-    // A code that matches nothing is said so, rather than silently ignored.
-    badCode: Boolean(stay.code) && !isKnownCode(content, stay.code),
+    // What the typed code did, so the guest is told rather than left guessing.
+    code: codeOutcome(
+      content,
+      stay.code,
+      offers.some((o) => o.options.some((x) => x.discount?.code))
+    ),
   };
 }
 

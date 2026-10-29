@@ -164,13 +164,63 @@ export function cleanBookingContent(raw) {
   return { rooms, plans, promotions, longStays };
 }
 
-/** What is wrong with a promotion as typed, or null. */
+const blank = (v) => v === null || v === undefined || String(v).trim() === "";
+
+/**
+ * What is wrong with a promotion as typed: { field, message }, or null.
+ * Anything the server would quietly drop is refused here instead, so a
+ * "7 nights or more" offer typed as "7n" is not saved as one for any stay.
+ */
 export function promotionProblem(p) {
-  if (!text(p?.name, 60)) return "Give the promotion a name.";
-  if (!percentOrNull(p?.percent)) return `Enter a discount between 1 and ${MAX_DISCOUNT_PERCENT}%.`;
-  if (p.stayFrom && p.stayTo && p.stayTo < p.stayFrom) return "Stay to is before stay from.";
-  if (p.bookFrom && p.bookTo && p.bookTo < p.bookFrom) return "Book to is before book from.";
+  if (!text(p?.name, 60)) return { field: "name", message: "Give the promotion a name." };
+  if (!percentOrNull(p?.percent)) {
+    return { field: "percent", message: `Enter a discount between 1 and ${MAX_DISCOUNT_PERCENT}%.` };
+  }
+  if (!blank(p?.minNights) && (!/^\d+$/.test(String(p.minNights).trim()) || !wholeOrNull(p.minNights, 1, 60))) {
+    return { field: "minNights", message: "Min stay is a number of nights from 1 to 60, or blank for any stay." };
+  }
+  if (p?.stayFrom && p?.stayTo && p.stayTo < p.stayFrom) return { field: "stayTo", message: "Last night is before first night." };
+  if (p?.bookFrom && p?.bookTo && p.bookTo < p.bookFrom) return { field: "bookTo", message: "Book to is before book from." };
+  if (!blank(p?.code) && !/^[A-Za-z0-9]{2,20}$/.test(String(p.code).trim())) {
+    return { field: "code", message: "A promo code is 2 to 20 letters or numbers, no spaces." };
+  }
   return null;
+}
+
+/** What is wrong with the long-stay steps: { index, field, message }, or null. */
+export function longStayProblem(rows) {
+  const seen = new Set();
+  for (let i = 0; i < rows.length; i += 1) {
+    const r = rows[i];
+    const nights = String(r?.nights ?? "").trim();
+    if (!/^\d+$/.test(nights) || !wholeOrNull(nights, 2, 60)) {
+      return { index: i, field: "nights", message: "Nights or more is a number from 2 to 60." };
+    }
+    if (!percentOrNull(r?.percent)) {
+      return { index: i, field: "percent", message: `Enter a discount between 1 and ${MAX_DISCOUNT_PERCENT}%.` };
+    }
+    if (seen.has(Number(nights))) return { index: i, field: "nights", message: `There are two steps for ${nights} nights.` };
+    seen.add(Number(nights));
+  }
+  return null;
+}
+
+/** A promotion's dates in words, so one with none says it never ends. */
+export function promotionWhen(p, day = (d) => d) {
+  const stay =
+    p?.stayFrom && p?.stayTo
+      ? `Stays ${day(p.stayFrom)} to ${day(p.stayTo)}`
+      : p?.stayFrom
+        ? `Stays from ${day(p.stayFrom)}, no end`
+        : p?.stayTo
+          ? `Stays until ${day(p.stayTo)}`
+          : null;
+  const book =
+    p?.bookFrom || p?.bookTo
+      ? `booked ${p.bookFrom ? `from ${day(p.bookFrom)}` : ""}${p.bookFrom && p.bookTo ? " " : ""}${p.bookTo ? `until ${day(p.bookTo)}` : ""}`
+      : null;
+  if (!stay && !book) return { text: "Every date, no end", open: true };
+  return { text: [stay, book].filter(Boolean).join(", "), open: !p?.stayTo && !p?.bookTo };
 }
 
 /**
@@ -197,7 +247,9 @@ export function bestDiscount(content, { planId, stay, today, code }) {
     if (p.stayTo && last > p.stayTo) continue;
     if (p.bookFrom && today < p.bookFrom) continue;
     if (p.bookTo && today > p.bookTo) continue;
-    if (!best || p.percent > best.percent) best = { percent: p.percent, label: p.name, kind: "promotion" };
+    if (!best || p.percent > best.percent) {
+      best = { percent: p.percent, label: p.name, kind: "promotion", ...(p.code ? { code: p.code } : {}) };
+    }
   }
   for (const r of content.longStays || []) {
     if (nights.length >= r.nights && (!best || r.percent > best.percent)) {
@@ -205,6 +257,17 @@ export function bestDiscount(content, { planId, stay, today, code }) {
     }
   }
   return best;
+}
+
+/**
+ * What happened to the code a guest typed, for the line under the search:
+ * "applied" when it priced at least one room, "unused" when it is real but
+ * not for this stay, "unknown" when no promotion has it.
+ */
+export function codeOutcome(content, code, applied) {
+  if (!String(code || "").trim()) return null;
+  if (applied) return "applied";
+  return isKnownCode(content, code) ? "unused" : "unknown";
 }
 
 /** Whether a typed code belongs to any promotion that is switched on. */

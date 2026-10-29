@@ -76,9 +76,9 @@ export function HotelHeader({ name, logoUrl, sub, right }) {
   );
 }
 
-export function Field({ label, error, required, wide, children }) {
+export function Field({ label, error, required, wide, className = "", children }) {
   return (
-    <label className={`block min-w-0 space-y-1 ${wide ? "sm:col-span-2" : ""}`}>
+    <label className={`block min-w-0 space-y-1 ${wide ? "sm:col-span-2" : ""} ${className}`}>
       <span className="label">
         {label}
         {required && <span style={{ color: "var(--danger)" }}> *</span>}

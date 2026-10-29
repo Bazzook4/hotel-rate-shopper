@@ -18,7 +18,7 @@ export const RELEASE_NOTES = [
     points: [
       {
         page: "bookingengine",
-        text: "New Booking Engine page under Rates. Add your UPI ID to get a booking page link to share and a code to paste into your website. Guests see your free rooms and rates with taxes, book, and pay straight to your UPI ID by app or QR code.",
+        text: "New Booking Engine page under Rates. Add your UPI ID to get a booking page link to share, a Book now button for your website in your colour, and a code to show the whole booking page inside your website. Guests see your free rooms and rates with taxes, book, and pay straight to your UPI ID by app or QR code.",
       },
       {
         page: "bookingengine",

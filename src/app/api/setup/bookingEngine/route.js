@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { canManageSetup, listRatePlans, listRoomTypes } from "@/lib/database";
 import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import { isDayUsePlan } from "@/lib/dayUse";
+import { mealPlan } from "@/lib/mealPlans";
 import {
   BOOKING_NOT_READY,
   getBookingSettings,
@@ -45,7 +46,12 @@ export async function GET(req) {
       })),
       ratePlans: ratePlans
         .filter((p) => !isDayUsePlan(p))
-        .map((p) => ({ id: p.id, name: p.plan_name || "", description: p.description || "" })),
+        .map((p) => ({
+          id: p.id,
+          name: p.plan_name || "",
+          meals: mealPlan(p.meal_plan)?.hint || "",
+          refundable: p.refundable !== false,
+        })),
     });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

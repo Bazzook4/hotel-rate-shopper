@@ -34,13 +34,14 @@ export default function BookingPage() {
   const [searchError, setSearchError] = useState("");
   const [picked, setPicked] = useState(null);
   const [hasLast, setHasLast] = useState(false);
+  const [moved, setMoved] = useState(false);
   // What the guest typed, kept here so it survives a new search: a room that
   // sold while they typed, or dates changed, must not cost them their details.
   const [guest, setGuest] = useState({ name: "", phone: "", email: "", requests: "", website: "" });
   const searchSeq = useRef(0);
 
   const search = useCallback(
-    async (s, { keepError = false } = {}) => {
+    async (s, { keepError = false, findFree = 0 } = {}) => {
       const seq = ++searchSeq.current;
       setSearching(true);
       if (!keepError) setSearchError("");
@@ -55,6 +56,15 @@ export default function BookingPage() {
         });
         if (s.code) qs.set("code", s.code);
         const json = await ask(`/api/book/search?${qs}`);
+        // On opening, a full tonight is not the first thing a guest reads:
+        // the next few nights are tried, and the dates move to the first free one.
+        if (findFree > 0 && json.offers.length === 0 && seq === searchSeq.current) {
+          const next = { ...s, checkIn: addDaysIso(s.checkIn, 1), checkOut: addDaysIso(s.checkOut, 1) };
+          setStay(next);
+          setMoved(true);
+          setSearching(false);
+          return search(next, { findFree: findFree - 1 });
+        }
         if (seq === searchSeq.current) setResults({ ...json, stay: s });
       } catch (err) {
         if (seq === searchSeq.current) {
@@ -77,7 +87,7 @@ export default function BookingPage() {
         setHotel(json);
         const first = { checkIn: json.today, checkOut: addDaysIso(json.today, 1), adults: 2, children: 0, code: "" };
         setStay(first);
-        search(first);
+        search(first, { findFree: 6 });
       })
       .catch((err) => setLoadError(err.message));
   }, [key, search]);
@@ -96,6 +106,7 @@ export default function BookingPage() {
   if (!hotel || !stay) return <p className="sub py-10 text-center">Opening the booking page...</p>;
 
   const change = (patch) => {
+    setMoved(false);
     const next = { ...stay, ...patch };
     // Moving check-in past check-out keeps the same length of stay.
     if (patch.checkIn && next.checkOut <= next.checkIn) {
@@ -134,8 +145,8 @@ export default function BookingPage() {
         </p>
       )}
 
-      <section className="card card-pad grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Field label="Check-in">
+      <section className="card card-pad grid grid-cols-6 gap-3 sm:grid-cols-4">
+        <Field label="Check-in" className="col-span-3 sm:col-span-1">
           <DateField
             className="input w-full"
             value={stay.checkIn}
@@ -145,7 +156,7 @@ export default function BookingPage() {
             aria-label="Check-in"
           />
         </Field>
-        <Field label="Check-out">
+        <Field label="Check-out" className="col-span-3 sm:col-span-1">
           <DateField
             className="input w-full"
             value={stay.checkOut}
@@ -155,7 +166,7 @@ export default function BookingPage() {
             aria-label="Check-out"
           />
         </Field>
-        <Field label="Adults">
+        <Field label="Adults" className="col-span-2 sm:col-span-1">
           <Select className="input w-full" value={String(stay.adults)} onChange={(e) => change({ adults: Number(e.target.value) })}>
             {ADULTS.map((n) => (
               <option key={n} value={String(n)}>
@@ -164,7 +175,7 @@ export default function BookingPage() {
             ))}
           </Select>
         </Field>
-        <Field label="Children">
+        <Field label="Children" className="col-span-2 sm:col-span-1">
           <Select className="input w-full" value={String(stay.children)} onChange={(e) => change({ children: Number(e.target.value) })}>
             {CHILDREN.map((n) => (
               <option key={n} value={String(n)}>
@@ -173,7 +184,11 @@ export default function BookingPage() {
             ))}
           </Select>
         </Field>
-        {hotel.hasCodes && <PromoCode code={stay.code} onApply={(code) => change({ code })} />}
+        {hotel.hasCodes ? (
+          <PromoCode code={stay.code} outcome={results?.stay?.code === stay.code ? results?.code : null} onApply={(code) => change({ code })} />
+        ) : (
+          <span className="col-span-2 sm:hidden" />
+        )}
       </section>
 
       {searching && <p className="sub text-center">Finding rooms...</p>}
@@ -185,9 +200,9 @@ export default function BookingPage() {
 
       {!searching && results && shown && !picked && (
         <>
-          {results.badCode && (
-            <p className="text-center text-sm" style={{ color: "var(--warn)" }}>
-              The code {shown.code} does not match an offer. Prices below are without it.
+          {moved && (
+            <p className="text-center text-sm" style={{ color: "var(--text-muted)" }}>
+              Tonight is full. These are the next nights with rooms free.
             </p>
           )}
           <Results results={results} stay={shown} currency={hotel.currency} onPick={setPicked} />
@@ -222,43 +237,70 @@ export default function BookingPage() {
 /**
  * The promo code box: folded to a button until the guest has a code, and
  * applied on Apply or Enter, not on every letter, so prices do not jump.
+ * Says whether the code worked, and Remove takes it off again.
  */
-function PromoCode({ code, onApply }) {
+const CODE_TEXT = {
+  applied: { tone: "var(--accent-text)", say: (c) => `Code ${c} applied.` },
+  unused: { tone: "var(--warn)", say: (c) => `Code ${c} is not for these dates or rooms.` },
+  unknown: { tone: "var(--warn)", say: (c) => `Code ${c} does not match an offer.` },
+};
+
+function PromoCode({ code, outcome, onApply }) {
   const [open, setOpen] = useState(Boolean(code));
   const [typed, setTyped] = useState(code || "");
   if (!open) {
     return (
-      <div className="col-span-2 sm:col-span-4">
+      <div className="col-span-2 flex items-end sm:col-span-4">
         <button type="button" className="btn btn-ghost text-sm" onClick={() => setOpen(true)}>
-          Have a promo code?
+          Promo code
         </button>
       </div>
     );
   }
   const apply = () => onApply(typed.trim().toUpperCase());
+  const said = code && outcome ? CODE_TEXT[outcome] : null;
   return (
-    <div className="col-span-2 flex items-end gap-2 sm:col-span-4">
-      <Field label="Promo code">
-        <input
-          className="input w-full"
-          style={{ textTransform: "uppercase", maxWidth: "14rem" }}
-          value={typed}
-          maxLength={20}
-          autoCapitalize="characters"
-          spellCheck={false}
-          onChange={(e) => setTyped(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              apply();
-            }
-          }}
-          autoFocus={!code}
-        />
-      </Field>
-      <button type="button" className="btn btn-secondary" onClick={apply}>
-        Apply
-      </button>
+    <div className="col-span-6 space-y-1 sm:col-span-4">
+      <div className="flex items-end gap-2">
+        <Field label="Promo code">
+          <input
+            className="input w-full"
+            style={{ textTransform: "uppercase", maxWidth: "14rem" }}
+            value={typed}
+            maxLength={20}
+            autoCapitalize="characters"
+            spellCheck={false}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                apply();
+              }
+            }}
+            autoFocus={!code}
+          />
+        </Field>
+        <button type="button" className="btn btn-secondary" onClick={apply}>
+          Apply
+        </button>
+        {code && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              setTyped("");
+              onApply("");
+            }}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+      {said && (
+        <p className="text-xs" style={{ color: said.tone }}>
+          {said.say(code)}
+        </p>
+      )}
     </div>
   );
 }
@@ -275,11 +317,10 @@ function Photos({ photos, name }) {
           src={url}
           alt={`${name}, photo ${i + 1}`}
           loading={i === 0 ? "eager" : "lazy"}
-          className="snap-start rounded"
+          className="aspect-video snap-start rounded sm:aspect-[4/3]"
           style={{
             flex: photos.length === 1 ? "1 0 100%" : "0 0 85%",
             maxWidth: photos.length === 1 ? "100%" : 420,
-            aspectRatio: "4 / 3",
             objectFit: "cover",
             border: "1px solid var(--border)",
           }}
@@ -293,23 +334,23 @@ function Photos({ photos, name }) {
 function Price({ option, currency, nights, big }) {
   return (
     <>
-      {option.discount && (
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-          <s>{money(option.fullTotal, currency)}</s>
-        </div>
-      )}
       <div className={`${big ? "text-lg" : "text-base"} font-semibold`} style={{ color: "var(--text)" }}>
+        {option.discount && (
+          <s className="mr-1.5 text-xs font-normal" style={{ color: "var(--text-muted)" }}>
+            <span className="sr-only">Was </span>
+            {money(option.fullTotal, currency)}
+          </s>
+        )}
         {money(option.total, currency)}
       </div>
-      {option.discount ? (
+      {option.discount && (
         <div className="text-xs font-medium" style={{ color: "var(--accent-text)" }}>
           {option.discount.percent}% off, {option.discount.label}
         </div>
-      ) : (
-        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {option.tax > 0 ? `incl. ${money(option.tax, currency)} taxes` : `for ${plural(nights, "night")}`}
-        </div>
       )}
+      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+        {option.tax > 0 ? `incl. ${money(option.tax, currency)} taxes` : `for ${plural(nights, "night")}`}
+      </div>
     </>
   );
 }
@@ -359,7 +400,7 @@ function Results({ results, stay, currency, onPick }) {
                     {o.name}
                   </div>
                   <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {[o.meals, o.refundable ? null : "Non-refundable"].filter(Boolean).join(", ") || "Room only"}
+                    {o.meals || "Room only"}
                   </div>
                   {o.cancellation && (
                     <div className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -498,11 +539,6 @@ function GuestDetails({ hotel, stay, picked, bookingKey, form, setForm, onBack, 
       <div className="flex flex-wrap items-center justify-between gap-3 pt-1" style={{ borderTop: "1px solid var(--border)" }}>
         <div className="pt-2">
           <Price option={option} currency={hotel.currency} nights={nights} big />
-          {option.discount && option.tax > 0 && (
-            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-              incl. {money(option.tax, hotel.currency)} taxes
-            </div>
-          )}
           {option.cancellation && (
             <div className="text-xs" style={{ color: "var(--text-muted)" }}>
               {option.cancellation}
