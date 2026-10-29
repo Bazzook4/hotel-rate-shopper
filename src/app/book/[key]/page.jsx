@@ -125,7 +125,7 @@ export default function BookingPage() {
   const shown = results?.stay;
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-4 px-4 py-6">
+    <main className="mx-auto w-full max-w-4xl space-y-4 px-4 py-6">
       <HotelHeader
         name={hotel.name}
         logoUrl={hotel.logoUrl}
@@ -425,27 +425,46 @@ function Banner({ photos, name }) {
   );
 }
 
-/** A room's photos, side by side, swiped on a phone. The first is the cover. */
+/**
+ * A room's photos: the cover large, and the rest as small pictures under it
+ * that swap in when tapped. Sits to the left of the room's plans on a wider
+ * screen, and above them on a phone.
+ */
 function Photos({ photos, name }) {
+  const [shown, setShown] = useState(0);
   if (!photos?.length) return null;
+  const current = photos[Math.min(shown, photos.length - 1)];
   return (
-    <div className="-mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1" style={{ scrollbarWidth: "thin" }}>
-      {photos.map((url, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={url}
-          src={url}
-          alt={`${name}, photo ${i + 1}`}
-          loading={i === 0 ? "eager" : "lazy"}
-          className="aspect-video snap-start rounded sm:aspect-[4/3]"
-          style={{
-            flex: photos.length === 1 ? "1 0 100%" : "0 0 85%",
-            maxWidth: photos.length === 1 ? "100%" : 420,
-            objectFit: "cover",
-            border: "1px solid var(--border)",
-          }}
-        />
-      ))}
+    <div className="space-y-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={current}
+        alt={`${name}, photo ${shown + 1} of ${photos.length}`}
+        className="aspect-video w-full rounded sm:aspect-[4/3]"
+        style={{ objectFit: "cover", border: "1px solid var(--border)" }}
+      />
+      {photos.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>
+          {photos.map((url, i) => (
+            <button
+              key={url}
+              type="button"
+              onClick={() => setShown(i)}
+              aria-label={`Show photo ${i + 1}`}
+              aria-pressed={i === shown}
+              className="shrink-0 rounded"
+              style={{
+                padding: 0,
+                border: i === shown ? "2px solid var(--accent)" : "1px solid var(--border)",
+                opacity: i === shown ? 1 : 0.75,
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt="" loading="lazy" className="block rounded" style={{ width: 56, height: 42, objectFit: "cover" }} />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -492,51 +511,58 @@ function Results({ results, stay, currency, onPick }) {
         {day(stay.checkIn)} to {day(stay.checkOut)}, {plural(nights, "night")}. Prices include taxes.
       </p>
       {results.offers.map((offer) => (
-        <article key={offer.roomTypeId} className="card card-pad space-y-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-            <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
-              {offer.name}
-            </h2>
-            <span className="text-xs" style={{ color: offer.fewLeft ? "var(--warn)" : "var(--text-muted)" }}>
-              {offer.fewLeft ? `Only ${plural(offer.fewLeft, "room")} left` : `Up to ${plural(offer.maxAdults, "adult")}`}
-            </span>
-          </div>
-          <Photos photos={offer.photos} name={offer.name} />
-          {offer.description && (
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              {offer.description}
-            </p>
-          )}
-          {offer.amenities.length > 0 && (
-            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-              {offer.amenities.join(", ")}
-            </p>
-          )}
-          <ul className="divide-y" style={{ borderTop: "1px solid var(--border)" }}>
-            {offer.options.map((o) => (
-              <li key={o.ratePlanId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" style={{ borderColor: "var(--border)" }}>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
-                    {o.name}
-                  </div>
-                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    {o.meals || "Room only"}
-                  </div>
-                  {o.cancellation && (
-                    <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                      {o.cancellation}
+        <article
+          key={offer.roomTypeId}
+          className={`card card-pad grid gap-4 ${offer.photos?.length ? "sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" : ""}`}
+        >
+          {offer.photos?.length > 0 && <Photos photos={offer.photos} name={offer.name} />}
+          <div className="min-w-0 space-y-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <h2 className="text-base font-semibold" style={{ color: "var(--text)" }}>
+                {offer.name}
+              </h2>
+              <span className="text-xs" style={{ color: offer.fewLeft ? "var(--warn)" : "var(--text-muted)" }}>
+                {offer.fewLeft ? `Only ${plural(offer.fewLeft, "room")} left` : `Up to ${plural(offer.maxAdults, "adult")}`}
+              </span>
+            </div>
+            {offer.description && (
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                {offer.description}
+              </p>
+            )}
+            {offer.amenities.length > 0 && (
+              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                {offer.amenities.join(", ")}
+              </p>
+            )}
+            <ul className="divide-y" style={{ borderTop: "1px solid var(--border)" }}>
+              {offer.options.map((o) => (
+                <li key={o.ratePlanId} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" style={{ borderColor: "var(--border)" }}>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium" style={{ color: "var(--text)" }}>
+                      {o.name}
                     </div>
-                  )}
-                </div>
-                <div className="text-right">
-                  <Price option={o} currency={currency} nights={nights} />
-                </div>
-                <button type="button" className="btn btn-primary text-sm" onClick={() => onPick({ offer, option: o })}>
-                  Book
-                </button>
-              </li>
-            ))}
-          </ul>
+                    {(o.meals || "Room only").toLowerCase() !== o.name.toLowerCase() && (
+                      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {o.meals || "Room only"}
+                      </div>
+                    )}
+                    {o.cancellation && (
+                      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {o.cancellation}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <Price option={o} currency={currency} nights={nights} />
+                  </div>
+                  <button type="button" className="btn btn-primary text-sm" onClick={() => onPick({ offer, option: o })}>
+                    Book
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </article>
       ))}
     </section>
