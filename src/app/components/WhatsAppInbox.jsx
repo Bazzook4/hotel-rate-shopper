@@ -279,6 +279,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const [details, setDetails] = useState(false);
   const box = useRef(null);
   const reply = useRef(null);
   const firstBlank = useRef(null);
@@ -393,8 +394,9 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
   }
 
   return (
-    <div className="card flex flex-col" style={{ height: PANE_HEIGHT, minHeight: "24rem" }}>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
+    // On a phone the open chat takes the whole screen, as WhatsApp does.
+    <div className="card flex flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-15rem)] md:min-h-96">
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <button type="button" className="btn btn-ghost text-sm md:hidden" onClick={onBack} aria-label="Back to chats">
             <Icon name="back" size={16} />
@@ -408,15 +410,14 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
+          <button type="button" className="btn btn-ghost text-sm md:hidden" aria-expanded={details} onClick={() => setDetails((d) => !d)}>
+            Details
+          </button>
           {lead && (
-            <Select value={lead.status} onChange={(e) => saveLead({ status: e.target.value })} className="input text-sm" aria-label="Lead status">
-              {Object.entries(LEAD_STATUS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  Lead: {v}
-                </option>
-              ))}
-            </Select>
+            <span className="hidden md:block">
+              <LeadStatus lead={lead} onSave={saveLead} />
+            </span>
           )}
           {!contact.property_id && (
             <label className="flex items-center gap-2 text-sm" title="When off, you answer this chat yourself">
@@ -425,14 +426,15 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
                 checked={!contact.bot_paused}
                 onChange={(e) => change({ bot_paused: !e.target.checked }, e.target.checked ? "Bot is answering" : "You are answering")}
               />
-              Bot replies
+              <span className="max-md:hidden">Bot replies</span>
+              <span className="md:hidden">Bot</span>
             </label>
           )}
         </div>
       </div>
 
       {needsYou(contact) && (
-        <div className="border-b border-[var(--border)] px-3 py-1.5 text-sm" style={{ color: "var(--warn)" }}>
+        <div className="border-b border-[var(--border)] px-3 py-1.5 text-sm max-md:line-clamp-2" style={{ color: "var(--warn)" }}>
           Needs you: {contact.handoff_reason || "the assistant handed this chat over"}. Reply, or turn the bot back on.
         </div>
       )}
@@ -545,9 +547,15 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
         {error && <p className="mt-1 text-xs text-[var(--danger)]">{error}</p>}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-[var(--border)] px-3 py-2 text-xs muted">
+      {/* On a phone the details stay folded behind the Details button, so the messages get the screen. */}
+      <div
+        className={`${details ? "flex" : "hidden"} max-h-[45dvh] flex-wrap items-center gap-x-3 gap-y-2 overflow-y-auto border-t border-[var(--border)] px-3 py-2 text-xs muted md:flex md:max-h-none`}
+      >
         {lead && (
           <>
+            <span className="md:hidden">
+              <LeadStatus lead={lead} onSave={saveLead} />
+            </span>
             <label className="flex items-center gap-1">
               Wants
               <Select value={lead.interest || ""} onChange={(e) => saveLead({ interest: e.target.value })} className="input text-sm" aria-label="Wants">
@@ -594,6 +602,18 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
         {saved && <span role="status">{saved}</span>}
       </div>
     </div>
+  );
+}
+
+function LeadStatus({ lead, onSave }) {
+  return (
+    <Select value={lead.status} onChange={(e) => onSave({ status: e.target.value })} className="input text-sm" aria-label="Lead status">
+      {Object.entries(LEAD_STATUS).map(([k, v]) => (
+        <option key={k} value={k}>
+          Lead: {v}
+        </option>
+      ))}
+    </Select>
   );
 }
 
