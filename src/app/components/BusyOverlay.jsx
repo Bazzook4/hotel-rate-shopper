@@ -78,6 +78,11 @@ function describe(input, init) {
     return null;
   }
 
+  // A keepalive request is fire and forget (the usage counts in lib/track.js
+  // and on every page open): nothing waits on it, so it must not hold the
+  // screen -- or every page would open behind "Working...".
+  if (init?.keepalive || (isRequest && input.keepalive)) return null;
+
   const method = (init?.method || (isRequest ? input.method : "GET")).toUpperCase();
   return { method };
 }

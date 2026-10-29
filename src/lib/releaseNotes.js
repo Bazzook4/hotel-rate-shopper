@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-29",
+    title: "Pages no longer stuck on Working",
+    points: [
+      {
+        page: "reservations",
+        text: "Opening a page or clicking around no longer covers the screen with Working. It now only shows while a change you made is being saved.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-29",
     title: "Booking engine for your website",
     points: [
       {
