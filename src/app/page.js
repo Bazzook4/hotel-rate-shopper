@@ -92,6 +92,10 @@ const CheckinSettings = dynamic(() => import("./dashboard/components/CheckinSett
   ssr: false,
   loading: PageLoading,
 });
+const BookingEngineSettings = dynamic(() => import("./dashboard/components/BookingEngineSettings"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const DisplaySettings = dynamic(() => import("./dashboard/components/DisplaySettings"), {
   ssr: false,
   loading: PageLoading,
@@ -1032,6 +1036,7 @@ export default function V2Dashboard() {
                       <GoogleListingSetup propertyId={scopedSession?.propertyId} />
                       <DisplaySettings propertyId={scopedSession?.propertyId} />
                       <CheckinSettings propertyId={scopedSession?.propertyId} />
+                      <BookingEngineSettings propertyId={scopedSession?.propertyId} />
                     </div>
                   )}
 

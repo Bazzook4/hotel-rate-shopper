@@ -17,6 +17,7 @@ import {
   listSyncLogs,
 } from "@/lib/database";
 import { roomCap, roomGap } from "@/lib/roomCap";
+import { listPaymentsToCheck } from "@/lib/bookingEngine";
 
 /**
  * The home page: how today looks, how the month is going, what needs doing,
@@ -61,10 +62,11 @@ async function formCPart(propertyId, today, tz) {
 /** Tonight, against the same night a week ago: the weekday is what makes nights alike. */
 async function todayPart(propertyId, today, tz, { money, exceptions }) {
   const lastWeek = shiftIso(today, -7);
-  const [now, then, owing] = await Promise.all([
+  const [now, then, owing, upiToCheck] = await Promise.all([
     getNightAudit(propertyId, { date: today, tz }),
     getNightAudit(propertyId, { date: lastWeek, tz }),
     exceptions ? getStillOwing(propertyId, { today }) : [],
+    exceptions ? listPaymentsToCheck(propertyId).catch(() => []) : [],
   ]);
   const roomsOf = (a) => ({
     occupancy: a.rooms.occupancy,
@@ -94,6 +96,13 @@ async function todayPart(propertyId, today, tz, { money, exceptions }) {
             title: "Left earlier still owing",
             hint: "Checked out in the last 30 days with money still due. Collect it, or record why not.",
             rows: owing,
+          },
+          {
+            id: "websitePayments",
+            tone: "warn",
+            title: "Website payments to check",
+            hint: "Guests who booked on your website say they paid by UPI. Check your bank, then mark each one received or not found.",
+            rows: upiToCheck,
           },
         ].filter((e) => e.rows.length > 0)
       : [],

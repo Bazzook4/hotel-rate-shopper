@@ -22,6 +22,7 @@ import OnlineCheckinPanel, {
   useOnlineCheckin,
 } from "./OnlineCheckin";
 import { formatMoney } from "@/lib/money";
+import WebsitePayment from "./WebsitePayment";
 
 /**
  * One booking, opened from the tape chart or any list.
@@ -623,6 +624,10 @@ export default function BookingModal({
           )}
 
           {firstLoad && <p className="sub">Loading...</p>}
+
+          {!firstLoad && !isNew && !practice && (
+            <WebsitePayment reservationId={reservationId} onChanged={folioChanged} />
+          )}
 
           {!firstLoad && (tab === "details" || isNew) && (
             <>

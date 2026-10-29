@@ -14,6 +14,24 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-29",
+    title: "Booking engine for your website",
+    points: [
+      {
+        page: "setup",
+        text: "Turn on Booking engine in Property Setup and add your UPI ID. You get a booking page link to share and a code to paste into your website. Guests see your free rooms and rates with taxes, book, and pay straight to your UPI ID by app or QR code.",
+      },
+      {
+        page: "reservations",
+        text: "Website bookings arrive as confirmed bookings and take the room off the OTAs at once. When a guest says they paid, the booking shows it and Today lists it: check your bank, then press Payment received to put it on the bill, or Not found.",
+      },
+      {
+        page: "today",
+        text: "Guests can open My booking on your booking page with their booking number and mobile number to see their booking and payment.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-29",
     title: "Morning report on WhatsApp",
     points: [
       {

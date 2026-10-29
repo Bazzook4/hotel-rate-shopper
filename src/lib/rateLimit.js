@@ -215,3 +215,38 @@ export async function recordCheckinUse(ip, { badLink = false } = {}) {
     console.error("Recording a check-in request failed:", err.message);
   }
 }
+
+/**
+ * The booking engine's public page, per network address. Searching is cheap
+ * and a guest compares many dates; a booking holds a room, so only a few an
+ * hour are taken from one place; and a sign-in that matches no booking is
+ * counted, so booking numbers cannot be tried in bulk.
+ *
+ * Fails open like check-in: a guest must not be turned away because the
+ * ledger cannot be read. Prices and rooms are still checked on every booking.
+ */
+const BOOKING_LIMITS = {
+  search: { max: 300, windowMs: HOUR },
+  book: { max: 6, windowMs: HOUR },
+  badLogin: { max: 15, windowMs: HOUR },
+};
+const bookingKey = (kind, ip) => `book:${kind}:${ip}`;
+
+export async function bookingAllowed(kind, ip) {
+  const limit = BOOKING_LIMITS[kind];
+  if (!limit) return true;
+  try {
+    return (await countSince(bookingKey(kind, ip), limit.windowMs)) < limit.max;
+  } catch (err) {
+    console.error("Booking engine rate limit unavailable:", err.message);
+    return true;
+  }
+}
+
+export async function recordBookingUse(kind, ip) {
+  try {
+    await record(bookingKey(kind, ip));
+  } catch (err) {
+    console.error("Recording a booking engine request failed:", err.message);
+  }
+}

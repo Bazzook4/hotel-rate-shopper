@@ -36,6 +36,11 @@ export async function middleware(request) {
     const isPublic =
       PUBLIC_PATHS.has(pathname) ||
       pathname.startsWith("/checkin/") ||
+      // The hotel's booking page and its routes. The page key, or the
+      // guest's private booking link, is checked by the routes themselves.
+      pathname.startsWith("/book/") ||
+      pathname.startsWith("/api/book/") ||
+      pathname === "/api/book" ||
       pathname.startsWith("/api/auth/") ||
       pathname.startsWith("/api/webhooks/");
 
