@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createOnlineBooking, hotelView } from "@/lib/bookingEngine";
+import { createOnlineBooking, hotelView, isMobileRequest } from "@/lib/bookingEngine";
 import { openHotel } from "./shared";
 
 /** The hotel's booking page: what it shows first, and booking a stay. */
@@ -22,7 +22,7 @@ export async function POST(req) {
   if (body.website) return NextResponse.json({ token: null, ok: true });
 
   try {
-    const result = await createOnlineBooking(hotel, body);
+    const result = await createOnlineBooking(hotel, body, { mobile: isMobileRequest(req) });
     if (result.error) return NextResponse.json(result, { status: result.gone ? 409 : 400 });
     await record();
     return NextResponse.json(result);

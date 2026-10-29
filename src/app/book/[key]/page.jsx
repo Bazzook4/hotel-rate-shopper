@@ -242,7 +242,7 @@ export default function BookingPage() {
 }
 
 /**
- * The promo code box: folded to a button until the guest has a code, and
+ * The coupon code box: folded to a button until the guest has a code, and
  * applied on Apply or Enter, not on every letter, so prices do not jump.
  * Says whether the code worked, and Remove takes it off again.
  */
@@ -250,6 +250,7 @@ const CODE_TEXT = {
   applied: { tone: "var(--accent-text)", say: (c) => `Code ${c} applied.` },
   unused: { tone: "var(--warn)", say: (c) => `Code ${c} is not for these dates or rooms.` },
   unknown: { tone: "var(--warn)", say: (c) => `Code ${c} does not match an offer.` },
+  full: { tone: "var(--warn)", say: (c) => `Code ${c} has been used up.` },
 };
 
 function PromoCode({ code, outcome, onApply }) {
@@ -259,7 +260,7 @@ function PromoCode({ code, outcome, onApply }) {
     return (
       <div className="col-span-2 flex items-end sm:col-span-4">
         <button type="button" className="btn btn-ghost text-sm" onClick={() => setOpen(true)}>
-          Promo code
+          Coupon code
         </button>
       </div>
     );
@@ -269,7 +270,7 @@ function PromoCode({ code, outcome, onApply }) {
   return (
     <div className="col-span-6 space-y-1 sm:col-span-4">
       <div className="flex items-end gap-2">
-        <Field label="Promo code">
+        <Field label="Coupon code">
           <input
             className="input w-full"
             style={{ textTransform: "uppercase", maxWidth: "14rem" }}
@@ -520,7 +521,7 @@ function Price({ option, currency, nights, big }) {
       </div>
       {option.discount && (
         <div className="text-xs font-medium" style={{ color: "var(--accent-text)" }}>
-          {option.discount.percent}% off, {option.discount.label}
+          Save {money(option.discount.amount, currency)}, {option.discount.label}
         </div>
       )}
       <div className="text-xs" style={{ color: "var(--text-muted)" }}>

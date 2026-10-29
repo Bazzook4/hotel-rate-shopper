@@ -21,6 +21,7 @@ import {
   getPropertyCurrency,
 } from "@/lib/database";
 import { folioTotals } from "@/lib/taxes";
+import { cleanCode, codeOutcome, hasCoupons, offerDiscount } from "@/lib/promotions";
 import { todayInZone } from "@/lib/hotelTime";
 import { isDayUsePlan } from "@/lib/dayUse";
 import { mealPlan } from "@/lib/mealPlans";
@@ -28,12 +29,10 @@ import { syncInventory, staySpan } from "@/lib/inventorySync";
 import {
   GUEST_PAYMENT_TEXT,
   BANNER,
-  bestDiscount,
   maxPhotosFor,
   photosOf,
   withPhotos,
   cleanBookingContent,
-  codeOutcome,
   MAX_DAYS_AHEAD,
   MAX_NIGHTS,
   cleanBookingPrefs,
@@ -321,7 +320,7 @@ export function hotelView(hotel) {
     banner: hotel.content.banner,
     details: hotelDetails(property, hotel.content),
     // The promo code box is only offered where there is a code to type.
-    hasCodes: hotel.content.promotions.some((p) => p.active && p.code),
+    hasCodes: hasCoupons(hotel.content),
   };
 }
 
@@ -330,7 +329,12 @@ export function hotelView(hotel) {
 // ------------------------------------------------------------------
 
 /** A stay a guest asked about, or a message saying what to change. */
-export function readStay(hotel, input) {
+/** Whether a request came from a phone, for mobile-only offers. Read from the browser, never trusted from the page. */
+export function isMobileRequest(req) {
+  return /Mobi|Android|iPhone|iPad|iPod/i.test(req?.headers?.get?.("user-agent") || "");
+}
+
+export function readStay(hotel, input, { mobile = false } = {}) {
   const checkIn = input?.checkIn;
   const checkOut = input?.checkOut;
   const adults = Math.floor(Number(input?.adults));
@@ -345,8 +349,8 @@ export function readStay(hotel, input) {
   }
   if (!Number.isFinite(adults) || adults < 1 || adults > 20) return { error: "Choose how many adults." };
   if (children > 10) return { error: "Choose how many children." };
-  const code = String(input?.code || "").trim().toUpperCase().slice(0, 20);
-  return { stay: { checkIn, checkOut, adults, children, nights, code } };
+  const code = cleanCode(input?.code);
+  return { stay: { checkIn, checkOut, adults, children, nights, code, mobile } };
 }
 
 /**
@@ -390,7 +394,7 @@ function withTax(quote, stay, taxRules, services, discount = null) {
         guest_residency: "domestic",
         stay_kind: "overnight",
         check_in: stay.checkIn,
-        ...(d ? { discount_kind: "percent", discount_value: d.percent, discount_timing: "before_tax" } : {}),
+        ...(d ? { discount_kind: "amount", discount_value: d.amount, discount_timing: "before_tax" } : {}),
       },
       nights: quote.nights.map((n) => ({ stay_date: n.stay_date, rate: Number(n.rate) })),
       taxRules,
@@ -405,10 +409,55 @@ function withTax(quote, stay, taxRules, services, discount = null) {
     ...(discount
       ? {
           fullTotal: full.total,
-          discount: { percent: discount.percent, label: discount.label, kind: discount.kind, code: discount.code || null },
+          discount: {
+            amount: discount.amount,
+            percent: discount.percent,
+            label: discount.label,
+            kind: discount.kind,
+            coupon: discount.coupon || null,
+          },
         }
       : {}),
   };
+}
+
+/** How a coupon is named in a booking's discount note, so its uses can be counted. */
+const couponTag = (code) => `(coupon ${code})`;
+
+/** How many standing website bookings used each coupon, for the Coupons tab. */
+export async function couponUseCounts(propertyId) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("reservations")
+    .select("discount_note")
+    .eq("property_id", propertyId)
+    .eq("source", SOURCE)
+    .not("status", "in", "(cancelled,no_show)")
+    .ilike("discount_note", "%(coupon %");
+  if (error) return {};
+  const counts = {};
+  for (const r of data || []) {
+    const code = /\(coupon ([A-Z0-9]+)\)/.exec(r.discount_note || "")?.[1];
+    if (code) counts[code] = (counts[code] || 0) + 1;
+  }
+  return counts;
+}
+
+/** Whether a coupon with a limit has been used that many times on bookings still standing. */
+async function couponUsedUp(hotel, code) {
+  const coupon = hotel.content.coupons.find((c) => c.code === code);
+  if (!coupon?.maxUses) return false;
+  const { count, error } = await getSupabaseAdmin()
+    .from("reservations")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", hotel.property.id)
+    .eq("source", SOURCE)
+    .not("status", "in", "(cancelled,no_show)")
+    .ilike("discount_note", `%${couponTag(code)}%`);
+  if (error) {
+    console.error("Booking engine: could not count coupon uses:", error.message);
+    return false;
+  }
+  return count >= coupon.maxUses;
 }
 
 /**
@@ -433,6 +482,9 @@ export async function searchOffers(hotel, stay) {
   );
   const nightSet = new Set(stay.nights);
   const offers = [];
+  // A coupon that has been used as often as the hotel allows is left out.
+  const usedUp = stay.code ? await couponUsedUp(hotel, stay.code) : false;
+  const offerContent = usedUp ? { ...content, coupons: content.coupons.filter((c) => c.code !== stay.code) } : content;
   let minStayHint = null;
 
   for (const type of quoteData.roomTypes) {
@@ -469,7 +521,15 @@ export async function searchOffers(hotel, stay) {
         quoteData
       );
       if (!(quote.total > 0) || quote.partial || quote.source === "base_price") continue;
-      const discount = bestDiscount(content, { planId: plan.id, stay, today: hotel.today, code: stay.code });
+      const discount = offerDiscount(offerContent, {
+        planId: plan.id,
+        roomTypeId: type.id,
+        stay,
+        today: hotel.today,
+        mobile: stay.mobile,
+        code: stay.code,
+        nights: quote.nights.map((n) => ({ stay_date: n.stay_date, rate: Number(n.rate) })),
+      });
       const priced = withTax(quote, stay, taxRules, services, discount);
       const meal = mealPlan(plan.meal_plan);
       const words = content.plans[plan.id] || {};
@@ -503,11 +563,13 @@ export async function searchOffers(hotel, stay) {
     offers,
     minStay: offers.length === 0 ? minStayHint : null,
     // What the typed code did, so the guest is told rather than left guessing.
-    code: codeOutcome(
-      content,
-      stay.code,
-      offers.some((o) => o.options.some((x) => x.discount?.code))
-    ),
+    code: usedUp
+      ? "full"
+      : codeOutcome(
+          content,
+          stay.code,
+          offers.some((o) => o.options.some((x) => x.discount?.coupon))
+        ),
   };
 }
 
@@ -531,8 +593,8 @@ function readGuest(input) {
  * and checked for a free room again here, so a price that changed or a room
  * that sold while they typed is caught, and the guest is told plainly.
  */
-export async function createOnlineBooking(hotel, input) {
-  const read = readStay(hotel, input);
+export async function createOnlineBooking(hotel, input, { mobile = false } = {}) {
+  const read = readStay(hotel, input, { mobile });
   if (read.error) return { error: read.error };
   const { stay } = read;
   const who = readGuest(input?.guest);
@@ -595,11 +657,11 @@ export async function createOnlineBooking(hotel, input) {
     // one the desk gives, so the bill, the invoice and the reports show it.
     ...(option.discount
       ? {
-          discount_kind: "percent",
-          discount_value: option.discount.percent,
+          discount_kind: "amount",
+          discount_value: option.discount.amount,
           discount_timing: "before_tax",
           discount_reason: option.discount.kind === "long_stay" ? "long_stay" : "promotion",
-          discount_note: `Website: ${option.discount.label}`,
+          discount_note: discountNote(option.discount),
         }
       : {}),
   };
@@ -646,6 +708,10 @@ export async function createOnlineBooking(hotel, input) {
   return { token: row.token };
 }
 
+function discountNote(discount) {
+  return `Website: ${discount.label}${discount.coupon ? ` ${couponTag(discount.coupon)}` : ""}`.slice(0, 200);
+}
+
 /** The discount log keeps every discount given, the website's too. Never costs the booking. */
 async function logWebsiteDiscount(reservation, discount, amount) {
   const { error } = await getSupabaseAdmin().from("reservation_discounts").insert({
@@ -653,8 +719,8 @@ async function logWebsiteDiscount(reservation, discount, amount) {
     reservation_id: reservation.id,
     reference: reservation.reference || null,
     guest_name: reservation.guest_name || null,
-    kind: "percent",
-    value: discount.percent,
+    kind: "amount",
+    value: discount.amount,
     timing: "before_tax",
     amount: amount || 0,
     previous_kind: null,
@@ -662,7 +728,7 @@ async function logWebsiteDiscount(reservation, discount, amount) {
     previous_timing: null,
     previous_amount: 0,
     reason: discount.kind === "long_stay" ? "long_stay" : "promotion",
-    note: `Website: ${discount.label}`,
+    note: discountNote(discount),
     currency: reservation.currency || null,
     changed_by: null,
   });

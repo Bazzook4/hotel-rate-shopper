@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readStay, searchOffers } from "@/lib/bookingEngine";
+import { isMobileRequest, readStay, searchOffers } from "@/lib/bookingEngine";
 import { openHotel } from "../shared";
 
 /** Rooms free for the guest's dates, with prices. A question, so a GET. */
@@ -15,7 +15,7 @@ export async function GET(req) {
     adults: params.get("adults"),
     children: params.get("children"),
     code: params.get("code"),
-  });
+  }, { mobile: isMobileRequest(req) });
   if (read.error) return NextResponse.json({ error: read.error }, { status: 400 });
 
   await record();

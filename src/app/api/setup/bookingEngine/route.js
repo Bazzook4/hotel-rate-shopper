@@ -5,6 +5,7 @@ import { isDayUsePlan } from "@/lib/dayUse";
 import { mealPlan } from "@/lib/mealPlans";
 import {
   BOOKING_NOT_READY,
+  couponUseCounts,
   ensureBookingKey,
   hotelDefaults,
   saveBookingContent,
@@ -30,18 +31,20 @@ export async function GET(req) {
   if (!propertyId) return NextResponse.json({ error: "No property selected" }, { status: 400 });
 
   try {
-    const [settings, roomTypes, ratePlans, canSetup, property] = await Promise.all([
+    const [settings, roomTypes, ratePlans, canSetup, property, couponUses] = await Promise.all([
       ensureBookingKey(propertyId),
       listRoomTypes(propertyId),
       listRatePlans(propertyId),
       canManageSetup(session.userId),
       getPropertyById(propertyId),
+      couponUseCounts(propertyId).catch(() => ({})),
     ]);
     return NextResponse.json({
       ...settings,
       canChangePayment: canSetup,
       // What the Hotel tab falls back to, shown in its empty boxes.
       hotelDefaults: hotelDefaults(property),
+      couponUses,
       roomTypes: roomTypes.map((t) => ({
         id: t.id,
         name: t.room_type_name,

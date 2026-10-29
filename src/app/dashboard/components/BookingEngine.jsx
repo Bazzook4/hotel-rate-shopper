@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import DateField from "@/app/components/DateField";
 import Select from "@/app/components/Select";
 import Icon from "@/app/components/Icon";
 import { useToast } from "@/app/components/Toast";
@@ -9,24 +8,22 @@ import { useDialog } from "@/app/components/Dialog";
 import { useBackdropClose, useEscape } from "@/app/components/useEscape";
 import {
   MAX_LONG_STAY_RULES,
-  MAX_PROMOTIONS,
   BANNER,
   HOTEL_AMENITIES,
   longStayProblem,
   timeLabel,
   maxPhotosFor,
-  promotionProblem,
-  promotionWhen,
 } from "@/lib/bookingEngineShared";
 import BookingEngineSettings from "./BookingEngineSettings";
+import OffersTab from "./BookingOffers";
 import { shrink } from "./GuestIdPhotos";
-import { Grid, Loading, Messages, SaveActions, SetupHeader, cellClass, isDraft, sendJSON, useGrid } from "./SetupGrid";
+import { Grid, Loading, Messages, SaveActions, SetupHeader, isDraft, sendJSON, useGrid } from "./SetupGrid";
 
 /**
  * The hotel's booking engine, in one place: the page's link and how guests
  * pay, then what guests see -- rooms with photos, plans with what is
- * included and the cancellation terms -- and the discounts: promotions for
- * dates or a promo code, and money off for longer stays.
+ * included and the cancellation terms -- and the discounts: promotions,
+ * coupon codes (BookingOffers.jsx), and money off for longer stays.
  *
  * The four content tabs are CM-style grids edited in place, with one Save
  * for all of them, always in the header, as every setup page has. A row
@@ -43,17 +40,11 @@ const TABS = [
   { id: "rooms", label: "Rooms" },
   { id: "plans", label: "Plans" },
   { id: "promotions", label: "Promotions" },
+  { id: "coupons", label: "Coupons" },
   { id: "longstays", label: "Long stays" },
 ];
 
 const DATE_LABEL = { stayFrom: "First night", stayTo: "Last night", bookFrom: "Book from", bookTo: "Book to" };
-
-let promoSeq = 0;
-const newPromoId = () => `p${Date.now().toString(36)}${(promoSeq += 1)}`;
-
-function shortDay(iso) {
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-}
 
 /** Photos go up one at a time, shrunk first so a phone picture uploads quickly. */
 async function uploadPhotos(room, files, propertyId, onSaved, onProgress) {
@@ -75,35 +66,6 @@ async function uploadPhotos(room, files, propertyId, onSaved, onProgress) {
   if (files.length > list.length) {
     throw new Error(room.id === BANNER ? `The banner can have up to ${max} photos.` : `A room can have up to ${max} photos.`);
   }
-}
-
-/** A date cell that can be emptied again, since blank means any date. */
-function DateCell({ grid, row, field, invalid }) {
-  const value = grid.value(row, field) || "";
-  return (
-    <span className="inline-flex items-center gap-1">
-      <DateField
-        className={cellClass(grid.edited(row, field), invalid)}
-        style={{ width: "7.5rem" }}
-        value={value}
-        onChange={(e) => grid.change(row, field, e.target.value)}
-        placeholder="Any"
-        aria-label={DATE_LABEL[field]}
-      />
-      {value && (
-        <button
-          type="button"
-          className="btn btn-ghost"
-          style={{ padding: "0.35rem" }}
-          onClick={() => grid.change(row, field, "")}
-          aria-label={`Clear ${DATE_LABEL[field]}`}
-          title="Any date"
-        >
-          <Icon name="close" size={14} />
-        </button>
-      )}
-    </span>
-  );
 }
 
 /**
@@ -327,8 +289,7 @@ export default function BookingEngine({ session }) {
   const [error, setError] = useState(null);
   const [photosFor, setPhotosFor] = useState(null);
   const [uploading, setUploading] = useState(null);
-  const [removed, setRemoved] = useState({ promotions: new Set(), longStays: new Set() });
-  const [open, setOpen] = useState(new Set());
+  const [removed, setRemoved] = useState({ longStays: new Set() });
   const [hotelForm, setHotelForm] = useState(null);
   const [hotelKey, setHotelKey] = useState(0);
   const pickerRef = useRef(null);
@@ -387,20 +348,6 @@ export default function BookingEngine({ session }) {
       }),
     [data, content]
   );
-  const promoRows = useMemo(
-    () =>
-      (content?.promotions || []).map((p) => ({
-        ...p,
-        percent: p.percent ?? "",
-        minNights: p.minNights ?? "",
-        stayFrom: p.stayFrom || "",
-        stayTo: p.stayTo || "",
-        bookFrom: p.bookFrom || "",
-        bookTo: p.bookTo || "",
-        planId: p.planId || "",
-      })),
-    [content]
-  );
   const longRows = useMemo(
     () => (content?.longStays || []).map((r, i) => ({ id: `ls${i}`, nights: r.nights, percent: r.percent })),
     [content]
@@ -413,18 +360,16 @@ export default function BookingEngine({ session }) {
 
   const rooms = useGrid(roomRows);
   const plans = useGrid(planRows);
-  const promos = useGrid(promoRows, removed.promotions.size);
   const longs = useGrid(longRows, removed.longStays.size);
-  const pending = rooms.count + plans.count + promos.count + longs.count + (hotelDirty ? 1 : 0);
+  const pending = rooms.count + plans.count + longs.count + (hotelDirty ? 1 : 0);
 
   function discard() {
     rooms.discard();
     plans.discard();
-    promos.discard();
     longs.discard();
     setHotelForm(hotelSaved || null);
     setHotelKey((k) => k + 1);
-    setRemoved({ promotions: new Set(), longStays: new Set() });
+    setRemoved({ longStays: new Set() });
     setError(null);
   }
 
@@ -452,18 +397,17 @@ export default function BookingEngine({ session }) {
     grid.change(row, field, v);
   };
 
+  /** A promotion or coupon saves on its own, from its panel, with the rest of the saved content. */
+  async function saveOffers(field, list) {
+    const json = await sendJSON("/api/setup/bookingEngine", "PUT", {
+      propertyId: propertyId || undefined,
+      content: { ...content, [field]: list },
+    });
+    setData((d) => ({ ...d, content: json.content }));
+  }
+
   async function save() {
     setError(null);
-    const promoList = promoRows.filter((r) => !removed.promotions.has(r.id)).concat(promos.drafts).map(promos.merged);
-    for (const p of promoList) {
-      const problem = promotionProblem(p);
-      if (problem) {
-        setTab("promotions");
-        if (["minNights", "code", "bookTo"].includes(problem.field)) setOpen((o) => new Set([...o, p.id]));
-        setError({ rowId: p.id, field: problem.field, message: `${p.name || "New promotion"}: ${problem.message}` });
-        return;
-      }
-    }
     const longList = longRows.filter((r) => !removed.longStays.has(r.id)).concat(longs.drafts).map(longs.merged);
     const longProblem = longStayProblem(longList);
     if (longProblem) {
@@ -487,7 +431,6 @@ export default function BookingEngine({ session }) {
           { hidden: !p.shown, name: p.name, description: p.description, cancellation: p.cancellation },
         ])
       ),
-      promotions: promoList.map((p) => ({ ...p, id: isDraft(p.id) ? newPromoId() : p.id, planId: p.planId || null })),
       longStays: longList.map((r) => ({ nights: Number(r.nights), percent: Number(r.percent) })),
     };
 
@@ -549,30 +492,15 @@ export default function BookingEngine({ session }) {
   if (!data) return <Loading label="Loading the booking engine..." />;
 
   const url = data.key && typeof window !== "undefined" ? `${window.location.origin}/book/${data.key}` : null;
-  const planOptions = [{ id: "", label: "All plans" }, ...planRows.map((p) => ({ id: p.id, label: p.planName || "Plan" }))];
-  const promoList = [...promoRows, ...promos.drafts];
   const longList = [...longRows, ...longs.drafts];
   const banner = { id: BANNER, name: "the banner", photos: content?.banner || [] };
   const photoRoom = photosFor === BANNER ? banner : photosFor && roomRows.find((r) => r.id === photosFor);
   const bad = (row, field) => error?.rowId === row.id && error?.field === field;
-  const promoInput = (row, field, props = {}) =>
-    promos.input(row, field, { ...props, invalid: bad(row, field), onChange: (e) => changed(promos)(row, field, e.target.value) });
   const longInput = (row, field, props = {}) =>
     longs.input(row, field, { ...props, invalid: bad(row, field), onChange: (e) => changed(longs)(row, field, e.target.value) });
 
   const addButton =
-    tab === "promotions" ? (
-      <button
-        type="button"
-        className="btn btn-secondary text-sm"
-        disabled={promoList.length >= MAX_PROMOTIONS}
-        onClick={() =>
-          promos.add({ name: "", percent: "", stayFrom: "", stayTo: "", bookFrom: "", bookTo: "", minNights: "", code: "", planId: "", active: true })
-        }
-      >
-        <Icon name="plus" /> Add promotion
-      </button>
-    ) : tab === "longstays" ? (
+    tab === "longstays" ? (
       <button
         type="button"
         className="btn btn-secondary text-sm"
@@ -745,113 +673,17 @@ export default function BookingEngine({ session }) {
         </>
       )}
 
-      {tab === "promotions" && (
-        <>
-          <p className="sub">
-            Percent off the room before tax. The whole stay must fall between the first and last night. The biggest offer
-            wins; offers never add up.
-          </p>
-          <Grid>
-            <thead>
-              <tr>
-                <th>On</th>
-                <th style={{ minWidth: 160 }}>Name guests see</th>
-                <th>% off</th>
-                <th>First night</th>
-                <th>Last night</th>
-                <th style={{ minWidth: 160 }}>When</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {promoList.map((p) => {
-                const gone = removed.promotions.has(p.id);
-                const row = promos.merged(p);
-                const when = promotionWhen(row, shortDay);
-                const extras = [
-                  row.minNights && `${row.minNights}+ nights`,
-                  row.code && `Code ${String(row.code).toUpperCase()}`,
-                  row.planId && planOptions.find((o) => o.id === row.planId)?.label,
-                ].filter(Boolean);
-                const expanded = open.has(p.id);
-                return [
-                  <tr key={p.id} style={gone ? { opacity: 0.5, textDecoration: "line-through" } : undefined}>
-                    <td className="text-center">{promos.check(p, "active", { "aria-label": "Promotion on", disabled: gone })}</td>
-                    <td>{promoInput(p, "name", { placeholder: "Diwali offer", maxLength: 60, autoFocus: isDraft(p.id), disabled: gone })}</td>
-                    <td>{promoInput(p, "percent", { inputMode: "decimal", style: { width: "4.5rem" }, disabled: gone })}</td>
-                    <td>{!gone && <DateCell grid={promos} row={p} field="stayFrom" invalid={bad(p, "stayFrom")} />}</td>
-                    <td>{!gone && <DateCell grid={promos} row={p} field="stayTo" invalid={bad(p, "stayTo")} />}</td>
-                    <td className="text-xs">
-                      <span style={{ color: when.open ? "var(--warn)" : "var(--text-muted)" }}>{when.text}</span>
-                      {extras.length > 0 && <span style={{ color: "var(--text-muted)" }}>. {extras.join(", ")}</span>}
-                    </td>
-                    <td className="whitespace-nowrap">
-                      {!gone && (
-                        <button
-                          type="button"
-                          className="btn btn-ghost text-xs"
-                          aria-expanded={expanded}
-                          onClick={() =>
-                            setOpen((o) => {
-                              const n = new Set(o);
-                              if (n.has(p.id)) n.delete(p.id);
-                              else n.add(p.id);
-                              return n;
-                            })
-                          }
-                        >
-                          {expanded ? "Less" : "More"}
-                        </button>
-                      )}
-                      <RemoveButton
-                        gone={gone}
-                        label={row.name || "promotion"}
-                        onRemove={() => remove("promotions", promos, p)}
-                        onRestore={() => toggle("promotions", p.id, false)}
-                      />
-                    </td>
-                  </tr>,
-                  expanded && !gone && (
-                    <tr key={`${p.id}-more`}>
-                      <td />
-                      <td colSpan={6}>
-                        <div className="flex flex-wrap items-end gap-3 py-1 text-xs">
-                          <label className="space-y-1">
-                            <span className="label">Book from</span>
-                            <DateCell grid={promos} row={p} field="bookFrom" invalid={bad(p, "bookFrom")} />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="label">Book to</span>
-                            <DateCell grid={promos} row={p} field="bookTo" invalid={bad(p, "bookTo")} />
-                          </label>
-                          <label className="space-y-1">
-                            <span className="label">Min stay</span>
-                            {promoInput(p, "minNights", { inputMode: "numeric", placeholder: "Any", style: { width: "4.5rem" } })}
-                          </label>
-                          <label className="space-y-1">
-                            <span className="label">Promo code</span>
-                            {promoInput(p, "code", { placeholder: "None, open to all", maxLength: 20, style: { width: "9rem", textTransform: "uppercase" } })}
-                          </label>
-                          <label className="space-y-1" style={{ minWidth: 150 }}>
-                            <span className="label">Plan</span>
-                            {promos.select(p, "planId", planOptions)}
-                          </label>
-                        </div>
-                      </td>
-                    </tr>
-                  ),
-                ];
-              })}
-              {promoList.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="sub">
-                    No promotions yet. Add one for a festival, a slow season or a code you share on Instagram.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </Grid>
-        </>
+      {(tab === "promotions" || tab === "coupons") && (
+        <OffersTab
+          key={tab}
+          kind={tab === "coupons" ? "coupon" : "promotion"}
+          list={(tab === "coupons" ? content.coupons : content.promotions) || []}
+          rooms={roomRows.map((r) => ({ id: r.id, name: r.name }))}
+          plans={planRows.map((p) => ({ id: p.id, name: p.planName }))}
+          currency={data.currency}
+          usedCounts={data.couponUses || {}}
+          onSave={(list) => saveOffers(tab === "coupons" ? "coupons" : "promotions", list)}
+        />
       )}
 
       {tab === "longstays" && (
