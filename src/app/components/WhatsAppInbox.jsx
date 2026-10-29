@@ -100,7 +100,7 @@ export default function WhatsAppInbox() {
       needs: contacts.filter(needsYou).length,
       leads: contacts.filter(openLead).length,
       hotels: contacts.filter((c) => c.property_id).length,
-      paused: contacts.filter((c) => c.bot_paused && !c.property_id).length,
+      paused: contacts.filter((c) => c.bot_paused).length,
     }),
     [contacts]
   );
@@ -111,7 +111,7 @@ export default function WhatsAppInbox() {
     if (filter === "needs") rows = rows.filter(needsYou);
     if (filter === "leads") rows = rows.filter(openLead);
     if (filter === "hotels") rows = rows.filter((c) => c.property_id);
-    if (filter === "paused") rows = rows.filter((c) => c.bot_paused && !c.property_id);
+    if (filter === "paused") rows = rows.filter((c) => c.bot_paused);
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     const digits = q.replace(/\D/g, "");
@@ -244,7 +244,7 @@ export default function WhatsAppInbox() {
                       {needsYou(c) ? (
                         <span className="chip chip-warn">Needs you</span>
                       ) : (
-                        c.bot_paused && !c.property_id && <span className="chip chip-off">Bot off</span>
+                        c.bot_paused && <span className="chip chip-off">Bot off</span>
                       )}
                       {c.lead && !c.property_id && (
                         <span className={`chip ${c.lead.status === "won" ? "chip-ok" : c.lead.status === "lost" ? "chip-off" : "chip-booked"}`}>
@@ -430,17 +430,15 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
               <LeadStatus lead={lead} onSave={saveLead} />
             </span>
           )}
-          {!contact.property_id && (
-            <label className="flex items-center gap-2 text-sm" title="When off, you answer this chat yourself">
-              <input
-                type="checkbox"
-                checked={!contact.bot_paused}
-                onChange={(e) => change({ bot_paused: !e.target.checked }, e.target.checked ? "Bot is answering" : "You are answering")}
-              />
-              <span className="max-md:hidden">Bot replies</span>
-              <span className="md:hidden">Bot</span>
-            </label>
-          )}
+          <label className="flex items-center gap-2 text-sm" title="When off, you answer this chat yourself">
+            <input
+              type="checkbox"
+              checked={!contact.bot_paused}
+              onChange={(e) => change({ bot_paused: !e.target.checked }, e.target.checked ? "Bot is answering" : "You are answering")}
+            />
+            <span className="max-md:hidden">Bot replies</span>
+            <span className="md:hidden">Bot</span>
+          </label>
         </div>
       </div>
 
@@ -508,8 +506,8 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
             />
             <div className="flex flex-col gap-1">
               {ai && (
-                <button type="button" className="btn btn-ghost text-sm" disabled={drafting || busy} onClick={suggest}>
-                  {drafting ? "Drafting..." : "Suggest reply"}
+                <button type="button" className="btn btn-ghost text-sm" disabled={drafting || busy} onClick={suggest} title="Draft a reply to edit and send">
+                  {drafting ? "Drafting" : "Suggest"}
                 </button>
               )}
               <button type="submit" className="btn btn-primary" disabled={!canText}>

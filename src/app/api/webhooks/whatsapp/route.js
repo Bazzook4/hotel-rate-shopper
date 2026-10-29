@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { getSupabaseAdmin } from "@/lib/database";
 import { markRead, sendText, signatureValid, waPhone } from "@/lib/whatsapp";
 import { handleIncoming } from "@/lib/salesFlow";
-import { aiReady, aiReply, handOff, loadHistory } from "@/lib/aiAgent";
+import { aiReady, aiReply, loadHistory } from "@/lib/aiAgent";
 
 // The AI reply waits a few seconds and sends in parts, so allow for it.
 export const maxDuration = 60;
@@ -128,8 +128,6 @@ async function aiAnswer(phone, id) {
   if (await overtaken(phone, id)) return;
   const contact = await currentContact(phone);
   if (!contact || contact.bot_paused) return;
-  // A hotel already on the PMS is SJ's to answer, not the sales assistant's.
-  if (contact.property_id) return handOff(contact, "Message from a hotel contact");
 
   const { text, handedOff } = await aiReply(contact, await loadHistory(phone));
   const parts = (text || (handedOff ? "Our team will contact you shortly." : ""))

@@ -102,11 +102,6 @@ export async function handleIncoming(contact, msg) {
   const db = getSupabaseAdmin();
   const text = (msg.text || "").trim();
 
-  if (contact.property_id) {
-    await alertAdmin(`Message from a hotel contact ${contact.name || ""} (+${contact.phone}): ${text.slice(0, 300)}`);
-    return;
-  }
-
   const { data: latest } = await db
     .from("wa_leads")
     .select("*")
