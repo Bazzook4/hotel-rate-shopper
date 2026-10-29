@@ -7,28 +7,26 @@ import { useToast } from "@/app/components/Toast";
 import { useDialog } from "@/app/components/Dialog";
 import { useBackdropClose, useEscape } from "@/app/components/useEscape";
 import {
-  MAX_LONG_STAY_RULES,
   BANNER,
   HOTEL_AMENITIES,
-  longStayProblem,
   timeLabel,
   maxPhotosFor,
 } from "@/lib/bookingEngineShared";
 import BookingEngineSettings from "./BookingEngineSettings";
 import OffersTab from "./BookingOffers";
 import { shrink } from "./GuestIdPhotos";
-import { Grid, Loading, Messages, SaveActions, SetupHeader, isDraft, sendJSON, useGrid } from "./SetupGrid";
+import { Grid, Loading, Messages, SaveActions, SetupHeader, sendJSON, useGrid } from "./SetupGrid";
 
 /**
  * The hotel's booking engine, in one place: the page's link and how guests
  * pay, then what guests see -- rooms with photos, plans with what is
- * included and the cancellation terms -- and the discounts: promotions,
- * coupon codes (BookingOffers.jsx), and money off for longer stays.
+ * included and the cancellation terms -- and every discount on one Offers
+ * tab: promotions, long stays and coupon codes (BookingOffers.jsx).
  *
- * The four content tabs are CM-style grids edited in place, with one Save
- * for all of them, always in the header, as every setup page has. A row
- * removed stays on screen, struck through, with Put back, until Save. Photos
- * are the exception: they go up as soon as they are picked.
+ * Hotel, Rooms and Plans are edited in place, with one Save for all of
+ * them, always in the header, as every setup page has. Photos and offers
+ * are the exceptions: photos go up as soon as they are picked, and an offer
+ * saves from its own panel.
  *
  * Blank text falls back to what Rooms and Rate Plan Setup already say, so a
  * hotel only types what it wants to say differently on its website.
@@ -39,9 +37,7 @@ const TABS = [
   { id: "hotel", label: "Hotel" },
   { id: "rooms", label: "Rooms" },
   { id: "plans", label: "Plans" },
-  { id: "promotions", label: "Promotions" },
-  { id: "coupons", label: "Coupons" },
-  { id: "longstays", label: "Long stays" },
+  { id: "offers", label: "Offers" },
 ];
 
 const DATE_LABEL = { stayFrom: "First night", stayTo: "Last night", bookFrom: "Book from", bookTo: "Book to" };
@@ -265,19 +261,6 @@ function Thumbs({ photos }) {
   );
 }
 
-/** Remove, or Put back for a row waiting to be removed on Save. */
-function RemoveButton({ gone, label, onRemove, onRestore }) {
-  return gone ? (
-    <button type="button" className="btn btn-ghost text-xs" onClick={onRestore}>
-      Put back
-    </button>
-  ) : (
-    <button type="button" className="btn btn-ghost text-xs" aria-label={`Remove ${label}`} onClick={onRemove}>
-      <Icon name="trash" />
-    </button>
-  );
-}
-
 export default function BookingEngine({ session }) {
   const propertyId = session?.propertyId;
   const scope = propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : "";
@@ -289,7 +272,6 @@ export default function BookingEngine({ session }) {
   const [error, setError] = useState(null);
   const [photosFor, setPhotosFor] = useState(null);
   const [uploading, setUploading] = useState(null);
-  const [removed, setRemoved] = useState({ longStays: new Set() });
   const [hotelForm, setHotelForm] = useState(null);
   const [hotelKey, setHotelKey] = useState(0);
   const pickerRef = useRef(null);
@@ -348,11 +330,6 @@ export default function BookingEngine({ session }) {
       }),
     [data, content]
   );
-  const longRows = useMemo(
-    () => (content?.longStays || []).map((r, i) => ({ id: `ls${i}`, nights: r.nights, percent: r.percent })),
-    [content]
-  );
-
   // The Hotel tab is one record, so it is a form; it counts as one change.
   const hotelSaved = content?.hotel;
   useEffect(() => setHotelForm(hotelSaved || null), [hotelSaved]);
@@ -360,30 +337,14 @@ export default function BookingEngine({ session }) {
 
   const rooms = useGrid(roomRows);
   const plans = useGrid(planRows);
-  const longs = useGrid(longRows, removed.longStays.size);
-  const pending = rooms.count + plans.count + longs.count + (hotelDirty ? 1 : 0);
+  const pending = rooms.count + plans.count + (hotelDirty ? 1 : 0);
 
   function discard() {
     rooms.discard();
     plans.discard();
-    longs.discard();
     setHotelForm(hotelSaved || null);
     setHotelKey((k) => k + 1);
-    setRemoved({ longStays: new Set() });
     setError(null);
-  }
-
-  const toggle = (kind, id, on) =>
-    setRemoved((r) => {
-      const next = new Set(r[kind]);
-      if (on) next.add(id);
-      else next.delete(id);
-      return { ...r, [kind]: next };
-    });
-
-  function remove(kind, grid, row) {
-    if (isDraft(row.id)) grid.removeDraft(row.id);
-    else toggle(kind, row.id, true);
   }
 
   const switchTab = (id) => {
@@ -391,31 +352,17 @@ export default function BookingEngine({ session }) {
     setError(null);
   };
 
-  /** An edit clears the message pointing at the cell it fixes. */
-  const changed = (grid) => (row, field, v) => {
-    if (error?.rowId === row.id) setError(null);
-    grid.change(row, field, v);
-  };
-
   /** A promotion or coupon saves on its own, from its panel, with the rest of the saved content. */
-  async function saveOffers(field, list) {
+  async function saveOffers(offers) {
     const json = await sendJSON("/api/setup/bookingEngine", "PUT", {
       propertyId: propertyId || undefined,
-      content: { ...content, [field]: list },
+      content: { ...content, ...offers },
     });
     setData((d) => ({ ...d, content: json.content }));
   }
 
   async function save() {
     setError(null);
-    const longList = longRows.filter((r) => !removed.longStays.has(r.id)).concat(longs.drafts).map(longs.merged);
-    const longProblem = longStayProblem(longList);
-    if (longProblem) {
-      setTab("longstays");
-      setError({ rowId: longList[longProblem.index].id, field: longProblem.field, message: longProblem.message });
-      return;
-    }
-
     const next = {
       ...content,
       hotel: hotelForm || hotelSaved,
@@ -431,7 +378,6 @@ export default function BookingEngine({ session }) {
           { hidden: !p.shown, name: p.name, description: p.description, cancellation: p.cancellation },
         ])
       ),
-      longStays: longList.map((r) => ({ nights: Number(r.nights), percent: Number(r.percent) })),
     };
 
     setBusy(true);
@@ -492,29 +438,12 @@ export default function BookingEngine({ session }) {
   if (!data) return <Loading label="Loading the booking engine..." />;
 
   const url = data.key && typeof window !== "undefined" ? `${window.location.origin}/book/${data.key}` : null;
-  const longList = [...longRows, ...longs.drafts];
   const banner = { id: BANNER, name: "the banner", photos: content?.banner || [] };
   const photoRoom = photosFor === BANNER ? banner : photosFor && roomRows.find((r) => r.id === photosFor);
-  const bad = (row, field) => error?.rowId === row.id && error?.field === field;
-  const longInput = (row, field, props = {}) =>
-    longs.input(row, field, { ...props, invalid: bad(row, field), onChange: (e) => changed(longs)(row, field, e.target.value) });
-
-  const addButton =
-    tab === "longstays" ? (
-      <button
-        type="button"
-        className="btn btn-secondary text-sm"
-        disabled={longList.length >= MAX_LONG_STAY_RULES}
-        onClick={() => longs.add({ nights: "", percent: "" })}
-      >
-        <Icon name="plus" /> Add step
-      </button>
-    ) : null;
-
   return (
     <div className="space-y-3">
       <SetupHeader area="Rates" title="Booking Engine" sub="Your own booking page: your rooms, rates, photos and offers. Guests pay straight to you.">
-        {(tab !== "link" || pending > 0) && <SaveActions count={pending} busy={busy} onSave={save} onDiscard={discard} />}
+        {(["hotel", "rooms", "plans"].includes(tab) || pending > 0) && <SaveActions count={pending} busy={busy} onSave={save} onDiscard={discard} />}
       </SetupHeader>
 
       {url && <LinkBar url={url} open={data.prefs?.enabled === true} onTurnOn={() => switchTab("link")} />}
@@ -536,7 +465,6 @@ export default function BookingEngine({ session }) {
             ))}
           </div>
         </div>
-        {addButton}
       </div>
 
       {tab === "link" && pending > 0 && (
@@ -673,60 +601,16 @@ export default function BookingEngine({ session }) {
         </>
       )}
 
-      {(tab === "promotions" || tab === "coupons") && (
+      {tab === "offers" && (
         <OffersTab
-          key={tab}
-          kind={tab === "coupons" ? "coupon" : "promotion"}
-          list={(tab === "coupons" ? content.coupons : content.promotions) || []}
+          promotions={content.promotions || []}
+          coupons={content.coupons || []}
           rooms={roomRows.map((r) => ({ id: r.id, name: r.name }))}
           plans={planRows.map((p) => ({ id: p.id, name: p.planName }))}
           currency={data.currency}
           usedCounts={data.couponUses || {}}
-          onSave={(list) => saveOffers(tab === "coupons" ? "coupons" : "promotions", list)}
+          onSave={saveOffers}
         />
-      )}
-
-      {tab === "longstays" && (
-        <>
-          <p className="sub">Off the room before tax. The guest gets the highest step reached, or a promotion if bigger.</p>
-          <div className="w-fit max-w-full">
-            <Grid>
-              <thead>
-                <tr>
-                  <th>Nights or more</th>
-                  <th>% off</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {longList.map((r) => {
-                  const gone = removed.longStays.has(r.id);
-                  return (
-                    <tr key={r.id} style={gone ? { opacity: 0.5, textDecoration: "line-through" } : undefined}>
-                      <td>{longInput(r, "nights", { inputMode: "numeric", placeholder: "3", style: { width: "4.5rem" }, autoFocus: isDraft(r.id), disabled: gone })}</td>
-                      <td>{longInput(r, "percent", { inputMode: "decimal", placeholder: "10", style: { width: "4.5rem" }, disabled: gone })}</td>
-                      <td>
-                        <RemoveButton
-                          gone={gone}
-                          label="step"
-                          onRemove={() => remove("longStays", longs, r)}
-                          onRestore={() => toggle("longStays", r.id, false)}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {longList.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="sub">
-                      None yet. For example: 3 nights or more, 10% off.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </Grid>
-          </div>
-        </>
       )}
 
       {photoRoom && (

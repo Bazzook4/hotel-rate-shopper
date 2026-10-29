@@ -11,7 +11,7 @@ import {
   MAX_BLACKOUTS,
   MAX_COUPONS,
   MAX_PROMOTIONS,
-  PROMOTION_TYPES,
+  OFFER_TYPES,
   WEEKDAYS,
   cleanCode,
   couponProblem,
@@ -22,11 +22,15 @@ import {
 import { Grid } from "./SetupGrid";
 
 /**
- * The Booking Engine's Promotions and Coupons tabs: a list of offers, each
- * opened in a side panel to add or change it. The panel asks only what the
- * offer's type needs first -- the name, how much off, and the type's own
- * question -- and keeps the rest (dates, blackout dates, days, nights,
- * rooms and plans) below, all optional.
+ * The Booking Engine's Offers tab: every discount in one list -- promotions
+ * of each type, long stays and coupon codes -- each opened in a side panel
+ * to add or change it. The panel asks only what the offer's type needs
+ * first -- the name or code, how much off, and the type's own question --
+ * and keeps the rest (dates, blackout dates, days, nights, rooms and plans)
+ * below, all optional.
+ *
+ * Promotions and coupons are kept apart underneath (lib/promotions.js), as
+ * they price differently; a coupon is just the offer type "Coupon code" here.
  *
  * An offer saves when its panel is saved, like a booking does; it does not
  * wait for the page's Save.
@@ -49,17 +53,14 @@ const BLANK_TERMS = {
   roomTypeIds: [],
   active: true,
 };
-const BLANK = {
-  promotion: { ...BLANK_TERMS, name: "", type: "basic", days: "", weekdays: [], blackout: [] },
-  coupon: { ...BLANK_TERMS, code: "", name: "", stack: true, maxUses: "" },
-};
+const BLANK = { ...BLANK_TERMS, name: "", type: "basic", days: "", weekdays: [], blackout: [], code: "", stack: true, maxUses: "" };
 
 let seq = 0;
-const newId = (kind) => `${kind === "coupon" ? "c" : "p"}${Date.now().toString(36)}${(seq += 1)}`;
+const newId = () => `o${Date.now().toString(36)}${(seq += 1)}`;
 
 /** The offer as the form holds it: numbers as text, blanks as "". */
-const toForm = (o, kind) => ({
-  ...BLANK[kind],
+const toForm = (o) => ({
+  ...BLANK,
   ...o,
   value: o.value ?? "",
   days: o.days ?? "",
@@ -72,115 +73,125 @@ const toForm = (o, kind) => ({
   bookTo: o.bookTo || "",
 });
 
-export default function OffersTab({ kind, list, rooms, plans, currency, onSave, usedCounts = {} }) {
+export default function OffersTab({ promotions, coupons, rooms, plans, currency, onSave, usedCounts = {} }) {
   const [editing, setEditing] = useState(null);
   const toast = useToast();
   const dialog = useDialog();
   const money = (v) => formatMoney(v, { currency });
-  const isCoupon = kind === "coupon";
-  const max = isCoupon ? MAX_COUPONS : MAX_PROMOTIONS;
+  const rows = [...promotions, ...coupons.map((c) => ({ ...c, type: "coupon" }))];
   const nameOf = (ids, all) => (ids?.length ? ids.map((id) => all.find((x) => x.id === id)?.name).filter(Boolean).join(", ") : "All");
+  const label = (o) => (o.type === "coupon" ? `Coupon ${o.code}` : o.name);
 
+  /** Puts an offer in the right list, out of the other if its type moved across. */
   async function save(offer) {
-    const exists = list.some((o) => o.id === offer.id);
-    await onSave(exists ? list.map((o) => (o.id === offer.id ? offer : o)) : [...list, offer]);
-    toast(isCoupon ? `Coupon ${offer.code} saved` : `${offer.name} saved`);
+    const isCoupon = offer.type === "coupon";
+    // Each list keeps only its own fields, so a type moved across leaves nothing behind.
+    const { type: _type, days: _d, weekdays: _w, blackout: _b, ...coupon } = offer;
+    const { code: _c, stack: _s, maxUses: _m, ...promotion } = offer;
+    const nextPromotions = promotions.filter((p) => p.id !== offer.id);
+    const nextCoupons = coupons.filter((c) => c.id !== offer.id);
+    const at = (list) => list.findIndex((o) => o.id === offer.id);
+    const place = (list, next, item) => {
+      const i = at(list);
+      if (i < 0) return [...next, item];
+      const copy = [...next];
+      copy.splice(Math.min(i, copy.length), 0, item);
+      return copy;
+    };
+    await onSave({
+      promotions: isCoupon ? nextPromotions : place(promotions, nextPromotions, promotion),
+      coupons: isCoupon ? place(coupons, nextCoupons, coupon) : nextCoupons,
+    });
+    toast(`${label(offer)} saved`);
     setEditing(null);
   }
 
   async function remove(offer) {
     const yes = await dialog.confirm({
-      title: isCoupon ? `Delete coupon ${offer.code}?` : `Delete ${offer.name}?`,
+      title: `Delete ${label(offer)}?`,
       message: "Guests will no longer get it. Bookings already made keep their discount.",
       confirmLabel: "Delete",
       cancelLabel: "Keep it",
       danger: true,
     });
     if (!yes) return;
-    await onSave(list.filter((o) => o.id !== offer.id));
-    toast(isCoupon ? `Coupon ${offer.code} deleted` : `${offer.name} deleted`);
+    await onSave({
+      promotions: promotions.filter((p) => p.id !== offer.id),
+      coupons: coupons.filter((c) => c.id !== offer.id),
+    });
+    toast(`${label(offer)} deleted`);
     setEditing(null);
   }
 
   async function switchOnOff(offer) {
-    await onSave(list.map((o) => (o.id === offer.id ? { ...o, active: !o.active } : o)));
-    toast(`${isCoupon ? offer.code : offer.name} ${offer.active ? "switched off" : "switched on"}`);
+    const flip = (list) => list.map((o) => (o.id === offer.id ? { ...o, active: !o.active } : o));
+    await onSave({ promotions: flip(promotions), coupons: flip(coupons) });
+    toast(`${label(offer)} ${offer.active ? "switched off" : "switched on"}`);
   }
+
+  const full = promotions.length >= MAX_PROMOTIONS && coupons.length >= MAX_COUPONS;
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="sub">
-          {isCoupon
-            ? "Codes you give out, on Instagram or to a group. A guest types one on your booking page. By default it adds on top of any running promotion."
-            : "Offers every guest who fits gets, on the room before tax. The biggest one wins; they never add up. A coupon can add on top."}
+          Every discount on your booking page. The guest gets the one promotion or long stay worth most, never two; a coupon
+          code can add on top.
         </p>
-        <button
-          type="button"
-          className="btn btn-primary text-sm"
-          disabled={list.length >= max}
-          onClick={() => setEditing(toForm({ id: newId(kind) }, kind))}
-        >
-          <Icon name="plus" /> {isCoupon ? "Add coupon" : "Add promotion"}
+        <button type="button" className="btn btn-primary text-sm" disabled={full} onClick={() => setEditing(toForm({ id: newId() }))}>
+          <Icon name="plus" /> Add offer
         </button>
       </div>
       <Grid>
         <thead>
           <tr>
             <th>On</th>
-            <th>{isCoupon ? "Code" : "Name guests see"}</th>
-            {!isCoupon && <th>Type</th>}
+            <th>Name or code</th>
+            <th>Type</th>
             <th>Discount</th>
             <th style={{ minWidth: 220 }}>When</th>
             <th>Rooms and plans</th>
-            {isCoupon && <th>Used</th>}
+            <th>Used</th>
             <th />
           </tr>
         </thead>
         <tbody>
-          {list.map((o) => {
+          {rows.map((o) => {
             const when = offerWhen(o, shortDay);
+            const coupon = o.type === "coupon";
             return (
               <tr key={o.id} style={o.active ? undefined : { opacity: 0.55 }}>
                 <td className="text-center">
-                  <input type="checkbox" checked={o.active} onChange={() => switchOnOff(o)} aria-label={`${isCoupon ? o.code : o.name} on`} />
+                  <input type="checkbox" checked={o.active} onChange={() => switchOnOff(o)} aria-label={`${label(o)} on`} />
                 </td>
                 <td className="font-medium">
-                  <button type="button" className="fact-link" onClick={() => setEditing(toForm(o, kind))}>
-                    {isCoupon ? o.code : o.name}
+                  <button type="button" className={`fact-link ${coupon ? "font-mono" : ""}`} onClick={() => setEditing(toForm(o))}>
+                    {coupon ? o.code : o.name}
                   </button>
                 </td>
-                {!isCoupon && <td>{PROMOTION_TYPES.find((t) => t.id === o.type)?.label}</td>}
-                <td className="whitespace-nowrap">
-                  {offerAmount(o, money)}
-                  {isCoupon && <span className="sub text-xs">{o.stack ? ", on top" : ", instead"}</span>}
-                </td>
+                <td>{OFFER_TYPES.find((t) => t.id === o.type)?.label}</td>
+                <td className="whitespace-nowrap">{offerAmount(o, money)}</td>
                 <td className="text-xs" style={{ color: when.open ? "var(--warn)" : "var(--text-muted)" }}>
                   {when.text}
                 </td>
                 <td className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {nameOf(o.roomTypeIds, rooms)} rooms, {nameOf(o.planIds, plans).toLowerCase() === "all" ? "all" : nameOf(o.planIds, plans)} plans
                 </td>
-                {isCoupon && (
-                  <td className="text-xs whitespace-nowrap">
-                    {usedCounts[o.code] || 0}
-                    {o.maxUses ? ` of ${o.maxUses}` : ""}
-                  </td>
-                )}
+                <td className="whitespace-nowrap text-xs">
+                  {coupon ? `${usedCounts[o.code] || 0}${o.maxUses ? ` of ${o.maxUses}` : ""}` : "-"}
+                </td>
                 <td>
-                  <button type="button" className="btn btn-ghost text-xs" onClick={() => setEditing(toForm(o, kind))}>
+                  <button type="button" className="btn btn-ghost text-xs" onClick={() => setEditing(toForm(o))}>
                     Edit
                   </button>
                 </td>
               </tr>
             );
           })}
-          {list.length === 0 && (
+          {rows.length === 0 && (
             <tr>
               <td colSpan={8} className="sub">
-                {isCoupon
-                  ? "No coupons yet. Add one like INSTA10 to share on your Instagram."
-                  : "No promotions yet. Add one for a festival, early bookers, last-minute rooms or phone bookings."}
+                No offers yet. Add one for a festival, early bookers, long stays, phone bookings, or a code to share on Instagram.
               </td>
             </tr>
           )}
@@ -189,10 +200,11 @@ export default function OffersTab({ kind, list, rooms, plans, currency, onSave, 
 
       {editing && (
         <OfferPanel
-          kind={kind}
           initial={editing}
-          isNew={!list.some((o) => o.id === editing.id)}
-          others={list}
+          isNew={!rows.some((o) => o.id === editing.id)}
+          coupons={coupons}
+          promotionsFull={promotions.length >= MAX_PROMOTIONS}
+          couponsFull={coupons.length >= MAX_COUPONS}
           rooms={rooms}
           plans={plans}
           currency={currency}
@@ -269,13 +281,13 @@ function Picks({ all, picked, onChange, noun }) {
   );
 }
 
-function OfferPanel({ kind, initial, isNew, others, rooms, plans, currency, onSave, onDelete, onClose }) {
+function OfferPanel({ initial, isNew, coupons, promotionsFull, couponsFull, rooms, plans, currency, onSave, onDelete, onClose }) {
   const [form, setForm] = useState(initial);
   const [problem, setProblem] = useState(null);
   const [busy, setBusy] = useState(false);
   const [blackoutDay, setBlackoutDay] = useState("");
   const firstRef = useRef(null);
-  const isCoupon = kind === "coupon";
+  const isCoupon = form.type === "coupon";
   const dirty = JSON.stringify(form) !== JSON.stringify(initial);
   const dialog = useDialog();
 
@@ -306,7 +318,12 @@ function OfferPanel({ kind, initial, isNew, others, rooms, plans, currency, onSa
 
   async function submit(e) {
     e.preventDefault();
-    const found = isCoupon ? couponProblem(form, others) : promotionProblem(form);
+    const found = isCoupon ? couponProblem(form, coupons) : promotionProblem(form);
+    const was = initial.type === "coupon";
+    if (!found && isCoupon !== was && (isCoupon ? couponsFull : promotionsFull)) {
+      setProblem({ field: "type", message: isCoupon ? "You have as many coupons as allowed." : "You have as many promotions as allowed." });
+      return;
+    }
     if (found) {
       setProblem(found);
       return;
@@ -326,7 +343,7 @@ function OfferPanel({ kind, initial, isNew, others, rooms, plans, currency, onSa
     setBlackoutDay("");
   };
 
-  const title = isCoupon ? (isNew ? "New coupon" : `Coupon ${initial.code}`) : isNew ? "New promotion" : initial.name;
+  const title = isNew ? "New offer" : initial.type === "coupon" ? `Coupon ${initial.code}` : initial.name;
 
   return (
     <div className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={title} {...backdrop}>
@@ -342,26 +359,29 @@ function OfferPanel({ kind, initial, isNew, others, rooms, plans, currency, onSa
         </div>
 
         <div className="card-pad flex-1 space-y-5">
-          {!isCoupon && (
-            <Block title="Type">
-              <div className="seg flex-wrap" role="radiogroup" aria-label="Promotion type">
-                {PROMOTION_TYPES.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={form.type === t.id}
-                    className={form.type === t.id ? "seg-on" : ""}
-                    onClick={() => set({ type: t.id })}
-                    title={t.hint}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <p className="sub text-xs">{PROMOTION_TYPES.find((t) => t.id === form.type)?.hint}.</p>
-            </Block>
-          )}
+          <Block title="Type">
+            <div className="seg flex-wrap" role="radiogroup" aria-label="Offer type">
+              {OFFER_TYPES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.type === t.id}
+                  className={form.type === t.id ? "seg-on" : ""}
+                  onClick={() => set({ type: t.id })}
+                  title={t.hint}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <p className="sub text-xs">{OFFER_TYPES.find((t) => t.id === form.type)?.hint}.</p>
+            {problem?.field === "type" && (
+              <p className="text-xs" style={{ color: "var(--danger)" }}>
+                {problem.message}
+              </p>
+            )}
+          </Block>
 
           <Block title={isCoupon ? "Code and discount" : "Name and discount"}>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -408,6 +428,14 @@ function OfferPanel({ kind, initial, isNew, others, rooms, plans, currency, onSa
                 : "Off each night that qualifies, before tax."}
             </p>
           </Block>
+
+          {form.type === "long" && (
+            <Block title="Long stay">
+              <Field label="Staying this many nights or more" error={err("minNights")}>
+                <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="3" {...bind("minNights")} />
+              </Field>
+            </Block>
+          )}
 
           {!isCoupon && (form.type === "early" || form.type === "last") && (
             <Block title={form.type === "early" ? "Early bird" : "Last minute"}>
@@ -506,9 +534,11 @@ function OfferPanel({ kind, initial, isNew, others, rooms, plans, currency, onSa
 
           <Block title="Length of stay" hint="Blank means any.">
             <div className="flex gap-3">
-              <Field label="Fewest nights" error={err("minNights")}>
-                <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("minNights")} />
-              </Field>
+              {form.type !== "long" && (
+                <Field label="Fewest nights" error={err("minNights")}>
+                  <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("minNights")} />
+                </Field>
+              )}
               <Field label="Most nights" error={err("maxNights")}>
                 <input className="input" style={{ width: "6rem" }} inputMode="numeric" placeholder="Any" {...bind("maxNights")} />
               </Field>

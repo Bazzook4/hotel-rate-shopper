@@ -9,6 +9,7 @@
  *   early   booked at least `days` days before arrival (early bird)
  *   last    booked at most `days` days before arrival (last minute)
  *   mobile  booked on a phone
+ *   long    a long stay: a set number of nights or more
  * and then the same conditions for all: check-in dates, booking dates,
  * blackout dates, days of the week, minimum and maximum nights, rate plans
  * and room types (none ticked means all), and percent or amount off.
@@ -29,7 +30,11 @@ export const PROMOTION_TYPES = [
   { id: "early", label: "Early bird", hint: "Booked well before arrival" },
   { id: "last", label: "Last minute", hint: "Booked close to arrival" },
   { id: "mobile", label: "Mobile", hint: "Booked on a phone" },
+  { id: "long", label: "Long stay", hint: "Staying a set number of nights or more" },
 ];
+
+/** The types the Offers tab offers: the promotion types, and a coupon code. */
+export const OFFER_TYPES = [...PROMOTION_TYPES, { id: "coupon", label: "Coupon code", hint: "A code the guest types, which you give out" }];
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MAX_PROMOTIONS = 30;
@@ -75,6 +80,23 @@ function cleanTerms(p) {
     roomTypeIds: idList(p?.roomTypeIds),
     active: p?.active !== false,
   };
+}
+
+/**
+ * Long-stay steps saved before they were offers ({ nights, percent }) are
+ * read as Long stay promotions.
+ */
+export function longStaysAsPromotions(longStays) {
+  return (Array.isArray(longStays) ? longStays : [])
+    .filter((r) => r?.nights && r?.percent)
+    .map((r) => ({
+      id: `long-${r.nights}`,
+      name: `Stay ${r.nights}+ nights`,
+      type: "long",
+      kind: "percent",
+      value: r.percent,
+      minNights: r.nights,
+    }));
 }
 
 export function cleanPromotions(list) {
@@ -163,6 +185,9 @@ export function promotionProblem(p) {
     };
   }
   if (p?.type === "early" && Number(p.days) < 1) return { field: "days", message: "Early bird needs at least 1 day." };
+  if (p?.type === "long" && (whole(p?.minNights, 2, 60) == null)) {
+    return { field: "minNights", message: "Say how many nights or more, from 2 to 60." };
+  }
   return termsProblem(p);
 }
 
@@ -192,6 +217,7 @@ export function offerWhen(o, day = (d) => d) {
   if (o.type === "early") parts.push(`booked ${o.days}+ days ahead`);
   if (o.type === "last") parts.push(`booked within ${o.days} days of arrival`);
   if (o.type === "mobile") parts.push("on a phone");
+  if (o.type === "coupon" || o.code) parts.push(o.stack === false ? "instead of a promotion" : "on top of a promotion");
   if (o.checkInFrom || o.checkInTo) {
     parts.push(
       o.checkInFrom && o.checkInTo
@@ -281,12 +307,9 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
       (n) => !blackout.has(n.stay_date) && (!p.weekdays?.length || p.weekdays.includes(weekdayOf(n.stay_date)))
     );
     const off = moneyOff(p, nights, eligible);
-    if (off > 0 && (!best || off > best.amount)) best = { amount: off, label: p.name, kind: "promotion" };
-  }
-  for (const r of content.longStays || []) {
-    if (stay.nights.length < r.nights) continue;
-    const off = (room * r.percent) / 100;
-    if (!best || off > best.amount) best = { amount: off, label: `Stay ${r.nights}+ nights`, kind: "long_stay" };
+    if (off > 0 && (!best || off > best.amount)) {
+      best = { amount: off, label: p.name, kind: p.type === "long" ? "long_stay" : "promotion" };
+    }
   }
 
   const typed = cleanCode(code);

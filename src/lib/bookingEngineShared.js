@@ -1,4 +1,4 @@
-import { cleanCoupons, cleanPromotions, promotionsWithoutCodes, MAX_DISCOUNT_PERCENT } from "@/lib/promotions";
+import { cleanCoupons, cleanPromotions, longStaysAsPromotions, promotionsWithoutCodes } from "@/lib/promotions";
 
 /**
  * Booking engine (migration 066): what the guest's booking page, the desk and
@@ -173,18 +173,8 @@ function cleanHotel(raw) {
 }
 
 export const maxPhotosFor = (target) => (target === BANNER ? MAX_BANNER_PHOTOS : MAX_ROOM_PHOTOS);
-export const MAX_LONG_STAY_RULES = 10;
-export { MAX_DISCOUNT_PERCENT };
 
 const text = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, max);
-const wholeOrNull = (v, min, max) => {
-  const n = Math.floor(Number(v));
-  return Number.isFinite(n) && n >= min && n <= max ? n : null;
-};
-const percentOrNull = (v) => {
-  const n = Math.round(Number(v) * 100) / 100;
-  return Number.isFinite(n) && n > 0 && n <= MAX_DISCOUNT_PERCENT ? n : null;
-};
 
 /**
  * The booking page's content, kept with the hotel's choices:
@@ -196,7 +186,6 @@ const percentOrNull = (v) => {
  *               included, the cancellation terms
  *   promotions  offers every guest who fits gets (lib/promotions.js)
  *   coupons     codes a guest types, added on top or instead
- *   longStays   percent off from a number of nights
  * Blank room and plan text falls back to what Rooms and Rate Plan Setup hold.
  */
 export function cleanBookingContent(raw) {
@@ -224,13 +213,12 @@ export function cleanBookingContent(raw) {
       cancellation: text(p.cancellation, 300),
     };
   }
-  const promotions = cleanPromotions(promotionsWithoutCodes(c.promotions));
+  // Long-stay steps saved on their own before are long-stay offers now.
+  const carried = longStaysAsPromotions(c.longStays).filter(
+    (l) => !(c.promotions || []).some((p) => p?.id === l.id)
+  );
+  const promotions = cleanPromotions([...promotionsWithoutCodes(c.promotions), ...carried]);
   const coupons = cleanCoupons(c.coupons, c.promotions);
-  const longStays = (Array.isArray(c.longStays) ? c.longStays : [])
-    .map((r) => ({ nights: wholeOrNull(r?.nights, 2, 60), percent: percentOrNull(r?.percent) }))
-    .filter((r) => r.nights && r.percent)
-    .sort((a, b) => a.nights - b.nights)
-    .slice(0, MAX_LONG_STAY_RULES);
   return {
     hotel: cleanHotel(c.hotel),
     banner: photoList(c.banner, MAX_BANNER_PHOTOS),
@@ -238,25 +226,5 @@ export function cleanBookingContent(raw) {
     plans,
     promotions,
     coupons,
-    longStays,
   };
-}
-
-
-/** What is wrong with the long-stay steps: { index, field, message }, or null. */
-export function longStayProblem(rows) {
-  const seen = new Set();
-  for (let i = 0; i < rows.length; i += 1) {
-    const r = rows[i];
-    const nights = String(r?.nights ?? "").trim();
-    if (!/^\d+$/.test(nights) || !wholeOrNull(nights, 2, 60)) {
-      return { index: i, field: "nights", message: "Nights or more is a number from 2 to 60." };
-    }
-    if (!percentOrNull(r?.percent)) {
-      return { index: i, field: "percent", message: `Enter a discount between 1 and ${MAX_DISCOUNT_PERCENT}%.` };
-    }
-    if (seen.has(Number(nights))) return { index: i, field: "nights", message: `There are two steps for ${nights} nights.` };
-    seen.add(Number(nights));
-  }
-  return null;
 }

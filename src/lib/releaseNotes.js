@@ -22,7 +22,7 @@ export const RELEASE_NOTES = [
       },
       {
         page: "bookingengine",
-        text: "On the same page: tell guests about your hotel (description, amenities, check-in and check-out times, address with directions, phone, email and house rules), add a banner of your hotel's photos across the top of your booking page, add room photos, say what each plan includes and its cancellation terms, hide rooms or plans from your website, run promotions (early bird, last minute, phone-only, or for any guest) with check-in and booking dates, blackout dates, days of the week, nights, room types and rate plans, as a percent or an amount off, give out coupon codes that add on top with an optional use limit, and give money off longer stays. The discount shows on the guest's bill.",
+        text: "On the same page: tell guests about your hotel (description, amenities, check-in and check-out times, address with directions, phone, email and house rules), add a banner of your hotel's photos across the top of your booking page, add room photos, say what each plan includes and its cancellation terms, hide rooms or plans from your website, and run every discount from one Offers tab: promotions (early bird, last minute, phone-only, long stay, or for any guest) with check-in and booking dates, blackout dates, days of the week, nights, room types and rate plans, as a percent or an amount off, and coupon codes that add on top with an optional use limit. The discount shows on the guest's bill.",
       },
       {
         page: "reservations",
