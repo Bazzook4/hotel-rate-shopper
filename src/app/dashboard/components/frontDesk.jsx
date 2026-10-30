@@ -579,7 +579,7 @@ function SettleDialog({ request, onDone }) {
  * it from a click, or the browser blocks the tab.
  */
 export function printInvoicePdf(invoiceId) {
-  window.open(`/api/pms/invoice?id=${invoiceId}&inline=1`, "_blank");
+  window.open(`/api/pms/invoice?id=${invoiceId}&inline=1&print=1`, "_blank");
 }
 
 async function folioPost(body) {
@@ -631,7 +631,7 @@ async function issueInvoices(reservationId) {
 
 /** Open each invoice's PDF, the first in a tab opened while the click still counted. */
 function openInvoices(invoices) {
-  invoices.forEach((inv) => window.open(`/api/pms/invoice?id=${inv.id}&inline=1`, "_blank"));
+  invoices.forEach((inv) => window.open(`/api/pms/invoice?id=${inv.id}&inline=1&print=1`, "_blank"));
 }
 
 async function issueAndOpen(reservationId, tab) {
@@ -652,7 +652,7 @@ async function issueAndOpen(reservationId, tab) {
 
   const invoices = live();
   invoices.forEach((inv, i) => {
-    const url = `/api/pms/invoice?id=${inv.id}&inline=1`;
+    const url = `/api/pms/invoice?id=${inv.id}&inline=1&print=1`;
     if (i === 0 && tab) tab.location.href = url;
     else window.open(url, "_blank");
   });

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { getReservationInvoice, getPropertyById, getPropertyZone } from "@/lib/database";
 import { getHotelBrand } from "@/lib/hotelBrand";
@@ -92,7 +92,7 @@ async function loadLogo(pdf, url) {
   }
 }
 
-async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC") {
+async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC", { autoPrint = false } = {}) {
   const snap = invoice.snapshot || {};
   // Invoices issued before taxes existed carry no `taxes`, and print as before.
   const taxes = snap.taxes || [];
@@ -454,6 +454,17 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC") {
     color: muted,
   });
 
+  // Opening the PDF in the viewer asks it to show the print box, where the
+  // desk picks the printer. Viewers that do not run PDF scripts just show it.
+  if (autoPrint) {
+    const action = pdf.context.obj({
+      Type: "Action",
+      S: "JavaScript",
+      JS: PDFString.of("this.print({bUI: true, bSilent: false, bShrinkToFit: true});"),
+    });
+    pdf.catalog.set(PDFName.of("OpenAction"), pdf.context.register(action));
+  }
+
   return pdf.save();
 }
 
@@ -485,7 +496,9 @@ export async function GET(req) {
     const brand = await getHotelBrand(invoice.property_id).catch(() => null);
 
     const zone = await getPropertyZone(invoice.property_id).catch(() => "UTC");
-    const bytes = await renderInvoice(invoice, fallback, brand?.logoUrl, zone);
+    const bytes = await renderInvoice(invoice, fallback, brand?.logoUrl, zone, {
+      autoPrint: Boolean(req.nextUrl.searchParams.get("print")),
+    });
 
     return new NextResponse(Buffer.from(bytes), {
       headers: {
