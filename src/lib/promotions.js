@@ -122,8 +122,9 @@ export function cleanPromotions(list) {
       type: PROMOTION_TYPES.some((t) => t.id === p?.type) ? p.type : "basic",
       days: whole(p?.days, 0, 365),
       weekdays: [...new Set((Array.isArray(p?.weekdays) ? p.weekdays : []).map(Number).filter((d) => d >= 0 && d <= 6))].sort(),
-      // Only a mobile offer combines; deals never do.
-      stack: p?.type === "mobile" ? p?.stack !== false : false,
+      // Only a mobile offer combines; deals never do. Mobile offers saved
+      // before combining existed competed with the deal, so they still do.
+      stack: p?.type === "mobile" ? p?.stack === true : false,
       blackout: [...new Set((Array.isArray(p?.blackout) ? p.blackout : []).map(iso).filter(Boolean))].sort().slice(0, MAX_BLACKOUTS),
       ...cleanTerms(p),
     }))
@@ -150,6 +151,7 @@ export function cleanCoupons(list, oldPromotions = []) {
       id: text(c?.id, 40) || `c${Math.random().toString(36).slice(2, 10)}`,
       code: cleanCode(c?.code),
       name: text(c?.name, 60),
+      // Coupons always combined unless told not to, so a missing setting combines.
       stack: c?.stack !== false,
       maxUses: whole(c?.maxUses, 1, 100000),
       ...cleanTerms(c),
@@ -331,7 +333,7 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
     if (p.type === "mobile" && !mobile) continue;
     const off = offOf(p);
     if (!(off > 0)) continue;
-    const found = { id: p.id, amount: off, label: p.name, kind: p.type === "long" ? "long_stay" : "promotion", stack: p.stack };
+    const found = { id: p.id, amount: off, label: p.name, kind: p.type === "long" ? "long_stay" : "promotion", stack: p.stack, fixed: p.kind === "amount" };
     if (p.type === "mobile") {
       if (!phone || off > phone.amount) phone = found;
     } else if (!deal || off > deal.amount) {
@@ -345,7 +347,7 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
     ? {
         id: c.id,
         coupon: c.code,
-        label: c.name || `Code ${c.code}`,
+        label: c.name || `Coupon ${c.code}`,
         stack: c.stack,
         take: (left) => (c.kind === "amount" ? Math.min(c.value, left) : (left * c.value) / 100),
       }
@@ -369,21 +371,39 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
       parts = [{ ...t, share: alone }];
     }
   };
-  addTargeted(phone, (left) => (phone.amount * left) / room);
+  // A fixed amount comes off whole, like a coupon; a percent off what is left.
+  addTargeted(phone, (left) => (phone.fixed ? Math.min(phone.amount, left) : (phone.amount * left) / room));
   addTargeted(coupon, (left) => coupon.take(left));
 
-  const cap = Math.min(MAX_OFF_SHARE, (content.offerRules?.maxTotalPercent || 100) / 100);
-  amount = round2(Math.min(amount, room * cap));
+  // The limit is taken off the last offers first; one left with nothing is
+  // dropped, so a coupon that saved nothing is not shown or counted as used.
+  const capPercent = Math.min(MAX_OFF_SHARE * 100, content.offerRules?.maxTotalPercent || 100);
+  const limit = (room * capPercent) / 100;
+  const capped = amount > limit + 0.005;
+  let room2 = Math.min(amount, limit);
+  parts = parts
+    .map((p) => {
+      const share = Math.min(p.share, room2);
+      room2 -= share;
+      return { ...p, share };
+    })
+    .filter((p) => p.share >= 0.005);
+  amount = round2(Math.min(amount, limit));
   if (!(amount > 0)) return null;
+  // Each step rounded, the last one taking the pennies so they add up.
+  const steps = parts.map((p) => ({ id: p.id, label: p.coupon ? `Coupon ${p.coupon}` : p.label, amount: round2(p.share) }));
+  if (steps.length > 1) steps[steps.length - 1].amount = round2(amount - steps.slice(0, -1).reduce((s, x) => s + x.amount, 0));
   return {
     amount,
     label: parts.map((p) => (p.coupon ? (parts.length > 1 ? p.coupon : p.label) : p.label)).join(" + "),
-    kind: parts.some((p) => p.kind === "long_stay") && parts.length === 1 ? "long_stay" : "promotion",
+    // Long stay only when it came off alone; any mix is filed as a promotion.
+    kind: parts.length === 1 && parts[0].kind === "long_stay" ? "long_stay" : "promotion",
     coupon: parts.find((p) => p.coupon)?.coupon || null,
     percent: Math.round((amount / room) * 100),
-    capped: Boolean(content.offerRules?.maxTotalPercent) && amount >= round2(room * cap) - 0.01,
+    capped,
+    capPercent,
     // Each offer that came off, in order, with what it took, for the simulator.
-    steps: parts.map((p) => ({ id: p.id, label: p.coupon ? `Code ${p.coupon}` : p.label, amount: round2(p.share) })),
+    steps,
   };
 }
 
@@ -391,14 +411,19 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
  * Why each offer did or did not come off one room and plan, in the hotel's
  * words, for the simulator. `result` is what offerDiscount returned.
  */
-export function explainOffers(content, { planId, roomTypeId, stay, today, mobile = false, code = "", nights }, result) {
+export function explainOffers(content, { planId, roomTypeId, stay, today, mobile = false, code = "", nights, usedUp = null }, result) {
   const typed = cleanCode(code);
   const ahead = daysBetween(today, stay.checkIn);
   const applied = new Map((result?.steps || []).map((s) => [s.id, s.amount]));
+  // A coupon or mobile offer that does not combine and won replaces every other offer.
+  const won = [...(content.promotions || []), ...(content.coupons || [])].find(
+    (o) => applied.has(o.id) && (o.code || o.type === "mobile") && o.stack === false
+  );
   const n = stay.nights.length;
   const reasonFor = (o) => {
     if (!o.active) return "Switched off";
-    if (o.type === "coupon" && o.code !== typed) return "Code not typed";
+    if (o.type === "coupon" && o.code !== typed) return "Code not entered";
+    if (o.type === "coupon" && o.code === usedUp) return "Used up";
     if (o.roomTypeIds?.length && !o.roomTypeIds.includes(roomTypeId)) return "Not for this room type";
     if (o.planIds?.length && !o.planIds.includes(planId)) return "Not for this rate plan";
     if (o.minNights && n < o.minNights) return `Needs ${o.minNights}+ nights`;
@@ -415,6 +440,8 @@ export function explainOffers(content, { planId, roomTypeId, stay, today, mobile
       );
       if (!any) return "No night qualifies (blackout dates or days of the week)";
     }
+    if (won && o.id !== won.id) return won.code ? `Coupon ${won.code} gave more` : `${won.name} gave more`;
+    if (result?.capped && o.stack !== false && (o.type === "coupon" || o.type === "mobile")) return "Discount limit reached";
     if (DEAL_TYPES.has(o.type)) return "A bigger deal won";
     if (o.type === "mobile" && o.stack !== false) return "A bigger mobile offer won";
     return "Worth less than the other offers together";
@@ -422,7 +449,7 @@ export function explainOffers(content, { planId, roomTypeId, stay, today, mobile
   const all = [...(content.promotions || []), ...(content.coupons || []).map((c) => ({ ...c, type: "coupon" }))];
   return all.map((o) => ({
     id: o.id,
-    name: o.type === "coupon" ? `Code ${o.code}` : o.name,
+    name: o.type === "coupon" ? `Coupon ${o.code}` : o.name,
     type: o.type,
     applied: applied.has(o.id),
     amount: applied.get(o.id) || 0,

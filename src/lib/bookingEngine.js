@@ -573,7 +573,7 @@ export async function searchOffers(hotel, stay, { explain = false, nudge = true 
         refundable: plan.refundable !== false,
         ...priced,
         // The simulator's "why": every offer, and whether and why it applied.
-        ...(explain ? { why: explainOffers(offerContent, offerArgs, discount) } : {}),
+        ...(explain ? { why: explainOffers(content, { ...offerArgs, usedUp: usedUp ? cleanCode(stay.code) : null }, discount) } : {}),
       });
     }
     if (options.length === 0) continue;

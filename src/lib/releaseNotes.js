@@ -13,6 +13,28 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-10-30",
+    title: "Offer discounts now come out right",
+    points: [
+      {
+        page: "bookingengine",
+        text: "A mobile offer set as an amount, for example 500 off, now takes the full amount off when it is added on top of a deal. Before, it took off less.",
+      },
+      {
+        page: "bookingengine",
+        text: "Please open each mobile offer and check its Combine tick. Ticked, it is added on top of your deals. Not ticked, it competes with them and the guest gets whichever is worth more.",
+      },
+      {
+        page: "bookingengine",
+        text: "When your discount limit is already reached, a coupon no longer counts as used, since it saved the guest nothing.",
+      },
+      {
+        page: "bookingengine",
+        text: "Try it now adds up: each discount line matches the total off, and it says when a coupon is used up or beat the other offers.",
+      },
+    ],
+  },
+  {
     date: "2026-10-29",
     title: "Guests see your offers before they pick dates",
     points: [

@@ -79,6 +79,7 @@ const toForm = (o) => ({
 export default function OffersTab({ propertyId, promotions, coupons, rules, rooms, plans, currency, onSave, usedCounts = {} }) {
   const [editing, setEditing] = useState(null);
   const [cap, setCap] = useState(rules?.maxTotalPercent ? String(rules.maxTotalPercent) : "");
+  const [savingCap, setSavingCap] = useState(false);
   const toast = useToast();
   const dialog = useDialog();
   const money = (v) => formatMoney(v, { currency });
@@ -142,8 +143,16 @@ export default function OffersTab({ propertyId, promotions, coupons, rules, room
       toast("Most off in total is a percent from 1 to 90, or blank for no limit.", { tone: "error" });
       return;
     }
-    await onSave({ offerRules: { maxTotalPercent: n } });
-    toast(n ? `Guests never get more than ${n}% off in total` : "No limit on the total discount");
+    if (savingCap) return;
+    setSavingCap(true);
+    try {
+      await onSave({ offerRules: { maxTotalPercent: n } });
+      toast(n ? `Guests never get more than ${n}% off in total` : "No limit on the total discount");
+    } catch (err) {
+      toast(err?.message || "Could not save. Try again.", { tone: "error" });
+    } finally {
+      setSavingCap(false);
+    }
   }
 
   return (
@@ -179,7 +188,7 @@ export default function OffersTab({ propertyId, promotions, coupons, rules, room
           %
         </label>
         {cap !== savedCap && (
-          <button type="button" className="btn btn-secondary text-xs" onClick={saveCap}>
+          <button type="button" className="btn btn-secondary text-xs" onClick={saveCap} disabled={savingCap}>
             Save
           </button>
         )}
@@ -413,7 +422,7 @@ function Simulator({ propertyId, currency, hasOffers }) {
                             {st.label}: {money(st.amount)} off
                           </li>
                         ))}
-                        {r.discount.capped && <li style={{ color: "var(--warn)" }}>Held to your most off in total</li>}
+                        {r.discount.capped && <li style={{ color: "var(--warn)" }}>Held to {r.discount.capPercent}% off at most</li>}
                       </ol>
                     ) : (
                       <span className="sub">None</span>

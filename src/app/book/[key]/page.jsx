@@ -295,7 +295,7 @@ function Offers({ offers, currency }) {
  */
 const CODE_TEXT = {
   applied: { tone: "var(--accent-text)", say: (c) => `Code ${c} applied.` },
-  unused: { tone: "var(--warn)", say: (c) => `Code ${c} is not for these dates or rooms.` },
+  unused: { tone: "var(--warn)", say: (c) => `Code ${c} gives no saving on these dates or rooms.` },
   unknown: { tone: "var(--warn)", say: (c) => `Code ${c} does not match an offer.` },
   full: { tone: "var(--warn)", say: (c) => `Code ${c} has been used up.` },
 };
