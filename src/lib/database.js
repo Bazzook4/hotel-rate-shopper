@@ -5737,6 +5737,8 @@ export async function createReservationInvoice(reservationId, userId = null, { c
           phone: property.phone,
           email: property.email,
           gstin: property.gstin || null,
+          legal_name: property.legal_name || null,
+          show_tax_id: property.invoice_show_tax_id !== false,
         }
       : null,
     // Who the invoice is addressed to when it is not the guest.

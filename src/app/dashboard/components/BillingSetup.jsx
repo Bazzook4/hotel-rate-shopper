@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import ServicesSetup from "./ServicesSetup";
 import TaxSetup from "./TaxSetup";
-import HotelGstin from "./HotelGstin";
 import { Loading, Messages } from "./SetupGrid";
 
 /**
@@ -70,7 +69,6 @@ export default function BillingSetup({ session, only = "services" }) {
         title={PAGES[only].title}
         sub={PAGES[only].sub}
       />
-      {only === "taxes" && <HotelGstin propertyId={propertyId} />}
     </div>
   );
 }

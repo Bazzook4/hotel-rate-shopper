@@ -257,12 +257,16 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC", {
 
   // India's tax number is the GSTIN; elsewhere it is simply the tax number.
   const taxIdLabel = (property.country_code || toCountryCode(property.country) || "IN") === "IN" ? "GSTIN" : "Tax ID";
+  // The hotel can hide its registered name and tax number from its invoices.
+  // Invoices issued before the choice existed carry no flag and show it.
+  const showTaxId = property.show_tax_id !== false;
   const issuerLines = [
+    showTaxId && property.legal_name ? `Registered name: ${property.legal_name}` : null,
     property.address,
     [property.city, property.state, property.postal_code].filter(Boolean).join(", "),
     property.country,
     [property.phone, property.email].filter(Boolean).join("  |  "),
-    property.gstin ? `${taxIdLabel}: ${property.gstin}` : null,
+    showTaxId && property.gstin ? `${taxIdLabel}: ${property.gstin}` : null,
   ].filter(Boolean);
   for (const l of issuerLines) {
     for (const part of wrap(l, right - issuerX, font, 9)) {

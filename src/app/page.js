@@ -104,6 +104,10 @@ const HotelBrand = dynamic(() => import("./dashboard/components/HotelBrand"), {
   ssr: false,
   loading: PageLoading,
 });
+const HotelGstin = dynamic(() => import("./dashboard/components/HotelGstin"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const PropertyProfile = dynamic(() => import("./dashboard/components/PropertyProfile"), {
   ssr: false,
   loading: PageLoading,
@@ -1025,6 +1029,7 @@ export default function V2Dashboard() {
                           )
                         }
                       />
+                      <HotelGstin propertyId={scopedSession?.propertyId} />
                       <PropertyProfile
                         propertyId={scopedSession?.propertyId}
                         onSaved={({ timezone, currency, country_code, day_change_time }) =>

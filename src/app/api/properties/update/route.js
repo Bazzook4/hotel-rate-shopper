@@ -20,6 +20,9 @@ const EDITABLE = [
   "check_out_time",
   // Printed on every invoice; a company needs it to claim GST input credit.
   "gstin",
+  // The company the GSTIN is registered to, and whether invoices show both.
+  "legal_name",
+  "invoice_show_tax_id",
 ];
 /**
  * Columns only a super admin may change. The total number of rooms caps how
@@ -86,6 +89,13 @@ export async function PATCH(req) {
       );
     }
     updates.gstin = gstin || null;
+  }
+
+  if ("legal_name" in updates) {
+    updates.legal_name = String(updates.legal_name || "").trim().slice(0, 150) || null;
+  }
+  if ("invoice_show_tax_id" in updates) {
+    updates.invoice_show_tax_id = updates.invoice_show_tax_id !== false;
   }
 
   if (!updates.name?.trim() && "name" in updates) {

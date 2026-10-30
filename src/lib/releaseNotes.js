@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Your registered company name on invoices",
+    points: [
+      { page: "setup", text: "Property Setup now has a place for your registered company name, with your GSTIN. They moved here from Tax Setup. Tick Show both on invoices and they print under your hotel name. Untick it to leave them off. Invoices already issued stay as they were." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "A guest who leaves on arrival day gives the room back",
     points: [
       { page: "reservations", text: "If a guest checks out on the same day they arrived, the room goes back on sale straight away. It shows as free on the channels, and you can book the same room number for someone else. The guest's bill stays as it was." },
