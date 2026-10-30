@@ -242,7 +242,7 @@ function RoomTypesPanel({ propertyId, roomTypes, roomCap, onReload, onDelete, no
           className="btn btn-secondary text-sm"
           onClick={() => grid.add(BLANK_ROOM_TYPE)}
         >
-          + Add room type
+          <Icon name="plus" size={14} /> Add room type
         </button>
         {/* The total the hotel gave against what its room types add up to:
             rooms missing here cannot be sold. Counted from the room types,

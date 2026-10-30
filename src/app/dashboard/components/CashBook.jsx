@@ -251,7 +251,7 @@ function ByTag({ report, money }) {
                   <td className="text-right font-medium tabular-nums">{money(t.total)}</td>
                 </tr>
               ))}
-              <tr>
+              <tr className="grid-total">
                 <td className="font-semibold">Total</td>
                 <td />
                 <td />

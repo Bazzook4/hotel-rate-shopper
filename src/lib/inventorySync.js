@@ -176,32 +176,55 @@ async function sendInventory(propertyId, spans, { session = null, actor = null }
       }
     }
 
-    const grid = await getAvailabilityGrid(propertyId, first, last, { roomTypeIds });
-
-    const updates = [];
-    for (const rt of grid.roomTypes) {
-      const nights = wanted.get(rt.id);
-      const days = rt.days.filter((d) => nights.has(d.date));
-      for (const range of toRanges(days)) {
-        updates.push({
-          startDate: range.startDate,
-          endDate: range.endDate,
-          rooms: [{ roomCode: rt.id, available: range.available }],
-        });
+    const counts = async () => {
+      const grid = await getAvailabilityGrid(propertyId, first, last, { roomTypeIds });
+      const sent = new Map(); // `${roomTypeId}|${date}` -> free
+      const updates = [];
+      for (const rt of grid.roomTypes) {
+        const nights = wanted.get(rt.id);
+        const days = rt.days.filter((d) => nights.has(d.date));
+        for (const d of days) sent.set(`${rt.id}|${d.date}`, d.free);
+        for (const range of toRanges(days)) {
+          updates.push({
+            startDate: range.startDate,
+            endDate: range.endDate,
+            rooms: [{ roomCode: rt.id, available: range.available }],
+          });
+        }
       }
-    }
+      return { sent, updates };
+    };
 
-    if (updates.length === 0) {
+    const first_ = await counts();
+    if (first_.updates.length === 0) {
       return { status: "skipped", message: "No future nights changed." };
     }
 
-    const { status, body } = await pushToChannelManager({
+    let { status, body } = await pushToChannelManager({
       session,
       actor,
       kind: "inventory",
-      updates,
+      updates: first_.updates,
       propertyId,
     });
+
+    // Two changes on the same nights seconds apart each read the counts and
+    // push them, and the older count can land last. So the counts are read
+    // again once ours is accepted; if they moved meanwhile, they are sent once
+    // more, and the channels end on the newest figure.
+    if (status === 200 && body.source === "aiosell") {
+      const again = await counts();
+      const moved = [...again.sent].some(([key, free]) => first_.sent.get(key) !== free);
+      if (moved) {
+        ({ status, body } = await pushToChannelManager({
+          session,
+          actor,
+          kind: "inventory",
+          updates: again.updates,
+          propertyId,
+        }));
+      }
+    }
 
     if (status === 200 && body.source === "aiosell") {
       return { status: "sent", message: "Availability sent to the channel manager." };

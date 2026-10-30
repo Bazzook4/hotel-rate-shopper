@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { NextResponse, after } from "next/server";
+import { syncInventoryForward } from "@/lib/inventorySync";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin, isAnyAdmin } from "@/lib/permissions";
 import { randomBytes } from "crypto";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
@@ -142,6 +143,13 @@ export async function PUT(req) {
       const fresh = randomBytes(24).toString("base64url");
       await setWebhookToken(integration.id, fresh);
       webhookToken = fresh;
+    }
+
+    // A connection switched on, or its codes changed, starts the channels
+    // from the PMS's own counts rather than whatever the extranet had. Sent
+    // after the answer, since a year of nights takes a moment.
+    if (integration.enabled && integration.inventory_out && integration.hotel_code) {
+      after(() => syncInventoryForward(propertyId, null, { session }));
     }
 
     return NextResponse.json({

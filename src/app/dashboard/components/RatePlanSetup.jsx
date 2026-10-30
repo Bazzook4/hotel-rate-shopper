@@ -189,7 +189,7 @@ export default function RatePlanSetup({
         sub="A plan sets the defaults; its room rates follow them until you unlock a field."
       >
         <button type="button" className="btn btn-primary" onClick={() => setDrawer({ kind: "plan" })}>
-          + Add rate plan
+          <Icon name="plus" size={14} /> Add rate plan
         </button>
       </SetupHeader>
 

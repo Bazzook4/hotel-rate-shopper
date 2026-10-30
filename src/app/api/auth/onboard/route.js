@@ -13,7 +13,7 @@ import {
   syncRoomBasePrices,
 } from "@/lib/database";
 import { hashPassword } from "@/lib/password";
-import { setSessionCookie } from "@/lib/session";
+import { setSessionCookie } from "@/lib/serverSession";
 import { ROLES } from "@/lib/permissions";
 import { getDefaultAdminModules } from "@/lib/rights";
 import { claimInvite, completeInvite, findOpenInvite, findOpenLinkToken, releaseInvite } from "@/lib/onboarding";
@@ -128,15 +128,6 @@ export async function POST(request) {
     );
   }
 
-  // Checked before claiming, so a typo'd existing address does not burn the
-  // link. The unique constraint on users.email still catches a race.
-  if (await findUserByEmail(email)) {
-    return NextResponse.json(
-      { error: "An account with that email already exists. Sign in instead." },
-      { status: 409 }
-    );
-  }
-
   // A shareable link is capped per network address and per day; a one-hotel
   // link was sent to one hotel and needs no cap.
   const open = await findOpenInvite(token).catch(() => null);
@@ -149,6 +140,17 @@ export async function POST(request) {
       return "all";
     });
     if (blockedBy) return NextResponse.json({ error: CAPPED[blockedBy] }, { status: 429 });
+  }
+
+  // Checked before claiming, so a typo'd existing address does not burn the
+  // link, but only after the link and the sign-up cap: otherwise anyone could
+  // ask, with no link at all, which emails have accounts. The unique
+  // constraint on users.email still catches a race.
+  if (await findUserByEmail(email)) {
+    return NextResponse.json(
+      { error: "That email cannot be used. Sign in, or use another email." },
+      { status: 409 }
+    );
   }
 
   const invite = await claimInvite(token).catch(() => null);

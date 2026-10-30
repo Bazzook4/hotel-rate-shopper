@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { findUserByEmail, getPropertyById, getUserPropertyId, getUserModules } from "@/lib/database";
 import { verifyPassword } from "@/lib/password";
-import { setSessionCookie } from "@/lib/session";
+import { setSessionCookie } from "@/lib/serverSession";
 import { clearLoginFailures, clientIp, loginAllowed, recordLoginFailure } from "@/lib/rateLimit";
 
 export async function POST(request) {
@@ -29,15 +29,17 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
 
-  if (user.status && user.status !== "Active") {
-    return NextResponse.json({ error: "Account is not active" }, { status: 401 });
-  }
-
   const storedHash = user.password_hash || "";
   const valid = verifyPassword(password, storedHash);
   if (!valid) {
     await recordLoginFailure(email, ip);
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+  }
+
+  // Said only to someone who knows the password, so it does not tell a
+  // stranger which emails have accounts.
+  if (user.status && user.status !== "Active") {
+    return NextResponse.json({ error: "Account is not active" }, { status: 401 });
   }
 
   await clearLoginFailures(email);

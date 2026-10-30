@@ -33,17 +33,18 @@ export const PAYMENT_METHODS = {
   card: 'Card',
   upi: 'UPI',
   bank_transfer: 'Bank transfer',
-  ota: 'Paid to OTA',
+  ota: 'Paid to OTA (OTA owes it)',
   wallet: 'Paid from wallet',
   other: 'Other',
 };
 
 /**
  * A bill paid from a wallet moved credit, not money: the money was counted
- * when it was paid into the wallet, as a top-up. So wallet payments are
- * listed, but left out of every total of money received.
+ * when it was paid into the wallet, as a top-up. A bill the guest paid to an
+ * OTA is money the OTA owes the hotel, less its commission, not money the
+ * hotel has. Both are listed, but left out of every total of money received.
  */
-const NOT_MONEY = new Set(['wallet']);
+const NOT_MONEY = new Set(['wallet', 'ota']);
 
 /** Statuses that gave the room back rather than used it. */
 const RELEASED = new Set(['cancelled', 'no_show']);
@@ -896,14 +897,26 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
     const comp = r.booking_type === 'complimentary';
     const night = f.nights.find((n) => n.stay_date === date);
     if (night) {
-      const value = comp
+      const charged = comp
         ? 0
         : chargedRate(night.rate ?? (Number(r.total_amount) || 0) / Math.max(1, f.nights.length), date, f.keep, f.nightOff);
+      // Revenue is the room's value: a rate with tax inside is counted
+      // without that tax, which is posted with the taxes below.
+      const inside = (f.tax.byKey?.[`night:${date}`] || [])
+        .filter((t) => t.inclusive)
+        .reduce((sum, t) => sum + t.amount, 0);
+      const value = Math.max(0, charged - inside);
       roomRevenue += value;
       if (comp) compRooms += 1;
       else if (value <= PENNY) zeroNights.push({ ...stayRow(r), amount: 0 });
     }
     const firstNight = f.nights[0]?.stay_date || r.check_in;
+    // A booking from before discounts off the bill were turned into money
+    // off the room took it off the whole bill; it is posted on the first
+    // night, so the audit adds up to the invoices.
+    if (!comp && f.totals?.discountTiming === 'after_tax' && f.totals.discount > 0 && date === firstNight) {
+      other['Discount off the bill'] = (other['Discount off the bill'] || 0) - f.totals.discount;
+    }
     for (const e of f.extras) {
       if (e.kind !== 'extra' || (e.stay_date || firstNight) !== date) continue;
       const cat = categoryOf(e.extra_id);
@@ -937,8 +950,13 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
   };
 
   // ---- Money collected ----
-  const emails = await userEmails([...paid, ...voidedPayments].flatMap((p) => [p.recorded_by, p.voided_by]));
-  const paymentRows = paid.map((p) => paymentRow(p, tz, emails));
+  // Money paid into wallets that day is money taken, as the Payments report
+  // and the cash book count it; leaving it out made the day's cash differ.
+  const topUps = (await loadWalletTopUps(propertyId, date, date)).filter((t) => !t.voided_at);
+  const emails = await userEmails(
+    [...paid, ...voidedPayments, ...topUps].flatMap((p) => [p.recorded_by, p.voided_by])
+  );
+  const paymentRows = [...paid.map((p) => paymentRow(p, tz, emails)), ...topUps.map((t) => topUpRow(t, emails))];
   const voidedRows = voidedPayments.map((p) => paymentRow(p, tz, emails));
 
   const discounts = await loadDiscounts(propertyId, from, to, tz);

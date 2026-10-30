@@ -14,13 +14,13 @@ import { hotelToday } from "@/lib/hotelTime";
  * different on every screen. This is the one bar they all share, on one
  * row so the grid starts as high up the screen as it can:
  *
- *   [« ‹ 📅 24 Sep 2026 › »] [Today] [14 | 30 days] [Room type: All ▾] Clear   actions
+ *   [<< < (calendar) 24 Sep 2026 > >>] [Today] [14 | 30 days] [Room type: All v] Clear   actions
  *
  * It wraps on a narrow screen. A phone gets two rows: the stepper (no
  * page jumps, no year), Today and the window switch, then filters and actions. Filters carry their label inside or beside
  * the control (Dropdown, ToolbarField), never on a line above it.
  *
- * ‹ › move one day and « » a whole window, so a desk can nudge the grid a
+ * < > move one day and << >> a whole window, so a desk can nudge the grid a
  * night at a time or page through it. The date itself opens the app's
  * calendar (DatePicker) for a jump further out. In `unit="month"` the arrows move a month
  * and there is no page jump, since a month is already the page.
@@ -83,7 +83,8 @@ export default function DateToolbar({
               aria-label={`Back ${step} days`}
               title={`Back ${step} days`}
             >
-              «
+              <Icon name="left" size={14} />
+              <Icon name="left" size={14} />
             </button>
           )}
           <button
@@ -92,7 +93,7 @@ export default function DateToolbar({
             disabled={atMin}
             aria-label={unit === "month" ? "Previous month" : "Previous day"}
           >
-            ‹
+            <Icon name="left" size={14} />
           </button>
           <button
             ref={dateBtn}
@@ -114,7 +115,7 @@ export default function DateToolbar({
             onClick={() => move(1)}
             aria-label={unit === "month" ? "Next month" : "Next day"}
           >
-            ›
+            <Icon name="right" size={14} />
           </button>
           {unit === "day" && (
             <button
@@ -124,7 +125,8 @@ export default function DateToolbar({
               aria-label={`Forward ${step} days`}
               title={`Forward ${step} days`}
             >
-              »
+              <Icon name="right" size={14} />
+              <Icon name="right" size={14} />
             </button>
           )}
         </div>

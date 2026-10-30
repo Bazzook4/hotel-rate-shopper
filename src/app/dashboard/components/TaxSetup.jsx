@@ -166,17 +166,18 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
     if (
       !(await dialog.confirm({
         title: `Delete "${tax.name}"?`,
-        message: "It disappears from every booking not yet invoiced, past ones too. To stop charging it from now on, use End instead.",
+        message: "A tax already charged on past bills is ended yesterday instead, so those bills keep it.",
         confirmLabel: "Delete",
         danger: true,
       }))
     ) {
       return undefined;
     }
-    return immediate(() => {
+    return immediate(async () => {
       const qs = new URLSearchParams({ id: tax.id });
       if (propertyId) qs.set("propertyId", propertyId);
-      return sendJSON(`/api/pms/taxes?${qs}`, "DELETE");
+      const data = await sendJSON(`/api/pms/taxes?${qs}`, "DELETE");
+      if (data?.message) setNotice(data.message);
     });
   }
 
@@ -301,7 +302,7 @@ export default function TaxSetup({ propertyId, data, onChanged, title, sub }) {
           className="btn btn-secondary text-sm"
           onClick={() => grid.add(blank(nextOrder))}
         >
-          + Add a tax
+          <Icon name="plus" size={14} /> Add a tax
         </button>
         {/* GST's bands are in rupees, so it is offered to hotels that sell in rupees. */}
         {hotelCurrency() === "INR" && (

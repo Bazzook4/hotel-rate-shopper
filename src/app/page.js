@@ -633,7 +633,7 @@ export default function V2Dashboard() {
             </button>
             <span
               className="flex h-[22px] w-[22px] items-center justify-center rounded text-[10px] font-bold"
-              style={{ background: "var(--accent)", color: "#fff" }}
+              style={{ background: "var(--accent-strong)", color: "#fff" }}
             >
               OH
             </span>
@@ -796,7 +796,7 @@ export default function V2Dashboard() {
                 className="ml-auto hidden rounded px-1.5 py-1 text-xs transition hover:opacity-70 md:block"
                 style={{ color: "var(--text-faint)" }}
               >
-                {railOpen ? "«" : "»"}
+                <Icon name={railOpen ? "left" : "right"} size={14} />
               </button>
             </div>
 
@@ -852,7 +852,7 @@ export default function V2Dashboard() {
                             {isNew && (
                               <span
                                 className="rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
-                                style={{ background: "var(--accent)", color: "#fff" }}
+                                style={{ background: "var(--accent-strong)", color: "#fff" }}
                               >
                                 New
                               </span>

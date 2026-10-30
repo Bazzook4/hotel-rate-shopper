@@ -88,11 +88,11 @@ function DayToggles({ labels, offset = 0, value, onChange, edited }) {
             style={{
               minWidth: 22,
               padding: "2px 3px",
-              fontSize: "0.65rem",
+              fontSize: "0.6875rem",
               lineHeight: 1.2,
               borderRadius: 3,
               border: "1px solid var(--border)",
-              background: lit ? "var(--accent)" : "var(--surface)",
+              background: lit ? "var(--accent-strong)" : "var(--surface)",
               color: lit ? "#fff" : "var(--text-muted)",
               cursor: "pointer",
             }}
@@ -260,7 +260,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
         section
         title="Contract rates"
         count={lines.length}
-        sub="Fixed prices per night. Where lines overlap, the fewest nights wins. Uncovered nights use your public rate."
+        sub="Fixed prices per night. If two lines cover a night, the shorter one is used. Other nights use your normal rate."
       >
         <SaveActions count={grid.count} busy={busy} onSave={saveAll} onDiscard={grid.discard} />
       </SetupHeader>
@@ -274,7 +274,7 @@ function ContractRates({ propertyId, company, roomTypes, ratePlans, onCountChang
           onClick={() => grid.add(blank())}
           disabled={roomTypes.length === 0}
         >
-          + Add rate line
+          <Icon name="plus" size={14} /> Add rate line
         </button>
         {roomTypes.length === 0 && <span className="sub">Add room types first.</span>}
         {roomTypes.length === 0 && (
@@ -544,10 +544,10 @@ function DetailFields({ form, set, step = null, autoFocus = false }) {
                 {text("commission_percent", { style: { width: "7rem" }, type: "number", min: 0, max: 100, step: "0.5", inputMode: "decimal", autoFocus: autoFocus && step === "terms" })}
               </Field>
             )}
-            <Field label="Credit days" hint="Blank = due on bill date">
+            <Field label="Credit days" hint="Leave blank if due on the bill date">
               {text("credit_days", { style: { width: "7rem" }, type: "number", min: 0, step: 1, inputMode: "numeric", autoFocus: autoFocus && step === "terms" && !agent })}
             </Field>
-            <Field label="Credit limit" hint="Flags Over limit">
+            <Field label="Credit limit" hint="Shows Over limit when passed">
               {text("credit_limit", { style: { width: "9rem" }, type: "number", min: 0, inputMode: "decimal" })}
             </Field>
           </div>
@@ -977,7 +977,7 @@ export default function Companies({ session }) {
         sub="Who books for guests: bill them with their GSTIN and use their contract rates."
       >
         <button type="button" className="btn btn-primary" disabled={notReady} onClick={() => setAdding(true)}>
-          + Add company or agent
+          <Icon name="plus" size={14} /> Add company or agent
         </button>
       </SetupHeader>
 
@@ -1060,7 +1060,7 @@ export default function Companies({ session }) {
                       <span className="sub">No companies or agents yet.</span>
                       {!notReady && (
                         <button type="button" className="btn btn-primary text-sm" onClick={() => setAdding(true)}>
-                          + Add the first one
+                          <Icon name="plus" size={14} /> Add the first one
                         </button>
                       )}
                     </div>

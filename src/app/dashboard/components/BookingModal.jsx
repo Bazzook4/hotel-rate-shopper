@@ -63,8 +63,8 @@ const NEXT_ACTIONS = {
   ],
   in_house: [{ status: "checked_out", label: "Check out", kind: "btn-primary" }],
   checked_out: [],
-  cancelled: [{ status: "confirmed", label: "Reinstate", kind: "btn-secondary" }],
-  no_show: [{ status: "confirmed", label: "Reinstate", kind: "btn-secondary" }],
+  cancelled: [{ status: "confirmed", label: "Restore booking", kind: "btn-secondary" }],
+  no_show: [{ status: "confirmed", label: "Restore booking", kind: "btn-secondary" }],
 };
 
 /** "2026-10-22" as "22 Oct". */
@@ -329,7 +329,7 @@ export default function BookingModal({
           body: JSON.stringify({ id: reservationId, status: "confirmed" }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Could not reinstate the booking");
+        if (!res.ok) throw new Error(data.error || "Could not restore the booking");
         loadFolio();
         onChanged?.(inventoryWarning(data));
       },
@@ -457,7 +457,7 @@ export default function BookingModal({
             justifyContent: "space-between",
             gap: "1rem",
             padding: "0.85rem 1.1rem",
-            background: "var(--accent)",
+            background: "var(--accent-strong)",
             color: "#fff",
             borderTopLeftRadius: "inherit",
             borderTopRightRadius: "inherit",
@@ -507,7 +507,7 @@ export default function BookingModal({
                   {assignedRoom.room_number}, dirty{canHousekeep && ". Mark clean"}
                 </Fact>
               ) : (
-                <Fact label="Room">{reservation.rooms?.room_number || "Not assigned"}</Fact>
+                <Fact label="Room">{reservation.rooms?.room_number || "No room yet"}</Fact>
               )}
               {group && (
                 <Fact

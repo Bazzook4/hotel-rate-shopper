@@ -50,7 +50,7 @@ export const CHECKIN_STATUS_LABELS = {
   none: "Not sent",
   sent: "Link sent",
   opened: "Guest opened it",
-  submitted: "Details in, review and accept",
+  submitted: "Guest sent details. Check and accept",
   accepted: "Accepted",
 };
 
@@ -58,7 +58,7 @@ export const CHECKIN_STATUS_LABELS = {
 export const CHECKIN_SHORT_LABELS = {
   sent: "Online check-in sent",
   opened: "Online check-in opened",
-  submitted: "Online details in, review",
+  submitted: "Guest sent details",
   accepted: "Online details accepted",
 };
 

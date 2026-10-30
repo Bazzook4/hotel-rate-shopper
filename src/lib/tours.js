@@ -141,7 +141,7 @@ export const TOURS = [
     steps: [
       {
         text: "Press Add company or agent. Only the name is needed.",
-        point: ["text:+ Add company or agent"],
+        point: ["text:Add company or agent"],
       },
     ],
   },
@@ -212,7 +212,7 @@ export const TOURS = [
     steps: [
       {
         text: "Press Add rate plan. Name it, pick the meal plan, then the rooms it is sold in and their prices.",
-        point: ["text:+ Add rate plan"],
+        point: ["text:Add rate plan"],
       },
     ],
   },
@@ -224,7 +224,7 @@ export const TOURS = [
     steps: [
       {
         text: "Press Add room type, type its name and how many rooms, then Save. Its price is set in Rate Plan Setup.",
-        point: ["text:+ Add room type"],
+        point: ["text:Add room type"],
       },
     ],
   },
@@ -235,7 +235,7 @@ export const TOURS = [
     page: "rooms",
     steps: [
       {
-        text: "Type over a room's number, then Save. Add more with + Add room or + Add a range.",
+        text: "Type over a room's number, then Save. Add more with Add room or Add a range.",
         point: ["text:Room numbers"],
       },
     ],

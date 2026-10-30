@@ -3,7 +3,7 @@ import {
   createSearchSnapshot,
   listSearchSnapshots,
 } from "@/lib/database";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 
 function mapSnapshot(record) {
   if (!record) return null;

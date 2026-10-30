@@ -64,7 +64,7 @@ function ByMethod({ report, money }) {
                   <td className="text-right font-medium tabular-nums">{money(m.net)}</td>
                 </tr>
               ))}
-              <tr>
+              <tr className="grid-total">
                 <td className="font-semibold">Total</td>
                 <td className="text-right font-semibold tabular-nums">{whole.format(report.summary.count)}</td>
                 <td className="text-right font-semibold tabular-nums">{money(report.summary.received)}</td>

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES, BOOKING_PAGES } from "@/lib/pmsGuard";
 import {
   listReservations,
+  getSupabaseAdmin,
   createReservation,
   updateReservation,
   deleteReservation,
@@ -84,6 +85,25 @@ function bookingFields(body) {
     ...(body.currency ? { currency: body.currency } : {}),
     notes: body.notes?.trim() || null,
   };
+}
+
+/**
+ * A room type, room or rate plan the client named that is not this hotel's,
+ * as a message, or null. The ids come from the browser, so each is checked
+ * against the hotel before it is written onto a booking.
+ */
+async function foreignId(fields, propertyId) {
+  const db = getSupabaseAdmin();
+  const checks = [
+    ["room_types", fields.room_type_id],
+    ["rooms", fields.room_id],
+    ["rate_plans", fields.rate_plan_id],
+  ].filter(([, id]) => id);
+  for (const [table, id] of checks) {
+    const { data } = await db.from(table).select("property_id").eq("id", id).maybeSingle();
+    if (!data || data.property_id !== propertyId) return "That room or rate plan could not be found.";
+  }
+  return null;
 }
 
 /**
@@ -327,6 +347,10 @@ export async function GET(req) {
       arrivingOn: isDate(params.get("arrivingOn")) ? params.get("arrivingOn") : null,
       leavingOn: isDate(params.get("leavingOn")) ? params.get("leavingOn") : null,
       search: params.get("search"),
+      newestFirst: params.get("newestFirst") === "1",
+      // A window or a status narrows the list to the desk's work; a bigger
+      // cap there keeps a large hotel's day whole.
+      limit: params.get("from") || params.get("status") ? 1000 : 300,
     });
     // Where each booking's online check-in stands, for the arrivals lists.
     // A booking with no link has none.
@@ -353,7 +377,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   let body;
@@ -373,6 +397,8 @@ export async function POST(req) {
 
   try {
     const fields = bookingFields(body);
+    const foreign = await foreignId(fields, propertyId);
+    if (foreign) return NextResponse.json({ error: foreign }, { status: 404 });
     const badStay = await applyStayKind(fields, body, propertyId);
     if (badStay) return NextResponse.json({ error: badStay }, { status: 400 });
     const dayUse = fields.stay_kind === "day_use";
@@ -439,7 +465,7 @@ export async function POST(req) {
 }
 
 export async function PATCH(req) {
-  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   let body;
@@ -469,6 +495,8 @@ export async function PATCH(req) {
     }
 
     const fields = bookingFields(body);
+    const foreign = await foreignId(fields, propertyId);
+    if (foreign) return NextResponse.json({ error: foreign }, { status: 404 });
     const badStay = await applyStayKind(fields, body, propertyId, before);
     if (badStay) return NextResponse.json({ error: badStay }, { status: 400 });
     const dayUse = fields.stay_kind === "day_use";
@@ -543,7 +571,7 @@ export async function PATCH(req) {
 }
 
 export async function DELETE(req) {
-  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");
@@ -561,6 +589,28 @@ export async function DELETE(req) {
       : null;
     if (!before || !propertyId || before.property_id !== propertyId) {
       return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
+    }
+
+    // Deleting takes the booking's payments, invoices and police record with
+    // it, so only a booking with none of those may go, and only an inquiry or
+    // an unused confirmed one. Anything else is cancelled instead, which keeps
+    // every rupee and every invoice number on record.
+    if (!["inquiry", "confirmed"].includes(before.status)) {
+      return NextResponse.json(
+        { error: "Only an inquiry or a booking not yet checked in can be deleted. Cancel it instead." },
+        { status: 409 }
+      );
+    }
+    const db = getSupabaseAdmin();
+    const [{ count: paid }, { count: invoiced }] = await Promise.all([
+      db.from("reservation_payments").select("id", { count: "exact", head: true }).eq("reservation_id", id),
+      db.from("reservation_invoices").select("id", { count: "exact", head: true }).eq("reservation_id", id),
+    ]);
+    if ((paid || 0) > 0 || (invoiced || 0) > 0) {
+      return NextResponse.json(
+        { error: "This booking has payments or invoices, so it cannot be deleted. Cancel it instead." },
+        { status: 409 }
+      );
     }
 
     await deleteReservation(id);

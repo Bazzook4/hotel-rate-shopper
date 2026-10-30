@@ -193,7 +193,12 @@ const fileForGuest = (f) => ({ id: f.path.split("/").pop(), name: f.name, size: 
 export function guestView({ row, reservation, property, prefs }) {
   const count = checkinGuestCount(prefs, reservation.adults);
   const saved = row.details?.guests || [];
+  const closed = closedReason(row, reservation, property.timezone);
   const guests = Array.from({ length: count }, (_, i) => {
+    // Once nothing can be changed, the link shows names only. Anyone holding
+    // an old link (a forwarded message, a shared phone) must not read the
+    // ID, passport and visa details back out of it.
+    if (closed) return { full_name: saved[i]?.full_name || (i === 0 ? reservation.guest_name || "" : ""), files: [] };
     const g = saved[i] || {};
     const { files = [], guest_id: _guestId, ...fields } = g;
     if (i === 0 && !saved[0]) {
@@ -220,7 +225,7 @@ export function guestView({ row, reservation, property, prefs }) {
     arrivalTime: row.details?.arrival_time || "",
     requests: row.details?.requests || "",
     submittedAt: row.submitted_at,
-    closed: closedReason(row, reservation, property.timezone),
+    closed,
   };
 }
 
@@ -351,7 +356,20 @@ export async function removeGuestFile(found, fileId) {
  * A booking's check-in as the desk sees it. ID files come with short-lived
  * links only for someone who may open the Guests page, as on that page.
  */
-export async function deskView(row, { reservation, withFiles, zone }) {
+/** The details only the Guests or Police pages may see. */
+const PRIVATE_FIELDS = [
+  "id_type",
+  "id_number",
+  "date_of_birth",
+  "address",
+  "passport_expiry",
+  "visa_number",
+  "visa_expiry",
+  "arrived_from",
+  "next_destination",
+];
+
+export async function deskView(row, { reservation, withFiles, withIds = withFiles, zone }) {
   if (!row) return { status: "none", guests: [] };
   const people = row.details?.guests || [];
   let links = new Map();
@@ -367,7 +385,9 @@ export async function deskView(row, { reservation, withFiles, zone }) {
     closed: closedReason(row, reservation, zone),
     guests: row.submitted_at
       ? people.map((g) => ({
-          ...g,
+          ...(withIds
+            ? g
+            : Object.fromEntries(Object.entries(g).filter(([k]) => !PRIVATE_FIELDS.includes(k)))),
           files: (g.files || []).map((f) => ({
             name: f.name,
             type: f.type,
@@ -510,7 +530,16 @@ export async function acceptCheckin(row, reservation, userId) {
 
   const { error } = await supabase
     .from(TABLE)
-    .update({ accepted_at: new Date().toISOString(), accepted_by: userId || null })
+    .update({
+      accepted_at: new Date().toISOString(),
+      accepted_by: userId || null,
+      // The details now live on the guest records. The link keeps only the
+      // names, so the copy behind a link that is still out there holds no ID.
+      details: {
+        ...(row.details || {}),
+        guests: (row.details?.guests || []).map((g) => ({ full_name: g.full_name || "", files: [] })),
+      },
+    })
     .eq("id", row.id);
   if (error) throw new Error(`Failed to mark the details checked: ${error.message}`);
 }
@@ -527,9 +556,9 @@ export async function checkinStatuses(reservationIds) {
 }
 
 /**
- * Links whose stay ended more than a day ago without the desk accepting
- * them are deleted with their ID files, so copies of IDs do not pile up
- * where nobody looks. Run by the daily job.
+ * Links whose stay ended more than a day ago are deleted, so copies of IDs
+ * do not pile up where nobody looks. ID files the desk never accepted go
+ * with them; accepted ones live on the guest record. Run by the daily job.
  */
 export async function purgeStaleCheckins() {
   if (!(await checkinReady())) return 0;
@@ -538,7 +567,6 @@ export async function purgeStaleCheckins() {
   const { data, error } = await supabase
     .from(TABLE)
     .select("id, details, accepted_at, reservations!inner(check_out)")
-    .is("accepted_at", null)
     .lt("reservations.check_out", cutoff)
     .limit(500);
   if (error) throw new Error(`Failed to find old check-in links: ${error.message}`);

@@ -303,7 +303,7 @@ function BandTable({ rows, unit, measure, onChange }) {
         </tbody>
       </Grid>
       <button type="button" className="btn btn-secondary" onClick={addRow}>
-        + Add band
+        <Icon name="plus" size={14} /> Add band
       </button>
     </>
   );
@@ -444,10 +444,10 @@ function OccupancyMatrix({ value, onChange }) {
       </Grid>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className="btn btn-secondary" onClick={addRow}>
-          + Add row
+          <Icon name="plus" size={14} /> Add row
         </button>
         <button type="button" className="btn btn-secondary" onClick={addColumn} disabled={value.cols.length >= 8}>
-          + Add column
+          <Icon name="plus" size={14} /> Add column
         </button>
         <span className="muted">|</span>
         <button type="button" className="btn btn-secondary" onClick={download}>

@@ -19,6 +19,9 @@
   --text-faint: #9ca3af;
 
   --accent: #15803d;
+  /* A green that white text reads on, in both themes: every filled button and
+     green header bar. --accent stays for borders, outlines and marks. */
+  --accent-strong: #15803d;
   --accent-soft: #dcfce7;
   --accent-text: #166534;
 
@@ -68,6 +71,7 @@
   --text-faint: #6b7a8d;
 
   --accent: #22c55e;
+  --accent-strong: #15803d;
   --accent-soft: #14321f;
   --accent-text: #86efac;
 
@@ -149,7 +153,7 @@ body {
   }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary { background: var(--accent-strong); color: #fff; }
   .btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
 
   .btn-secondary {
@@ -298,6 +302,33 @@ body {
   .grid-table tbody td:last-child { border-right: none; }
   .grid-table tbody tr:last-child td { border-bottom: none; }
   .grid-table tbody tr:hover td { background: var(--surface-2); }
+  /* Figures line up digit under digit, so money can be read down a column. */
+  .grid-table td,
+  .cm-grid td.cm-num,
+  .fact-value { font-variant-numeric: tabular-nums; }
+  /* A total or balance row stands apart from the lines above it. */
+  .grid-table tr.grid-total td {
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    font-weight: 600;
+  }
+
+  /* One style for every notice: soft background, strong edge, an icon first
+   * (drawn by the component) so colour is never the only sign. */
+  .note {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    padding: 0.6rem 0.85rem;
+    border: 1px solid var(--border-strong);
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .note-danger { border-color: var(--danger); background: var(--danger-soft, var(--surface-2)); }
+  .note-warn { border-color: var(--warn); background: var(--warn-soft, var(--surface-2)); }
+  .note-ok { border-color: var(--accent); background: var(--accent-soft); }
 
   /* The Channel Manager grid, as a reusable class.
    *

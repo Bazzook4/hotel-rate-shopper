@@ -204,11 +204,11 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
                 <Field label="Date of birth" required error={gapFor("date_of_birth")}>
                   {input("date_of_birth", { type: "date", max: today })}
                 </Field>
-                <Field label="Passport until">{input("passport_expiry", { type: "date", min: today })}</Field>
+                <Field label="Passport valid until">{input("passport_expiry", { type: "date", min: today })}</Field>
                 <Field label="Visa number">{input("visa_number", codeInput)}</Field>
-                <Field label="Visa until">{input("visa_expiry", { type: "date", min: today })}</Field>
+                <Field label="Visa valid until">{input("visa_expiry", { type: "date", min: today })}</Field>
                 <Field label="Arriving from">{input("arrived_from")}</Field>
-                <Field label="Going next to">{input("next_destination")}</Field>
+                <Field label="Next city or country">{input("next_destination")}</Field>
               </>
             ) : (
               <>

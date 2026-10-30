@@ -225,7 +225,7 @@ export default function OnlineCheckinPanel({ reservation, data, setData, session
     } catch {
       // Some browsers refuse after a wait; the link goes on screen instead.
       setShowLink(true);
-      toast("Couldn't copy. Select the link below and copy it");
+      toast("Could not copy. Select the link below and copy it.");
     }
   }
 

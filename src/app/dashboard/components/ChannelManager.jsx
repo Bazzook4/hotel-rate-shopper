@@ -1,5 +1,7 @@
 "use client";
 
+import Icon from "../../components/Icon";
+
 import { SetUpLink } from "@/app/components/PageNav";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
@@ -1904,7 +1906,7 @@ function ExpandableRoom({
             className="flex items-center gap-2 text-left"
             title={room.partnerCode ? `Partner code: ${room.partnerCode}` : "Not mapped to a partner code"}
           >
-            <span className="muted">{open ? "▾" : "▸"}</span>
+            <span className="muted"><Icon name={open ? "down" : "right"} size={12} /></span>
             <span>
               <span className="cm-room-name block font-medium text-ink">{room.name}</span>
               {/* The room count is in every date cell ("of 5"), so the
@@ -2033,7 +2035,7 @@ function ExpandableRoom({
                             title="What each channel receives after its markup"
                             className="rounded px-1.5 py-0.5 text-xs muted hover:bg-[var(--surface-2)]"
                           >
-                            {openChannels[`${plan.id}|${room.id}`] ? "▾" : "▸"}{" "}
+                            <Icon name={openChannels[`${plan.id}|${room.id}`] ? "down" : "right"} size={12} />{" "}
                             {channels.length} channel
                             {channels.length === 1 ? "" : "s"}
                           </button>

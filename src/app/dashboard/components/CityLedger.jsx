@@ -123,8 +123,9 @@ function ReceivePayment({ propertyId, statement, money, onDone, onCancel }) {
           .map(([lineKey, v]) => ({ lineKey, amount: Number(v) })),
       });
       onDone(
-        `Recorded ${money(Number(amount))} from ${statement.company.name}` +
-          (result.unapplied > PENNY ? `, ${money(result.unapplied)} kept in its wallet.` : ".")
+        result.warning ||
+          `Recorded ${money(Number(amount))} from ${statement.company.name}` +
+            (result.unapplied > PENNY ? `, ${money(result.unapplied)} kept in its wallet.` : ".")
       );
     } catch (err) {
       setError(err.message);
@@ -263,7 +264,7 @@ export function Statement({ session, propertyId, companyId, startReceiving, onCh
 
   useEffect(() => setReceiving(startReceiving), [startReceiving, companyId]);
 
-  const money = useMemo(() => moneyFormatter(st?.stays?.[0]?.currency), [st]);
+  const money = useMemo(() => moneyFormatter(st?.stays?.[0]?.currency, { decimals: 2 }), [st]);
 
   function changed(message) {
     setNotice(message);
@@ -389,7 +390,7 @@ export function Statement({ session, propertyId, companyId, startReceiving, onCh
                   <td>
                     {shortDate(s.checkIn)} to {shortDate(s.checkOut)}
                   </td>
-                  <td>{s.invoiceNumber || <span style={{ color: "var(--text-faint)" }}>Not invoiced</span>}</td>
+                  <td>{s.invoiceNumber || <span style={{ color: "var(--text-muted)" }}>Not invoiced</span>}</td>
                   <td style={{ color: s.overdueDays > 0 ? "var(--danger)" : undefined }}>
                     {s.phase === "running"
                       ? "In house"
@@ -431,7 +432,7 @@ export default function CityLedger({ session }) {
   const { report, loading, error, reload } = useReport("/api/reports/cityledger", {}, propertyId);
   const [open, setOpen] = useState(null);
 
-  const money = useMemo(() => moneyFormatter(report?.currency), [report]);
+  const money = useMemo(() => moneyFormatter(report?.currency, { decimals: 2 }), [report]);
   const rows = report?.companies || [];
   const sorter = useSort(rows, {
     name: (r) => r.name.toLowerCase(),

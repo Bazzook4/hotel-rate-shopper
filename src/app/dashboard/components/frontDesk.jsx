@@ -11,6 +11,7 @@ import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { shrink } from "./GuestIdPhotos";
 import Icon from "../../components/Icon";
 import { useToast } from "../../components/Toast";
+import { useDialog } from "../../components/Dialog";
 import { formatMoney } from "@/lib/money";
 
 /**
@@ -95,6 +96,12 @@ function splitName(full) {
  * as they are, then the booker if nobody is named (with their saved ID, for
  * a returning guest), then blank lines for the other adults.
  */
+/** The ID most guests of a country show: Aadhaar for India, a passport for anyone else. */
+function usualId(nationality) {
+  if (!nationality) return "";
+  return nationality === "IN" ? "aadhaar" : "passport";
+}
+
 async function idLines(r) {
   const res = await fetch(`/api/pms/folio?reservationId=${r.id}`);
   const folio = await res.json().catch(() => ({}));
@@ -112,26 +119,31 @@ async function idLines(r) {
     booker = g?.guest || null;
   }
 
-  const lines = named.slice(0, Math.max(wanted, named.length)).map((g) => ({
-    existing: g,
-    name: fullName(g),
-    id_type: g.id_type || "",
-    id_number: g.id_number || "",
-    nationality: g.nationality || (g.is_primary ? toCountryCode(stay.guest_country) : "") || home,
-    files: [],
-  }));
+  const lines = named.slice(0, Math.max(wanted, named.length)).map((g) => {
+    const nationality = g.nationality || (g.is_primary ? toCountryCode(stay.guest_country) : "") || home;
+    return {
+      existing: g,
+      name: fullName(g),
+      id_type: g.id_type || usualId(nationality),
+      id_number: g.id_number || "",
+      nationality,
+      files: [],
+    };
+  });
   if (!lines.length) {
     lines.push({
       existing: null,
       primary: true,
       name: stay.guest_name || "",
-      id_type: booker?.id_type || "",
+      id_type: booker?.id_type || usualId(toCountryCode(booker?.country) || home),
       id_number: booker?.id_number || "",
       nationality: toCountryCode(booker?.country) || home,
       files: [],
     });
   }
-  while (lines.length < wanted) lines.push({ existing: null, name: "", id_type: "", id_number: "", nationality: home, files: [] });
+  while (lines.length < wanted) {
+    lines.push({ existing: null, name: "", id_type: usualId(home), id_number: "", nationality: home, files: [] });
+  }
   const complete = lines.every((l) => l.name.trim() && l.id_number.trim());
   return { lines, complete };
 }
@@ -209,7 +221,17 @@ function CheckInDialog({ request, onDone }) {
   const [lines, setLines] = useState(start || []);
   const countries = countryOptions();
   useEscape(() => onDone(null));
-  const set = (i, k, v) => setLines((ls) => ls.map((l, j) => (j === i ? { ...l, [k]: v } : l)));
+  const set = (i, k, v) =>
+    setLines((ls) =>
+      ls.map((l, j) => {
+        if (j !== i) return l;
+        // A new nationality moves an ID type nobody picked to that country's usual one.
+        if (k === "nationality" && (!l.id_type || l.id_type === usualId(l.nationality))) {
+          return { ...l, nationality: v, id_type: usualId(v) };
+        }
+        return { ...l, [k]: v };
+      })
+    );
   const missing = lines.filter((l) => !l.id_number.trim()).length;
   // One file box for every line: it remembers which line asked.
   const fileRef = useRef(null);
@@ -250,7 +272,7 @@ function CheckInDialog({ request, onDone }) {
       >
         <div
           className="side-panel-head flex items-center justify-between gap-3"
-          style={{ padding: "0.85rem 1.1rem", background: "var(--accent)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
+          style={{ padding: "0.85rem 1.1rem", background: "var(--accent-strong)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
         >
           <h3>Check in {guest}</h3>
           <button type="button" className="head-close" onClick={() => onDone(null)} aria-label="Close">
@@ -506,6 +528,28 @@ async function issueAndPrintInvoices(reservationId) {
   }
 }
 
+/** Issue whatever is not yet on an invoice, and answer with the invoices that stand. */
+async function issueInvoices(reservationId) {
+  const res = await fetch(`/api/pms/folio?reservationId=${reservationId}`);
+  let folio = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(folio.error || "The bill could not be read.");
+  const open = (folio.charges || []).filter((c) => !c.invoice);
+  const live = () => (folio.invoices || []).filter((i) => !i.voided_at);
+  if ((folio.sharers || []).length > 0) {
+    for (const x of folio.sharers.filter((x) => open.some((c) => c.owner === x.id))) {
+      folio = await folioPost({ kind: "invoice", reservationId, sharerId: x.id });
+    }
+  } else if (open.length > 0 || live().length === 0) {
+    folio = await folioPost({ kind: "invoice", reservationId });
+  }
+  return live();
+}
+
+/** Open each invoice's PDF, the first in a tab opened while the click still counted. */
+function openInvoices(invoices) {
+  invoices.forEach((inv) => window.open(`/api/pms/invoice?id=${inv.id}&inline=1`, "_blank"));
+}
+
 async function issueAndOpen(reservationId, tab) {
   const res = await fetch(`/api/pms/folio?reservationId=${reservationId}`);
   let folio = await res.json().catch(() => ({}));
@@ -544,6 +588,7 @@ async function issueAndOpen(reservationId, tab) {
  */
 export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
   const toast = useToast();
+  const dialog = useDialog();
   const [settle, setSettle] = useState(null);
 
   const [checkInAsk, setCheckInAsk] = useState(null);
@@ -555,7 +600,7 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
     return answer;
   }, []);
 
-  const checkIn = useCallback(
+  const checkInStep = useCallback(
     async (r, { roomSeenDirty = false } = {}) => {
       // Who is on the booking and whose ID is missing. If this cannot be
       // read, check-in still goes ahead; the police report shows the gap.
@@ -620,7 +665,7 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
         guest: r.guest_name,
         rooms: offered.map((x) => ({
           value: x.id,
-          label: isDirty(x) ? `Room ${x.room_number}, dirty, marked clean on check-in` : `Room ${x.room_number}`,
+          label: isDirty(x) ? `Room ${x.room_number} (dirty, will be marked clean)` : `Room ${x.room_number}`,
         })),
         lines,
         canSeeIds,
@@ -631,7 +676,53 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
     [propertyId, askCheckIn, canSeeIds]
   );
 
+  // A check-in on the wrong guest is put back with Undo, not a phone call.
+  const checkIn = useCallback(
+    async (r, opts) => {
+      const done = await checkInStep(r, opts);
+      if (done) {
+        toast(`${r.guest_name || "Guest"} checked in`, {
+          undo: async () => {
+            await postStatus(r.id, "confirmed");
+          },
+        });
+      }
+      return done;
+    },
+    [checkInStep, toast]
+  );
+
   const checkOut = useCallback(async (r) => {
+    // Leaving before the last booked night: the stay is cut to today first,
+    // so the rest goes back on sale and the balance below is the real one.
+    const today = hotelToday();
+    if (r.stay_kind !== "day_use" && today > r.check_in && today < r.check_out) {
+      const pricing = await dialog.choose({
+        title: `${r.guest_name || "Guest"} is leaving early`,
+        message: "The nights not used go back on sale.",
+        label: "What should the bill show?",
+        options: [
+          { value: "keep", label: "Full booking amount" },
+          { value: "adjust", label: "Only the nights stayed" },
+        ],
+        confirmLabel: "Next",
+      });
+      if (!pricing) return null;
+      const cut = await fetch("/api/pms/reservations/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: r.id,
+          property_id: r.property_id,
+          check_in: r.check_in,
+          check_out: today,
+          pricing,
+        }),
+      });
+      const cutData = await cut.json().catch(() => ({}));
+      if (!cut.ok) throw new Error(cutData.error || "Could not shorten the stay, so the guest is still checked in.");
+    }
+
     const res = await fetch(`/api/pms/folio?reservationId=${r.id}`);
     const folio = await res.json().catch(() => ({}));
     const balance = res.ok ? Number(folio?.totals?.balance) || 0 : 0;
@@ -657,16 +748,25 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
       }
     }
     const done = await postStatus(r.id, "checked_out");
-    // The guest is usually still at the desk, waiting for the bill.
-    toast(`${r.guest_name || "Guest"} checked out`, {
+    // Checking out issues the bill, so a guest never leaves without one even
+    // when nobody reaches the Print button. The guest is usually still at the
+    // desk, so the button waits a full minute.
+    let invoices = [];
+    try {
+      invoices = await issueInvoices(r.id);
+    } catch {
+      // Issued from the Bill tab instead; Night Audit lists it until then.
+    }
+    toast(`${r.guest_name || "Guest"} checked out${invoices.length ? ". Bill issued." : ""}`, {
+      duration: 60000,
       action: {
-        label: "Print invoice",
-        busyLabel: "Issuing...",
-        run: () => issueAndPrintInvoices(r.id),
+        label: "Print bill",
+        busyLabel: "Opening...",
+        run: () => (invoices.length ? openInvoices(invoices) : issueAndPrintInvoices(r.id)),
       },
     });
     return done;
-  }, [toast]);
+  }, [toast, dialog]);
 
   // One element for the caller to render, whichever popup is open.
   const settleDialog = settle ? (

@@ -197,7 +197,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
     return immediate(
       "DELETE",
       { id: service.id },
-      `Retire "${service.name}"? It stays on past folios, with its taxes, but is no longer offered.`
+      `Retire "${service.name}"? It stays on old bills, with its taxes, but is no longer offered.`
     );
   }
 
@@ -229,7 +229,7 @@ export default function ServicesSetup({ propertyId, data, onChanged, title, sub 
           className="btn btn-secondary text-sm"
           onClick={() => cat.add({ name: "" })}
         >
-          + Add category
+          <Icon name="plus" size={14} /> Add category
         </button>
         {liveTaxes.length === 0 && (
           <span className="chip chip-warn">No taxes yet</span>

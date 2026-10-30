@@ -139,7 +139,7 @@ function Register({ report, money, onOpen }) {
                     <td className="font-medium">
                       {t.name}
                       {t.inclusive && (
-                        <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }}>
+                        <span className="chip chip-off ml-2" style={{ fontSize: "0.6875rem" }}>
                           included in price
                         </span>
                       )}
@@ -184,7 +184,7 @@ function Register({ report, money, onOpen }) {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.id} style={r.voided ? { color: "var(--text-faint)" } : undefined}>
+                  <tr key={r.id} style={r.voided ? { color: "var(--text-muted)" } : undefined}>
                     <td className="whitespace-nowrap">
                       <a
                         href={`/api/pms/invoice?id=${r.id}`}
@@ -196,7 +196,7 @@ function Register({ report, money, onOpen }) {
                         {r.number}
                       </a>
                       {r.voided && (
-                        <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }} title={r.voidReason || undefined}>
+                        <span className="chip chip-off ml-2" style={{ fontSize: "0.6875rem" }} title={r.voidReason || undefined}>
                           Voided
                         </span>
                       )}
@@ -224,7 +224,7 @@ function Register({ report, money, onOpen }) {
                     </td>
                   </tr>
                 ))}
-                <tr>
+                <tr className="grid-total">
                   <td className="font-semibold" colSpan={5}>
                     Total, excluding voided
                   </td>

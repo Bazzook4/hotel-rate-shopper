@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { getUserById, setUserPassword } from "@/lib/database";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { clearLoginFailures, clientIp, loginAllowed, recordLoginFailure } from "@/lib/rateLimit";

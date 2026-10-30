@@ -1,5 +1,7 @@
 "use client";
 
+import Icon from "../../components/Icon";
+
 import { useCallback, useEffect, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import Select from "@/app/components/Select";
@@ -161,7 +163,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
         </span>
         <div className="ml-auto flex gap-2">
           <button type="button" className={mode === "topup" ? "btn btn-primary text-xs" : "btn btn-secondary text-xs"} onClick={() => setMode(mode === "topup" ? null : "topup")}>
-            + Add money
+            <Icon name="plus" size={14} /> Add money
           </button>
           <button type="button" className="btn btn-ghost text-xs" onClick={() => setMode(mode === "adjust" ? null : "adjust")}>
             Adjust
@@ -267,7 +269,7 @@ export default function WalletPanel({ owner, propertyId, plans = [], onChanged, 
                   {e.voided && e.voidReason ? `, voided: ${e.voidReason}` : ""}
                 </td>
                 <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap", color: e.credit < 0 ? "var(--danger)" : "var(--accent-text)" }}>
-                  {e.credit < 0 ? "−" : "+"}
+                  {e.credit < 0 ? "-" : "+"}
                   {inr(Math.abs(e.credit))}
                 </td>
                 <td style={{ ...cell, textAlign: "right", width: 50 }}>

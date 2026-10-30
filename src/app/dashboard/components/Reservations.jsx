@@ -1,5 +1,6 @@
 "use client";
 
+import { sourceLabel } from "@/lib/bookingSources";
 import { visibleModules } from "../modules";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
@@ -75,8 +76,8 @@ function nightCount(checkIn, checkOut) {
  */
 const VIEWS = [
   { id: "current", label: "Current" },
-  { id: "arrivals", label: "Arrivals today" },
-  { id: "departures", label: "Departures today" },
+  { id: "arrivals", label: "Arriving today" },
+  { id: "departures", label: "Leaving today" },
   { id: "in_house", label: "Checked in" },
   { id: "all", label: "All" },
 ];
@@ -128,6 +129,7 @@ export default function Reservations({ session, initialView = null }) {
 
   // OTA bookings received but not in the PMS -- normally none.
   const [pending, setPending] = useState([]);
+  const [deskRows, setDeskRows] = useState([]);
   const [retrying, setRetrying] = useState(null);
 
   // hotelToday() is already a YYYY-MM-DD string. Passing it through
@@ -143,18 +145,40 @@ export default function Reservations({ session, initialView = null }) {
       if (propertyId) qs.set("propertyId", propertyId);
       if (query) qs.set("search", query);
 
-      // "Current" means stays that touch the next month, which is the window
-      // a desk actually works in. Everything else asks for the full list and
-      // narrows it below.
+      // Each view asks the server for its own rows. The list is capped, so
+      // asking for everything and narrowing it here lost today's guests once
+      // a hotel had more bookings than the cap.
+      //   current      stays that touch the next month, the desk's window
+      //   arrivals,    stays touching today (yesterday to tomorrow covers
+      //   departures   arriving today and leaving today)
+      //   in_house     everyone checked in, however long ago
+      //   all          newest stays first
       if (view === "current") {
         qs.set("from", today);
         qs.set("to", formatDateISO(addDays(hotelToday(), 30)));
+      } else if (view === "arrivals" || view === "departures") {
+        qs.set("from", formatDateISO(addDays(hotelToday(), -1)));
+        qs.set("to", formatDateISO(addDays(hotelToday(), 1)));
+      } else if (view === "in_house") {
+        qs.set("status", "in_house");
+      } else {
+        qs.set("newestFirst", "1");
       }
 
-      const res = await fetch(`/api/pms/reservations?${qs}`);
+      const deskQs = new URLSearchParams();
+      if (propertyId) deskQs.set("propertyId", propertyId);
+      deskQs.set("from", formatDateISO(addDays(hotelToday(), -1)));
+      deskQs.set("to", formatDateISO(addDays(hotelToday(), 1)));
+
+      const [res, deskRes] = await Promise.all([
+        fetch(`/api/pms/reservations?${qs}`),
+        fetch(`/api/pms/reservations?${deskQs}`),
+      ]);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not load reservations");
       setReservations(data.reservations || []);
+      const desk = await deskRes.json().catch(() => ({}));
+      if (deskRes.ok) setDeskRows(desk.reservations || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -236,17 +260,18 @@ export default function Reservations({ session, initialView = null }) {
 
   const sorter = useSort(visible, SORT_COLUMNS);
 
+  // Today's figures come from today's own rows, whatever the list shows.
   const counts = useMemo(
     () => ({
-      arrivals: reservations.filter(
+      arrivals: deskRows.filter(
         (r) => r.check_in === today && r.status === "confirmed"
       ).length,
-      departures: reservations.filter(
+      departures: deskRows.filter(
         (r) => r.check_out === today && r.status === "in_house"
       ).length,
-      inHouse: reservations.filter((r) => r.status === "in_house").length,
+      inHouse: deskRows.filter((r) => r.status === "in_house").length,
     }),
-    [reservations, today]
+    [deskRows, today]
   );
 
   async function changeStatus(reservation, status, roomId) {
@@ -306,7 +331,7 @@ export default function Reservations({ session, initialView = null }) {
           body: JSON.stringify({ id: r.id, status: "confirmed" }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "Could not reinstate the booking");
+        if (!res.ok) throw new Error(data.error || "Could not restore the booking");
         setReservations((prev) => prev.map((x) => (x.id === r.id ? data.reservation : x)));
         const warning = inventoryWarning(data);
         if (warning) setError(warning);
@@ -329,17 +354,13 @@ export default function Reservations({ session, initialView = null }) {
     // disabled -- this covers the case of a stale list left open overnight.
     if (reservation.check_in > today) {
       setError(
-        `${reservation.guest_name} arrives on ${shortDate(reservation.check_in)} ; check-in opens that day.`
+        `${reservation.guest_name} arrives ${shortDate(reservation.check_in)}. You can check in from that day.`
       );
       return;
     }
 
-    const assigned = reservation.room_id && rooms.find((r) => r.id === reservation.room_id);
-    if (assigned?.housekeeping === "dirty") {
-      setError(`Room ${assigned.room_number} is dirty. Mark it clean before checking ${reservation.guest_name} in.`);
-      return;
-    }
-
+    // A dirty room is asked about in the check-in step, as on Today: if it
+    // is ready, checking in marks it clean.
     await runDesk(reservation, () => desk.checkIn(reservation));
   }
 
@@ -479,15 +500,14 @@ export default function Reservations({ session, initialView = null }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="h1">Reservations</h2>
-          <p className="sub">
-            {counts.arrivals} arriving today, {counts.departures} departing,{" "}
-            {counts.inHouse} checked in
-          </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-secondary text-sm" onClick={adoptOta} disabled={loading}>
-            Import OTA bookings
-          </button>
+          {/* OTA bookings come in on their own; this is only for ones stuck on the way. */}
+          {pending.length > 0 && (
+            <button className="btn btn-secondary text-sm" onClick={adoptOta} disabled={loading}>
+              Import OTA bookings
+            </button>
+          )}
           <button className="btn btn-secondary text-sm" onClick={() => openNew()}>
             New booking
           </button>
@@ -519,11 +539,10 @@ export default function Reservations({ session, initialView = null }) {
         <div className="card card-pad space-y-2" style={{ borderColor: "var(--warn)" }}>
           <div>
             <div style={{ fontWeight: 600 }}>
-              {pending.length} OTA booking{pending.length === 1 ? "" : "s"} not in the PMS yet
+              {pending.length} OTA booking{pending.length === 1 ? "" : "s"} not on the calendar yet
             </div>
             <p className="sub">
-              Received from the channel manager but not turned into a reservation. Until
-              they are, their rooms are not counted and may be sold again.
+              These rooms can be sold twice. Press Retry on each one.
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -603,16 +622,25 @@ export default function Reservations({ session, initialView = null }) {
 
       <div className="card card-pad space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          {VIEWS.map((v) => (
-            <button
-              key={v.id}
-              className={`btn text-sm ${view === v.id ? "btn-primary" : "btn-ghost"}`}
-              onClick={() => setView(v.id)}
-            >
-              {v.label}
-            </button>
-          ))}
+          <div className="seg" role="group" aria-label="Show">
+            {VIEWS.map((v) => {
+              const n = { arrivals: counts.arrivals, departures: counts.departures, in_house: counts.inHouse }[v.id];
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  aria-pressed={view === v.id}
+                  className={view === v.id ? "seg-on" : ""}
+                  onClick={() => setView(v.id)}
+                >
+                  {v.label}
+                  {n != null ? ` (${n})` : ""}
+                </button>
+              );
+            })}
+          </div>
           <input
+            aria-label="Search bookings"
             className="input text-sm ml-auto"
             style={{ maxWidth: 240 }}
             placeholder="Search name, reference, phone"
@@ -623,11 +651,17 @@ export default function Reservations({ session, initialView = null }) {
 
         {loading && visible.length === 0 && <p className="sub">Loading...</p>}
 
-        {!loading && visible.length === 0 && (
-          <p className="sub">
-            No reservations here yet. Use &quot;New booking&quot; to put one in.
-          </p>
-        )}
+        {!loading && visible.length === 0 &&
+          (query ? (
+            <p className="sub flex flex-wrap items-center gap-2">
+              No booking matches &quot;{query}&quot;.
+              <button type="button" className="btn btn-ghost text-xs" onClick={() => setSearch("")}>
+                Clear search
+              </button>
+            </p>
+          ) : (
+            <p className="sub">No bookings here yet. Use New booking to add one.</p>
+          ))}
 
         {visible.length > 0 && (
           <div className="overflow-x-auto">
@@ -654,7 +688,7 @@ export default function Reservations({ session, initialView = null }) {
                       <td>
                         <div style={{ fontWeight: 600 }}>{r.guest_name}</div>
                         {r.guest_phone && (
-                          <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
+                          <div style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
                             {r.guest_phone}
                           </div>
                         )}
@@ -664,7 +698,7 @@ export default function Reservations({ session, initialView = null }) {
                               fontSize: "0.75rem",
                               ...(r.online_checkin === "submitted"
                                 ? { color: "var(--warn)", fontWeight: 600 }
-                                : { color: "var(--text-faint)" }),
+                                : { color: "var(--text-muted)" }),
                             }}
                           >
                             {CHECKIN_SHORT_LABELS[r.online_checkin]}
@@ -673,21 +707,21 @@ export default function Reservations({ session, initialView = null }) {
                       </td>
                       <td>
                         <div>{r.room_types?.room_type_name || "-"}</div>
-                        <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
+                        <div style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
                           {r.rooms?.room_number
                             ? `Room ${r.rooms.room_number}`
-                            : "Not assigned"}
+                            : "No room yet"}
                         </div>
                       </td>
                       <td>
                         {isDayUse(r) ? shortDate(r.check_in) : `${shortDate(r.check_in)} to ${shortDate(r.check_out)}`}
-                        <div style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>
+                        <div style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
                           {isDayUse(r) ? dayUseSummary(r) : `${nights} night${nights === 1 ? "" : "s"}`}, {r.adults}A
                           {r.children ? ` ${r.children}C` : ""}
                         </div>
                       </td>
                       <td className="text-right">{money(r.total_amount, r.currency)}</td>
-                      <td style={{ textTransform: "capitalize" }}>{r.source}</td>
+                      <td>{sourceLabel(r.source)}</td>
                       <td>
                         <span className={`chip ${STATUS_CHIP[r.status] || "chip-off"}`}>
                           {STATUS_LABELS[r.status] || r.status}
@@ -696,7 +730,7 @@ export default function Reservations({ session, initialView = null }) {
                       <td className="text-right whitespace-nowrap">
                         {r.status === "inquiry" && (
                           <button
-                            className="btn btn-primary text-xs"
+                            className="btn btn-secondary text-xs"
                             disabled={busy}
                             onClick={() => changeStatus(r, "confirmed")}
                           >
@@ -705,13 +739,13 @@ export default function Reservations({ session, initialView = null }) {
                         )}
                         {r.status === "confirmed" && (
                           <button
-                            className="btn btn-primary text-xs"
-                            disabled={busy || r.check_in > today || roomIsDirty(r)}
+                            className="btn btn-secondary text-xs"
+                            disabled={busy || r.check_in > today}
                             title={
                               r.check_in > today
-                                ? `Arrives ${shortDate(r.check_in)} ; check-in opens that day`
+                                ? `Arrives ${shortDate(r.check_in)}. You can check in from that day.`
                                 : roomIsDirty(r)
-                                  ? "Room is dirty. Mark it clean first"
+                                  ? "Room is dirty. Checking in marks it clean."
                                   : undefined
                             }
                             onClick={() => checkIn(r)}
@@ -721,7 +755,7 @@ export default function Reservations({ session, initialView = null }) {
                         )}
                         {r.status === "in_house" && (
                           <button
-                            className="btn btn-primary text-xs"
+                            className="btn btn-secondary text-xs"
                             disabled={busy}
                             onClick={() => checkOut(r)}
                           >

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES, BOOKING_PAGES } from "@/lib/pmsGuard";
 import { getReservation } from "@/lib/database";
 import { getOnlineBooking, setPaymentChecked } from "@/lib/bookingEngine";
 
@@ -39,7 +39,7 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
   if (error) return error;
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });

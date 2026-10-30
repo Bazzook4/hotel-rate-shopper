@@ -1,5 +1,7 @@
 "use client";
 
+import Icon from "../../components/Icon";
+
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { AREAS, GRANTABLE_MODULES } from "@/app/dashboard/modules";
 import { ROLES, isSuperAdmin } from "@/lib/permissions";
@@ -316,7 +318,7 @@ export default function UserRights({ session, propertyId: fixedPropertyId = null
 
       <Toolbar>
         <button type="button" className="btn btn-secondary text-sm" onClick={addUser} disabled={!propertyId}>
-          + Add user
+          <Icon name="plus" size={14} /> Add user
         </button>
         {pickProperty && superAdmin && (
           <Select

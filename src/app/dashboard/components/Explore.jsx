@@ -71,7 +71,7 @@ export default function Explore({ areas, onOpenPage, canOpen, pageLabel, hasNews
             {hasNews && tab !== "news" && (
               <span
                 className="ml-1.5 rounded px-1 py-[1px] text-[8.5px] font-semibold uppercase tracking-wide"
-                style={{ background: "var(--accent)", color: "#fff" }}
+                style={{ background: "var(--accent-strong)", color: "#fff" }}
               >
                 New
               </span>

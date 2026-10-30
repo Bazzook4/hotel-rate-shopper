@@ -7,7 +7,11 @@
  *   before_tax  comes off the room charge. Every night is lowered by the same
  *               share, and tax is worked out on the lowered price -- so a
  *               night can drop into a lower GST slab, as the law reads it.
- *   after_tax   comes off the bill once tax is added. The tax stays as it was.
+ *   after_tax   the desk's "this much off the final bill". Saved as the money
+ *               off the room before tax that brings the bill down by that
+ *               much (see setReservationDiscount), because GST is charged on
+ *               what the guest pays. Older bookings saved with it still read
+ *               it as money off the bill, so their invoices do not change.
  *
  * A website offer that comes off some nights only (Saturdays, say) keeps the
  * money off each night in `discount_by_night` (migration 067), so each night

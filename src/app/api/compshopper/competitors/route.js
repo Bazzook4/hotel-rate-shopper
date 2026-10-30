@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { isAnyAdmin } from "@/lib/permissions";
 import { listCompetitors, saveCompetitors } from "@/lib/database";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";

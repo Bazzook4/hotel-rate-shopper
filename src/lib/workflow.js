@@ -244,8 +244,7 @@ export async function runWorkflows(propertyId, { from = null, to = null } = {}) 
 
     if (changes.length === 0) return none;
 
-    // Saved before it is sent, so what the channels should show is on record
-    // even when the send fails; the next check or a publish sends it again.
+    // Saved before it is sent, so what the channels should show is on record.
     await saveChannelRestrictions(propertyId, changes);
 
     // A plan unmapped since a rule closed it can only be reopened here; a
@@ -254,6 +253,20 @@ export async function runWorkflows(propertyId, { from = null, to = null } = {}) 
       (c) => c.kind !== "handover" && (!sellable || sellable.has(`${c.rate_plan_id}|${c.room_type_id}`))
     );
     const push = await sendChanges(propertyId, sent, ratePlans, assignments);
+
+    // A send that failed is put back as it was, so the next check sees the
+    // same change still to make and sends it again. Left saved, the next
+    // check would read the close (or reopen) as done and never resend it.
+    if (!push.ok && sent.length) {
+      await saveChannelRestrictions(
+        propertyId,
+        sent.map((c) =>
+          c.kind === "close"
+            ? { ...c, stop_sell: byKey.get(`${cellKey(c.rate_plan_id, c.room_type_id, c.stay_date)}|${c.channel}`)?.stop_sell ?? null, set_by_rule_id: null }
+            : { ...c, stop_sell: true, set_by_rule_id: c.rule }
+        )
+      ).catch((err) => console.error("Workflow rows not put back:", err.message));
+    }
 
     const closed = sent.filter((c) => c.kind === "close");
     const reopened = sent.filter((c) => c.kind === "reopen");

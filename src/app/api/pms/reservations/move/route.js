@@ -6,7 +6,10 @@ import {
   applyStayChange,
   getSupabaseAdmin,
   findRoomClash,
+  checkAvailability,
+  getRoom,
 } from "@/lib/database";
+import { holdsInventory } from "@/lib/dayUse";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 
 /**
@@ -85,6 +88,10 @@ export async function POST(req) {
       );
     }
 
+    // A room named by the browser must be this hotel's.
+    if (room_id && !(await getRoom(propertyId, room_id))) {
+      return NextResponse.json({ error: "That room could not be found." }, { status: 404 });
+    }
     const targetRoom = room_id || current.room_id;
 
     if (targetRoom) {
@@ -107,6 +114,7 @@ export async function POST(req) {
         .from("rooms")
         .select("id, room_type_id, is_active")
         .eq("id", room_id)
+        .eq("property_id", propertyId)
         .single();
 
       if (roomError) {
@@ -121,6 +129,23 @@ export async function POST(req) {
 
       updates.room_id = room_id;
       updates.room_type_id = room.room_type_id;
+    }
+
+    // The room may be free while its type is full: bookings with no room yet
+    // hold the type's rooms too. A drag that takes new nights, or moves the
+    // stay to another type, is checked against the type like a booking is.
+    const typeId = updates.room_type_id || current.room_type_id;
+    const takesNew =
+      typeId !== current.room_type_id ||
+      check_in < current.check_in ||
+      check_out > current.check_out;
+    if (typeId && takesNew && holdsInventory(current, current.status)) {
+      const check = await checkAvailability(propertyId, typeId, check_in, check_out, {
+        ignoreReservationId: id,
+      });
+      if (!check.available) {
+        return NextResponse.json({ error: check.reason }, { status: 409 });
+      }
     }
 
     const plan = await planStayChange(current, {

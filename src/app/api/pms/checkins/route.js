@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES, BOOKING_PAGES, WRITE_PAGES } from "@/lib/pmsGuard";
 import { moduleDeniedResponse } from "@/lib/propertyScope";
 import { getPropertyZone, getReservation } from "@/lib/database";
 import {
@@ -22,8 +22,8 @@ import {
  */
 
 /** The booking, if this session may act on it, or a response to send instead. */
-async function scope(req, reservationId) {
-  const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
+async function scope(req, reservationId, pages = BOOKING_VIEW_PAGES) {
+  const { error, session } = await pmsGuard(req, pages);
   if (error) return { response: error };
   if (!reservationId) return { response: NextResponse.json({ error: "Reservation id is required" }, { status: 400 }) };
   const reservation = await getReservation(reservationId).catch(() => null);
@@ -35,17 +35,18 @@ async function scope(req, reservationId) {
 }
 
 async function answer(session, reservation) {
-  const [prefs, row, idsDenied, zone] = await Promise.all([
+  const [prefs, row, idsDenied, detailsDenied, zone] = await Promise.all([
     getCheckinPrefs(reservation.property_id),
     getCheckinForReservation(reservation.id),
     moduleDeniedResponse(session, ["guests"]),
+    moduleDeniedResponse(session, ["guests", "policereport", ...BOOKING_PAGES]),
     getPropertyZone(reservation.property_id),
   ]);
   return NextResponse.json({
     ready: true,
     enabled: prefs.enabled,
     canSeeIds: !idsDenied,
-    checkin: await deskView(row, { reservation, withFiles: !idsDenied, zone }),
+    checkin: await deskView(row, { reservation, withFiles: !idsDenied, withIds: !detailsDenied, zone }),
   });
 }
 
@@ -64,7 +65,7 @@ export async function GET(req) {
 export async function POST(req) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  const { session, reservation, response } = await scope(req, body.reservationId);
+  const { session, reservation, response } = await scope(req, body.reservationId, WRITE_PAGES.guest);
   if (response) return response;
   if (!(await checkinReady())) return NextResponse.json({ error: CHECKIN_NOT_READY }, { status: 409 });
 
@@ -92,7 +93,7 @@ export async function POST(req) {
 }
 
 export async function DELETE(req) {
-  const { session, reservation, response } = await scope(req, req.nextUrl.searchParams.get("reservationId"));
+  const { session, reservation, response } = await scope(req, req.nextUrl.searchParams.get("reservationId"), WRITE_PAGES.guest);
   if (response) return response;
   if (!(await checkinReady())) return NextResponse.json({ error: CHECKIN_NOT_READY }, { status: 409 });
   try {

@@ -189,7 +189,7 @@ function KpiGrid({ report, money }) {
           <div key={d.key} title={d.hint}>
             <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
               {d.label}
-              {d.hint && <span style={{ color: "var(--text-faint)" }}> ⓘ</span>}
+              {d.hint && <span style={{ color: "var(--text-muted)" }}> <Icon name="info" size={12} /></span>}
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums" style={{ color: "var(--text)" }}>
               {d.fmt(current[d.key])}

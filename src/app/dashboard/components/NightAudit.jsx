@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePageNav } from "@/app/components/PageNav";
 import Icon from "../../components/Icon";
 import { addDays, formatDateISO } from "@/lib/date";
 import {
@@ -64,7 +65,7 @@ const FIXES = {
     { label: "No show", status: "no_show" },
   ],
   departures: [{ label: "Check out", desk: "checkOut", primary: true }],
-  balance: [{ label: "Collect", open: "payments", primary: true }],
+  balance: [{ label: "Collect payment", open: "payments", primary: true }],
   invoice: [{ label: "Issue invoice", open: "invoices", primary: true }],
   zero: [{ label: "Set the rate", open: "inclusions", primary: true }],
   noroom: [{ label: "Assign a room", open: "details", primary: true }],
@@ -188,7 +189,7 @@ function Exceptions({ report, money, onOpen, propertyId, onChanged }) {
                       </td>
                       <td>{r.guest || "-"}</td>
                       <td>
-                        {[r.room, r.roomType].filter(Boolean).join(", ") || "Not assigned"}
+                        {[r.room, r.roomType].filter(Boolean).join(", ") || "No room yet"}
                         {r.detail && (
                           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
                             {r.detail}
@@ -286,9 +287,9 @@ function RoomsAndMovement({ report, money }) {
           { label: "Occupancy", value: rooms.occupancy == null ? "-" : `${one.format(rooms.occupancy)}%`, sub: `${whole.format(rooms.occupied)} of ${whole.format(rooms.available)} rooms` },
           { label: "Avg room rate (ADR)", value: money(rooms.adr), hint: "Room revenue per paid room tonight; complimentary rooms are left out" },
           { label: "Revenue per room (RevPAR)", value: money(rooms.revpar), hint: "Room revenue per room available tonight" },
-          { label: "Guests in house", value: whole.format(movement.guests), sub: `${whole.format(movement.inHouse)} stays` },
+          { label: "Guests checked in", value: whole.format(movement.guests), sub: `${whole.format(movement.inHouse)} stays` },
           { label: "Vacant rooms", value: whole.format(rooms.vacant) },
-          { label: "Out of order", value: whole.format(rooms.outOfOrder), hint: "Rooms blocked on the tape chart for this night, taken off what is available" },
+          { label: "Out of order", value: whole.format(rooms.outOfOrder), hint: "Rooms set out of order on the Calendar or Housekeeping for this night" },
           { label: "Complimentary", value: whole.format(rooms.comp) },
           ...(report.housekeeping
             ? [{ label: "Rooms dirty now", value: whole.format(report.housekeeping.dirty), tone: report.housekeeping.dirty > 0 ? "warn" : null, hint: "From the housekeeping board, as it stands right now" }]
@@ -322,7 +323,7 @@ function Revenue({ report, money }) {
   return (
     <Section
       title="Revenue posted"
-      sub="The night's room charges, folio lines dated to this day (undated ones go with the arrival), and the taxes on them"
+      sub="Room charges, services and tax for this night"
     >
       <TableFrame>
         <table className="grid-table">
@@ -345,7 +346,7 @@ function Revenue({ report, money }) {
                   <td className="text-right tabular-nums">{money(t.amount)}</td>
                 </tr>
               ))}
-            <tr>
+            <tr className="grid-total">
               <td className="font-semibold">Total</td>
               <td className="text-right font-semibold tabular-nums">{money(revenue.total)}</td>
             </tr>
@@ -378,10 +379,10 @@ function Collections({ report, money, onOpen }) {
           { label: "Net collected", value: money(summary.net) },
           { label: "Invoices issued", value: whole.format(report.invoices.count), sub: money(report.invoices.total) },
           {
-            label: "Owed by guests in house",
+            label: "Owed by checked-in guests",
             value: money(report.ledger.inHouseBalance),
             sub: `${whole.format(report.ledger.inHouseCount)} stays`,
-            hint: "What everyone checked in right now still owes on their folio, taxes included",
+            hint: "What guests checked in now still owe, with tax",
           },
         ]}
       />
@@ -451,6 +452,126 @@ function Collections({ report, money, onOpen }) {
   );
 }
 
+/**
+ * Closing the day in one place: what is left to fix, the cash count and the
+ * police register, then one button that keeps a copy of the day as it is.
+ * Before, the day ended on three pages and nothing said it was done.
+ */
+function CloseDay({ date, report, money, propertyId }) {
+  const nav = usePageNav();
+  const [state, setState] = useState({ ready: true, close: null, loaded: false });
+  const [cash, setCash] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const qs = useCallback(() => {
+    const q = new URLSearchParams({ date });
+    if (propertyId) q.set("propertyId", propertyId);
+    return q.toString();
+  }, [date, propertyId]);
+
+  useEffect(() => {
+    let live = true;
+    setError("");
+    fetch(`/api/reports/nightaudit/close?${qs()}`)
+      .then((r) => r.json().then((b) => ({ ok: r.ok, b })))
+      .then(({ ok, b }) => live && setState(ok ? { ...b, loaded: true } : { ready: true, close: null, loaded: true }))
+      .catch(() => live && setState({ ready: true, close: null, loaded: true }));
+    return () => {
+      live = false;
+    };
+  }, [qs]);
+
+  if (!state.loaded || !state.ready) return null;
+  const left = (report?.exceptions || []).reduce((n, e) => n + e.rows.length, 0);
+
+  if (state.close) {
+    const c = state.close;
+    return (
+      <div className="note note-ok">
+        <Icon name="check" size={16} />
+        <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+          <span>
+            Day closed{c.closed_by_name ? ` by ${c.closed_by_name}` : ""} at{" "}
+            {new Date(c.closed_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+            {c.cash_counted != null ? `, cash counted ${money(c.cash_counted)}` : ""}. The figures below are live; the closed copy is kept.
+          </span>
+          <button type="button" className="btn btn-secondary text-xs" onClick={() => exportCsv(c.snapshot)}>
+            Download closed copy
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  async function close() {
+    setBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/reports/nightaudit/close?${qs()}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cash_counted: cash }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || "Could not close the day");
+      setState({ ...body, loaded: true });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card card-pad space-y-3">
+      <h3 className="h2">Close the day</h3>
+      <ol className="space-y-2 text-sm">
+        <li className="flex flex-wrap items-center gap-2">
+          <Icon name={left ? "warn" : "check"} size={16} />
+          {left ? `${left} thing${left === 1 ? "" : "s"} to fix in the list below` : "Nothing left to fix"}
+        </li>
+        <li className="flex flex-wrap items-center gap-2">
+          <Icon name="money" size={16} />
+          <label htmlFor="close-cash">Cash counted in the drawer</label>
+          <input
+            id="close-cash"
+            className="input"
+            style={{ width: 140 }}
+            type="number"
+            inputMode="decimal"
+            min="0"
+            value={cash}
+            onChange={(e) => setCash(e.target.value)}
+          />
+          {nav.canOpen("cashbook") && (
+            <button type="button" className="btn btn-ghost text-xs" onClick={() => nav.openPage("cashbook")}>
+              Open Cash
+            </button>
+          )}
+        </li>
+        <li className="flex flex-wrap items-center gap-2">
+          <Icon name="file" size={16} />
+          Print the police register
+          {nav.canOpen("policereport") && (
+            <button type="button" className="btn btn-ghost text-xs" onClick={() => nav.openPage("policereport")}>
+              Open Police
+            </button>
+          )}
+        </li>
+      </ol>
+      {error && (
+        <p className="text-sm" style={{ color: "var(--danger)" }}>
+          {error}
+        </p>
+      )}
+      <button type="button" className="btn btn-primary text-sm" disabled={busy || !report} onClick={close}>
+        {busy ? "Closing..." : "Close the day"}
+      </button>
+    </div>
+  );
+}
+
 function exportCsv(report) {
   const r = [];
   r.push(["Night audit", report.date]);
@@ -492,7 +613,7 @@ export default function NightAudit({ session }) {
 
   const { report, loading, error, reload } = useReport("/api/reports/nightaudit", date ? { date } : null, propertyId);
   const { openBooking, modal } = useBookingOpener(session, reload);
-  const money = useMemo(() => moneyFormatter(report?.currency), [report?.currency]);
+  const money = useMemo(() => moneyFormatter(report?.currency, { decimals: 2 }), [report?.currency]);
 
   const step = (days) => setDate((d) => formatDateISO(addDays(d, days)));
 
@@ -518,10 +639,10 @@ export default function NightAudit({ session }) {
           </div>
           <div className="flex gap-2">
             <button type="button" className="btn btn-secondary text-sm" onClick={() => step(-1)} aria-label="Previous day">
-              ‹ Previous day
+              <Icon name="left" size={14} /> Previous day
             </button>
             <button type="button" className="btn btn-secondary text-sm" onClick={() => step(1)} aria-label="Next day">
-              Next day ›
+              Next day <Icon name="right" size={14} />
             </button>
             {date !== todayIso && (
               <button type="button" className="btn btn-ghost text-sm" onClick={() => setDate(todayIso)}>
@@ -532,8 +653,7 @@ export default function NightAudit({ session }) {
         </div>
         <p className="mt-3 flex items-start gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
           <Icon name="info" size={14} />
-          Worked out from the folios as they stand now, so a day already audited changes if a stay on it is edited
-          later. Download the CSV to keep the day as it was when you closed it.
+          Worked out live from the bills. Close the day to keep a copy as it is now.
         </p>
       </div>
 
@@ -541,6 +661,7 @@ export default function NightAudit({ session }) {
 
       {report && (
         <div className="space-y-5" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
+          <CloseDay date={date} report={report} money={money} propertyId={propertyId} />
           <Exceptions report={report} money={money} onOpen={openBooking} propertyId={propertyId} onChanged={reload} />
           <RoomsAndMovement report={report} money={money} />
           <div className="grid gap-5 xl:grid-cols-2">

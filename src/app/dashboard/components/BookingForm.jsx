@@ -1,5 +1,6 @@
 "use client";
 
+import { BOOKING_SOURCES, sourceLabel } from "@/lib/bookingSources";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { hotelToday } from "@/lib/hotelTime";
@@ -223,19 +224,11 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
 
 /**
  * Where a booking came from. Bookings the channel manager delivers carry the
- * channel's own name (Booking.com, MakeMyTrip…), which is not in this list;
+ * channel's own name (Booking.com, MakeMyTrip), which is not in this list;
  * the form adds it as an option so editing such a booking does not rewrite it.
  */
-const BOOKING_SOURCES = [
-  { value: "direct", label: "Direct" },
-  { value: "walkin", label: "Walk-in" },
-  { value: "phone", label: "Phone" },
-  { value: "email", label: "Email" },
-  { value: "website", label: "Website" },
-  { value: "corporate", label: "Corporate" },
-  { value: "travel_agent", label: "Travel agent" },
-  { value: "ota", label: "OTA (entered by hand)" },
-];
+// Every source but Group: a group is booked from its own form.
+const FORM_SOURCES = BOOKING_SOURCES.filter((o) => o.value !== "group");
 
 /** A titled block of the form, four fields to a row on a wide screen. */
 function Section({ title, children }) {
@@ -684,9 +677,9 @@ export default function BookingForm({
   const dayUse = form.stay_kind === "day_use";
   const nights = dayUse ? 0 : nightsBetween(form.check_in, form.check_out);
 
-  const sourceOptions = BOOKING_SOURCES.some((o) => o.value === form.source)
-    ? BOOKING_SOURCES
-    : [...BOOKING_SOURCES, { value: form.source, label: form.source }];
+  const sourceOptions = FORM_SOURCES.some((o) => o.value === form.source)
+    ? FORM_SOURCES
+    : [...FORM_SOURCES, { value: form.source, label: sourceLabel(form.source) }];
 
   // A complimentary stay is owed nothing, so there is no price to quote or
   // type: the total is pinned at zero for as long as it stays complimentary.
@@ -928,6 +921,10 @@ export default function BookingForm({
    * still change either; once they pick a room themselves, it is left alone.
    */
   const walkIn = !reservation && prefill?.source === "walkin";
+  // A walk-in needs a name, a phone, the nights, the room and the money. The
+  // rest (email, how it was booked, a complimentary stay, an inquiry, someone
+  // else booking) folds under More details, already set to what a walk-in is.
+  const short = walkIn && !more;
   const deskPickedRoom = useRef(false);
   useEffect(() => {
     if (!walkIn || !dated || deskPickedRoom.current) return;
@@ -1298,6 +1295,7 @@ export default function BookingForm({
             )}
           </div>
           {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
+{!short && (
           <label
             className="mt-1 flex items-center gap-2 text-sm"
             style={{ minHeight: 32 }}
@@ -1311,6 +1309,7 @@ export default function BookingForm({
             />
             Booked by someone else
           </label>
+)}
         </Field>
         <Field label="Phone" tour="phone">
           <div style={{ position: "relative" }}>
@@ -1320,6 +1319,7 @@ export default function BookingForm({
             )}
           </div>
         </Field>
+{!short && (
         <Field label="Email">
           <div style={{ position: "relative" }}>
             <input className="input" type="email" {...guestBox("guest_email")} />
@@ -1328,6 +1328,7 @@ export default function BookingForm({
             )}
           </div>
         </Field>
+)}
         {form.booked_by_other && (
           <>
             <Field label="Booked by *" wide>
@@ -1347,6 +1348,7 @@ export default function BookingForm({
             </Field>
           </>
         )}
+{!short && (
         <Field label="Stay" tour="dates">
           <Select
             className="input"
@@ -1357,6 +1359,7 @@ export default function BookingForm({
             <option value="day_use">Day use (hours)</option>
           </Select>
         </Field>
+)}
         <Field label={dayUse ? "Date" : "Check in"}>
           <DateField
             className="input"
@@ -1502,6 +1505,7 @@ export default function BookingForm({
             })}
           </Select>
         </Field>
+{!short && (
         <Field label="Booking method" wide={!needsRecord && !companyShown} tour="method">
           <Select
             className="input"
@@ -1515,6 +1519,7 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
+)}
         {companyShown && (
           <Field
             label={needsRecord ? (wantKind === "company" ? "Company" : "Travel agent") : "Company / agent"}
@@ -1610,6 +1615,7 @@ export default function BookingForm({
         )}
           {/* Complimentary stays occupy a room like any other but are owed
               nothing; revenue reports leave them out of ADR. */}
+{!short && (
           <Field label="Booking type">
             <Select
               className="input"
@@ -1620,9 +1626,10 @@ export default function BookingForm({
               <option value="complimentary">Complimentary</option>
             </Select>
           </Field>
+)}
           {/* An inquiry holds the room like a confirmed booking, but is left
               out of revenue until it is confirmed. */}
-          {!reservation && (
+          {!reservation && !short && (
             <Field label="Status">
               <Select
                 className="input"
@@ -1720,7 +1727,7 @@ export default function BookingForm({
         <Icon name={more ? "down" : "right"} size={14} /> More details
         {!more && (
           <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            country, guest is, children
+            {walkIn ? "email, booking method, type, country, children" : "country, guest is, children"}
           </span>
         )}
       </button>

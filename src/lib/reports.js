@@ -1,4 +1,5 @@
-import { getSupabaseAdmin, listRoomTypes, listRooms, nightsBetween } from '@/lib/database';
+import { getPropertyClock, getSupabaseAdmin, listRoomTypes, listRooms, nightsBetween } from '@/lib/database';
+import { dayInZone, zoneDayStart } from '@/lib/hotelTime';
 import { addDays, formatDateISO, parseDateISO } from '@/lib/date';
 import { countryName } from '@/lib/countries';
 import { chargedRate, discountByNight, roomKeep } from '@/lib/discounts';
@@ -112,7 +113,7 @@ function methodOf(r) {
  * read separately rather than as one span covering both: a year-ago
  * comparison would otherwise drag in the whole year between them.
  */
-async function loadFacts(propertyId, fromDate, toDate, basis) {
+async function loadFacts(propertyId, fromDate, toDate, basis, clock = null) {
   const supabase = getSupabaseAdmin();
 
   // Stay basis: every stay with a night inside the window, including
@@ -131,7 +132,10 @@ async function loadFacts(propertyId, fromDate, toDate, basis) {
       .neq('status', 'inquiry');
     q =
       basis === 'booked'
-        ? q.gte('created_at', `${fromDate}T00:00:00Z`).lt('created_at', `${shift(toDate, 1)}T00:00:00Z`)
+        ? // The hotel's days, not UTC's: a booking at 01:00 in India is that day's.
+          clock
+          ? q.gte('created_at', zoneDayStart(fromDate, clock)).lt('created_at', zoneDayStart(shift(toDate, 1), clock))
+          : q.gte('created_at', `${fromDate}T00:00:00Z`).lt('created_at', `${shift(toDate, 1)}T00:00:00Z`)
         : q.lte('check_in', toDate).gt('check_out', fromDate);
     return q.order('id');
   }, 'reservations');
@@ -171,7 +175,7 @@ async function loadFacts(propertyId, fromDate, toDate, basis) {
     })
   );
 
-  return { reservations, nightRows, extraRows };
+  return { reservations, nightRows, extraRows, clock };
 }
 
 /**
@@ -206,7 +210,11 @@ function buildStays(facts, names) {
       value: comp ? 0 : chargedRate(n.rate != null ? Number(n.rate) : evenShare, n.stay_date, keep, nightOff),
     }));
 
-    const created = String(r.created_at || '').slice(0, 10) || r.check_in;
+    const created = r.created_at
+      ? facts.clock
+        ? dayInZone(r.created_at, facts.clock)
+        : String(r.created_at).slice(0, 10)
+      : r.check_in;
     return {
       id: r.id,
       status: r.status,
@@ -507,11 +515,12 @@ export async function getBookingPerformance(
 ) {
   const against = comparisonRange(start, end, compare, { start: compareStart, end: compareEnd });
 
+  const clock = await getPropertyClock(propertyId).catch(() => null);
   const [{ types, capacity }, planNames, facts, pastFacts] = await Promise.all([
     capacityOf(propertyId),
     ratePlanNames(propertyId),
-    loadFacts(propertyId, start, end, basis),
-    loadFacts(propertyId, against.start, against.end, basis),
+    loadFacts(propertyId, start, end, basis, clock),
+    loadFacts(propertyId, against.start, against.end, basis, clock),
   ]);
 
   const names = {

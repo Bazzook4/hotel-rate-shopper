@@ -104,6 +104,23 @@ export async function POST(req, { params }) {
   const summary = summarise(body);
   const action = readAction(body);
 
+  // A booking for another hotel's code is refused: the URL alone should not
+  // be enough to put bookings into this one.
+  const b = body?.booking || body?.reservation || body || {};
+  const sentCode = body?.hotelCode || b.hotelCode || b.hotel_code || null;
+  if (sentCode && integration.hotel_code && String(sentCode) !== String(integration.hotel_code)) {
+    await recordSyncLog({
+      property_id: integration.property_id,
+      integration_id: integration.id,
+      kind: "reservation",
+      direction: "in",
+      status: "failed",
+      source: "aiosell",
+      summary: `Reservation refused: it was for hotel code ${sentCode}, not this hotel's`,
+    });
+    return NextResponse.json({ error: "Hotel code does not match." }, { status: 409 });
+  }
+
   // What the log row says at a glance: the action, who it is for and when.
   const logLine = [
     action === "book" ? "Booking" : action === "cancel" ? "Cancellation" : "Modification",
@@ -141,7 +158,16 @@ export async function POST(req, { params }) {
       payload: body,
     });
 
-    await recordSyncLog({ ...logBase, status: "success", request: body });
+    // The log keeps what the desk needs to recognise the booking; the guest's
+    // full details stay in the booking itself, not copied into the log.
+    await recordSyncLog({
+      ...logBase,
+      status: summary.partner_booking_id ? "success" : "failed",
+      request: { action, ...summary },
+      ...(summary.partner_booking_id
+        ? {}
+        : { error: "The channel sent no booking number, so it could not be added. Enter it by hand." }),
+    });
 
     if (summary.partner_booking_id) {
       after(() =>
@@ -157,7 +183,7 @@ export async function POST(req, { params }) {
       ...logBase,
       status: "failed",
       error: err.message,
-      request: body,
+      request: { action, ...summary },
     });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
@@ -171,7 +197,36 @@ export async function POST(req, { params }) {
  */
 async function adoptAndPush(propertyId, integrationId, bookingId) {
   try {
-    const result = await adoptPartnerReservations(propertyId, { bookingIds: [bookingId] });
+    // A booking and its change can arrive together and be adopted at once.
+    // One of them then loses: its create hits the booking already made, or a
+    // cancel finds nothing yet to cancel. Adopting again settles it, since
+    // the newest message for the booking is what counts.
+    let result;
+    try {
+      result = await adoptPartnerReservations(propertyId, { bookingIds: [bookingId] });
+    } catch (err) {
+      result = { reasons: [], warnings: [], touched: [] };
+      console.error(`Adopting booking ${bookingId} failed, trying again`, err.message);
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    const again = await adoptPartnerReservations(propertyId, { bookingIds: [bookingId] });
+    result = {
+      reasons: again.reasons,
+      warnings: [...new Set([...(result.warnings || []), ...(again.warnings || [])])],
+      touched: [...(result.touched || []), ...(again.touched || [])],
+    };
+    for (const warning of result.warnings) {
+      await recordSyncLog({
+        property_id: propertyId,
+        integration_id: integrationId,
+        kind: "reservation",
+        direction: "in",
+        status: "failed",
+        source: "pms",
+        summary: `Booking #${bookingId} needs a look`,
+        error: warning,
+      });
+    }
     if (result.reasons.length) {
       await recordSyncLog({
         property_id: propertyId,

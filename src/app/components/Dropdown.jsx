@@ -6,7 +6,7 @@ import usePopupClose from "./usePopupClose";
 import { createPortal } from "react-dom";
 
 /**
- * A compact dropdown for toolbars: "Room type: All ▾".
+ * A compact dropdown for toolbars: "Room type: All" with a down arrow.
  *
  * A native select draws itself the way each browser likes -- on a Mac a
  * grey double-chevron box with the system's own menu -- so in the filter

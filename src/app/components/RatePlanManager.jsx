@@ -1,5 +1,7 @@
 "use client";
 
+import Icon from "./Icon";
+
 import { useState, useEffect, useMemo } from "react";
 
 export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplete, onBack }) {
@@ -259,9 +261,9 @@ export default function RatePlanManager({ hotel, roomTypes, ratePlans, onComplet
                       </button>
                       <button
                         onClick={() => deleteRow(row.id)}
-                        className="btn btn-danger text-xs p-1"title="Delete row"
+                        className="btn btn-danger text-xs p-1" title="Delete row" aria-label="Delete row"
                       >
-                        −
+                        <Icon name="trash" size={12} />
                       </button>
                     </div>
                   </td>

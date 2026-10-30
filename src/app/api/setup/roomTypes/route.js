@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 import {
   canManageSetup,
@@ -10,8 +10,11 @@ import {
   deleteRoomType,
   getUserPropertyId,
   syncRoomBasePrices,
+  getPropertyZone,
 } from "@/lib/database";
-import { syncInventoryForward } from "@/lib/inventorySync";
+import { syncInventoryForward, FORWARD_DAYS } from "@/lib/inventorySync";
+import { pushToChannelManager } from "@/lib/cmPush";
+import { todayInZone } from "@/lib/hotelTime";
 import { capProblem, roomCap } from "@/lib/roomCap";
 
 /** Rooms declared across a property's room types, leaving one out. */
@@ -166,7 +169,7 @@ export async function PATCH(req) {
 }
 
 export async function DELETE(req) {
-  const { error } = await guard(req);
+  const { error, session } = await guard(req);
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");
@@ -175,8 +178,36 @@ export async function DELETE(req) {
   }
 
   try {
+    // The id alone names the room type, so check it is one of this user's.
+    const current = await getRoomType(id);
+    if (!current || !(await resolvePropertyId(session, current.property_id))) {
+      return NextResponse.json({ error: "Room type not found" }, { status: 404 });
+    }
+
+    // Before it goes, the channels are told it has nothing left to sell:
+    // once deleted its channel code is gone too, and the OTAs would keep
+    // selling it at the last count they were sent.
+    const start = todayInZone(await getPropertyZone(current.property_id));
+    const end = new Date(`${start}T00:00:00Z`);
+    end.setUTCDate(end.getUTCDate() + FORWARD_DAYS - 1);
+    const inventory = await pushToChannelManager({
+      session,
+      kind: "inventory",
+      propertyId: current.property_id,
+      updates: [
+        { startDate: start, endDate: end.toISOString().slice(0, 10), rooms: [{ roomCode: id, available: 0 }] },
+      ],
+    }).catch((err) => ({ status: 500, body: { error: err.message } }));
+
     await deleteRoomType(id);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      // A room type never mapped to a channel had nothing to close.
+      inventory:
+        inventory.status === 200 || inventory.status === 409
+          ? null
+          : { status: "failed", message: inventory.body?.error || "The channels were not told" },
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

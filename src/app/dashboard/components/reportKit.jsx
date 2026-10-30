@@ -315,7 +315,7 @@ export function Stats({ items }) {
         <div key={s.label} title={s.hint}>
           <p className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
             {s.label}
-            {s.hint && <span style={{ color: "var(--text-faint)" }}> ⓘ</span>}
+            {s.hint && <span style={{ color: "var(--text-muted)" }}> <Icon name="info" size={12} /></span>}
           </p>
           <p
             className="mt-1 text-xl font-semibold tabular-nums"
@@ -324,7 +324,7 @@ export function Stats({ items }) {
             {s.value}
           </p>
           {s.sub && (
-            <p className="mt-0.5 text-[11px] tabular-nums" style={{ color: "var(--text-faint)" }}>
+            <p className="mt-0.5 text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
               {s.sub}
             </p>
           )}

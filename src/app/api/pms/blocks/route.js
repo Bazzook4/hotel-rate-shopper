@@ -6,6 +6,7 @@ import {
   deleteRoomBlock,
   getRoomBlock,
   findRoomClash,
+  checkAvailability,
   getSupabaseAdmin,
 } from "@/lib/database";
 import { syncInventory, blockSpan } from "@/lib/inventorySync";
@@ -37,7 +38,7 @@ function validate(body) {
 async function roomOfProperty(roomId, propertyId) {
   const { data } = await getSupabaseAdmin()
     .from("rooms")
-    .select("id, property_id")
+    .select("id, property_id, room_type_id, is_active")
     .eq("id", roomId)
     .maybeSingle();
   return data && data.property_id === propertyId ? data : null;
@@ -67,7 +68,8 @@ export async function POST(req) {
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   try {
-    if (!(await roomOfProperty(body.room_id, propertyId))) {
+    const room = await roomOfProperty(body.room_id, propertyId);
+    if (!room) {
       return NextResponse.json({ error: "That room could not be found." }, { status: 404 });
     }
 
@@ -75,6 +77,23 @@ export async function POST(req) {
     // would leave a booking in a room the chart says nobody can use.
     const clash = await findRoomClash(body.room_id, body.start_date, body.end_date);
     if (clash) return NextResponse.json({ error: clash.message }, { status: 409 });
+
+    // The room can be empty while its type is full: bookings with no room yet
+    // are counting on it. Blocking it then leaves one of them nowhere to go.
+    if (room.is_active !== false && room.room_type_id) {
+      const check = await checkAvailability(
+        propertyId,
+        room.room_type_id,
+        body.start_date,
+        body.end_date
+      );
+      if (!check.available) {
+        return NextResponse.json(
+          { error: `${check.reason} A booking with no room yet needs this room.` },
+          { status: 409 }
+        );
+      }
+    }
 
     const block = await createRoomBlock({
       ...body,

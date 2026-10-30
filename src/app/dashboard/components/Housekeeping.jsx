@@ -7,6 +7,7 @@ import { usePageState } from "./usePageState";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
 import { hotelToday } from "@/lib/hotelTime";
+import { inventoryWarning } from "@/lib/inventoryNotice";
 
 /**
  * The housekeeping board: every room, whether it is clean, and whether
@@ -257,6 +258,8 @@ export default function Housekeeping({ session }) {
       const byId = Object.fromEntries((data.rooms || []).map((r) => [r.id, r]));
       setRooms((prev) => prev.map((r) => (byId[r.id] ? { ...r, ...byId[r.id] } : r)));
       setSelected(new Set());
+      const warning = inventoryWarning(data);
+      if (warning) setError(warning);
       setLastChange(
         undoable && before.length
           ? {
@@ -376,7 +379,7 @@ export default function Housekeeping({ session }) {
               </div>
               <div style={{ fontSize: "1.4rem", fontWeight: 600 }}>{tile.count}</div>
               {tile.code && (
-                <div style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>{tile.code}</div>
+                <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)" }}>{tile.code}</div>
               )}
             </button>
           );
@@ -545,7 +548,7 @@ export default function Housekeeping({ session }) {
                         ))}
                       </Select>
                     </div>
-                    <div style={{ fontSize: "0.7rem", color: "var(--text-faint)", marginTop: 2 }}>
+                    <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 2 }}>
                       {t(occupancyLabel(room))}, {roomCode(room)}
                     </div>
                   </td>
@@ -553,7 +556,7 @@ export default function Housekeeping({ session }) {
                     {guest ? (
                       <>
                         {guest.guest_name}
-                        <span style={{ color: "var(--text-faint)" }}>
+                        <span style={{ color: "var(--text-muted)" }}>
                           
                           , {guest.adults}A
                           {guest.children ? ` ${guest.children}C` : ""}

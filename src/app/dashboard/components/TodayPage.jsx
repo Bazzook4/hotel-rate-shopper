@@ -35,8 +35,8 @@ import { parseDateISO } from "@/lib/date";
 
 const KIND_LABEL = {
   rates: "Rates",
-  inventory: "Availability",
-  restrictions: "Restrictions",
+  inventory: "Rooms free",
+  restrictions: "Limits (min stay, stop sell)",
   multiplier: "Channel markups",
   reservation: "Incoming bookings",
 };
@@ -108,7 +108,7 @@ function Tile({ label, value, sub, change, page, view, onOpenPage, canOpen }) {
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {change}
           {sub && (
-            <span className="text-xs tabular-nums" style={{ color: "var(--text-faint)" }}>
+            <span className="text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
               {sub}
             </span>
           )}
@@ -202,7 +202,7 @@ function SetupChecklist({ setup, onOpenPage, canOpen }) {
                 className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold"
                 style={
                   s.done
-                    ? { background: "var(--accent)", color: "#fff" }
+                    ? { background: "var(--accent-strong)", color: "#fff" }
                     : { border: "1px solid var(--border-strong)", color: "var(--text-muted)" }
                 }
                 aria-label={s.done ? "Done" : "Not done"}
@@ -354,13 +354,17 @@ function NeedsAttention({ today, distribution, formC, onOpenPage, canOpen, openB
       <Problem
         key={`fail-${f.kind}`}
         tone="danger"
-        count={1}
-        title={`${KIND_LABEL[f.kind] || f.kind} did not reach the channel manager`}
-        hint={`The last attempt, at ${timeOf(f.at)}, failed${f.error ? `: ${f.error}` : "."} The channels may be showing old figures until it goes through.`}
+        count={f.count || 1}
+        title={f.kind === "reservation" ? "OTA bookings need a look" : `${KIND_LABEL[f.kind] || f.kind} not sent to OTAs`}
+        hint={
+          f.kind === "reservation"
+            ? `Latest at ${timeOf(f.at)}${f.error ? `: ${f.error}` : "."}`
+            : `Latest at ${timeOf(f.at)}. OTAs may show old figures until it is sent again. It is sent again every morning, or press Resync.`
+        }
         action={
           canOpen("logs") && (
             <button type="button" className="btn btn-secondary text-xs" onClick={() => onOpenPage("logs")}>
-              Activity log
+              See what failed
             </button>
           )
         }
@@ -490,7 +494,7 @@ function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, 
               </button>
               <button
                 type="button"
-                className="btn btn-primary text-xs"
+                className="btn btn-secondary text-xs"
                 disabled={busyId !== null}
                 onClick={() => onAction(r)}
               >
@@ -513,6 +517,7 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
   const desk = useFrontDesk(propertyId, { canSeeIds: Boolean(canOpen?.("guests")) });
   const [arrivals, setArrivals] = useState([]);
   const [departures, setDepartures] = useState([]);
+  const [staying, setStaying] = useState([]);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState("");
 
@@ -526,12 +531,17 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
       return body.reservations || [];
     };
     try {
-      const [a, d] = await Promise.all([
+      const [a, d, inHouse] = await Promise.all([
         ask({ status: "confirmed", arrivingOn: date }),
         ask({ status: "in_house", leavingOn: date }),
+        ask({ status: "in_house" }),
       ]);
       setArrivals(a);
       setDepartures(d);
+      // Guests in the hotel who are not leaving today: the ones a tea, the
+      // laundry or a part payment is for.
+      const leaving = new Set(d.map((r) => r.id));
+      setStaying(inHouse.filter((r) => !leaving.has(r.id)));
     } catch (err) {
       setError(err.message);
     }
@@ -570,7 +580,7 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
           {error}
         </p>
       )}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         <DeskList
           title="Arriving today"
           rows={arrivals}
@@ -592,6 +602,17 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
           onSeeAll={seeAll("departures")}
           openBooking={openBooking}
           empty="No one left to check out."
+        />
+        <DeskList
+          title="In the hotel"
+          rows={staying}
+          action="Add charge"
+          busyLabel="Add charge"
+          busyId={null}
+          onAction={(r) => openBooking(r.id, "inclusions")}
+          onSeeAll={seeAll("in_house")}
+          openBooking={openBooking}
+          empty="No other guests checked in."
         />
       </div>
       {desk.settleDialog}

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { resolveChannelManager } from "@/lib/cmResolver";
 import { recordSyncLog } from "@/lib/database";
 import { moduleDeniedResponse } from "@/lib/propertyScope";

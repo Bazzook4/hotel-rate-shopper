@@ -1,5 +1,6 @@
 "use client";
 
+import { BOOKING_SOURCES } from "@/lib/bookingSources";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../../components/Icon";
 import { inventoryWarning } from "@/lib/inventoryNotice";
@@ -33,15 +34,11 @@ const STEPS = [
   { id: "rates", label: "Guests & rates" },
 ];
 
-const GROUP_SOURCES = [
-  { value: "group", label: "Group" },
-  { value: "direct", label: "Direct" },
-  { value: "corporate", label: "Corporate" },
-  { value: "travel_agent", label: "Travel agent" },
-  { value: "phone", label: "Phone" },
-  { value: "email", label: "Email" },
-  { value: "website", label: "Website" },
-];
+// A group first, then the ways a group is booked; walk-ins and OTA bookings by
+// hand are single stays.
+const GROUP_SOURCES = ["group", "direct", "corporate", "travel_agent", "phone", "email", "website"].map(
+  (value) => BOOKING_SOURCES.find((o) => o.value === value)
+);
 
 function nightsBetween(checkIn, checkOut) {
   if (!checkIn || !checkOut || checkOut <= checkIn) return 0;
@@ -418,7 +415,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
           className="side-panel-head flex items-center justify-between"
           style={{
             padding: "0.85rem 1.1rem",
-            background: "var(--accent)",
+            background: "var(--accent-strong)",
             color: "#fff",
             fontWeight: 600,
             fontSize: "0.9rem",
@@ -736,7 +733,7 @@ export default function GroupBookingModal({ session, chart, initial, onClose, on
                               <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
                                 
                                 , {rows.length} room{rows.length === 1 ? "" : "s"}
-                                {rt.max_adults ? `, up to ${rt.max_adults} adults` : ""}
+                                {rt.max_adults ? `, up to ${rt.max_adults} adult${Number(rt.max_adults) === 1 ? "" : "s"}` : ""}
                               </span>
                             </td>
                           </tr>,

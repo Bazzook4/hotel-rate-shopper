@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { SETUP_READ_PAGES, pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   canManageSetup,
   ensureServiceDefaults,
@@ -25,7 +25,9 @@ import {
  */
 
 async function requireSetup(req) {
-  const { error, session } = await pmsGuard(req);
+  // The page's own right, as well as the setup permission: a super admin
+  // unticking servicesetup closes its changes here too, not only the menu.
+  const { error, session } = await pmsGuard(req, ["servicesetup"]);
   if (error) return { error };
 
   if (!(await canManageSetup(session.userId))) {
@@ -40,7 +42,7 @@ async function requireSetup(req) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, SETUP_READ_PAGES);
   if (error) return error;
 
   const propertyId = await resolvePropertyId(

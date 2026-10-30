@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
-import { getReservationInvoice, getPropertyById } from "@/lib/database";
+import { getReservationInvoice, getPropertyById, getPropertyZone } from "@/lib/database";
 import { getHotelBrand } from "@/lib/hotelBrand";
 import { DEFAULT_CURRENCY, moneyLocale } from "@/lib/money";
 import { toCountryCode } from "@/lib/countries";
@@ -53,6 +53,17 @@ function day(iso) {
   );
 }
 
+/** A moment as the date it was at the hotel, not in UTC. */
+function stamp(iso, zone) {
+  if (!iso) return "-";
+  return new Date(iso).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: zone || "UTC",
+  });
+}
+
 /** Replace "night of 2026-09-26" with a readable date, for older and newer lines alike. */
 function describe(line) {
   return plain(
@@ -81,7 +92,7 @@ async function loadLogo(pdf, url) {
   }
 }
 
-async function renderInvoice(invoice, fallbackProperty, logoUrl) {
+async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC") {
   const snap = invoice.snapshot || {};
   // Invoices issued before taxes existed carry no `taxes`, and print as before.
   const taxes = snap.taxes || [];
@@ -216,7 +227,21 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
 
   y = top - 14;
   text(property.name || "Invoice", issuerX, { bold: true, size: 16 });
-  text(taxes.length > 0 ? "TAX INVOICE" : "INVOICE", right, {
+  // In India only a GST-registered hotel issues a tax invoice; one with no
+  // tax on it (every charge exempt) issues a bill of supply. Without a GSTIN
+  // it is a plain invoice.
+  const india = (property.country_code || toCountryCode(property.country) || "IN") === "IN";
+  const charged = taxes.some((t) => Number(t.amount) > 0);
+  const title = india
+    ? property.gstin
+      ? charged
+        ? "TAX INVOICE"
+        : "BILL OF SUPPLY"
+      : "INVOICE"
+    : charged
+      ? "TAX INVOICE"
+      : "INVOICE";
+  text(title, right, {
     bold: true,
     size: 13,
     align: "right",
@@ -241,7 +266,7 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
   if (invoice.voided_at) {
     y -= 4;
     text(
-      `VOID - ${day(invoice.voided_at)}${invoice.void_reason ? ` - ${invoice.void_reason}` : ""}`,
+      `VOID - ${stamp(invoice.voided_at, zone)}${invoice.void_reason ? ` - ${invoice.void_reason}` : ""}`,
       MARGIN,
       { bold: true, size: 11, color: rgb(0.75, 0.1, 0.1) }
     );
@@ -269,11 +294,17 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
     snap.rate_plan ? `Rate plan: ${snap.rate_plan}` : null,
     `${snap.adults ?? "-"} adult(s), ${snap.children ?? 0} child(ren)`,
   ];
+  // A stay is supplied where the hotel is, so that state is the place of
+  // supply; its GST code is the first two digits of the hotel's GSTIN.
+  const stateCode = india && property.gstin ? String(property.gstin).slice(0, 2) : null;
   const docLines = [
     `No. ${invoice.invoice_number}`,
-    `Issued ${day(invoice.issued_at)}`,
+    `Issued ${stamp(invoice.issued_at, zone)}`,
     `Booking ${snap.reference || "-"}`,
-  ];
+    india && property.gstin
+      ? `Place of supply: ${[property.state, stateCode ? `(${stateCode})` : null].filter(Boolean).join(" ")}`
+      : null,
+  ].filter(Boolean);
 
   table(
     [
@@ -289,24 +320,54 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
 
   // ---- Charges ----
   const lines = snap.lines || [];
+  // Invoices from before lines carried their SAC and rate print as they did.
+  const gstColumns = lines.some((l) => "tax_rate" in l);
   table(
     [
       { label: "#", width: 26, align: "right" },
       { label: "Description" },
-      { label: "Qty", width: 42, align: "right" },
-      { label: "Unit price", width: 96, align: "right" },
-      { label: "Amount", width: 100, align: "right" },
+      ...(gstColumns
+        ? [
+            { label: "SAC", width: 46 },
+            { label: "GST %", width: 40, align: "right" },
+          ]
+        : []),
+      { label: "Qty", width: 36, align: "right" },
+      { label: "Unit price", width: gstColumns ? 84 : 96, align: "right" },
+      { label: "Amount", width: gstColumns ? 90 : 100, align: "right" },
     ],
     lines.map((l, i) => ({
       cells: [
         String(i + 1),
         describe(l),
+        ...(gstColumns ? [l.sac || "", l.tax_rate != null ? String(l.tax_rate) : ""] : []),
         l.quantity != null ? String(l.quantity) : "",
         l.unit_price != null ? money(l.unit_price, currency) : "",
         money(l.amount, currency),
       ],
     }))
   );
+
+  // The taxable value at each rate, which a tax invoice must show.
+  if (gstColumns && charged) {
+    const byRate = {};
+    for (const l of lines) {
+      if (l.tax_rate == null) continue;
+      byRate[l.tax_rate] = (byRate[l.tax_rate] || 0) + (Number(l.taxable) || 0);
+    }
+    const rates = Object.keys(byRate).sort((a, b) => Number(a) - Number(b));
+    if (rates.length) {
+      y -= 10;
+      table(
+        [
+          { label: "GST rate", width: 80 },
+          { label: "Taxable value", width: 120, align: "right" },
+        ],
+        rates.map((r) => ({ cells: [`${r}%`, money(byRate[r], currency)] })),
+        { width: 200, size: 9 }
+      );
+    }
+  }
 
   // ---- Totals, under the amounts ----
   const totals = snap.totals || {};
@@ -354,7 +415,7 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl) {
       ],
       snap.payments.map((p) => ({
         cells: [
-          day(p.paid_at),
+          stamp(p.paid_at, zone),
           String(p.method || "").replace(/_/g, " "),
           p.reference || "",
           money(p.amount, currency),
@@ -414,7 +475,8 @@ export async function GET(req) {
 
     const brand = await getHotelBrand(invoice.property_id).catch(() => null);
 
-    const bytes = await renderInvoice(invoice, fallback, brand?.logoUrl);
+    const zone = await getPropertyZone(invoice.property_id).catch(() => "UTC");
+    const bytes = await renderInvoice(invoice, fallback, brand?.logoUrl, zone);
 
     return new NextResponse(Buffer.from(bytes), {
       headers: {

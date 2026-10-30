@@ -1,5 +1,7 @@
 "use client";
 
+import Icon from "../../components/Icon";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Grid, Loading, Messages, SetupHeader, sendJSON } from "./SetupGrid";
 import { Drawer, Field, Section } from "./RatePlanSetup";
@@ -149,7 +151,7 @@ export default function Workflow({ session }) {
           {busy ? "Working..." : "Run now"}
         </button>
         <button type="button" className="btn btn-primary" onClick={() => setDrawer({ rule: null })}>
-          + Add rule
+          <Icon name="plus" size={14} /> Add rule
         </button>
       </SetupHeader>
 
@@ -169,7 +171,7 @@ export default function Workflow({ session }) {
             Agoda for that night, and open it again if a cancellation brings it back under 5.
           </p>
           <button type="button" className="btn btn-primary mt-4" onClick={() => setDrawer({ rule: null })}>
-            + Add rule
+            <Icon name="plus" size={14} /> Add rule
           </button>
         </div>
       ) : (

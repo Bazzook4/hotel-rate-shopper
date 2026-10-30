@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { canManageSetup, getSupabaseAdmin } from "@/lib/database";
 import { resolvePropertyId } from "@/lib/pmsGuard";
 import { cleanDemand } from "@/lib/demandColours";

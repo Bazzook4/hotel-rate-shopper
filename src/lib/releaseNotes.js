@@ -14,6 +14,29 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Fewer double bookings, right GST, and quicker desk jobs",
+    points: [
+      { page: "today", text: "Today now lists guests in the hotel, not only arrivals and departures, with Collect and Add charge on each." },
+      { page: "reservations", text: "Add charge shows your first few services as buttons. One tap puts one on the bill." },
+      { page: "reservations", text: "Checking out now issues the bill. The Print bill button stays for a minute." },
+      { page: "reservations", text: "A guest leaving early: you choose to bill the full booking or only the nights stayed, and the unused nights go back on sale." },
+      { page: "reservations", text: "Check-in starts the ID type on Aadhaar for Indian guests and Passport for others. A dirty room can be checked in from any page and is marked clean." },
+      { page: "reservations", text: "The walk-in form is shorter. Email, booking method and the rest are under More details." },
+      { page: "reservations", text: "Check-in, cancel and moving a booking on the Calendar now have Undo. Cancel is on the Calendar menu." },
+      { page: "reservations", text: "The Reservations tabs now show today's guests correctly however many bookings you have, and booking sources show in plain words." },
+      { page: "housekeeping", text: "Out of order on Housekeeping now takes the room off sale on the OTAs, and it is not offered at check-in." },
+      { page: "calendar", text: "Moving or extending a booking, bringing back a cancelled one, or blocking a room is refused when the room type is full." },
+      { page: "cm", text: "Availability is sent to the OTAs again every morning, so a missed update is put right by the next day." },
+      { page: "nightaudit", text: "Close the day on Night Audit: see what is left to fix, enter the cash counted and keep a copy of the day." },
+      { page: "taxsetup", text: "Prices that include tax now take out the right GST and use the right slab. Changing a tax already used starts the new rate today, so past bills keep theirs." },
+      { page: "reservations", text: "A discount off the final bill now lowers the room price, so GST is only on what the guest pays." },
+      { page: "invoicing", text: "Invoices show the SAC code, the GST rate on each line and the place of supply. A charge on an invoice cannot be changed until the invoice is voided." },
+      { page: "cityledger", text: "A cancelled company booking no longer shows its whole stay as owed." },
+      { page: "users", text: "A user who is switched off or removed loses access at once. Report-only users can no longer change bookings or bills." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Offers for some nights only are taxed night by night",
     points: [
       {

@@ -8,6 +8,10 @@
  */
 export function inventoryWarning(data) {
   const inv = data?.inventory;
-  if (!inv || inv.status !== "failed") return null;
-  return `Saved, but the OTAs were not told the new availability (${inv.message}). Resend it from Rates & Inventory > Resync > Availability.`;
+  // A route may also say something the desk has to act on, such as a room
+  // let go because someone else took it.
+  const notice = data?.notice || null;
+  if (!inv || inv.status !== "failed") return notice;
+  const failed = `Saved, but the OTAs were not told the new availability (${inv.message}). Resend it from Rates & Inventory > Resync > Availability.`;
+  return notice ? `${notice} ${failed}` : failed;
 }

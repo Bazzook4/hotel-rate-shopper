@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getSupabaseAdmin } from "@/lib/database";
 

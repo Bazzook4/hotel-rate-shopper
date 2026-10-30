@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSnapshotRecords, getCompsetById, listSnapshotsForCompset } from "@/lib/airtable";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 
 export async function GET(req, { params }) {
   const session = await getSessionFromRequest(req);

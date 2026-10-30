@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { canManageSetup } from "@/lib/permissions";
 import { resolvePropertyId, sessionRights } from "@/lib/propertyScope";
 import { BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
@@ -142,11 +142,24 @@ async function distributionPart(propertyId) {
     listRoomTypes(propertyId),
   ]);
 
-  const latest = new Map();
-  for (const row of rows) if (!latest.has(row.kind)) latest.set(row.kind, row);
-  const failures = [...latest.values()]
-    .filter((r) => r.status === "failed")
-    .map((r) => ({ kind: r.kind, at: r.created_at, error: r.error || r.summary || null }));
+  // Newest first. A failure stands until a later success of the same kind
+  // covers its nights; a success for other nights does not put it right, so
+  // a failed push for 3 to 5 Nov is not hidden by a good one for 10 Nov. A
+  // failure with no nights (a booking that needs a look) stands for the day.
+  const covers = (ok, bad) =>
+    ok.kind === bad.kind &&
+    (!bad.date_from ||
+      (ok.date_from && ok.date_to && ok.date_from <= bad.date_from && ok.date_to >= (bad.date_to || bad.date_from)));
+  const standing = rows.filter(
+    (r, i) => r.status === "failed" && !rows.slice(0, i).some((later) => later.status === "success" && covers(later, r))
+  );
+  const byKind = new Map();
+  for (const r of standing) {
+    const seen = byKind.get(r.kind);
+    if (seen) seen.count += 1;
+    else byKind.set(r.kind, { kind: r.kind, at: r.created_at, error: r.error || r.summary || null, count: 1 });
+  }
+  const failures = [...byKind.values()];
 
   const integration = found?.integration;
   const mapped = new Set(

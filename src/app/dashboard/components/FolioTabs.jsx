@@ -106,7 +106,7 @@ function Statement({ folio, currency, actions, busy }) {
   ]
     .filter(Boolean)
     .join(", ");
-  const faint = { color: "var(--text-faint)", fontSize: "0.75rem" };
+  const faint = { color: "var(--text-muted)", fontSize: "0.75rem" };
   const cell = actions ? <td /> : null;
   // The discount, under the room when it came off before tax, or above the
   // total when it came off after.
@@ -215,7 +215,7 @@ function Statement({ folio, currency, actions, busy }) {
 
         {totals.discountTiming === "after_tax" && discountRow}
 
-        <tr style={{ fontWeight: 600 }}>
+        <tr className="grid-total">
           <td>
             Total
             {(folio.taxes || [])
@@ -236,14 +236,14 @@ function Statement({ folio, currency, actions, busy }) {
           const amount = Number(p.amount);
           const method = [...METHODS, WALLET_METHOD].find((m) => m.id === p.method)?.label || p.method;
           return (
-            <tr key={p.id} style={p.voided_at ? { color: "var(--text-faint)" } : undefined}>
+            <tr key={p.id} style={p.voided_at ? { color: "var(--text-muted)" } : undefined}>
               <td>
                 {amount < 0 ? "Refund" : "Paid"}, {method}
                 {p.reference ? `, ${p.reference}` : ""}
                 <span style={faint}>, {when(p.paid_at)}</span>
                 {sharerName(p) && <span style={faint}>, bill: {sharerName(p)}</span>}
                 {p.voided_at && (
-                  <span className="chip chip-off ml-2" style={{ fontSize: "0.6rem" }}>
+                  <span className="chip chip-off ml-2" style={{ fontSize: "0.6875rem" }}>
                     Voided{p.void_reason ? `, ${p.void_reason}` : ""}
                   </span>
                 )}
@@ -269,7 +269,7 @@ function Statement({ folio, currency, actions, busy }) {
           );
         })}
 
-        <tr style={{ fontWeight: 600, color: totals.balance > 0 ? "var(--warn)" : "var(--text)" }}>
+        <tr className="grid-total" style={{ color: totals.balance > 0 ? "var(--warn)" : "var(--text)" }}>
           <td>{totals.balance < 0 ? "Refund due" : "Balance"}</td>
           <td className="text-right">{money(Math.abs(totals.balance), currency)}</td>
           {cell}
@@ -465,7 +465,7 @@ function SharedBills({ folio, currency, busy, post, propertyId, openFor }) {
           {sharers.map((s) => `${s.name} ${Math.round(s.share * 100) / 100}%`).join(", ")}.
         </p>
       ) : (
-        <p style={{ color: "var(--text-faint)", fontSize: "0.75rem" }}>Leave a share blank to split the room evenly.</p>
+        <p style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>Leave a share blank to split the room evenly.</p>
       )}
     </div>
   );
@@ -496,6 +496,27 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const chosen = sellable.find((x) => x.id === line.extra_id);
+
+  // The hotel's first few services as one-tap buttons: a tea or the laundry
+  // goes on the bill with one press, one of it, tonight.
+  const quick = sellable.filter((x) => x.is_active !== false).slice(0, 6);
+  async function quickAdd(svc) {
+    setBusy(true);
+    setError(null);
+    try {
+      await sendFolio(reservationId, "extra", {
+        line: {
+          extra_id: svc.id,
+          bill_guest_id: sharers.length ? line.bill_guest_id : undefined,
+          quantity: svc.charge_type === "per_night" ? undefined : 1,
+        },
+      });
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
 
   async function save() {
     if (sellable.length === 0) {
@@ -528,7 +549,7 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
   }
 
   return (
-    <Drawer title="Add service" onCancel={onClose} onSave={save} saveLabel="Add" busyLabel="Adding..." busy={busy} error={error}>
+    <Drawer title="Add charge" onCancel={onClose} onSave={save} saveLabel="Add" busyLabel="Adding..." busy={busy} error={error}>
       {sellable.length === 0 ? (
         <div>
           <p className="sub">No services set up yet.</p>
@@ -555,8 +576,26 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
               />
             </div>
           )}
+          {quick.length > 0 && (
+            <div className="sm:col-span-2">
+              <span className="label">Tap to add one now</span>
+              <div className="flex flex-wrap gap-2">
+                {quick.map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    className="btn btn-secondary text-sm"
+                    disabled={busy}
+                    onClick={() => quickAdd(x)}
+                  >
+                    {x.name} <span style={{ color: "var(--text-muted)" }}>{money(x.unit_price, currency)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="sm:col-span-2">
-            <Field label="Service">
+            <Field label="Or choose a service">
               <Select
                 className="input"
                 autoFocus
@@ -905,7 +944,7 @@ function InvoiceDrawer({ folio, reservationId, currency, onClose, onSaved, onRef
   const owing = sharers.filter((x) => allOpen.some((c) => c.owner === x.id));
   const perGuest = () => issue(owing.map((x) => ({ keys: null, sharerId: x.id })));
 
-  const faint = { color: "var(--text-faint)", fontSize: "0.75rem" };
+  const faint = { color: "var(--text-muted)", fontSize: "0.75rem" };
   const doneBy = {};
   for (const c of done) (doneBy[c.invoice] = doneBy[c.invoice] || new Set()).add(c.category);
   const tight = { padding: "0.35rem 0.75rem" };
@@ -1208,7 +1247,7 @@ function DiscountDrawer({ folio, reservationId, currency, onClose, onSaved }) {
           <span className="mt-1 block text-xs faint">
             {timing === "before_tax"
               ? "Off the room price. Tax is worked out on the lower price."
-              : "Off the final bill. Tax stays as it is."}
+              : "The bill goes down by this much. The room price is lowered, so tax is only on what the guest pays."}
           </span>
         </div>
 
@@ -1240,7 +1279,7 @@ function DiscountDrawer({ folio, reservationId, currency, onClose, onSaved }) {
                         : "Taken off"}
                       {d.reason ? `, ${reasonLabel(d.reason)}` : ""}
                       {d.note ? `, ${d.note}` : ""}
-                      <div style={{ color: "var(--text-faint)", fontSize: "0.7rem" }}>
+                      <div style={{ color: "var(--text-muted)", fontSize: "0.7rem" }}>
                         {when(d.changed_at)}
                         {d.changed_by_email ? `, ${d.changed_by_email.split("@")[0]}` : ""}
                       </div>
@@ -1410,6 +1449,50 @@ export default function FolioTabs({
     });
   }
 
+  // A returning guest found by phone or email, offered to fill in the form.
+  const [saved, setSaved] = useState(null);
+  async function findSaved(value) {
+    const term = String(value || "").trim();
+    const digits = term.replace(/\D/g, "");
+    if (!(term.includes("@") || digits.length >= 10)) return;
+    try {
+      const q = new URLSearchParams({ search: term.includes("@") ? term : digits, limit: "1" });
+      if (folio.reservation?.property_id) q.set("propertyId", folio.reservation.property_id);
+      const res = await fetch(`/api/pms/guests?${q}`);
+      const data = res.ok ? await res.json() : { guests: [] };
+      setSaved((data.guests || [])[0] || null);
+    } catch {
+      setSaved(null);
+    }
+  }
+  function useSaved(g) {
+    const [first, ...rest] = String(g.full_name || "").trim().split(/\s+/);
+    setGuest((cur) => ({
+      ...cur,
+      first_name: cur.first_name || first || "",
+      last_name: cur.last_name || rest.join(" "),
+      phone: cur.phone || g.phone || "",
+      email: cur.email || g.email || "",
+      nationality: cur.nationality || g.country || "",
+      id_type: cur.id_type || g.id_type || "",
+      id_number: cur.id_number || g.id_number || "",
+      address: cur.address || g.address || "",
+    }));
+    setSaved(null);
+  }
+
+  /** Remove a guest from the booking at once, with an Undo that puts them back. */
+  async function removeGuest(g) {
+    if (!(await remove("guest", g.id))) return;
+    const { id: _id, guest_id: _gid, created_at: _c, updated_at: _u, reservation_id: _r, ...back } = g;
+    toast(`${[g.first_name, g.last_name].filter(Boolean).join(" ") || "Guest"} removed`, {
+      undo: async () => {
+        await sendFolio(reservationId, "guest", { guest: back });
+        await onChanged();
+      },
+    });
+  }
+
   async function remove(kind, id, reason) {
     setBusy(true);
     setError(null);
@@ -1521,7 +1604,7 @@ export default function FolioTabs({
               {folio.reservation.rooms?.room_number
                 ? ` : Room ${folio.reservation.rooms.room_number}`
                 : ""}
-              <span style={{ fontWeight: 400, color: "var(--text-faint)" }}>
+              <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>
                 
                 , {folio.reservation.adults} Adult
                 {folio.reservation.adults === 1 ? "" : "s"},{" "}
@@ -1583,10 +1666,10 @@ export default function FolioTabs({
                 <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
                   {[g.first_name, g.last_name].filter(Boolean).join(" ")}
                 </div>
-                <div style={{ fontSize: "0.7rem", color: "var(--text-faint)" }}>
+                <div style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
                   {[g.email, g.phone].filter(Boolean).join(", ") || "No contact details"}
                 </div>
-                <div style={{ fontSize: "0.7rem", color: g.id_number ? "var(--text-faint)" : "var(--warn)" }}>
+                <div style={{ fontSize: "0.7rem", color: g.id_number ? "var(--text-muted)" : "var(--warn)" }}>
                   {g.id_number
                     ? [
                         `${CHECKIN_ID_TYPES.find((t) => t.id === g.id_type)?.label || "ID"} ${g.id_number}`,
@@ -1612,9 +1695,11 @@ export default function FolioTabs({
               <button
                 className="btn btn-ghost text-xs"
                 disabled={busy}
-                onClick={() => remove("guest", g.id)}
+                aria-label={`Remove ${[g.first_name, g.last_name].filter(Boolean).join(" ")} from this booking`}
+                title="Remove from this booking"
+                onClick={() => removeGuest(g)}
               >
-                <Icon name="close" size={14} />
+                <Icon name="trash" size={14} />
               </button>
             </div>
             {idsOpen === g.id && (
@@ -1657,16 +1742,33 @@ export default function FolioTabs({
                     type="email"
                     value={guest.email || ""}
                     onChange={(e) => setGuest({ ...guest, email: e.target.value })}
+                    onBlur={() => findSaved(guest.email)}
                   />
                 </div>
                 <div>
                   <label className="label">Phone</label>
                   <input
                     className="input"
+                    type="tel"
                     value={guest.phone || ""}
                     onChange={(e) => setGuest({ ...guest, phone: e.target.value })}
+                    onBlur={() => findSaved(guest.phone)}
                   />
                 </div>
+                {saved && !guest.id && (
+                  <div className="note note-ok sm:col-span-2">
+                    <Icon name="user" size={16} />
+                    <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
+                      <span>
+                        Stayed before: {saved.full_name}
+                        {saved.id_number ? `, ID on file` : ""}
+                      </span>
+                      <button type="button" className="btn btn-secondary text-xs" onClick={() => useSaved(saved)}>
+                        Use their details
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="label">Gender</label>
                   <Select
@@ -1770,7 +1872,7 @@ export default function FolioTabs({
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn btn-secondary text-sm" onClick={() => setDrawer("service")}>
-              <Icon name="plus" size={14} /> Add service
+              <Icon name="plus" size={14} /> Add charge
             </button>
             <button
               type="button"
@@ -1925,7 +2027,7 @@ export default function FolioTabs({
                         <td style={pad}>
                           <span style={{ fontWeight: 600 }}>{inv.invoice_number}</span>
                           {label && <span>, {label}</span>}{" "}
-                          <span style={{ fontSize: "0.75rem", color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                             {when(inv.issued_at)}
                           </span>
                           {inv.voided_at && (

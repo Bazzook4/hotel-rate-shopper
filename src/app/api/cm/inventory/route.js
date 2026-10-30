@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getUserPropertyId } from "@/lib/database";
 import { syncInventoryForward, FORWARD_DAYS } from "@/lib/inventorySync";

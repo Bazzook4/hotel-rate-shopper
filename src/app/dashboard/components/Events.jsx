@@ -1,5 +1,7 @@
 "use client";
 
+import Icon from "../../components/Icon";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Grid, Loading, Messages, SetupHeader, Toolbar, sendJSON } from "./SetupGrid";
 import { Drawer, Field, Section } from "./RatePlanSetup";
@@ -136,7 +138,7 @@ export default function Events({ session }) {
       >
         {data.canEdit && (
           <button type="button" className="btn btn-primary" onClick={() => setDrawer({ event: null })}>
-            + Add event
+            <Icon name="plus" size={14} /> Add event
           </button>
         )}
       </SetupHeader>
@@ -195,7 +197,7 @@ export default function Events({ session }) {
           </p>
           {data.canEdit && (
             <button type="button" className="btn btn-primary mt-4" onClick={() => setDrawer({ event: null })}>
-              + Add event
+              <Icon name="plus" size={14} /> Add event
             </button>
           )}
         </div>

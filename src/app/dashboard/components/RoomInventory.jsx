@@ -339,14 +339,14 @@ export default function RoomInventory({ session, section = false }) {
 
       <Toolbar>
         <button type="button" className="btn btn-secondary text-sm" onClick={addRow}>
-          + Add room
+          <Icon name="plus" size={14} /> Add room
         </button>
         <button
           type="button"
           className="btn btn-secondary text-sm"
           onClick={() => setShowRange((v) => !v)}
         >
-          {showRange ? "Hide range" : "+ Add a range"}
+          {showRange ? "Hide range" : "Add a range"}
         </button>
         {auto.plan.length > 0 && (
           <button

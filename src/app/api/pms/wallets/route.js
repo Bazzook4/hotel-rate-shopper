@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { moduleDeniedResponse } from "@/lib/propertyScope";
+import { DISCOUNT_RIGHT } from "@/lib/discounts";
 import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import {
   walletHistory,
@@ -69,6 +71,23 @@ export async function POST(req) {
   if (error) return error;
   const propertyId = await resolvePropertyId(session, body.property_id);
   if (!propertyId) return NextResponse.json({ error: "No property selected" }, { status: 400 });
+
+  // Credit with no money behind it is a discount: an adjustment that adds
+  // credit, or a hand-typed top-up crediting more than was paid. Either
+  // needs the right to give discounts. A plan's bonus was set by an admin.
+  const freeCredit =
+    (body.action === "adjust" && Number(body.credit) > 0) ||
+    (body.action === "topup" &&
+      !body.plan_id &&
+      body.credit !== "" &&
+      body.credit != null &&
+      Number(body.credit) > Number(body.cash_amount));
+  if (freeCredit && (await moduleDeniedResponse(session, DISCOUNT_RIGHT))) {
+    return NextResponse.json(
+      { error: "Credit more than the money paid is a discount. You do not have the right to give discounts. Ask your admin." },
+      { status: 403 }
+    );
+  }
 
   try {
     if (body.action === "topup") {

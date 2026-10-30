@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
+import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES, WRITE_PAGES } from "@/lib/pmsGuard";
 import {
   getReservation,
   getSupabaseAdmin,
@@ -122,6 +122,27 @@ export async function GET(req) {
   }
 }
 
+/**
+ * Refuses a change to a charge a standing invoice carries. The invoice was
+ * issued for the bill as it was; changing the charge under it would leave
+ * the GST invoice and the money owed disagreeing. Void the invoice first.
+ */
+async function refuseIfInvoiced(reservationId, keys) {
+  const folio = await getReservationFolio(reservationId);
+  const hit = folio.charges.find((c) => c.invoice && c.keys.some((k) => keys.includes(k)));
+  if (hit) {
+    throw new Error(`That charge is on invoice ${hit.invoice.invoice_number || hit.invoice}. Void the invoice first.`);
+  }
+}
+
+/** The pages that may make this kind of folio change. */
+function writePagesFor(kind) {
+  if (kind === "payment") return WRITE_PAGES.payment;
+  if (kind === "invoice") return WRITE_PAGES.invoice;
+  if (kind === "guest") return WRITE_PAGES.guest;
+  return WRITE_PAGES.booking;
+}
+
 export async function POST(req) {
   const { error, session } = await pmsGuard(req, BOOKING_VIEW_PAGES);
   if (error) return error;
@@ -137,6 +158,8 @@ export async function POST(req) {
   if (!reservationId) {
     return NextResponse.json({ error: "Reservation id is required" }, { status: 400 });
   }
+  const pageDenied = await moduleDeniedResponse(session, writePagesFor(kind));
+  if (pageDenied) return pageDenied;
   const denied = await reservationDenied(session, reservationId);
   if (denied) return denied;
 
@@ -199,6 +222,10 @@ export async function POST(req) {
             { status: 400 }
           );
         }
+        // Money off a bill is a discount, which has its own right and log.
+        if (line.unit_price != null && line.unit_price !== "" && Number(line.unit_price) < 0) {
+          return NextResponse.json({ error: "A price cannot be below zero. Use Discount for money off." }, { status: 400 });
+        }
         if (line.bill_guest_id && !(await rowBelongs("guest", line.bill_guest_id, reservationId))) {
           return NextResponse.json({ error: "That guest is not on this booking." }, { status: 400 });
         }
@@ -214,10 +241,18 @@ export async function POST(req) {
             { status: 400 }
           );
         }
+        // A wallet is paid from through its own route, which takes the
+        // money out of the wallet; recorded here it would come from nowhere.
+        if (body.payment.method === "wallet") {
+          return NextResponse.json({ error: "Pay from a wallet with the wallet button." }, { status: 400 });
+        }
         if (body.payment.bill_guest_id && !(await rowBelongs("guest", body.payment.bill_guest_id, reservationId))) {
           return NextResponse.json({ error: "That guest is not on this booking." }, { status: 400 });
         }
-        await addReservationPayment(reservationId, body.payment, session.userId);
+        // Stamped now: a payment dated by the browser could be put back into
+        // a day already closed or a drawer already counted.
+        const { paid_at: _ignored, ...payment } = body.payment;
+        await addReservationPayment(reservationId, payment, session.userId);
         break;
       }
 
@@ -264,6 +299,7 @@ export async function POST(req) {
             { status: 400 }
           );
         }
+        await refuseIfInvoiced(reservationId, [`night:${body.stay_date}`]);
         await setNightRate(reservationId, body.stay_date, rate);
         break;
       }
@@ -336,6 +372,8 @@ export async function DELETE(req) {
   if (!FOLIO_TABLES[kind]) {
     return NextResponse.json({ error: "Unknown folio action" }, { status: 400 });
   }
+  const pageDenied = await moduleDeniedResponse(session, writePagesFor(kind));
+  if (pageDenied) return pageDenied;
   const denied = await reservationDenied(session, reservationId);
   if (denied) return denied;
   if (!(await rowBelongs(kind, id, reservationId))) {
@@ -348,6 +386,7 @@ export async function DELETE(req) {
         await deleteReservationGuest(id);
         break;
       case "extra":
+        await refuseIfInvoiced(reservationId, [`extra:${id}`]);
         await deleteReservationExtra(id);
         break;
       case "payment":
@@ -356,7 +395,7 @@ export async function DELETE(req) {
         break;
       case "invoice":
         // Voided, never removed -- see the helper for why.
-        await voidReservationInvoice(id, params.get("reason"));
+        await voidReservationInvoice(id, params.get("reason"), session.userId);
         break;
       default:
         return NextResponse.json({ error: "Unknown folio action" }, { status: 400 });

@@ -334,7 +334,7 @@ export default function Guests({ session }) {
 
       <Toolbar>
         <button type="button" className="btn btn-secondary text-sm" onClick={addRow} disabled={notReady}>
-          + Add guest
+          <Icon name="plus" size={14} /> Add guest
         </button>
         <button
           type="button"

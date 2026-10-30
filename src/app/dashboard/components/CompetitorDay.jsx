@@ -1,6 +1,7 @@
 "use client";
 
 import { parseDateISO } from "@/lib/date";
+import Icon from "../../components/Icon";
 import { currencySymbol, formatAmount } from "@/lib/money";
 
 function money(value) {
@@ -73,13 +74,13 @@ export default function CompetitorDay({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button type="button" className="btn" onClick={onPrev} aria-label="Previous day">
-            ‹
+            <Icon name="left" size={14} />
           </button>
           <h3 className="h2" style={{ minWidth: 220, textAlign: "center" }}>
             {label}
           </h3>
           <button type="button" className="btn" onClick={onNext} aria-label="Next day">
-            ›
+            <Icon name="right" size={14} />
           </button>
         </div>
         <div className="flex items-center gap-2">

@@ -239,7 +239,33 @@ export async function bookingAllowed(kind, ip) {
     return (await countSince(bookingKey(kind, ip), limit.windowMs)) < limit.max;
   } catch (err) {
     console.error("Booking engine rate limit unavailable:", err.message);
-    return true;
+    // A booking holds a room on every channel, and a sign-in guess reaches
+    // a guest's booking, so those two wait rather than run unchecked.
+    return kind === "search";
+  }
+}
+
+/**
+ * Unpaid website bookings a hotel takes in a day, across every address. A
+ * competitor changing addresses could otherwise hold all of a hotel's peak
+ * nights with made-up names. Past this, the page asks the guest to call.
+ */
+const HOTEL_DAILY_UNPAID = 15;
+
+export async function hotelBookingAllowed(propertyId) {
+  try {
+    return (await countSince(`book:hotel:${propertyId}`, 24 * HOUR)) < HOTEL_DAILY_UNPAID;
+  } catch (err) {
+    console.error("Booking engine hotel limit unavailable:", err.message);
+    return false;
+  }
+}
+
+export async function recordHotelBooking(propertyId) {
+  try {
+    await record(`book:hotel:${propertyId}`);
+  } catch (err) {
+    console.error("Recording a hotel booking failed:", err.message);
   }
 }
 

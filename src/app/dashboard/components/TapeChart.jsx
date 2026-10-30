@@ -10,6 +10,7 @@ import GroupBookingModal from "./GroupBookingModal";
 import DateToolbar from "./DateToolbar";
 import { useFrontDesk, walkInPrefill } from "./frontDesk";
 import Icon from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import Hint from "../../components/Hint";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import Dropdown from "../../components/Dropdown";
@@ -123,7 +124,7 @@ const BLOCK_STYLE = {
 
 /** What a selection of empty nights can become. */
 const SELECTION_ACTIONS = [
-  { id: "reservation", label: "New reservation" },
+  { id: "reservation", label: "New booking" },
   { id: "inquiry", label: "Inquiry (hold the room)" },
   { id: "complimentary", label: "Complimentary stay" },
   // Offered on a single day only: a day use is hours on one date.
@@ -139,8 +140,8 @@ const SELECTION_ACTIONS = [
  */
 const BOOKING_ACTIONS = [
   { id: "details", label: "Edit booking" },
-  { id: "upgrade", label: "Upgrade / change room", assign: "Assign a room" },
-  { id: "inclusions", label: "Add service" },
+  { id: "upgrade", label: "Change room", assign: "Assign a room" },
+  { id: "inclusions", label: "Add charge" },
   { id: "payments", label: "Collect payment" },
 ];
 
@@ -160,6 +161,7 @@ function shiftDate(date, days) {
 export default function TapeChart({ session }) {
   const propertyId = session?.propertyId || null;
   const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
+  const toast = useToast();
 
   // hotelToday() already gives a YYYY-MM-DD string; formatDateISO takes a Date
   // and returns "" for anything else, which would leave the chart with no
@@ -319,7 +321,7 @@ export default function TapeChart({ session }) {
   }, [load]);
 
   // Only the first load blanks the chart. Every save reloads it, and swapping
-  // the grid for "Loading…" each time threw away the scroll position and made
+  // the grid for "Loading..." each time threw away the scroll position and made
   // a one-cell change look like the whole page reloading; after that the
   // chart stays up, dimmed, until the fresh copy replaces it.
   const firstLoad = !chart && !error;
@@ -387,6 +389,24 @@ export default function TapeChart({ session }) {
         }
         setPending(null);
         setSyncWarning(inventoryWarning(data));
+        // A slip of the mouse moves a guest at once, so a move that kept the
+        // stay's length can be put back. A resize was priced by the desk's
+        // own choice, and is changed back from the booking.
+        if (move.before && !pricing) {
+          const back = move.before;
+          toast(`${move.guest || "Booking"} moved`, {
+            undo: async () => {
+              const r = await fetch("/api/pms/reservations/move", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: move.id, property_id: propertyId, ...back }),
+              });
+              const body = await r.json().catch(() => ({}));
+              if (!r.ok || body.needsPricing) throw new Error(body.error || "Could not move it back");
+              await load();
+            },
+          });
+        }
       } catch (err) {
         setPending(null);
         setError(err.message);
@@ -395,7 +415,7 @@ export default function TapeChart({ session }) {
       // the bar back to where it actually is.
       await load();
     },
-    [load, propertyId]
+    [load, propertyId, toast]
   );
 
   function beginDrag(e, reservation, mode) {
@@ -480,7 +500,12 @@ export default function TapeChart({ session }) {
         return;
       }
 
-      await sendMove({ id: d.id, ...d.preview });
+      await sendMove({
+        id: d.id,
+        ...d.preview,
+        before: { room_id: d.room_id, check_in: d.check_in, check_out: d.check_out },
+        guest: d.reservation?.guest_name,
+      });
     }
 
     window.addEventListener("pointermove", onMove);
@@ -570,7 +595,7 @@ export default function TapeChart({ session }) {
     const block = (sel.room.blocks || []).find(
       (b) => b.start_date < check_out && b.end_date > check_in
     );
-    if (block) return "Overlaps an out-of-order block";
+    if (block) return "Room is out of order on these dates";
     return null;
   }
 
@@ -656,10 +681,13 @@ export default function TapeChart({ session }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update the booking");
       setSyncWarning(inventoryWarning(data));
+      await load();
+      return true;
     } catch (err) {
       setError(err.message);
     }
     await load();
+    return false;
   }
 
   /** Check-in or check-out through the shared front-desk step, then redraw. */
@@ -685,6 +713,16 @@ export default function TapeChart({ session }) {
       runDesk(r, desk.checkOut);
     } else if (action === "confirm") {
       setStatus(r, "confirmed");
+    } else if (action === "cancel") {
+      // At once, with an Undo, as the booking panel does it.
+      setStatus(r, "cancelled").then((ok) => {
+        if (!ok) return;
+        toast(`${r.guest_name}'s booking ${r.reference} cancelled`, {
+          undo: async () => {
+            if (!(await setStatus(r, "confirmed"))) throw new Error("Could not restore the booking");
+          },
+        });
+      });
     } else if (action === "upgrade") {
       setUpgrade(r);
     } else {
@@ -1110,7 +1148,7 @@ export default function TapeChart({ session }) {
                       width: HK_COL,
                       display: "inline-flex",
                       justifyContent: "center",
-                      color: "var(--text-faint)",
+                      color: "var(--text-muted)",
                     }}
                   >
                     <Icon name="broom" size={14} />
@@ -1133,7 +1171,7 @@ export default function TapeChart({ session }) {
                         flexShrink: 0,
                         textAlign: "center",
                         padding: "0.35rem 0",
-                        fontSize: "0.65rem",
+                        fontSize: "0.6875rem",
                         lineHeight: 1.25,
                         background: demand
                           ? demand.background
@@ -1208,8 +1246,8 @@ export default function TapeChart({ session }) {
                       }}
                       title={`${group.name}, ${group.rooms.length} room${group.rooms.length === 1 ? "" : "s"}`}
                     >
-                      <span style={{ width: 10, flexShrink: 0, color: "var(--text-faint)" }}>
-                        {collapsed[group.id] ? "▸" : "▾"}
+                      <span style={{ width: 10, flexShrink: 0, color: "var(--text-muted)" }}>
+                        <Icon name={collapsed[group.id] ? "right" : "down"} size={12} />
                       </span>
                       {/* The column is narrow, so a long name wraps to a
                           second line -- the day cells beside it are two
@@ -1273,8 +1311,8 @@ export default function TapeChart({ session }) {
                           {rate != null && (
                             <div
                               style={{
-                                fontSize: "0.6rem",
-                                color: "var(--text-faint)",
+                                fontSize: "0.6875rem",
+                                color: "var(--text-muted)",
                                 fontStyle: typeRates.base_price_only ? "italic" : undefined,
                               }}
                             >
@@ -1328,7 +1366,7 @@ export default function TapeChart({ session }) {
                           }}
                         >
                           {!room.is_active ? (
-                            <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>
+                            <span style={{ fontSize: "0.6875rem", color: "var(--text-muted)" }}>
                               OOO
                             </span>
                           ) : (
@@ -1704,7 +1742,7 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
             {changed.map((n) => (
               <tr key={n.stay_date}>
                 <td>
-                  {longer ? "+ " : "− "}
+                  {longer ? "Added: " : "Removed: "}
                   {nightLabel(n.stay_date)}
                   {n.estimated && (
                     <span style={{ color: "var(--warn)", fontSize: "0.7rem" }}>
@@ -1729,8 +1767,7 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
             <span>
               {money(plan.adjustedTotal, currency)}{" "}
               <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-                ({plan.delta >= 0 ? "+" : "−"}
-                {money(Math.abs(plan.delta), currency)})
+                ({plan.delta >= 0 ? "more" : "less"} by {money(Math.abs(plan.delta), currency)})
               </span>
             </span>
           </div>
@@ -1738,16 +1775,15 @@ function PricingDialog({ plan, reservation, onChoose, onCancel }) {
 
         {estimated && (
           <p className="sub" style={{ fontSize: "0.7rem" }}>
-            The Channel Manager has no rate for some of the new nights, so they are
-            priced at this stay&apos;s average night. You can change any night
-            afterwards in the booking&apos;s Inclusions tab.
+            Some new nights have no rate, so they use this stay&apos;s average. You can
+            change them on the Bill tab.
           </p>
         )}
 
         <p className="sub" style={{ fontSize: "0.7rem" }}>
           {longer
             ? "Keeping the amount adds the new nights at no charge."
-            : "Keeping the amount records the dropped nights as a retention charge on the folio, so the total stays the same."}
+            : "Keep: the removed nights stay on the bill as a charge. The total does not change."}
         </p>
 
         <div className="flex flex-wrap gap-2 justify-end">
@@ -1846,7 +1882,7 @@ function BarTag({ children, title, legend = false }) {
         marginRight: legend ? 2 : 4,
         padding: "0 4px",
         borderRadius: 3,
-        fontSize: "0.55rem",
+        fontSize: "0.6875rem",
         fontWeight: 700,
         letterSpacing: "0.03em",
         lineHeight: "14px",
@@ -1970,13 +2006,9 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
       {arriving && (
         <MenuItem
           label="Check in"
-          // With no room yet, check-in offers the free clean rooms to pick from.
-          disabled={room?.housekeeping === "dirty"}
-          title={
-            room?.housekeeping === "dirty"
-              ? `Room ${room.room_number} is dirty. Mark it clean first`
-              : undefined
-          }
+          // With no room yet, check-in offers the free clean rooms to pick from;
+          // a dirty room is offered to mark clean in the same step.
+          title={room?.housekeeping === "dirty" ? `Room ${room.room_number} is dirty. Checking in marks it clean.` : undefined}
           onClick={() => onChoose("checkin")}
         />
       )}
@@ -1993,6 +2025,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           />
         );
       })}
+      {r.status === "confirmed" && <MenuItem label="Cancel booking" onClick={() => onChoose("cancel")} />}
     </MenuShell>
   );
 }
@@ -2057,7 +2090,7 @@ function RoomChangeDialog({ reservation: r, roomTypes, onChoose, onCancel }) {
       >
         <div>
           <div style={{ fontWeight: 600 }}>
-            {r.room_id ? "Upgrade / change room" : "Assign a room"}: {r.guest_name}
+            {r.room_id ? "Change room" : "Assign a room"}: {r.guest_name}
           </div>
           <div className="sub" style={{ fontSize: "0.75rem" }}>
             {nightLabel(r.check_in)} to {nightLabel(r.check_out)}, {nights} night

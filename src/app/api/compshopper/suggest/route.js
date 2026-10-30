@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchSearch, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fetch";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { getPropertyById, hotelMarket, listCompetitors } from "@/lib/database";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { rankSuggestions } from "@/lib/competitors";

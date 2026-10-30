@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { SETUP_READ_PAGES, pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   canManageSetup,
   listRooms,
@@ -24,7 +24,9 @@ import { capProblem, newRoomsInRange, roomCap } from "@/lib/roomCap";
  */
 
 async function requireSetup(req) {
-  const { error, session } = await pmsGuard(req);
+  // The page's own right, as well as the setup permission: a super admin
+  // unticking rooms closes its changes here too, not only the menu.
+  const { error, session } = await pmsGuard(req, ["rooms"]);
   if (error) return { error };
 
   if (!(await canManageSetup(session.userId))) {
@@ -52,7 +54,7 @@ function pushCapacity(propertyId, roomTypeIds, session) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, SETUP_READ_PAGES);
   if (error) return error;
 
   const propertyId = await resolvePropertyId(
@@ -78,7 +80,11 @@ export async function GET(req) {
         })
       );
       return NextResponse.json({
-        rooms: rooms.map((room) => ({ ...room, taken: taken.has(room.id) })),
+        // A room housekeeping marked out of order is not offered either.
+        rooms: rooms.map((room) => ({
+          ...room,
+          taken: taken.has(room.id) || room.housekeeping === "out_of_order",
+        })),
       });
     }
 
@@ -281,7 +287,19 @@ export async function DELETE(req) {
   }
 
   try {
-    const before = (await listRooms(propertyId)).find((r) => r.id === id);
+    const all = await listRooms(propertyId);
+    const before = all.find((r) => r.id === id);
+    // With its last numbered room gone, a room type would fall back to the
+    // count it was set up with and go back on sale. Switching the room off
+    // keeps it closed; deleting the room type removes it for good.
+    if (before && !all.some((r) => r.id !== id && r.room_type_id === before.room_type_id)) {
+      return NextResponse.json(
+        {
+          error: `Room ${before.room_number} is the last ${before.room_types?.room_type_name || "room"} room. Untick Active to close it, or delete the room type.`,
+        },
+        { status: 409 }
+      );
+    }
     await deleteRoom(propertyId, id);
     const inventory = await pushCapacity(propertyId, [before?.room_type_id], session);
     return NextResponse.json({ success: true, inventory });

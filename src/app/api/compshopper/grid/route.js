@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { getPropertyById, listCompetitors, listCompetitorRates, listParityRates } from "@/lib/database";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { medianOf } from "@/lib/competitors";

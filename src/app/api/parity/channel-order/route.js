@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { saveParityChannelOrder } from "@/lib/database";
 import { channelKey } from "@/lib/parity";

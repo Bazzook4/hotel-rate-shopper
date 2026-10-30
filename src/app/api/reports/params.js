@@ -23,7 +23,7 @@ async function base(req, page) {
   const params = req.nextUrl.searchParams;
   const propertyId = await resolvePropertyId(session, params.get("propertyId"));
   if (!propertyId) return fail("No property selected");
-  return { params, propertyId, tz: await getPropertyClock(propertyId) };
+  return { params, propertyId, session, tz: await getPropertyClock(propertyId) };
 }
 
 /** A start and end date, both inclusive, at most `maxDays` apart. `page` is the report's own. */

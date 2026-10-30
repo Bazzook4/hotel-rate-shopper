@@ -351,7 +351,7 @@ function FollowUpPanel({ hotel, history, canSave, onSaved, onClose }) {
       <div className="side-panel flex flex-col" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <div
           className="side-panel-head flex items-center justify-between gap-3"
-          style={{ padding: "0.85rem 1.1rem", background: "var(--accent)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
+          style={{ padding: "0.85rem 1.1rem", background: "var(--accent-strong)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
         >
           <h3>Follow up: {hotel.name}</h3>
           <button type="button" className="head-close" onClick={onClose} aria-label="Close">

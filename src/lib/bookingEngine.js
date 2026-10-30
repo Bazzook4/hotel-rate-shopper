@@ -19,6 +19,7 @@ import {
   guestPhoneKey,
   getPropertyClock,
   getPropertyCurrency,
+  deleteReservation,
 } from "@/lib/database";
 import { folioTotals } from "@/lib/taxes";
 import { cleanCode, codeOutcome, explainOffers, guestOffers, hasCoupons, nearestLongStay, offerDiscount } from "@/lib/promotions";
@@ -765,27 +766,38 @@ export async function createOnlineBooking(hotel, input, { mobile = false } = {})
     console.error("Booking engine: could not name the guest:", err.message);
   }
 
-  const folio = await getReservationFolio(reservation.id);
-  if (option.discount) await logWebsiteDiscount(reservation, option.discount, folio.totals.discount);
-  const { data: row, error } = await getSupabaseAdmin()
-    .from(TABLE)
-    .insert({
-      property_id: propertyId,
-      reservation_id: reservation.id,
-      token: randomBytes(24).toString("base64url"),
-      pay_by: payBy,
-      amount: folio.totals.total,
-      currency: reservation.currency || hotel.currency,
-      payment_status: payBy === "hotel" ? "at_hotel" : "awaiting",
-    })
-    .select("*")
-    .single();
-  if (error) throw new Error(`Failed to save the online booking: ${error.message}`);
+  // From here the booking exists. Any step that fails takes it back out, so
+  // the guest who is told "nothing was booked" really has nothing booked, and
+  // a retry does not make a second booking.
+  try {
+    const folio = await getReservationFolio(reservation.id);
+    if (option.discount) await logWebsiteDiscount(reservation, option.discount, folio.totals.discount);
+    const { data: row, error } = await getSupabaseAdmin()
+      .from(TABLE)
+      .insert({
+        property_id: propertyId,
+        reservation_id: reservation.id,
+        token: randomBytes(24).toString("base64url"),
+        pay_by: payBy,
+        amount: folio.totals.total,
+        currency: reservation.currency || hotel.currency,
+        payment_status: payBy === "hotel" ? "at_hotel" : "awaiting",
+      })
+      .select("*")
+      .single();
+    if (error) throw new Error(`Failed to save the online booking: ${error.message}`);
 
-  // The room this booking took is no longer for sale on the channels.
-  await syncInventory(propertyId, [staySpan(reservation)], { actor: "Website booking" });
+    // The room this booking took is no longer for sale on the channels.
+    await syncInventory(propertyId, [staySpan(reservation)], { actor: "Website booking" });
 
-  return { token: row.token };
+    return { token: row.token };
+  } catch (err) {
+    await deleteReservation(reservation.id).catch((e) =>
+      console.error("Booking engine: could not undo a half-made booking:", e.message)
+    );
+    await syncInventory(propertyId, [staySpan(reservation)], { actor: "Website booking" });
+    throw err;
+  }
 }
 
 function discountNote(discount) {
@@ -939,14 +951,17 @@ export async function markGuestPaid(found, reference) {
  * booking made on this hotel's page.
  */
 export async function findBookingForLogin(hotel, reference, contact) {
-  const ref = String(reference || "").trim().toUpperCase().replace(/\s+/g, "");
+  const typed = String(reference || "").trim().toUpperCase().replace(/\s+/g, "");
+  const ref = typed.startsWith("RS-") ? typed : `RS-${typed}`;
   const said = String(contact || "").trim().toLowerCase();
-  if (!ref || !said) return null;
+  // The whole booking number, exactly. A pattern match let "A%" stand for
+  // every number starting with A, so a phone number alone found a booking.
+  if (!/^RS-[A-Z2-9]{5}$/.test(ref) || !said) return null;
   const { data: reservations } = await getSupabaseAdmin()
     .from("reservations")
     .select("id, guest_phone, guest_email")
     .eq("property_id", hotel.property.id)
-    .ilike("reference", ref.startsWith("RS-") ? ref : `RS-${ref}`)
+    .eq("reference", ref)
     .limit(2);
   for (const r of reservations || []) {
     const phoneOk = guestPhoneKey(said) && guestPhoneKey(said).length >= 10 && guestPhoneKey(said) === guestPhoneKey(r.guest_phone);

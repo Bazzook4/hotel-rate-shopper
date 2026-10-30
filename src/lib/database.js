@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { baseRatesFromPlans, roomBasePrice, roomRateResolver } from '@/lib/ratePlanPricing';
 import { folioTotals, indianGstPreset, taxLinesFor } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
-import { discountOf } from '@/lib/discounts';
+import { discountAmount, discountOf } from '@/lib/discounts';
 import { toCountryCode } from '@/lib/countries';
 import { DEFAULT_DAY_START, DEFAULT_ZONE, parseDayStart, todayInZone, zoneOr } from '@/lib/hotelTime';
 import { DEFAULT_CURRENCY, currencyOr } from '@/lib/money';
@@ -1622,20 +1622,30 @@ export async function markRestrictionsPushed(propertyId, rows) {
  * "no channel closures" so the grid keeps working on all-channel values.
  */
 export async function listChannelRestrictions(propertyId, startDate, endDate) {
-  const { data, error } = await supabase
-    .from('daily_channel_restrictions')
-    // Every column, so set_by_rule_id (migration 037) comes back once it
-    // exists and its absence before then is no error.
-    .select('*')
-    .eq('property_id', propertyId)
-    .gte('stay_date', startDate)
-    .lte('stay_date', endDate);
+  // Read in pages: a year of per-channel rows passes PostgREST's 1000-row
+  // cap, and a row missed here is a stop sell nobody reopens.
+  const PAGE = 1000;
+  const rows = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from('daily_channel_restrictions')
+      // Every column, so set_by_rule_id (migration 037) comes back once it
+      // exists and its absence before then is no error.
+      .select('*')
+      .eq('property_id', propertyId)
+      .gte('stay_date', startDate)
+      .lte('stay_date', endDate)
+      .order('id')
+      .range(offset, offset + PAGE - 1);
 
-  if (error) {
-    if (/daily_channel_restrictions/.test(error.message)) return [];
-    throw new Error(`Failed to list channel restrictions: ${error.message}`);
+    if (error) {
+      if (/daily_channel_restrictions/.test(error.message)) return [];
+      throw new Error(`Failed to list channel restrictions: ${error.message}`);
+    }
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) break;
   }
-  return data || [];
+  return rows;
 }
 
 /**
@@ -1744,6 +1754,22 @@ export async function listPropertiesWithWorkflows() {
     throw new Error(`Failed to list workflow properties: ${error.message}`);
   }
   return [...new Set((data || []).map((r) => r.property_id))];
+}
+
+/**
+ * Properties with a switched-on channel manager connection that has its own
+ * hotel code: the ones the daily resync sends availability for.
+ */
+export async function listPropertiesWithChannelConnection(partnerSlug = 'aiosell') {
+  const partner = await getPartnerBySlug(partnerSlug);
+  if (!partner) return [];
+  const { data, error } = await supabase
+    .from('property_integrations')
+    .select('property_id, hotel_code')
+    .eq('partner_id', partner.id)
+    .eq('enabled', true);
+  if (error) throw new Error(`Failed to list connected properties: ${error.message}`);
+  return [...new Set((data || []).filter((r) => r.hotel_code).map((r) => r.property_id))];
 }
 
 export async function getWorkflowRule(id) {
@@ -3159,6 +3185,31 @@ function roomsHeldByDayUses(dayUses) {
 }
 
 /**
+ * Rooms for sale per room type, keyed by type id.
+ *
+ * A type with numbered rooms sells its active rooms that housekeeping has not
+ * marked out of order. A type whose rooms are all switched off sells none: it
+ * does not fall back to its sign-up count, which would put closed rooms back
+ * on every channel. Only a type that has never had a room numbered uses its
+ * own `number_of_rooms`, so a property can take bookings before it has
+ * numbered its doors.
+ */
+export function capacityByType(roomTypes, allRooms) {
+  const numbered = {};
+  const forSale = {};
+  for (const room of allRooms || []) {
+    numbered[room.room_type_id] = true;
+    if (room.is_active === false || room.housekeeping === 'out_of_order') continue;
+    forSale[room.room_type_id] = (forSale[room.room_type_id] || 0) + 1;
+  }
+  const out = {};
+  for (const rt of roomTypes || []) {
+    out[rt.id] = numbered[rt.id] ? forSale[rt.id] || 0 : Number(rt.number_of_rooms) || 0;
+  }
+  return out;
+}
+
+/**
  * Whether a room type has a room free on every night of a stay.
  *
  * Checks against the number of physical rooms of that type, falling back to
@@ -3187,26 +3238,30 @@ export async function checkAvailability(
 
   if (typeError) throw new Error(`Failed to load room type: ${typeError.message}`);
 
-  const physical = (await listRooms(propertyId, { includeInactive: false }))
-    .filter((r) => r.room_type_id === roomTypeId).length;
-  const capacity = physical || Number(roomType?.number_of_rooms) || 0;
+  const capacity = capacityByType([roomType], await listRooms(propertyId))[roomTypeId] || 0;
 
-  let query = supabase
-    .from('reservation_nights')
-    .select('stay_date, reservation_id, reservations!inner(property_id, status)')
-    .eq('reservations.property_id', propertyId)
-    .eq('room_type_id', roomTypeId)
-    .in('reservations.status', OCCUPYING_STATUSES)
-    .gte('stay_date', nights[0])
-    .lte('stay_date', nights[nights.length - 1]);
-
-  const { data, error } = await query;
-  if (error) throw new Error(`Failed to check availability: ${error.message}`);
-
+  // Read in pages, as getSoldCounts does: a long stay in a big room type
+  // passes PostgREST's 1000-row cap, and a short count sells a room twice.
+  const PAGE = 1000;
   const sold = {};
-  for (const row of data || []) {
-    if (ignoreReservationId && row.reservation_id === ignoreReservationId) continue;
-    sold[row.stay_date] = (sold[row.stay_date] || 0) + 1;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from('reservation_nights')
+      .select('stay_date, reservation_id, reservations!inner(property_id, status)')
+      .eq('reservations.property_id', propertyId)
+      .eq('room_type_id', roomTypeId)
+      .in('reservations.status', OCCUPYING_STATUSES)
+      .gte('stay_date', nights[0])
+      .lte('stay_date', nights[nights.length - 1])
+      .order('reservation_id')
+      .order('stay_date')
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`Failed to check availability: ${error.message}`);
+    for (const row of data || []) {
+      if (ignoreReservationId && row.reservation_id === ignoreReservationId) continue;
+      sold[row.stay_date] = (sold[row.stay_date] || 0) + 1;
+    }
+    if (!data || data.length < PAGE) break;
   }
   const dayUses = await listHeldDayUses(propertyId, nights[0], nights[nights.length - 1], {
     roomTypeIds: [roomTypeId],
@@ -3252,7 +3307,9 @@ function flattenBlock(row) {
     ...rest,
     room_type_id: room?.room_type_id || null,
     room_number: room?.room_number || null,
-    room_is_active: room?.is_active ?? true,
+    // A room housekeeping has marked out of order is already outside
+    // capacity, so a block on it takes nothing more off sale.
+    room_is_active: (room?.is_active ?? true) && room?.housekeeping !== 'out_of_order',
   };
 }
 
@@ -3266,7 +3323,7 @@ function flattenBlock(row) {
 export async function listRoomBlocks(propertyId, startDate, endDate) {
   const { data, error } = await supabase
     .from('room_blocks')
-    .select('*, rooms(room_type_id, room_number, is_active)')
+    .select('*, rooms(room_type_id, room_number, is_active, housekeeping)')
     .eq('property_id', propertyId)
     .lte('start_date', endDate)
     .gt('end_date', startDate)
@@ -3282,7 +3339,7 @@ export async function listRoomBlocks(propertyId, startDate, endDate) {
 export async function getRoomBlock(id) {
   const { data, error } = await supabase
     .from('room_blocks')
-    .select('*, rooms(room_type_id, room_number, is_active)')
+    .select('*, rooms(room_type_id, room_number, is_active, housekeeping)')
     .eq('id', id)
     .single();
 
@@ -3346,9 +3403,14 @@ export async function findRoomClash(
   checkOut,
   { ignoreReservationId = null, ignoreBlockId = null } = {}
 ) {
+  // Only the room's own hotel's bookings are looked at, so a room id from
+  // another hotel can never read back that hotel's guest names.
+  const { data: owner } = await supabase.from('rooms').select('property_id').eq('id', roomId).maybeSingle();
+  if (!owner) return { kind: 'block', message: 'That room could not be found.' };
   const { data: stays, error } = await supabase
     .from('reservations')
     .select('id, reference, guest_name, check_in, check_out')
+    .eq('property_id', owner.property_id)
     .eq('room_id', roomId)
     .not('status', 'in', '(cancelled,no_show)')
     .lt('check_in', checkOut)
@@ -3377,6 +3439,19 @@ export async function findRoomClash(
   }
 
   const block = (blocks || []).find((b) => b.id !== ignoreBlockId);
+  if (!block) {
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('room_number, housekeeping')
+      .eq('id', roomId)
+      .maybeSingle();
+    if (room?.housekeeping === 'out_of_order') {
+      return {
+        kind: 'block',
+        message: `Room ${room.room_number} is marked out of order on the Housekeeping page.`,
+      };
+    }
+  }
   if (block) {
     return {
       kind: 'block',
@@ -3592,7 +3667,16 @@ export async function deleteReservationGroup(id) {
 /** Reservations for a property, newest arrival first, with the joins the list needs. */
 export async function listReservations(
   propertyId,
-  { status = null, from = null, to = null, arrivingOn = null, leavingOn = null, search = null, limit = 200 } = {}
+  {
+    status = null,
+    from = null,
+    to = null,
+    arrivingOn = null,
+    leavingOn = null,
+    search = null,
+    newestFirst = false,
+    limit = 200,
+  } = {}
 ) {
   let query = supabase
     .from('reservations')
@@ -3618,7 +3702,7 @@ export async function listReservations(
   }
 
   const { data, error } = await query
-    .order('check_in', { ascending: true })
+    .order('check_in', { ascending: !newestFirst })
     .limit(limit);
 
   if (error) throw new Error(`Failed to load reservations: ${error.message}`);
@@ -3650,15 +3734,6 @@ export async function getReservation(id) {
  * price was only ever recorded as one figure.
  */
 async function writeNights(reservation, { rate = null, rates = null } = {}) {
-  const { error: clearError } = await supabase
-    .from('reservation_nights')
-    .delete()
-    .eq('reservation_id', reservation.id);
-
-  if (clearError) {
-    throw new Error(`Failed to clear nights: ${clearError.message}`);
-  }
-
   const nights = nightsBetween(reservation.check_in, reservation.check_out);
 
   // With no per-night breakdown, spread the total evenly so a night-by-night
@@ -3682,10 +3757,21 @@ async function writeNights(reservation, { rate = null, rates = null } = {}) {
     };
   });
 
-  if (rows.length === 0) return 0;
+  // The new nights are written over the old ones first, and only then are
+  // nights the stay no longer has taken away. Clearing first left a stay
+  // with no nights at all when the write after it failed, and a stay with
+  // no nights holds no room: the next push put it back on sale.
+  if (rows.length > 0) {
+    const { error } = await supabase
+      .from('reservation_nights')
+      .upsert(rows, { onConflict: 'reservation_id,stay_date' });
+    if (error) throw new Error(`Failed to save nights: ${error.message}`);
+  }
 
-  const { error } = await supabase.from('reservation_nights').insert(rows);
-  if (error) throw new Error(`Failed to save nights: ${error.message}`);
+  let drop = supabase.from('reservation_nights').delete().eq('reservation_id', reservation.id);
+  if (nights.length > 0) drop = drop.not('stay_date', 'in', `(${nights.join(',')})`);
+  const { error: clearError } = await drop;
+  if (clearError) throw new Error(`Failed to clear nights: ${clearError.message}`);
   return rows.length;
 }
 
@@ -3737,7 +3823,15 @@ export async function createReservation(row, { rate = null, rates = null } = {})
       .single();
 
     if (!error) {
-      await writeNights(data, { rate, rates });
+      // A booking without its nights holds no room, so a failed nights write
+      // takes the booking back out rather than leaving one the channels see
+      // as free. The caller is told it did not save.
+      try {
+        await writeNights(data, { rate, rates });
+      } catch (err) {
+        await supabase.from('reservations').delete().eq('id', data.id);
+        throw err;
+      }
       return getReservation(data.id);
     }
 
@@ -3818,7 +3912,17 @@ export async function updateReservation(id, updates, { rates = null } = {}) {
       }
     }
 
-    await writeNights(data, { rates: carried });
+    try {
+      await writeNights(data, { rates: carried });
+    } catch (err) {
+      // The booking goes back to the dates its nights still say, so the
+      // stay and what it holds never disagree. The caller is told it failed.
+      const undo = {};
+      for (const k of Object.keys(updates)) if (k in before) undo[k] = before[k];
+      delete undo.reservation_nights;
+      await supabase.from('reservations').update(undo).eq('id', id);
+      throw err;
+    }
   }
 
   return getReservation(id);
@@ -4155,7 +4259,13 @@ function partnerStayDates(row) {
 function partnerAmount(row) {
   const b = row.payload?.booking || row.payload?.reservation || row.payload || {};
   const obj = typeof b.amount === 'object' && b.amount !== null ? b.amount : null;
-  const raw = row.amount ?? (obj ? obj.amountAfterTax ?? obj.amountBeforeTax : b.amount ?? b.totalAmount);
+  // The room is charged before tax: the folio adds the hotel's own taxes on
+  // top, so starting from the after-tax figure taxed the guest twice. The
+  // after-tax total stands in only when the channel sent nothing else.
+  const raw =
+    obj && obj.amountBeforeTax != null && obj.amountBeforeTax !== ''
+      ? obj.amountBeforeTax
+      : row.amount ?? (obj ? obj.amountAfterTax : b.amount ?? b.totalAmount);
   const amount = raw == null || raw === '' ? null : Number(raw);
   return {
     amount: Number.isFinite(amount) ? amount : null,
@@ -4237,7 +4347,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
     latest.set(row.partner_booking_id, row);
   }
 
-  const result = { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [], touched: [] };
+  const result = { created: 0, updated: 0, cancelled: 0, skipped: 0, reasons: [], warnings: [], touched: [] };
   if (latest.size === 0) return result;
 
   const roomTypes = await listRoomTypes(propertyId);
@@ -4283,7 +4393,19 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
 
     if (row.action === 'cancel') {
       let any = false;
-      for (const r of adopted) any = (await cancel(r)) || any;
+      for (const r of adopted) {
+        // A guest already in the room, or gone, is not undone by the
+        // channel: their stay happened and its revenue stays. The desk is told.
+        if (r.status === 'in_house' || r.status === 'checked_out') {
+          result.warnings.push(
+            `${bookingId}: the channel cancelled ${r.guest_name}'s booking ${r.reference}, but the guest is already ${
+              r.status === 'in_house' ? 'checked in' : 'checked out'
+            }. It was left as it is.`
+          );
+          continue;
+        }
+        any = (await cancel(r)) || any;
+      }
       if (any) result.cancelled += 1;
       // A cancellation for a stay never adopted is not an error -- there is
       // simply nothing to cancel.
@@ -4350,7 +4472,8 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
           : null;
 
       const fields = {
-        guest_name: row.guest_name || 'OTA guest',
+        // A modification with no name keeps the one the desk has.
+        ...(row.guest_name || !existing ? { guest_name: row.guest_name || 'OTA guest' } : {}),
         check_in,
         check_out: dayUse ? check_in : check_out,
         ...(plan ? { rate_plan_id: plan.id } : {}),
@@ -4387,6 +4510,23 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
         // A modification of a booking cancelled here means it is live again.
         if (existing.status === 'cancelled') updates.status = 'confirmed';
 
+        // New dates can run into another guest in the room the desk gave this
+        // stay. The room is let go rather than put two guests in it, and the
+        // desk is told to pick another.
+        const roomId = 'room_id' in updates ? updates.room_id : existing.room_id;
+        const datesMoved = existing.check_in !== updates.check_in || existing.check_out !== updates.check_out;
+        if (roomId && datesMoved) {
+          const clash = await findRoomClash(roomId, updates.check_in, updates.check_out, {
+            ignoreReservationId: existing.id,
+          });
+          if (clash) {
+            updates.room_id = null;
+            result.warnings.push(
+              `${bookingId}: the channel moved ${existing.guest_name}'s dates, and their room is taken then. Pick a room for ${existing.reference}.`
+            );
+          }
+        }
+
         const after = await updateReservation(existing.id, updates, { rates });
         result.touched.push(span(existing), span(after));
         updatedAny = true;
@@ -4397,6 +4537,11 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
           ? `Adopted from ${row.channel || 'the channel manager'}. Its room "${room.roomCode}" is not mapped under Integrations; confirm the room type.`
           : `Adopted from ${row.channel || 'the channel manager'}. Confirm the room type.`;
 
+        if (!mappedType) {
+          result.warnings.push(
+            `${bookingId}: room ${room.roomCode ? `"${room.roomCode}"` : "with no code"} is not mapped under Integrations, so it was booked as ${fallbackRoomType.room_type_name}. Check the room type.`
+          );
+        }
         const created = await createReservation(
           {
             ...fields,
@@ -4499,7 +4644,7 @@ export async function listUnadoptedPartnerReservations(propertyId, { limit = 500
 export async function getAvailabilityGrid(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
   const [allTypes, rooms, sold, blocked] = await Promise.all([
     listRoomTypes(propertyId),
-    listRooms(propertyId, { includeInactive: false }),
+    listRooms(propertyId),
     getSoldCounts(propertyId, startDate, endDate, { roomTypeIds }),
     getBlockedCounts(propertyId, startDate, endDate, { roomTypeIds }),
   ]);
@@ -4508,10 +4653,7 @@ export async function getAvailabilityGrid(propertyId, startDate, endDate, { room
       ? allTypes.filter((rt) => roomTypeIds.includes(rt.id))
       : allTypes;
 
-  const physicalByType = {};
-  for (const room of rooms) {
-    physicalByType[room.room_type_id] = (physicalByType[room.room_type_id] || 0) + 1;
-  }
+  const capacities = capacityByType(roomTypes, rooms);
 
   const dates = nightsBetween(startDate, endDate);
   // nightsBetween excludes its end date, but a calendar window is inclusive
@@ -4521,7 +4663,7 @@ export async function getAvailabilityGrid(propertyId, startDate, endDate, { room
   return {
     dates,
     roomTypes: roomTypes.map((rt) => {
-      const capacity = physicalByType[rt.id] || Number(rt.number_of_rooms) || 0;
+      const capacity = capacities[rt.id] || 0;
       return {
         id: rt.id,
         name: rt.room_type_name,
@@ -4804,8 +4946,23 @@ export async function listServiceTaxes(propertyId) {
   return map;
 }
 
+/**
+ * The ids from `ids` that belong to the same hotel as `ownerId`'s row, so a
+ * link sent from the browser can never tie one hotel's tax to another's
+ * service.
+ */
+async function sameHotelIds(ownerTable, ownerId, table, ids) {
+  const wanted = [...new Set(ids || [])].filter(Boolean);
+  if (wanted.length === 0) return [];
+  const { data: owner } = await supabase.from(ownerTable).select('property_id').eq('id', ownerId).maybeSingle();
+  if (!owner) return [];
+  const { data } = await supabase.from(table).select('id').eq('property_id', owner.property_id).in('id', wanted);
+  return (data || []).map((r) => r.id);
+}
+
 /** Set exactly which taxes a service carries, replacing what it had. */
 export async function setServiceTaxes(serviceId, taxIds) {
+  taxIds = await sameHotelIds('property_extras', serviceId, 'property_taxes', taxIds);
   const { error: clearError } = await supabase.from('service_taxes').delete().eq('service_id', serviceId);
   if (clearError) throw new Error(`Failed to update taxes: ${clearError.message}`);
 
@@ -4819,6 +4976,7 @@ export async function setServiceTaxes(serviceId, taxIds) {
 
 /** Set exactly which services a tax is charged on -- the same link, from the tax's side. */
 export async function setTaxServices(taxId, serviceIds) {
+  serviceIds = await sameHotelIds('property_taxes', taxId, 'property_extras', serviceIds);
   const { error: clearError } = await supabase.from('service_taxes').delete().eq('tax_id', taxId);
   if (clearError) throw new Error(`Failed to update services: ${clearError.message}`);
 
@@ -4919,6 +5077,11 @@ export async function addReservationExtra(reservationId, line) {
       .single();
 
     if (error) throw new Error(`Failed to read the extras list: ${error.message}`);
+    // A service from another hotel's list is not this booking's to charge.
+    const owner = await getReservation(reservationId);
+    if (menuItem.property_id && menuItem.property_id !== owner.property_id) {
+      throw new Error('That service could not be found.');
+    }
 
     name = name || menuItem.name;
     unit_price = unit_price ?? menuItem.unit_price;
@@ -5023,6 +5186,59 @@ export async function setSeparateBills(reservationId, on) {
  * the amount as it stood at the change. Not while an invoice stands: it was
  * issued for the bill as it is now.
  */
+/**
+ * A discount "off the final bill" as the money it has to take off the room
+ * before tax.
+ *
+ * GST is charged on what the guest pays. Taking money off after the tax was
+ * worked out left the tax charged on money nobody paid. So the desk's "1,000
+ * off the bill" becomes the smallest amount off the room that brings the
+ * bill down by at least 1,000, once tax is worked out on the lower price; a
+ * night that falls into a lower slab can make the guest's saving a little
+ * more than asked, never less.
+ */
+async function afterTaxAsBeforeTax(folio, discount) {
+  const [taxRules, services] = await Promise.all([
+    listPropertyTaxes(folio.reservation.property_id),
+    listPropertyExtras(folio.reservation.property_id, { includeInactive: true }),
+  ]);
+  const base = {
+    ...folio.reservation,
+    discount_kind: null,
+    discount_value: null,
+    discount_timing: null,
+    discount_by_night: null,
+  };
+  const args = { nights: folio.nights, extras: folio.extras, payments: [], taxRules, services };
+  const totalWith = (off) =>
+    folioTotals({
+      reservation: off > 0 ? { ...base, discount_kind: 'amount', discount_value: off, discount_timing: 'before_tax' } : base,
+      ...args,
+    }).totals.total;
+
+  const full = totalWith(0);
+  const wanted = discountAmount(discount, full);
+  const room = Number(base.total_amount) || 0;
+  let lo = 0;
+  let hi = room;
+  if (full - totalWith(room) >= wanted) {
+    for (let i = 0; i < 40; i += 1) {
+      const mid = (lo + hi) / 2;
+      if (full - totalWith(mid) >= wanted) hi = mid;
+      else lo = mid;
+    }
+  }
+  const off = Math.min(room, Math.ceil(hi * 100) / 100);
+  const asked = discount.kind === 'percent' ? `${discount.value}%` : `${discount.value}`;
+  return {
+    ...discount,
+    kind: 'amount',
+    value: off,
+    timing: 'before_tax',
+    note: `${asked} off the final bill${discount.note ? `. ${discount.note}` : ''}`.slice(0, 300),
+  };
+}
+
 export async function setReservationDiscount(reservationId, discount, userId = null) {
   const before = await getReservationFolio(reservationId);
   const reservation = before.reservation;
@@ -5031,6 +5247,10 @@ export async function setReservationDiscount(reservationId, discount, userId = n
   }
   if (discount && reservation.booking_type === 'complimentary') {
     throw new Error('A complimentary stay is already free.');
+  }
+  if (discount?.timing === 'after_tax') {
+    discount = await afterTaxAsBeforeTax(before, discount);
+    if (!(discount.value > 0)) throw new Error('There is no room charge to take that off.');
   }
 
   const row = discount
@@ -5262,6 +5482,8 @@ export async function getReservationFolio(reservationId) {
     bills: sharerBills({ sharers, charges, payments, totals }),
     roomServiceId: roomService?.id || null,
     totals,
+    // Money off each night, when an offer came off some nights only.
+    nightOff: nightOff || null,
     discount: discountOf(reservation),
     discountLog,
   };
@@ -5353,8 +5575,21 @@ export async function createReservationInvoice(reservationId, userId = null, { c
   // inside the room charge, and the invoice says how much it was.
   const billDiscount = -sum(picked.filter((c) => c.discount));
   const keep = folio.totals.roomBefore > 0 ? folio.totals.room / folio.totals.roomBefore : 1;
+  // An offer kept by night came off its own nights: an invoice for some
+  // nights shows the money off those nights, not an even share of it.
+  const pickedNights = picked
+    .filter((c) => c.room)
+    .flatMap((c) => c.keys)
+    .filter((k) => String(k).startsWith('night:'))
+    .map((k) => String(k).slice(6));
   const roomDiscount =
-    folio.totals.discountTiming === 'before_tax' && keep > 0 ? Number((roomCharge / keep - roomCharge).toFixed(2)) : 0;
+    folio.totals.discountTiming !== 'before_tax'
+      ? 0
+      : folio.nightOff
+        ? Number(pickedNights.reduce((s, d) => s + (Number(folio.nightOff[d]) || 0), 0).toFixed(2))
+        : keep > 0
+          ? Number((roomCharge / keep - roomCharge).toFixed(2))
+          : 0;
   const taxAdded = Number(taxes.filter((t) => !t.inclusive).reduce((s, t) => s + t.amount, 0).toFixed(2));
   const total = whole ? folio.totals.total : Number((roomCharge + extrasCharge + taxAdded - billDiscount).toFixed(2));
   if (total < 0) throw new Error('The discount cannot go on an invoice by itself. Tick a charge with it.');
@@ -5386,16 +5621,26 @@ export async function createReservationInvoice(reservationId, userId = null, { c
         balance: Number((total - paid).toFixed(2)),
       };
 
-  const year = new Date().getFullYear();
+  // The year on the hotel's own clock, so an invoice issued just after
+  // midnight on 1 January is not numbered for the year before.
+  const year = Number(todayInZone(await getPropertyClock(reservation.property_id)).slice(0, 4));
 
-  const { count, error: countError } = await supabase
+  // The next number follows the highest one used, not a count of rows: a
+  // count goes back after a row is lost and hands out a number twice.
+  const { data: numbers, error: countError } = await supabase
     .from('reservation_invoices')
-    .select('*', { count: 'exact', head: true })
-    .eq('property_id', reservation.property_id);
+    .select('invoice_number')
+    .eq('property_id', reservation.property_id)
+    .order('issued_at', { ascending: false })
+    .limit(200);
 
   if (countError) {
     throw new Error(`Failed to allocate an invoice number: ${countError.message}`);
   }
+  const count = Math.max(
+    0,
+    ...(numbers || []).map((r) => Number(String(r.invoice_number).match(/(\d+)$/)?.[1]) || 0)
+  );
 
   const snapshot = {
     // The issuer as it stood on the day: a hotel that later changes its
@@ -5447,12 +5692,31 @@ export async function createReservationInvoice(reservationId, userId = null, { c
     children: reservation.children,
     rate_plan: reservation.rate_plans?.plan_name || null,
     // The discount is shown with the totals, not as a line.
-    lines: picked.filter((c) => !c.discount).map((c) => ({
-      description: c.description,
-      quantity: c.quantity,
-      unit_price: c.unit_price,
-      amount: c.amount,
-    })),
+    // Each line with its SAC (accommodation is 996311), its GST rate and its
+    // taxable value, which a tax invoice must show line by line.
+    lines: picked.filter((c) => !c.discount).map((c) => {
+      const shares = c.keys.flatMap((k) => folio.taxByKey?.[k] || []);
+      // The GST rate of each night or item in the line; a line whose nights
+      // fall in different slabs shows none, and the tax table says each.
+      const rates = [
+        ...new Set(
+          c.keys.map((k) =>
+            (folio.taxByKey?.[k] || []).filter((t) => t.calc_type === 'percent').reduce((sum, t) => sum + Number(t.value), 0)
+          )
+        ),
+      ];
+      const rate = rates.length === 1 ? rates[0] : null;
+      const inside = shares.filter((t) => t.inclusive).reduce((sum, t) => sum + t.amount * (c.weight ?? 1), 0);
+      return {
+        description: c.description,
+        quantity: c.quantity,
+        unit_price: c.unit_price,
+        amount: c.amount,
+        sac: c.room ? '996311' : null,
+        tax_rate: rate,
+        taxable: Number((c.amount - inside).toFixed(2)),
+      };
+    }),
     // Which charges this invoice carries, so none goes on a second one, and
     // the categories they fall under, for telling the invoices apart.
     charge_keys: picked.map((c) => c.key),
@@ -5519,13 +5783,18 @@ export async function getReservationInvoice(id) {
  * Never deleted: an issued invoice that vanishes leaves a gap in the number
  * sequence that nobody can later account for.
  */
-export async function voidReservationInvoice(id, reason) {
-  const { data, error } = await supabase
-    .from('reservation_invoices')
-    .update({ voided_at: new Date().toISOString(), void_reason: reason || null })
-    .eq('id', id)
-    .select('*')
-    .single();
+export async function voidReservationInvoice(id, reason, userId = null) {
+  // Voided once: a second void would overwrite when and why it was voided.
+  const { data: current } = await supabase.from('reservation_invoices').select('voided_at').eq('id', id).maybeSingle();
+  if (!current) throw new Error('Invoice not found.');
+  if (current.voided_at) throw new Error('That invoice is already void.');
+
+  const stamp = { voided_at: new Date().toISOString(), void_reason: reason || null };
+  const write = (fields) =>
+    supabase.from('reservation_invoices').update(fields).eq('id', id).is('voided_at', null).select('*').single();
+  // Who voided it is kept from migration 068 on; before it, the void still goes through.
+  let { data, error } = await write({ ...stamp, voided_by: userId });
+  if (error && /voided_by/.test(error.message)) ({ data, error } = await write(stamp));
 
   if (error) throw new Error(`Failed to void the invoice: ${error.message}`);
   return data;

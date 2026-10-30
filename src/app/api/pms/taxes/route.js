@@ -1,12 +1,39 @@
 import { NextResponse } from "next/server";
-import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
+import { SETUP_READ_PAGES, pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   canManageSetup,
   listPropertyTaxes,
   savePropertyTax,
   deletePropertyTax,
   setTaxServices,
+  listServiceTaxes,
+  getPropertyClock,
 } from "@/lib/database";
+import { todayInZone } from "@/lib/hotelTime";
+
+/** What a rule charges. Changing any of these changes past bills. */
+const MONEY_FIELDS = [
+  "calc_type",
+  "value",
+  "basis",
+  "rate_above",
+  "rate_up_to",
+  "is_inclusive",
+  "is_compound",
+  "guest_scope",
+  "max_nights",
+];
+
+function dayBefore(date) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Whether a rule was in force on any night before today. */
+function usedBefore(rule, today) {
+  return !rule.valid_from || rule.valid_from < today;
+}
 
 /**
  * The property's tax and fee rules.
@@ -21,7 +48,9 @@ import {
  */
 
 async function requireSetup(req) {
-  const { error, session } = await pmsGuard(req);
+  // The page's own right, as well as the setup permission: a super admin
+  // unticking taxsetup closes its changes here too, not only the menu.
+  const { error, session } = await pmsGuard(req, ["taxsetup"]);
   if (error) return { error };
 
   if (!(await canManageSetup(session.userId))) {
@@ -111,7 +140,7 @@ function toRow(body, propertyId) {
 }
 
 export async function GET(req) {
-  const { error, session } = await pmsGuard(req);
+  const { error, session } = await pmsGuard(req, SETUP_READ_PAGES);
   if (error) return error;
 
   const propertyId = await resolvePropertyId(
@@ -156,8 +185,30 @@ export async function POST(req) {
   }
 
   try {
+    // Taxes are worked out on every read, so editing what a rule charges
+    // would change every bill it was ever on, the night audits and the
+    // ledger with it. A rule already used keeps its old figures up to
+    // yesterday, and the new figures start today as a rule of their own.
+    const today = todayInZone(await getPropertyClock(propertyId));
+    const existing = rows.some(({ row }) => row.id)
+      ? await listPropertyTaxes(propertyId, { includeInactive: true })
+      : [];
+    const links = rows.some(({ row }) => row.id) ? await listServiceTaxes(propertyId) : {};
     const saved = [];
     for (const { row, serviceIds } of rows) {
+      const old = row.id ? existing.find((t) => t.id === row.id) : null;
+      const moneyChanged =
+        old && MONEY_FIELDS.some((f) => f in row && String(row[f] ?? "") !== String(old[f] ?? ""));
+      if (old && moneyChanged && usedBefore(old, today)) {
+        await savePropertyTax({ id: old.id, property_id: propertyId, valid_to: dayBefore(today) });
+        const { id: _old, ...fresh } = row;
+        const startsOn = row.valid_from && row.valid_from > today ? row.valid_from : today;
+        const tax = await savePropertyTax({ ...fresh, valid_from: startsOn });
+        const carried = serviceIds || Object.keys(links).filter((sid) => links[sid].includes(old.id));
+        await setTaxServices(tax.id, carried);
+        saved.push(tax);
+        continue;
+      }
       const tax = await savePropertyTax(row);
       if (serviceIds) await setTaxServices(tax.id, serviceIds);
       saved.push(tax);
@@ -191,6 +242,21 @@ export async function DELETE(req) {
   }
 
   try {
+    // A rule used on past nights is ended yesterday instead of deleted, so
+    // the bills it was on keep their tax. Only a rule never used goes.
+    const today = todayInZone(await getPropertyClock(propertyId));
+    const rule = (await listPropertyTaxes(propertyId, { includeInactive: true })).find((t) => t.id === id);
+    if (!rule) return NextResponse.json({ error: "Tax not found" }, { status: 404 });
+    if (usedBefore(rule, today)) {
+      if (!rule.valid_to || rule.valid_to >= today) {
+        await savePropertyTax({ id, property_id: propertyId, valid_to: dayBefore(today) });
+      }
+      return NextResponse.json({
+        success: true,
+        ended: true,
+        message: "This tax was used on past bills, so it was ended yesterday instead of deleted.",
+      });
+    }
     await deletePropertyTax(id, propertyId);
     return NextResponse.json({ success: true });
   } catch (err) {

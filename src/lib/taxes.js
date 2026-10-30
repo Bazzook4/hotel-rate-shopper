@@ -165,6 +165,37 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
     .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))
     .map((l) => ({ ...l, taxSoFar: 0 }));
 
+  // A price that includes tax is first split into its value and its tax,
+  // and the value is what a slab is judged on. CGST 9% and SGST 9% inside
+  // 7,800 are 9% each of 7,800 / 1.18, not 9% each taken out of 7,800, and
+  // 7,800 with 5% inside is 7,428.57 of value: under 7,500, so the 5% slab.
+  // Which slab applies depends on the value, and the value on the slab, so
+  // it is settled by trying again until it holds; a price where neither
+  // slab holds (no value fits either band) takes the higher rate.
+  const inclusiveRules = rules.filter(
+    (t) => t.calc_type === "percent" && t.is_inclusive === true && appliesToGuest(t, guest.residency)
+  );
+  for (const l of work) {
+    const mine = inclusiveRules.filter((t) => l.service_id && carried[l.service_id]?.has(t.id) && inForce(t, l.date));
+    const pick = (price) => mine.filter((t) => inBand(t, price));
+    const rateOf = (set) => set.reduce((sum, t) => sum + (Number(t.value) || 0), 0);
+    let set = pick(l.unit_price);
+    const seen = [];
+    for (let i = 0; i < 6; i += 1) {
+      const next = pick(l.unit_price / (1 + rateOf(set) / 100));
+      const same = next.length === set.length && next.every((t) => set.includes(t));
+      if (same) break;
+      if (seen.some((old) => old.length === next.length && old.every((t) => next.includes(t)))) {
+        set = rateOf(next) > rateOf(set) ? next : set;
+        break;
+      }
+      seen.push(set);
+      set = next;
+    }
+    l.inclusiveSet = new Set(set);
+    l.netUnit = l.unit_price / (1 + rateOf(set) / 100);
+  }
+
   const out = [];
   const byService = {};
   const byDate = {};
@@ -183,17 +214,17 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
   for (const tax of rules) {
     if (!appliesToGuest(tax, guest.residency)) continue;
 
+    const inclusive = tax.calc_type === "percent" && tax.is_inclusive === true;
     const eligible = work.filter(
       (l) =>
         l.service_id &&
         carried[l.service_id]?.has(tax.id) &&
         inForce(tax, l.date) &&
-        inBand(tax, l.unit_price)
+        (inclusive ? l.inclusiveSet.has(tax) : inBand(tax, l.netUnit))
     );
     if (eligible.length === 0) continue;
 
     const value = Number(tax.value) || 0;
-    const inclusive = tax.calc_type === "percent" && tax.is_inclusive === true;
     // Per-line amounts, unrounded, so rounding happens once per rule.
     const shares = [];
 
@@ -223,12 +254,12 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
         const units = Math.min(l.quantity, left);
         if (units <= 0) break;
         left -= units;
-        const base = l.unit_price * units + (tax.is_compound ? l.taxSoFar : 0);
-        shares.push([
-          l,
-          inclusive ? base - base / (1 + value / 100) : (base * value) / 100,
-          units,
-        ]);
+        // Charged on the value: for a price with tax inside, the price less
+        // that tax; otherwise the price, plus earlier tax for a compound rule.
+        const base = inclusive
+          ? l.netUnit * units
+          : l.netUnit * units + (tax.is_compound ? l.taxSoFar : 0);
+        shares.push([l, (base * value) / 100, units]);
       }
     }
 
@@ -247,13 +278,13 @@ export function computeTaxes(taxes, serviceTaxes, lines, guest = {}) {
           calc_type: tax.calc_type,
           value,
           amount: a,
-          base: l.unit_price * units,
+          base: l.netUnit * units,
           units,
         });
       }
     }
 
-    const base = round2(shares.reduce((s, [l]) => s + l.unit_price * l.quantity, 0));
+    const base = round2(shares.reduce((s, [l, , units]) => s + l.netUnit * units, 0));
     out.push({
       tax_id: tax.id || null,
       name: tax.name,
@@ -337,8 +368,14 @@ export function taxLinesFor(byKey, keys) {
  * Nights without a rate of their own take an even share of the room total,
  * as they do everywhere else.
  */
-export function folioTotals({ reservation, nights = [], extras = [], payments = [], taxRules = [], services = [] }) {
-  const roomBefore = Number(reservation.total_amount) || 0;
+export function folioTotals({ reservation, nights: stayNights = [], extras = [], payments = [], taxRules = [], services = [] }) {
+  // A cancelled or no-show stay owes no nights: what it does owe (a
+  // cancellation or no-show charge) is put on as a service, and money taken
+  // ahead stays as paid. Without this a cancelled company booking showed its
+  // whole stay as owed in the City Ledger.
+  const released = reservation.status === "cancelled" || reservation.status === "no_show";
+  const nights = released ? [] : stayNights;
+  const roomBefore = released ? 0 : Number(reservation.total_amount) || 0;
   // A discount before tax lowers every night by the same share, and the tax
   // is worked out on what is left; one after tax comes off the final bill.
   const discount = discountOf(reservation);

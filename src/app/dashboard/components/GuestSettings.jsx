@@ -105,7 +105,7 @@ export function TiersGrid({ propertyId, tiers, onSaved }) {
       <Messages error={error} />
       <Toolbar>
         <button type="button" className="btn btn-secondary text-sm" onClick={() => grid.add({ name: "", tone: "gold", sort_order: tiers.length + 1, notes: "" })}>
-          + Add tier
+          <Icon name="plus" size={14} /> Add tier
         </button>
       </Toolbar>
       <Grid>
@@ -165,7 +165,7 @@ export function WalletPlansGrid({ propertyId, plans, onSaved }) {
       <Messages error={error} />
       <Toolbar>
         <button type="button" className="btn btn-secondary text-sm" onClick={() => grid.add({ name: "", pay_amount: "", credit: "", is_active: true, notes: "" })}>
-          + Add plan
+          <Icon name="plus" size={14} /> Add plan
         </button>
       </Toolbar>
       <Grid>

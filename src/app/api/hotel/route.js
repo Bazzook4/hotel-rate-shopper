@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchHotel, isScraperConfigured, sessionIdFor } from "@/lib/scraper/fetch";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 
 /**

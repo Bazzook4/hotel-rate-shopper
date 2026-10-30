@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { markTourDone } from "@/lib/database";
 
 /** The booking tour was finished or skipped, so it is not offered again. */

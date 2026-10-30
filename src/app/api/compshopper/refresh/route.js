@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionFromRequest } from "@/lib/session";
+import { getSessionFromRequest } from "@/lib/serverSession";
 import { hotelMarket, listCompetitors, saveCompetitorRates } from "@/lib/database";
 import { moduleDeniedResponse, resolvePropertyId } from "@/lib/propertyScope";
 import { cheapestQuote, MAX_COMPETITORS } from "@/lib/competitors";

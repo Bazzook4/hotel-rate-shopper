@@ -485,13 +485,26 @@ export async function recordReceipt(propertyId, input, userId = null) {
     userId
   );
 
-  const holding = round(Number(transaction.credit) + Number(statement.totals.credit || 0));
-  const allocations = settleAllocations(statement, Number(transaction.credit), input.allocations);
-  if (allocations.reduce((s, a) => s + a.amount, 0) > holding + PENNY) {
-    throw new WalletError('More is applied than the wallet holds.');
+  // The money is saved now. A failure from here on must not read as "not
+  // saved", or the desk records the same money again; it says what is left
+  // to do instead.
+  try {
+    const holding = round(Number(transaction.credit) + Number(statement.totals.credit || 0));
+    const allocations = settleAllocations(statement, Number(transaction.credit), input.allocations);
+    if (allocations.reduce((s, a) => s + a.amount, 0) > holding + PENNY) {
+      throw new WalletError('More is applied than the wallet holds.');
+    }
+    const applied = await spendOnBills(propertyId, statement.company.id, allocations, userId);
+    return { transaction, applied, unapplied: round(Number(transaction.credit) - applied), allocations };
+  } catch (err) {
+    return {
+      transaction,
+      applied: 0,
+      unapplied: round(Number(transaction.credit)),
+      allocations: [],
+      warning: `The money is saved in the company's wallet, but it was not put against the bills (${err.message}). Use Apply credit to do that. Do not record it again.`,
+    };
   }
-  const applied = await spendOnBills(propertyId, statement.company.id, allocations, userId);
-  return { transaction, applied, unapplied: round(Number(transaction.credit) - applied), allocations };
 }
 
 /** Spend a company's wallet on its bills, chosen or oldest first. */

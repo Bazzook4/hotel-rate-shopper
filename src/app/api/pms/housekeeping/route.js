@@ -3,9 +3,11 @@ import { pmsGuard, resolvePropertyId } from "@/lib/pmsGuard";
 import {
   getHousekeepingBoard,
   getUserById,
+  listRooms,
   setRoomHousekeeping,
   HOUSEKEEPING_STATUSES,
 } from "@/lib/database";
+import { syncInventoryForward } from "@/lib/inventorySync";
 
 /**
  * Housekeeping: which rooms are clean, dirty, inspected or out of order.
@@ -63,11 +65,27 @@ export async function PATCH(req) {
   }
 
   try {
+    // A room going out of order, or back from it, changes what is for sale:
+    // its type's free count is sent to the channels from today on.
+    const before = await listRooms(propertyId);
+    const crossed = before.filter(
+      (r) =>
+        ids.includes(r.id) &&
+        r.is_active !== false &&
+        (r.housekeeping === "out_of_order") !== (body.status === "out_of_order")
+    );
     const rooms = await setRoomHousekeeping(propertyId, ids, body.status, session.userId);
+    const typeIds = [...new Set(crossed.map((r) => r.room_type_id).filter(Boolean))];
+    const inventory = typeIds.length
+      ? await syncInventoryForward(propertyId, typeIds, { session })
+      : null;
     // Named as the board names them, so the row does not keep the last marker's name.
     const user = await getUserById(session.userId).catch(() => null);
     const name = user?.email ? String(user.email).split("@")[0] : null;
-    return NextResponse.json({ rooms: rooms.map((r) => ({ ...r, housekeeping_updated_by_name: name })) });
+    return NextResponse.json({
+      rooms: rooms.map((r) => ({ ...r, housekeeping_updated_by_name: name })),
+      inventory,
+    });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

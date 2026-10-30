@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createOnlineBooking, hotelView, isMobileRequest } from "@/lib/bookingEngine";
 import { openHotel } from "./shared";
+import { hotelBookingAllowed, recordHotelBooking } from "@/lib/rateLimit";
 
 /** The hotel's booking page: what it shows first, and booking a stay. */
 
@@ -21,10 +22,18 @@ export async function POST(req) {
   // worked, so it learns nothing.
   if (body.website) return NextResponse.json({ token: null, ok: true });
 
+  if (!(await hotelBookingAllowed(hotel.property.id))) {
+    return NextResponse.json(
+      { error: "The hotel cannot take more bookings online today. Please call the hotel to book." },
+      { status: 429 }
+    );
+  }
+
   try {
     const result = await createOnlineBooking(hotel, body, { mobile: isMobileRequest(req) });
     if (result.error) return NextResponse.json(result, { status: result.gone ? 409 : 400 });
     await record();
+    await recordHotelBooking(hotel.property.id);
     return NextResponse.json(result);
   } catch (err) {
     console.error("Website booking failed:", err.message);
