@@ -12,10 +12,12 @@ import {
   listOpenGroups,
   setReservationGroup,
   getReservation,
+  getPropertyClock,
   createReservation,
   acceptNightRates,
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
+import { todayInZone } from "@/lib/hotelTime";
 
 /**
  * Group bookings: several rooms taken together under one name.
@@ -83,13 +85,12 @@ export async function GET(req) {
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
     // No id: the groups a booking could still join, for the "Add to group"
-    // pick. Stays that ended over a month ago are left out.
+    // pick. Only groups still staying today or later; past ones are left out.
     const propertyId = await resolvePropertyId(session, req.nextUrl.searchParams.get("property_id"));
     if (!propertyId) return NextResponse.json({ error: "No property selected" }, { status: 400 });
-    const since = new Date();
-    since.setUTCDate(since.getUTCDate() - 30);
     try {
-      const groups = await listOpenGroups(propertyId, since.toISOString().slice(0, 10));
+      const today = todayInZone(await getPropertyClock(propertyId));
+      const groups = await listOpenGroups(propertyId, today);
       return NextResponse.json({ groups });
     } catch (err) {
       return NextResponse.json({ error: err.message }, { status: 500 });

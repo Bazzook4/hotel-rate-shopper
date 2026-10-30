@@ -3665,16 +3665,17 @@ export async function deleteReservationGroup(id) {
 }
 
 /**
- * Groups a booking could still join: those with a stay ending on or after
- * `since`, soonest arrival first, each with how many rooms it holds.
+ * Groups a booking could still join: those with a room still staying after
+ * `today` (a group leaving today is done), soonest arrival first, each with
+ * how many rooms it holds.
  */
-export async function listOpenGroups(propertyId, since) {
+export async function listOpenGroups(propertyId, today) {
   const { data, error } = await supabase
     .from('reservations')
     .select('group_id, check_in, check_out, status, reservation_groups(id, name)')
     .eq('property_id', propertyId)
     .not('group_id', 'is', null)
-    .gte('check_out', since);
+    .gt('check_out', today);
 
   if (error) throw new Error(`Failed to load the groups: ${error.message}`);
 
