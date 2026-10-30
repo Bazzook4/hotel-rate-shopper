@@ -4234,6 +4234,20 @@ export async function setReservationStatus(id, status, { roomId = undefined } = 
     await setRoomHousekeeping(data.property_id, [data.room_id], 'dirty').catch(() => {});
   }
 
+  // A guest who has moved in has used the room, so it shows as dirty until
+  // housekeeping has been. A room marked out of order stays that way.
+  const checkedInRoom = status === 'in_house' ? (roomId !== undefined ? roomId : data.room_id) : null;
+  if (checkedInRoom) {
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('housekeeping')
+      .eq('id', checkedInRoom)
+      .maybeSingle();
+    if (room && room.housekeeping !== 'out_of_order') {
+      await setRoomHousekeeping(data.property_id, [checkedInRoom], 'dirty').catch(() => {});
+    }
+  }
+
   // A room assigned at check-in has to reach the nights too, or the room grid
   // will show the guest as unassigned for their whole stay.
   if (roomId !== undefined) {
