@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "A guest who leaves on arrival day gives the room back",
+    points: [
+      { page: "reservations", text: "If a guest checks out on the same day they arrived, the room goes back on sale straight away. It shows as free on the channels, and you can book the same room number for someone else. The guest's bill stays as it was." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Check-out with money owed",
     points: [
       { page: "reservations", text: "A guest can no longer be checked out while they still owe money. The check-out box asks you to collect the payment, or to give a discount for the amount. A stay billed to a company can still go to the company's bill." },

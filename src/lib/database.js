@@ -6,7 +6,7 @@ import { folioTotals, indianGstPreset, taxLinesFor } from '@/lib/taxes';
 import { folioCharges, sharersOf, sharerBills, ownerOf } from '@/lib/folioBills';
 import { discountAmount, discountOf } from '@/lib/discounts';
 import { toCountryCode } from '@/lib/countries';
-import { DEFAULT_DAY_START, DEFAULT_ZONE, parseDayStart, todayInZone, zoneOr } from '@/lib/hotelTime';
+import { DEFAULT_DAY_START, DEFAULT_ZONE, dayInZone, parseDayStart, todayInZone, zoneOr } from '@/lib/hotelTime';
 import { DEFAULT_CURRENCY, currencyOr } from '@/lib/money';
 import { contractNights } from '@/lib/contractRates';
 import {
@@ -3086,6 +3086,17 @@ function partnerGuestContact(row) {
 const OCCUPYING_STATUSES = ['inquiry', 'confirmed', 'in_house', 'checked_out'];
 
 /**
+ * A guest who checked out on the day they arrived has handed the whole stay
+ * back: the room is empty again and can be sold, on the channels and at the
+ * desk. Judged on the hotel's own business day. The bill is untouched; only
+ * what the stay holds is let go. Undoing the check-out holds it again.
+ */
+export function leftOnArrivalDay(r, clock) {
+  if (!r || r.status !== 'checked_out' || r.stay_kind === 'day_use' || !r.checked_out_at) return false;
+  return dayInZone(r.checked_out_at, clock) <= r.check_in;
+}
+
+/**
  * Rooms sold per room type per date, across a window.
  *
  * Counts nights rather than reservations, which is why the nights table
@@ -3102,11 +3113,12 @@ const OCCUPYING_STATUSES = ['inquiry', 'confirmed', 'in_house', 'checked_out'];
 export async function getSoldCounts(propertyId, startDate, endDate, { roomTypeIds = null } = {}) {
   const PAGE = 1000;
   const sold = {};
+  const clock = await getPropertyClock(propertyId);
 
   for (let offset = 0; ; offset += PAGE) {
     let query = supabase
       .from('reservation_nights')
-      .select('reservation_id, stay_date, room_type_id, reservations!inner(property_id, status)')
+      .select('reservation_id, stay_date, room_type_id, reservations!inner(property_id, status, stay_kind, check_in, checked_out_at)')
       .eq('reservations.property_id', propertyId)
       .in('reservations.status', OCCUPYING_STATUSES)
       .gte('stay_date', startDate)
@@ -3123,6 +3135,7 @@ export async function getSoldCounts(propertyId, startDate, endDate, { roomTypeId
     if (error) throw new Error(`Failed to load occupancy: ${error.message}`);
 
     for (const row of data || []) {
+      if (leftOnArrivalDay(row.reservations, clock)) continue;
       const key = `${row.room_type_id}|${row.stay_date}`;
       sold[key] = (sold[key] || 0) + 1;
     }
@@ -3244,10 +3257,11 @@ export async function checkAvailability(
   // passes PostgREST's 1000-row cap, and a short count sells a room twice.
   const PAGE = 1000;
   const sold = {};
+  const clock = await getPropertyClock(propertyId);
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await supabase
       .from('reservation_nights')
-      .select('stay_date, reservation_id, reservations!inner(property_id, status)')
+      .select('stay_date, reservation_id, reservations!inner(property_id, status, stay_kind, check_in, checked_out_at)')
       .eq('reservations.property_id', propertyId)
       .eq('room_type_id', roomTypeId)
       .in('reservations.status', OCCUPYING_STATUSES)
@@ -3259,6 +3273,7 @@ export async function checkAvailability(
     if (error) throw new Error(`Failed to check availability: ${error.message}`);
     for (const row of data || []) {
       if (ignoreReservationId && row.reservation_id === ignoreReservationId) continue;
+      if (leftOnArrivalDay(row.reservations, clock)) continue;
       sold[row.stay_date] = (sold[row.stay_date] || 0) + 1;
     }
     if (!data || data.length < PAGE) break;
@@ -3409,7 +3424,7 @@ export async function findRoomClash(
   if (!owner) return { kind: 'block', message: 'That room could not be found.' };
   const { data: stays, error } = await supabase
     .from('reservations')
-    .select('id, reference, guest_name, check_in, check_out')
+    .select('id, reference, guest_name, check_in, check_out, status, stay_kind, checked_out_at')
     .eq('property_id', owner.property_id)
     .eq('room_id', roomId)
     .not('status', 'in', '(cancelled,no_show)')
@@ -3418,7 +3433,10 @@ export async function findRoomClash(
 
   if (error) throw new Error(`Failed to check the room: ${error.message}`);
 
-  const stay = (stays || []).find((r) => r.id !== ignoreReservationId);
+  const clock = await getPropertyClock(owner.property_id);
+  const stay = (stays || []).find(
+    (r) => r.id !== ignoreReservationId && !leftOnArrivalDay(r, clock)
+  );
   if (stay) {
     return {
       kind: 'reservation',
@@ -3527,7 +3545,7 @@ export async function listTakenRoomIds(
 ) {
   const { data: stays, error } = await supabase
     .from('reservations')
-    .select('id, room_id')
+    .select('id, room_id, check_in, status, stay_kind, checked_out_at')
     .eq('property_id', propertyId)
     .not('room_id', 'is', null)
     .not('status', 'in', '(cancelled,no_show)')
@@ -3536,8 +3554,11 @@ export async function listTakenRoomIds(
 
   if (error) throw new Error(`Failed to check the rooms: ${error.message}`);
 
+  const clock = await getPropertyClock(propertyId);
   const taken = new Set(
-    (stays || []).filter((r) => r.id !== ignoreReservationId).map((r) => r.room_id)
+    (stays || [])
+      .filter((r) => r.id !== ignoreReservationId && !leftOnArrivalDay(r, clock))
+      .map((r) => r.room_id)
   );
 
   const { data: blocks, error: blockError } = await supabase

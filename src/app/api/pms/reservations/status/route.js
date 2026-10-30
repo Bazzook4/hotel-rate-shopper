@@ -14,6 +14,7 @@ import {
   voidReservationPayment,
   planStayChange,
   applyStayChange,
+  leftOnArrivalDay,
 } from "@/lib/database";
 import { syncInventory, staySpan } from "@/lib/inventorySync";
 import { localToday } from "@/lib/financeReports";
@@ -213,13 +214,41 @@ export async function POST(req) {
       }
     }
 
+    // Undoing a same-day check-out takes the nights back, and in the meantime
+    // the room may have been sold again.
+    if (
+      current.status === "checked_out" &&
+      status === "in_house" &&
+      current.stay_kind !== "day_use" &&
+      leftOnArrivalDay(current, await getPropertyClock(propertyId))
+    ) {
+      if (current.room_type_id) {
+        const check = await checkAvailability(propertyId, current.room_type_id, current.check_in, current.check_out, {
+          ignoreReservationId: id,
+        });
+        if (!check.available) {
+          return NextResponse.json({ error: `Cannot undo the check-out: ${check.reason}` }, { status: 409 });
+        }
+      }
+      const clash = current.room_id
+        ? await findRoomClash(current.room_id, current.check_in, current.check_out, { ignoreReservationId: id })
+        : null;
+      if (clash) {
+        return NextResponse.json({ error: `Cannot undo the check-out: ${clash.message}` }, { status: 409 });
+      }
+    }
+
     // A guest leaving before the booked last night hands the rest back: the
     // stay is cut to today so those nights go back on sale and the room can be
     // booked again. The bill keeps the full amount (the dropped nights become
     // a retention charge) unless the desk chose to bill the nights stayed.
     let shortened = false;
+    let leftToday = false;
     if (status === "checked_out" && current.stay_kind !== "day_use") {
       const today = localToday(await getPropertyClock(propertyId));
+      // Leaving on the day of arrival hands the whole stay back; nothing is
+      // cut, the stay simply stops holding its nights (see leftOnArrivalDay).
+      leftToday = today <= current.check_in;
       if (today > current.check_in && today < current.check_out) {
         const pricing = body.early_pricing === "adjust" ? "adjust" : "keep";
         const plan = await planStayChange(current, {
@@ -263,8 +292,16 @@ export async function POST(req) {
     // takes them again. A check-in or check-out changes nothing on sale --
     // except a day use's check-out, which hands its room back for the night.
     let inventory = null;
-    if (shortened) {
+    if (shortened || leftToday) {
       inventory = await syncInventory(propertyId, [staySpan(current)], { session });
+    } else if (
+      current.status === "checked_out" &&
+      status === "in_house" &&
+      current.stay_kind !== "day_use" &&
+      leftOnArrivalDay(current, await getPropertyClock(propertyId))
+    ) {
+      // Undoing a same-day check-out takes the nights back.
+      inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
     } else if (holdsInventory(current, current.status) !== holdsInventory(current, status)) {
       inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
     }
