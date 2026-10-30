@@ -1,4 +1,5 @@
 import { dayUseLabel } from '@/lib/dayUse';
+import { chargedRate } from '@/lib/discounts';
 
 /**
  * A stay's bill as charges, and -- when guests sharing a room each want a bill
@@ -86,24 +87,25 @@ function divide(amount, sharers) {
  * an invoice carries the tax on its own charges and no others. One room charge
  * stands for every night when the nights do not add up to it.
  */
-export function folioCharges({ reservation, nights, nightsMatch, extras, invoices = [], tax, roomCategory, categoryOf, room, sharers = [], keep = 1, totals = null }) {
+export function folioCharges({ reservation, nights, nightsMatch, extras, invoices = [], tax, roomCategory, categoryOf, room, sharers = [], keep = 1, nightOff = null, totals = null }) {
   const roomName = reservation.room_types?.room_type_name || 'room';
   const base = [];
   // `room` is the room as charged, after any discount before tax, and
-  // `keep` the share of each night's rate that leaves.
+  // `keep` the share of each night's rate that leaves, or `nightOff` the
+  // money off each night when the discount is kept by night.
   const discounted = keep < 1 ? ', after discount' : '';
 
   if (nightsMatch && nights.length > 0) {
     // The last night takes what rounding leaves, so the nights add up to the room.
     let left = round2(room);
     nights.forEach((n, i) => {
-      const rate = keep < 1 ? (i === nights.length - 1 ? left : round2(n.rate * keep)) : n.rate;
+      const rate = keep < 1 ? (i === nights.length - 1 ? left : round2(chargedRate(n.rate, n.stay_date, keep, nightOff))) : n.rate;
       left = round2(left - rate);
       base.push({
         key: `night:${n.stay_date}`,
         keys: [`night:${n.stay_date}`],
         category: roomCategory,
-        description: `Accommodation: ${roomName}, night of ${n.stay_date}${discounted}`,
+        description: `Accommodation: ${roomName}, night of ${n.stay_date}${nightOff && !(Number(nightOff[n.stay_date]) > 0) ? '' : discounted}`,
         quantity: 1,
         unit_price: rate,
         amount: rate,

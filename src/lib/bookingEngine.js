@@ -422,7 +422,9 @@ function withTax(quote, stay, taxRules, services, discount = null) {
         guest_residency: "domestic",
         stay_kind: "overnight",
         check_in: stay.checkIn,
-        ...(d ? { discount_kind: "amount", discount_value: d.amount, discount_timing: "before_tax" } : {}),
+        ...(d
+          ? { discount_kind: "amount", discount_value: d.amount, discount_timing: "before_tax", discount_by_night: d.byNight || null }
+          : {}),
       },
       nights: quote.nights.map((n) => ({ stay_date: n.stay_date, rate: Number(n.rate) })),
       taxRules,
@@ -444,6 +446,7 @@ function withTax(quote, stay, taxRules, services, discount = null) {
             kind: discount.kind,
             coupon: discount.coupon || null,
             steps: discount.steps,
+            byNight: discount.byNight || null,
           },
         }
       : {}),
@@ -737,6 +740,8 @@ export async function createOnlineBooking(hotel, input, { mobile = false } = {})
           discount_timing: "before_tax",
           discount_reason: option.discount.kind === "long_stay" ? "long_stay" : "promotion",
           discount_note: discountNote(option.discount),
+          // An offer for some nights only comes off those nights (migration 067).
+          ...(option.discount.byNight ? { discount_by_night: option.discount.byNight } : {}),
         }
       : {}),
   };

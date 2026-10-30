@@ -1,7 +1,7 @@
 import { getSupabaseAdmin, listRoomTypes, listRooms, nightsBetween } from '@/lib/database';
 import { addDays, formatDateISO, parseDateISO } from '@/lib/date';
 import { countryName } from '@/lib/countries';
-import { roomKeep } from '@/lib/discounts';
+import { chargedRate, discountByNight, roomKeep } from '@/lib/discounts';
 
 /**
  * Booking performance: what the PMS's reservations add up to over a period.
@@ -200,9 +200,10 @@ function buildStays(facts, names) {
     const evenShare = total / los;
     // Room revenue is counted after any discount before tax.
     const keep = roomKeep(r, total);
+    const nightOff = discountByNight(r);
     const nights = (nightsBy.get(r.id) || []).map((n) => ({
       date: n.stay_date,
-      value: comp ? 0 : (n.rate != null ? Number(n.rate) : evenShare) * keep,
+      value: comp ? 0 : chargedRate(n.rate != null ? Number(n.rate) : evenShare, n.stay_date, keep, nightOff),
     }));
 
     const created = String(r.created_at || '').slice(0, 10) || r.check_in;

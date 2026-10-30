@@ -314,13 +314,12 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
   const ctx = { planId, roomTypeId, stay, today };
   const ahead = daysBetween(today, stay.checkIn);
 
-  /** What one promotion takes off the full price, night by night. */
-  const offOf = (p) => {
+  /** The nights one promotion is for: not its blackout dates, and only its days of the week. */
+  const nightsFor = (p) => {
     const blackout = new Set(p.blackout || []);
-    const eligible = nights.filter(
+    return nights.filter(
       (n) => !blackout.has(n.stay_date) && (!p.weekdays?.length || p.weekdays.includes(weekdayOf(n.stay_date)))
     );
-    return moneyOff(p, nights, eligible);
   };
 
   // The best deal, and the best mobile offer, each priced on the full room.
@@ -331,9 +330,18 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
     if (p.type === "early" && ahead < p.days) continue;
     if (p.type === "last" && ahead > p.days) continue;
     if (p.type === "mobile" && !mobile) continue;
-    const off = offOf(p);
+    const eligible = nightsFor(p);
+    const off = moneyOff(p, nights, eligible);
     if (!(off > 0)) continue;
-    const found = { id: p.id, amount: off, label: p.name, kind: p.type === "long" ? "long_stay" : "promotion", stack: p.stack, fixed: p.kind === "amount" };
+    const found = {
+      id: p.id,
+      amount: off,
+      label: p.name,
+      kind: p.type === "long" ? "long_stay" : "promotion",
+      stack: p.stack,
+      fixed: p.kind === "amount",
+      dates: eligible.map((n) => n.stay_date),
+    };
     if (p.type === "mobile") {
       if (!phone || off > phone.amount) phone = found;
     } else if (!deal || off > deal.amount) {
@@ -390,6 +398,7 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
     .filter((p) => p.share >= 0.005);
   amount = round2(Math.min(amount, limit));
   if (!(amount > 0)) return null;
+  const byNight = splitByNight(nights, parts, amount);
   // Each step rounded, the last one taking the pennies so they add up.
   const steps = parts.map((p) => ({ id: p.id, label: p.coupon ? `Coupon ${p.coupon}` : p.label, amount: round2(p.share) }));
   if (steps.length > 1) steps[steps.length - 1].amount = round2(amount - steps.slice(0, -1).reduce((s, x) => s + x.amount, 0));
@@ -404,7 +413,50 @@ export function offerDiscount(content, { planId, roomTypeId, stay, today, mobile
     capPercent,
     // Each offer that came off, in order, with what it took, for the simulator.
     steps,
+    // Money off each night, when it is not the same share of every night.
+    byNight,
   };
+}
+
+/**
+ * What comes off each night, { date: amount }, so each night is taxed on its
+ * own price: a Saturday-only offer comes off Saturday. Each offer is shared
+ * over its own nights by what is left of them. Null when every night loses
+ * the same share, which the bill already works out.
+ */
+function splitByNight(nights, parts, amount) {
+  const room = nights.reduce((s, n) => s + n.rate, 0);
+  const all = nights.map((n) => n.stay_date);
+  const left = new Map(nights.map((n) => [n.stay_date, n.rate]));
+  const off = {};
+  const share = (money, dates) => {
+    const pool = dates.reduce((s, d) => s + (left.get(d) || 0), 0);
+    if (!(pool > 0) || !(money > 0)) return money;
+    const take = Math.min(money, pool);
+    for (const d of dates) {
+      const part = (take * (left.get(d) || 0)) / pool;
+      off[d] = (off[d] || 0) + part;
+      left.set(d, left.get(d) - part);
+    }
+    return money - take;
+  };
+  for (const p of parts) share(share(p.share, p.dates || all), all);
+  if (nights.every((n) => Math.abs((off[n.stay_date] || 0) - (amount * n.rate) / room) < 0.01)) return null;
+  // Rounded to the paisa, the night with the most off taking what rounding
+  // leaves, so a night with no offer never gets a paisa, and no night loses
+  // more than its own price.
+  const out = {};
+  for (const n of nights) {
+    const v = round2(off[n.stay_date] || 0);
+    if (v > 0) out[n.stay_date] = v;
+  }
+  const diff = round2(amount - Object.values(out).reduce((s, v) => s + v, 0));
+  const rate = new Map(nights.map((n) => [n.stay_date, n.rate]));
+  const most = Object.keys(out)
+    .sort((a, b) => out[b] - out[a])
+    .find((d) => out[d] + diff >= 0 && out[d] + diff <= rate.get(d) + 0.001);
+  if (most && diff) out[most] = round2(out[most] + diff);
+  return out;
 }
 
 /**

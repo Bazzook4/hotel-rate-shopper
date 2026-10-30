@@ -16,7 +16,7 @@
  * a rule start or end part-way through a stay.
  */
 
-import { discountOf, discountAmount } from "@/lib/discounts";
+import { chargedRate, discountByNight, discountOf, discountAmount } from "@/lib/discounts";
 
 export const TAX_BASES = [
   { id: "per_night", label: "Per night / per unit" },
@@ -342,7 +342,14 @@ export function folioTotals({ reservation, nights = [], extras = [], payments = 
   // A discount before tax lowers every night by the same share, and the tax
   // is worked out on what is left; one after tax comes off the final bill.
   const discount = discountOf(reservation);
-  const roomDiscount = discount?.timing === "before_tax" ? discountAmount(discount, roomBefore) : 0;
+  // A website offer for some nights only says what comes off each night.
+  const nightOff = discountByNight(reservation);
+  const evenRate = roomBefore / Math.max(1, nights.length);
+  const roomDiscount = nightOff
+    ? round2(nights.reduce((s, n) => s + Math.min(Number(nightOff[n.stay_date]) || 0, n.rate ?? evenRate), 0))
+    : discount?.timing === "before_tax"
+      ? discountAmount(discount, roomBefore)
+      : 0;
   const keep = roomBefore > 0 ? (roomBefore - roomDiscount) / roomBefore : 1;
   const room = round2(roomBefore - roomDiscount);
   // Inclusions come with the rate, so they are shown but never charged.
@@ -367,7 +374,7 @@ export function folioTotals({ reservation, nights = [], extras = [], payments = 
   // Each night as charged, after any discount before tax.
   const chargedNights = roomUnits.map((n) => ({
     ...n,
-    rate: (n.rate ?? roomBefore / Math.max(1, roomUnits.length)) * keep,
+    rate: chargedRate(n.rate ?? roomBefore / Math.max(1, roomUnits.length), n.stay_date, keep, nightOff),
   }));
 
   const tax = computeTaxes(
@@ -393,8 +400,10 @@ export function folioTotals({ reservation, nights = [], extras = [], payments = 
     roomService,
     discount,
     // The share of each night's rate that is charged: 1 with no discount
-    // before tax. The folio's charges and the reports price nights with it.
+    // before tax. The folio's charges and the reports price nights with it,
+    // or with `nightOff`, the money off each night, when that is set.
     keep,
+    nightOff,
     totals: {
       // The room as charged. `roomBefore` is the price before a discount
       // before tax, and `discount` the money off, before or after tax.

@@ -7,7 +7,7 @@ import {
   listRooms,
 } from '@/lib/database';
 import { folioTotals } from '@/lib/taxes';
-import { describeDiscount, reasonLabel, roomKeep } from '@/lib/discounts';
+import { chargedRate, describeDiscount, reasonLabel, roomKeep } from '@/lib/discounts';
 import { formatMoney } from '@/lib/money';
 import { folioCharges, sharersOf, sharerBills } from '@/lib/folioBills';
 import { capacityOf, channelOf, chunks, notMigrated, readAll, round } from '@/lib/reports';
@@ -212,7 +212,7 @@ export async function loadFolios(propertyId, reservations) {
       .sort((a, b) => a.stay_date.localeCompare(b.stay_date));
     const stayExtras = extrasBy.get(r.id) || [];
     const stayPayments = paymentsBy.get(r.id) || [];
-    const { tax, totals, roomService, keep } = folioTotals({
+    const { tax, totals, roomService, keep, nightOff } = folioTotals({
       reservation: r,
       nights: stayNights,
       extras: stayExtras,
@@ -237,6 +237,7 @@ export async function loadFolios(propertyId, reservations) {
         room: totals.room,
         sharers,
         keep,
+        nightOff,
         totals,
       });
       bills = sharerBills({ sharers, charges, payments: stayPayments, totals });
@@ -253,6 +254,7 @@ export async function loadFolios(propertyId, reservations) {
       tax,
       totals,
       keep,
+      nightOff,
     });
   }
   return { folios, services };
@@ -894,7 +896,9 @@ export async function getNightAudit(propertyId, { date, tz = DEFAULT_ZONE }) {
     const comp = r.booking_type === 'complimentary';
     const night = f.nights.find((n) => n.stay_date === date);
     if (night) {
-      const value = comp ? 0 : (night.rate ?? (Number(r.total_amount) || 0) / Math.max(1, f.nights.length)) * f.keep;
+      const value = comp
+        ? 0
+        : chargedRate(night.rate ?? (Number(r.total_amount) || 0) / Math.max(1, f.nights.length), date, f.keep, f.nightOff);
       roomRevenue += value;
       if (comp) compRooms += 1;
       else if (value <= PENNY) zeroNights.push({ ...stayRow(r), amount: 0 });

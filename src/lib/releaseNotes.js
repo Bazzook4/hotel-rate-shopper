@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Offers for some nights only are taxed night by night",
+    points: [
+      {
+        page: "bookingengine",
+        text: "A website offer for some nights only, such as 20% off Saturdays, now comes off those nights on the bill. Each night is taxed on its own price, so a night keeps the GST rate it should have. Before, the discount was spread over every night.",
+      },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Offer discounts now come out right",
     points: [
       {

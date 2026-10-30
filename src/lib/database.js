@@ -3774,6 +3774,15 @@ export async function createReservation(row, { rate = null, rates = null } = {})
 export async function updateReservation(id, updates, { rates = null } = {}) {
   const before = await getReservation(id);
 
+  // A website offer kept by night (migration 067) only stands while its
+  // nights are in the stay; once one moves out, the same money comes off
+  // every night alike, as a desk discount does, rather than vanishing.
+  const checkIn = updates.check_in ?? before.check_in;
+  const checkOut = updates.check_out ?? before.check_out;
+  if (before.discount_by_night && Object.keys(before.discount_by_night).some((d) => d < checkIn || d >= checkOut)) {
+    updates = { ...updates, discount_by_night: null };
+  }
+
   const { data, error } = await supabase
     .from('reservations')
     .update({ ...updates, updated_at: new Date().toISOString() })
@@ -5031,8 +5040,23 @@ export async function setReservationDiscount(reservationId, discount, userId = n
         discount_timing: discount.timing,
         discount_reason: discount.reason,
         discount_note: discount.note || null,
+        // The desk's discount is the same share of every night; a website
+        // offer kept by night stays so while only its reason or note changes.
+        ...(!reservation.discount_by_night ||
+        (discount.kind === reservation.discount_kind &&
+          Number(discount.value) === Number(reservation.discount_value) &&
+          discount.timing === reservation.discount_timing)
+          ? {}
+          : { discount_by_night: null }),
       }
-    : { discount_kind: null, discount_value: null, discount_timing: null, discount_reason: null, discount_note: null };
+    : {
+        discount_kind: null,
+        discount_value: null,
+        discount_timing: null,
+        discount_reason: null,
+        discount_note: null,
+        ...(reservation.discount_by_night ? { discount_by_night: null } : {}),
+      };
   const { error } = await supabase
     .from('reservations')
     .update({ ...row, updated_at: new Date().toISOString() })
@@ -5174,7 +5198,7 @@ export async function getReservationFolio(reservationId) {
     listPropertyTaxes(reservation.property_id),
     listPropertyExtras(reservation.property_id, { includeInactive: true }),
   ]);
-  const { tax, roomService, totals, keep } = folioTotals({
+  const { tax, roomService, totals, keep, nightOff } = folioTotals({
     reservation,
     nights,
     extras,
@@ -5213,7 +5237,7 @@ export async function getReservationFolio(reservationId) {
   // Guests sharing the room on bills of their own (migration 056).
   const sharers = sharersOf(reservation, guests);
   const charges = folioCharges({
-    reservation, nights, nightsMatch, extras, invoices, tax, roomCategory, categoryOf, room: totals.room, sharers, keep, totals,
+    reservation, nights, nightsMatch, extras, invoices, tax, roomCategory, categoryOf, room: totals.room, sharers, keep, nightOff, totals,
   });
   if (totals.discountTiming === 'after_tax') addTo('Discount', -totals.discount, 0);
   const categories = Object.values(groups).map((g) => ({
