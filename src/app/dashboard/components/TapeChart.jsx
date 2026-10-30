@@ -140,7 +140,6 @@ const SELECTION_ACTIONS = [
  */
 const BOOKING_ACTIONS = [
   { id: "details", label: "Edit booking" },
-  { id: "upgrade", label: "Change room", assign: "Assign a room" },
   { id: "inclusions", label: "Add charge" },
   { id: "payments", label: "Collect payment" },
 ];
@@ -156,6 +155,12 @@ function daysBetween(a, b) {
 
 function shiftDate(date, days) {
   return formatDateISO(addDays(parseDateISO(date), days));
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function shortDay(iso) {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
 }
 
 export default function TapeChart({ session }) {
@@ -1025,24 +1030,35 @@ export default function TapeChart({ session }) {
       )}
 
       {chart?.unassigned?.length > 0 && (
-        <div className="card card-pad space-y-2">
-          <div style={{ fontWeight: 600, fontSize: "0.85rem" }}>
-            Not yet assigned a room ({chart.unassigned.length})
+        <div
+          className="card card-pad space-y-2"
+          style={{ borderColor: "var(--warn)", background: "var(--warn-soft)" }}
+        >
+          <div className="flex flex-wrap items-center gap-2" style={{ color: "var(--warn)" }}>
+            <Icon name="warn" size={16} />
+            <span style={{ fontWeight: 600, fontSize: "0.85rem" }}>
+              {chart.unassigned.length} {chart.unassigned.length === 1 ? "booking needs" : "bookings need"} a room
+            </span>
+            <span className="text-xs">Click one to choose its room.</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {chart.unassigned.map((r) => (
-              <button
-                key={r.id}
-                className="btn btn-secondary text-xs"
-                onClick={(e) =>
-                  setBookingMenu({ reservation: r, x: e.clientX, y: e.clientY })
-                }
-                title={isDayUse(r) ? `${r.check_in}, ${dayUseSummary(r)}` : `${r.check_in} to ${r.check_out}`}
-              >
-                {r.guest_name}, {r.room_types?.room_type_name}
-                {isDayUse(r) ? `, day use ${r.day_use_hours}h` : ""}
-              </button>
-            ))}
+            {[...chart.unassigned]
+              .sort((a, b) => a.check_in.localeCompare(b.check_in))
+              .map((r) => (
+                <button
+                  key={r.id}
+                  className="btn btn-secondary text-xs"
+                  style={{ background: "var(--surface)" }}
+                  onClick={(e) =>
+                    setBookingMenu({ reservation: r, x: e.clientX, y: e.clientY })
+                  }
+                  title={isDayUse(r) ? `${r.check_in}, ${dayUseSummary(r)}` : `${r.check_in} to ${r.check_out}`}
+                >
+                  <b>{shortDay(r.check_in)}</b>
+                  {isDayUse(r) ? "" : ` to ${shortDay(r.check_out)}`}, {r.guest_name}, {r.room_types?.room_type_name}
+                  {isDayUse(r) ? `, day use ${r.day_use_hours}h` : ""}
+                </button>
+              ))}
           </div>
         </div>
       )}
@@ -2023,19 +2039,16 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
         />
       )}
       {leaving && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
+      {BOOKING_ACTIONS.map((a) => (
+        <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
+      ))}
       {r.status === "in_house" && <MenuItem label="Undo check-in" onClick={() => onChoose("undocheckin")} />}
-      {BOOKING_ACTIONS.map((a) => {
-        const locked = a.id === "upgrade" && settled;
-        return (
-          <MenuItem
-            key={a.id}
-            label={a.id === "upgrade" && !room ? a.assign : a.label}
-            disabled={locked}
-            title={locked ? "This stay is over, so its room can no longer change" : undefined}
-            onClick={() => onChoose(a.id)}
-          />
-        );
-      })}
+      <MenuItem
+        label={room ? "Change room" : "Assign a room"}
+        disabled={settled}
+        title={settled ? "This stay is over, so its room can no longer change" : undefined}
+        onClick={() => onChoose("upgrade")}
+      />
       {r.status === "confirmed" && <MenuItem label="Cancel booking" onClick={() => onChoose("cancel")} />}
     </MenuShell>
   );

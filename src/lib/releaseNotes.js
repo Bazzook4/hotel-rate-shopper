@@ -24,6 +24,7 @@ export const RELEASE_NOTES = [
     title: "Undo a check-in",
     points: [
       { page: "reservations", text: "Checked in the wrong guest? Click the booking on the Calendar and pick Undo check-in, or open the booking, then More, then Undo check-in. The booking goes back to confirmed, and the room and bill stay as they were." },
+      { page: "calendar", text: "The menu when you click a booking on the Calendar is in a new order: Edit booking, Add charge, Collect payment, then Undo check-in and Change room." },
     ],
   },
   {
