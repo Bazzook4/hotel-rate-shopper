@@ -16,7 +16,7 @@ export const RELEASE_NOTES = [
     date: "2026-10-30",
     title: "Undo a check-in",
     points: [
-      { page: "reservations", text: "Checked in the wrong guest? Open the booking, then More, then Undo check-in. The booking goes back to confirmed, and the room and bill stay as they were." },
+      { page: "reservations", text: "Checked in the wrong guest? Click the booking on the Calendar and pick Undo check-in, or open the booking, then More, then Undo check-in. The booking goes back to confirmed, and the room and bill stay as they were." },
     ],
   },
   {

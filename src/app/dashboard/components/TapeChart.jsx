@@ -723,6 +723,16 @@ export default function TapeChart({ session }) {
           },
         });
       });
+    } else if (action === "undocheckin") {
+      // Back to confirmed, with an Undo that checks the guest in again.
+      setStatus(r, "confirmed").then((ok) => {
+        if (!ok) return;
+        toast(`${r.guest_name}'s check-in undone (${r.reference})`, {
+          undo: async () => {
+            if (!(await setStatus(r, "in_house"))) throw new Error("Could not check the guest in again");
+          },
+        });
+      });
     } else if (action === "upgrade") {
       setUpgrade(r);
     } else {
@@ -2013,6 +2023,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
         />
       )}
       {leaving && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
+      {r.status === "in_house" && <MenuItem label="Undo check-in" onClick={() => onChoose("undocheckin")} />}
       {BOOKING_ACTIONS.map((a) => {
         const locked = a.id === "upgrade" && settled;
         return (
