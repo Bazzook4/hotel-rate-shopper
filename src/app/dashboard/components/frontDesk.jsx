@@ -420,17 +420,20 @@ function CheckInDialog({ request, onDone }) {
  * whose bill goes to the city ledger instead.
  */
 function SettleDialog({ request, onDone }) {
-  const { guest, balance, currency, company, canDiscount } = request;
-  const [amount, setAmount] = useState(String(balance));
+  const { guest, currency, company, canDiscount } = request;
+  // What is still owed: a part discount lowers it and sends the desk back to payment.
+  const [balance, setBalance] = useState(request.balance);
+  const [amount, setAmount] = useState(String(request.balance));
   const [method, setMethod] = useState("cash");
   const [mode, setMode] = useState("pay");
-  const [off, setOff] = useState(String(balance));
+  const [off, setOff] = useState(String(request.balance));
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const paid = Number(amount);
-  const valid = Number.isFinite(paid) && paid > 0;
+  const valid = Number.isFinite(paid) && paid >= balance;
+  const short = Number.isFinite(paid) && paid > 0 && paid < balance;
   const offN = Number(off);
   const offValid = Number.isFinite(offN) && offN > 0 && offN <= balance && reason && (reason !== "other" || note.trim());
   useEscape(() => onDone(null));
@@ -440,7 +443,12 @@ function SettleDialog({ request, onDone }) {
     setError(null);
     try {
       await request.giveDiscount({ amount: offN, reason, note: note.trim() });
-      onDone({ discounted: true });
+      if (offN >= balance) return onDone({ discounted: true });
+      const left = Number((balance - offN).toFixed(2));
+      setBalance(left);
+      setAmount(String(left));
+      setMode("pay");
+      setBusy(false);
     } catch (err) {
       setError(err.message);
       setBusy(false);
@@ -533,6 +541,11 @@ function SettleDialog({ request, onDone }) {
               <input className="input w-full" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
           </div>
+        )}
+        {mode === "pay" && short && (
+          <p className="mt-2 text-sm" style={{ color: "var(--danger, #b91c1c)" }}>
+            {money(balance - paid, currency)} would still be owed. Collect all of it{canDiscount ? ", or give a discount for the rest" : ""}.
+          </p>
         )}
         {error && (
           <p className="mt-2 text-sm" style={{ color: "var(--danger, #b91c1c)" }}>
@@ -818,13 +831,15 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
       const prior = folio.discount;
       const canDiscount =
         !prior || (prior.kind === "amount" && prior.timing === "after_tax");
+      let given = prior?.value || 0;
       const giveDiscount = async ({ amount, reason, note }) => {
-        const value = Number(((prior?.value || 0) + amount).toFixed(2));
+        const value = Number((given + amount).toFixed(2));
         await folioPost({
           kind: "discount",
           reservationId: r.id,
           discount: { kind: "amount", value, timing: "after_tax", reason: prior?.reason || reason, note: prior?.note || note },
         });
+        given = value;
       };
       const answer = await new Promise((resolve) =>
         setSettle({

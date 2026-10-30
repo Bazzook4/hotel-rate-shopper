@@ -17,6 +17,7 @@ export const RELEASE_NOTES = [
     title: "Check-out with money owed",
     points: [
       { page: "reservations", text: "A guest can no longer be checked out while they still owe money. The check-out box asks you to collect the payment, or to give a discount for the amount. A stay billed to a company can still go to the company's bill." },
+      { page: "reservations", text: "The check-out box now asks for the whole amount owed. A smaller payment no longer lets the guest leave; take the rest as a discount, or collect it all." },
       { page: "reservations", text: "Once a guest is checked out, the booking's menu has a Print invoice choice, on the calendar and in the booking's More menu." },
     ],
   },
