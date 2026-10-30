@@ -219,7 +219,7 @@ export default function WhatsAppInbox() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[18rem_1fr]">
+      <div className="grid gap-3 md:grid-cols-[18rem_minmax(0,1fr)]">
         <div className={`card flex flex-col overflow-hidden ${open ? "hidden md:flex" : ""}`} style={{ height: PANE_HEIGHT, minHeight: "24rem" }}>
           <div className="border-b border-[var(--border)] p-2">
             <input
@@ -472,7 +472,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
 
   return (
     // On a phone the open chat takes the whole screen, as WhatsApp does.
-    <div className="card flex flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-15rem)] md:min-h-96">
+    <div className="card flex min-w-0 flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-15rem)] md:min-h-96">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <button type="button" className="btn btn-ghost text-sm md:hidden" onClick={onBack} aria-label="Back to chats">
@@ -747,7 +747,7 @@ function Body({ m }) {
       {broken && <span className="block text-xs muted">Could not show this {MEDIA_WORD[m.media.kind] || "file"}.</span>}
       {(kind === "image" || kind === "sticker") && (
         <a href={src} target="_blank" rel="noopener" className="block">
-          <img src={src} alt={kind === "sticker" ? "Sticker" : "Photo"} loading="lazy" onError={failed} className={`rounded-lg ${kind === "sticker" ? "h-24 w-24 object-contain" : "max-h-48 max-w-[240px]"}`} />
+          <img src={src} alt={kind === "sticker" ? "Sticker" : "Photo"} loading="lazy" onError={failed} className={`rounded-lg ${kind === "sticker" ? "h-24 w-24 object-contain" : "max-h-48 max-w-full sm:max-w-[240px]"}`} />
         </a>
       )}
       {kind === "video" && <video src={src} controls preload="metadata" onError={failed} className="max-h-48 max-w-[240px] rounded-lg" />}
@@ -762,7 +762,7 @@ function Body({ m }) {
           <Icon name="pin" size={16} /> {m.body.replace(/^Location: /, "")}
         </a>
       )}
-      {words && !m.location && <span className={`${m.media ? "block " : ""}whitespace-pre-wrap text-ink`}>{words}</span>}
+      {words && !m.location && <span className={`${m.media ? "block " : ""}whitespace-pre-wrap break-words text-ink`}>{words}</span>}
     </>
   );
 }
