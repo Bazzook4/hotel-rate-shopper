@@ -226,7 +226,14 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC") {
   }
 
   y = top - 14;
-  text(property.name || "Invoice", issuerX, { bold: true, size: 16 });
+  // The name and address wrap inside the space left of the title, so a long
+  // hotel name never runs under it.
+  const issuerMax = right - 110 - issuerX;
+  const nameLines = wrap(property.name || "Invoice", issuerMax, bold, 16);
+  nameLines.forEach((l, i) => {
+    if (i > 0) y -= 18;
+    text(l, issuerX, { bold: true, size: 16 });
+  });
   // In India only a GST-registered hotel issues a tax invoice; one with no
   // tax on it (every charge exempt) issues a bill of supply. Without a GSTIN
   // it is a plain invoice.
@@ -241,7 +248,7 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC") {
     : charged
       ? "TAX INVOICE"
       : "INVOICE";
-  text(title, right, {
+  put(title, right, top - 14, {
     bold: true,
     size: 13,
     align: "right",
@@ -258,8 +265,10 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC") {
     property.gstin ? `${taxIdLabel}: ${property.gstin}` : null,
   ].filter(Boolean);
   for (const l of issuerLines) {
-    text(l, issuerX, { size: 9, color: muted });
-    y -= 12;
+    for (const part of wrap(l, right - issuerX, font, 9)) {
+      text(part, issuerX, { size: 9, color: muted });
+      y -= 12;
+    }
   }
   y = Math.min(y, logoBottom) - 10;
 

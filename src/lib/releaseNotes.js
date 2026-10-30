@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Long hotel names on invoices",
+    points: [
+      { page: "invoicing", text: "A long hotel name or address now fits on the invoice. It goes onto a second line instead of running under the word INVOICE or off the page." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Delete a booking made by mistake",
     points: [
       { page: "reservations", text: "Open the booking, then More, then Delete booking. The booking is cancelled and its payments are voided, so the money comes off the cash-up. A booking with an invoice needs the invoice voided first. A checked-in guest: undo the check-in first." },
