@@ -358,6 +358,46 @@ export default function BookingModal({
     });
   }
 
+  /**
+   * A booking made by mistake: cancelled, and every payment on it voided so
+   * the money leaves the cash-up. Voided payments cannot be brought back, so
+   * this asks first rather than offering Undo.
+   */
+  async function deleteBooking() {
+    const { guest_name: guest, reference } = reservation;
+    const paid = (folio?.payments || []).filter((p) => !p.voided_at);
+    const total = paid.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const yes = await dialog.confirm({
+      title: `Delete ${guest}'s booking ${reference}?`,
+      message:
+        paid.length > 0
+          ? `The booking is cancelled and its ${paid.length === 1 ? "payment" : `${paid.length} payments`} of ${formatMoney(total, { decimals: 2 })} ${paid.length === 1 ? "is" : "are"} voided. Voided payments cannot be brought back.`
+          : "The booking is cancelled. You can restore it later.",
+      confirmLabel: "Delete booking",
+      cancelLabel: "Keep it",
+      danger: true,
+    });
+    if (!yes) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pms/reservations/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: reservationId, status: "cancelled", void_payments: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not delete the booking");
+      await loadFolio();
+      onChanged?.(inventoryWarning(data));
+      toast(`${guest}'s booking ${reference} deleted`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const actions = reservation ? NEXT_ACTIONS[reservation.status] || [] : [];
 
   const whatsapp = reservation
@@ -372,6 +412,90 @@ export default function BookingModal({
             : null,
       })
     : null;
+
+  /** Put this booking in a group, or move it out, with Undo. */
+  async function saveGroup(change) {
+    const res = await fetch("/api/pms/groups", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reservation_id: reservationId, ...change }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Could not change the group, try again.");
+    await loadFolio();
+    onChanged?.();
+    return data;
+  }
+
+  async function changeGroup(takeOut = false) {
+    const { guest_name: guest, reference, group_id: previous } = reservation;
+    const from = group?.name || "the group";
+    const moving = Boolean(previous);
+    setError(null);
+    setBusy(true);
+    try {
+      let change = { group_id: null };
+      let name = from;
+      if (!takeOut) {
+        const res = await fetch(`/api/pms/groups?property_id=${reservation.property_id}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error("Could not load the groups, try again.");
+        // Groups staying on this booking's dates come first, so the one
+        // picked from the start is the party this guest is most likely with.
+        const overlaps = (g) => g.first_check_in < reservation.check_out && g.last_check_out > reservation.check_in;
+        const others = (data.groups || [])
+          .filter((g) => g.id !== previous && g.rooms > 0)
+          .sort((x, y) => Number(overlaps(y)) - Number(overlaps(x)));
+        let picked = "new";
+        if (others.length > 0) {
+          picked = await dialog.choose({
+            title: moving ? `Move ${guest}'s booking to another group` : `Add ${guest}'s booking to a group`,
+            label: "Group",
+            confirmLabel: moving ? "Move" : "Add",
+            options: [
+              ...others.map((g) => ({
+                value: g.id,
+                label: `${g.name}, ${g.rooms} room${g.rooms === 1 ? "" : "s"}, ${shortDate(g.first_check_in)} to ${shortDate(g.last_check_out)}`,
+              })),
+              { value: "new", label: "Start a new group" },
+            ],
+          });
+          if (!picked) return;
+        }
+        if (picked === "new") {
+          name = await dialog.prompt({
+            title: "Name the new group",
+            message: others.length === 0 ? "There is no other group to join yet. Start a new one." : undefined,
+            label: "Group name",
+            placeholder: "Sharma wedding",
+            confirmLabel: "Start group",
+          });
+          if (!name) return;
+          // A name that is already an open group joins it, so one party is
+          // never split across two groups of the same name.
+          const same = others.find((g) => g.name.trim().toLowerCase() === name.toLowerCase());
+          change = same ? { group_id: same.id } : { new_group_name: name };
+          if (same) name = same.name;
+        } else {
+          name = others.find((g) => g.id === picked)?.name || "the group";
+          change = { group_id: picked };
+        }
+      }
+      await saveGroup(change);
+      toast(
+        takeOut
+          ? `${reference} taken out of ${from}`
+          : moving
+            ? `${reference} moved from ${from} to ${name}`
+            : `${reference} added to ${name}`,
+        { undo: () => saveGroup({ group_id: previous || null }) }
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function folioChanged() {
     await loadFolio();
@@ -446,6 +570,17 @@ export default function BookingModal({
         ...actions
           .filter((a) => a.kind === "btn-ghost")
           .map((a) => ({ label: a.label, disabled: busy, onClick: () => runAction(a.status) })),
+        reservation.status !== "cancelled" &&
+          reservation.status !== "no_show" && {
+            label: reservation.group_id ? "Move to another group" : "Add to group",
+            disabled: busy,
+            onClick: () => changeGroup(),
+          },
+        reservation.group_id && {
+          label: "Take out of group",
+          disabled: busy,
+          onClick: () => changeGroup(true),
+        },
         (reservation.status === "confirmed" || reservation.status === "inquiry") && {
           label: `Cancel ${reservation.status === "inquiry" ? "inquiry" : "booking"}`,
           danger: true,
@@ -456,6 +591,12 @@ export default function BookingModal({
           label: "Undo check-in",
           disabled: busy,
           onClick: undoCheckIn,
+        },
+        (reservation.status === "confirmed" || reservation.status === "inquiry") && {
+          label: "Delete booking",
+          danger: true,
+          disabled: busy,
+          onClick: deleteBooking,
         },
       ].filter(Boolean)
     : [];

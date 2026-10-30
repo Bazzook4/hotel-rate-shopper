@@ -9,6 +9,9 @@ import {
   getRoom,
   setRoomHousekeeping,
   setReservationStatus,
+  listReservationPayments,
+  listReservationInvoices,
+  voidReservationPayment,
   planStayChange,
   applyStayChange,
 } from "@/lib/database";
@@ -228,11 +231,33 @@ export async function POST(req) {
       }
     }
 
+    // Deleting a booking made by mistake is a cancel that also voids its
+    // payments, so the money stops counting on the cash-up. Voided, never
+    // removed, as everywhere. A standing invoice is a tax document the desk
+    // has to void itself, so the delete waits for that.
+    let livePayments = [];
+    if (status === "cancelled" && body.void_payments) {
+      const [payments, invoices] = await Promise.all([
+        listReservationPayments(id),
+        listReservationInvoices(id),
+      ]);
+      if (invoices.some((i) => !i.voided_at)) {
+        return NextResponse.json(
+          { error: "This booking has an invoice. Void the invoice on the Invoices tab first, then delete." },
+          { status: 409 }
+        );
+      }
+      livePayments = payments.filter((p) => !p.voided_at);
+    }
+
     const reservation = await setReservationStatus(id, status, {
       roomId: releaseRoom ? null : room_id !== undefined ? room_id : undefined,
     });
     // After the check-in is saved, so a failed one leaves the room as it was.
     if (cleanRoom) await setRoomHousekeeping(propertyId, [cleanRoom.id], "clean", session.userId);
+    for (const p of livePayments) {
+      await voidReservationPayment(p.id, "Booking deleted", session.userId);
+    }
 
     // Cancelling or marking a no-show gives the nights back; reinstating one
     // takes them again. A check-in or check-out changes nothing on sale --

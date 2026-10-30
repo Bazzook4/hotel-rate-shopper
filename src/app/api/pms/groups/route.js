@@ -9,6 +9,9 @@ import {
   createReservationGroup,
   getReservationGroup,
   deleteReservationGroup,
+  listOpenGroups,
+  setReservationGroup,
+  getReservation,
   createReservation,
   acceptNightRates,
 } from "@/lib/database";
@@ -78,7 +81,20 @@ export async function GET(req) {
   if (error) return error;
 
   const id = req.nextUrl.searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "Group id is required" }, { status: 400 });
+  if (!id) {
+    // No id: the groups a booking could still join, for the "Add to group"
+    // pick. Stays that ended over a month ago are left out.
+    const propertyId = await resolvePropertyId(session, req.nextUrl.searchParams.get("property_id"));
+    if (!propertyId) return NextResponse.json({ error: "No property selected" }, { status: 400 });
+    const since = new Date();
+    since.setUTCDate(since.getUTCDate() - 30);
+    try {
+      const groups = await listOpenGroups(propertyId, since.toISOString().slice(0, 10));
+      return NextResponse.json({ groups });
+    } catch (err) {
+      return NextResponse.json({ error: err.message }, { status: 500 });
+    }
+  }
 
   try {
     const group = await getReservationGroup(id);
@@ -239,5 +255,60 @@ export async function POST(req) {
     return NextResponse.json({ group, reservations, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+/**
+ * Put a booking made on its own into a group, move it to another group, or
+ * take it out. `group_id` names a group; `new_group_name` starts one; neither
+ * takes the booking out. Only which group it belongs to changes: its room,
+ * price and bill stay as they are.
+ */
+export async function PATCH(req) {
+  const { error, session } = await pmsGuard(req, BOOKING_PAGES);
+  if (error) return error;
+
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Could not change the group, try again." }, { status: 400 });
+  }
+  if (!body.reservation_id) {
+    return NextResponse.json({ error: "This booking was not found. Close it and open it again." }, { status: 400 });
+  }
+
+  try {
+    const current = await getReservation(body.reservation_id).catch(() => null);
+    const propertyId = current ? await resolvePropertyId(session, current.property_id) : null;
+    if (!current || !propertyId || current.property_id !== propertyId) {
+      return NextResponse.json({ error: "This booking was not found. Close it and open it again." }, { status: 404 });
+    }
+
+    let groupId = null;
+    let created = null;
+    if (body.new_group_name?.trim()) {
+      created = await createReservationGroup({
+        property_id: propertyId,
+        name: body.new_group_name,
+        contact_name: current.booker_name || current.guest_name,
+        contact_phone: current.booker_phone || current.guest_phone,
+        contact_email: current.booker_email || current.guest_email,
+        created_by: session.userId,
+      });
+      groupId = created.id;
+    } else if (body.group_id) {
+      const group = await getReservationGroup(body.group_id).catch(() => null);
+      if (!group || group.property_id !== propertyId) {
+        return NextResponse.json({ error: "That group was not found. It may have been removed." }, { status: 404 });
+      }
+      groupId = group.id;
+    }
+
+    await setReservationGroup(current.id, groupId);
+    return NextResponse.json({ group_id: groupId, previous_group_id: current.group_id || null, group: created });
+  } catch (err) {
+    console.error("Changing a booking's group failed:", err);
+    return NextResponse.json({ error: "Could not change the group, try again." }, { status: 500 });
   }
 }

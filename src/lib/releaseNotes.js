@@ -14,9 +14,23 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Delete a booking made by mistake",
+    points: [
+      { page: "reservations", text: "Open the booking, then More, then Delete booking. The booking is cancelled and its payments are voided, so the money comes off the cash-up. A booking with an invoice needs the invoice voided first. A checked-in guest: undo the check-in first." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Undo a check-in",
     points: [
       { page: "reservations", text: "Checked in the wrong guest? Click the booking on the Calendar and pick Undo check-in, or open the booking, then More, then Undo check-in. The booking goes back to confirmed, and the room and bill stay as they were." },
+    ],
+  },
+  {
+    date: "2026-10-30",
+    title: "Add a booking to a group",
+    points: [
+      { page: "reservations", text: "A booking made on its own can now join a group booking. Open the booking, then More, then Add to group, and pick the group or start a new one. More also has Move to another group and Take out of group." },
     ],
   },
   {

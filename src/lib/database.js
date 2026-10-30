@@ -3664,6 +3664,51 @@ export async function deleteReservationGroup(id) {
   if (error) throw new Error(`Failed to remove the group: ${error.message}`);
 }
 
+/**
+ * Groups a booking could still join: those with a stay ending on or after
+ * `since`, soonest arrival first, each with how many rooms it holds.
+ */
+export async function listOpenGroups(propertyId, since) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('group_id, check_in, check_out, status, reservation_groups(id, name)')
+    .eq('property_id', propertyId)
+    .not('group_id', 'is', null)
+    .gte('check_out', since);
+
+  if (error) throw new Error(`Failed to load the groups: ${error.message}`);
+
+  const byId = {};
+  for (const r of data || []) {
+    if (!r.reservation_groups) continue;
+    const g = (byId[r.group_id] ||= {
+      id: r.group_id,
+      name: r.reservation_groups.name,
+      rooms: 0,
+      first_check_in: r.check_in,
+      last_check_out: r.check_out,
+    });
+    if (r.status !== 'cancelled' && r.status !== 'no_show') g.rooms += 1;
+    if (r.check_in < g.first_check_in) g.first_check_in = r.check_in;
+    if (r.check_out > g.last_check_out) g.last_check_out = r.check_out;
+  }
+  return Object.values(byId).sort((a, b) => a.first_check_in.localeCompare(b.first_check_in));
+}
+
+/**
+ * Put one booking into a group, move it to another, or take it out (null).
+ *
+ * A group left empty is kept, so Undo can put the booking back; it drops off
+ * the list of groups to join, which is built from bookings.
+ */
+export async function setReservationGroup(reservationId, groupId) {
+  const { error } = await supabase
+    .from('reservations')
+    .update({ group_id: groupId || null })
+    .eq('id', reservationId);
+  if (error) throw new Error(`Failed to change the booking's group: ${error.message}`);
+}
+
 /** Reservations for a property, newest arrival first, with the joins the list needs. */
 export async function listReservations(
   propertyId,
