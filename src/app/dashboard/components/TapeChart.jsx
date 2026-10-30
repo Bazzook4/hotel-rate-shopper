@@ -716,6 +716,8 @@ export default function TapeChart({ session }) {
       runDesk(r, desk.checkIn);
     } else if (action === "checkout") {
       runDesk(r, desk.checkOut);
+    } else if (action === "printinvoice") {
+      desk.printBill(r);
     } else if (action === "confirm") {
       setStatus(r, "confirmed");
     } else if (action === "cancel") {
@@ -2042,6 +2044,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
       {BOOKING_ACTIONS.map((a) => (
         <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
       ))}
+      {r.status === "checked_out" && <MenuItem label="Print invoice" onClick={() => onChoose("printinvoice")} />}
       {r.status === "in_house" && <MenuItem label="Undo check-in" onClick={() => onChoose("undocheckin")} />}
       <MenuItem
         label={room ? "Change room" : "Assign a room"}

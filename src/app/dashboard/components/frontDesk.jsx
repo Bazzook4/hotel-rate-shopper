@@ -13,6 +13,7 @@ import Icon from "../../components/Icon";
 import { useToast } from "../../components/Toast";
 import { useDialog } from "../../components/Dialog";
 import { formatMoney } from "@/lib/money";
+import { DISCOUNT_REASONS } from "@/lib/discounts";
 
 /**
  * Check-in and check-out as one shared action, so the Today page, the
@@ -413,14 +414,38 @@ function CheckInDialog({ request, onDone }) {
   );
 }
 
-/** The balance-due step of a check-out: take the money, or go ahead without it. */
+/**
+ * The balance-due step of a check-out: take the money, or take it off as a
+ * discount. A guest is not let go owing, except on a stay billed to a company,
+ * whose bill goes to the city ledger instead.
+ */
 function SettleDialog({ request, onDone }) {
-  const { guest, balance, currency } = request;
+  const { guest, balance, currency, company, canDiscount } = request;
   const [amount, setAmount] = useState(String(balance));
   const [method, setMethod] = useState("cash");
+  const [mode, setMode] = useState("pay");
+  const [off, setOff] = useState(String(balance));
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
   const paid = Number(amount);
   const valid = Number.isFinite(paid) && paid > 0;
+  const offN = Number(off);
+  const offValid = Number.isFinite(offN) && offN > 0 && offN <= balance && reason && (reason !== "other" || note.trim());
   useEscape(() => onDone(null));
+
+  async function giveDiscount() {
+    setBusy(true);
+    setError(null);
+    try {
+      await request.giveDiscount({ amount: offN, reason, note: note.trim() });
+      onDone({ discounted: true });
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
 
   return (
     // Stops the click here: rendered inside the booking window, it would
@@ -440,49 +465,108 @@ function SettleDialog({ request, onDone }) {
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) onDone({ amount: paid, method });
+          if (mode === "pay" && valid) onDone({ amount: paid, method });
+          if (mode === "discount" && offValid && !busy) giveDiscount();
         }}
       >
         <h3 className="text-base font-semibold" style={{ color: "var(--text)" }}>
           {guest} owes {money(balance, currency)}
         </h3>
         <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-          Take the payment and check out together.
+          {mode === "pay"
+            ? "Take the payment and check out together."
+            : "Take some or all of it off the bill, then check out."}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Amount</label>
-            <input
-              className="input w-full"
-              type="number"
-              min="0"
-              step="any"
-              autoFocus
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
+        {mode === "pay" ? (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Amount</label>
+              <input
+                className="input w-full"
+                type="number"
+                min="0"
+                step="any"
+                autoFocus
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Paid by</label>
+              <Select className="input w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
+                {METHODS.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
-          <div>
-            <label className="label">Paid by</label>
-            <Select className="input w-full" value={method} onChange={(e) => setMethod(e.target.value)}>
-              {METHODS.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </Select>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Amount off</label>
+              <input
+                className="input w-full"
+                type="number"
+                min="0"
+                max={balance}
+                step="any"
+                autoFocus
+                value={off}
+                onChange={(e) => setOff(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label">Reason</label>
+              <Select className="input w-full" value={reason} onChange={(e) => setReason(e.target.value)}>
+                <option value="">Pick a reason</option>
+                {DISCOUNT_REASONS.filter((r) => r.id !== "promotion").map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="col-span-2">
+              <label className="label">Note{reason === "other" ? "" : " (optional)"}</label>
+              <input className="input w-full" value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
           </div>
-        </div>
+        )}
+        {error && (
+          <p className="mt-2 text-sm" style={{ color: "var(--danger, #b91c1c)" }}>
+            {error}
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           <button type="button" className="btn btn-ghost text-sm" onClick={() => onDone(null)}>
             Cancel
           </button>
-          <button type="button" className="btn btn-secondary text-sm" onClick={() => onDone({ skip: true })}>
-            Check out unpaid
-          </button>
-          <button type="submit" className="btn btn-primary text-sm" disabled={!valid}>
-            Collect {valid ? money(paid, currency) : ""} &amp; check out
-          </button>
+          {mode === "pay" && canDiscount && (
+            <button type="button" className="btn btn-secondary text-sm" onClick={() => setMode("discount")}>
+              Give a discount
+            </button>
+          )}
+          {mode === "discount" && (
+            <button type="button" className="btn btn-secondary text-sm" onClick={() => setMode("pay")}>
+              Back to payment
+            </button>
+          )}
+          {mode === "pay" && company && (
+            <button type="button" className="btn btn-secondary text-sm" onClick={() => onDone({ skip: true })}>
+              Bill to company
+            </button>
+          )}
+          {mode === "pay" ? (
+            <button type="submit" className="btn btn-primary text-sm" disabled={!valid}>
+              Collect {valid ? money(paid, currency) : ""} &amp; check out
+            </button>
+          ) : (
+            <button type="submit" className="btn btn-primary text-sm" disabled={!offValid || busy}>
+              {busy ? "Saving..." : `Take ${offValid ? money(offN, currency) : ""} off & check out`}
+            </button>
+          )}
         </div>
       </form>
     </div>
@@ -577,7 +661,7 @@ async function issueAndOpen(reservationId, tab) {
 }
 
 /**
- * `{ checkIn, checkOut, settleDialog }`. Both actions resolve to the status
+ * `{ checkIn, checkOut, printBill, settleDialog }`. Both actions resolve to the status
  * route's answer (for its inventory warning), or null if the desk backed
  * out, and throw with a message written for the desk when refused.
  * `settleDialog` must be rendered by the caller.
@@ -728,12 +812,34 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
     const balance = res.ok ? Number(folio?.totals?.balance) || 0 : 0;
 
     if (balance > 0) {
+      // A discount replaces the booking's one discount, so it is offered only
+      // when there is none, or it is an amount off the final bill that this
+      // adds to. A percent or before-tax discount is changed on the Bill tab.
+      const prior = folio.discount;
+      const canDiscount =
+        !prior || (prior.kind === "amount" && prior.timing === "after_tax");
+      const giveDiscount = async ({ amount, reason, note }) => {
+        const value = Number(((prior?.value || 0) + amount).toFixed(2));
+        await folioPost({
+          kind: "discount",
+          reservationId: r.id,
+          discount: { kind: "amount", value, timing: "after_tax", reason: prior?.reason || reason, note: prior?.note || note },
+        });
+      };
       const answer = await new Promise((resolve) =>
-        setSettle({ guest: r.guest_name, balance, currency: r.currency, resolve })
+        setSettle({
+          guest: r.guest_name,
+          balance,
+          currency: r.currency,
+          company: folio?.reservation?.bill_to === "company",
+          canDiscount,
+          giveDiscount,
+          resolve,
+        })
       );
       setSettle(null);
       if (!answer) return null;
-      if (!answer.skip) {
+      if (!answer.skip && !answer.discounted) {
         const pay = await fetch("/api/pms/folio", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -775,7 +881,20 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
     <CheckInDialog request={checkInAsk} onDone={checkInAsk.resolve} />
   ) : null;
 
-  return { checkIn, checkOut, settleDialog };
+  /** Issue what is not yet invoiced and open the bill to print. Call it from a click. */
+  const printBill = useCallback(
+    async (r) => {
+      try {
+        const n = await issueAndPrintInvoices(r.id);
+        if (!n) toast("There is no bill to print for this booking.");
+      } catch (err) {
+        toast(err.message || "The bill could not be opened.");
+      }
+    },
+    [toast]
+  );
+
+  return { checkIn, checkOut, printBill, settleDialog };
 }
 
 /**

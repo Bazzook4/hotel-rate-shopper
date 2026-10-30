@@ -14,6 +14,14 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Check-out with money owed",
+    points: [
+      { page: "reservations", text: "A guest can no longer be checked out while they still owe money. The check-out box asks you to collect the payment, or to give a discount for the amount. A stay billed to a company can still go to the company's bill." },
+      { page: "reservations", text: "Once a guest is checked out, the booking's menu has a Print invoice choice, on the calendar and in the booking's More menu." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Long hotel names on invoices",
     points: [
       { page: "invoicing", text: "A long hotel name or address now fits on the invoice. It goes onto a second line instead of running under the word INVOICE or off the page." },

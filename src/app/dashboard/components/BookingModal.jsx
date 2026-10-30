@@ -587,6 +587,11 @@ export default function BookingModal({
           disabled: busy,
           onClick: cancelBooking,
         },
+        reservation.status === "checked_out" && {
+          label: "Print invoice",
+          disabled: busy,
+          onClick: () => desk.printBill(reservation),
+        },
         reservation.status === "in_house" && {
           label: "Undo check-in",
           disabled: busy,
