@@ -336,6 +336,28 @@ export default function BookingModal({
     });
   }
 
+  /**
+   * Takes a check-in made by mistake back to confirmed, with an Undo that
+   * checks the guest in again. The room and bill stay as they are.
+   */
+  async function undoCheckIn() {
+    const { guest_name: guest, reference } = reservation;
+    if (!(await changeStatus("confirmed"))) return;
+    toast(`${guest}'s check-in undone (${reference})`, {
+      undo: async () => {
+        const res = await fetch("/api/pms/reservations/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: reservationId, status: "in_house" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "Could not check the guest in again");
+        loadFolio();
+        onChanged?.(inventoryWarning(data));
+      },
+    });
+  }
+
   const actions = reservation ? NEXT_ACTIONS[reservation.status] || [] : [];
 
   const whatsapp = reservation
@@ -429,6 +451,11 @@ export default function BookingModal({
           danger: true,
           disabled: busy,
           onClick: cancelBooking,
+        },
+        reservation.status === "in_house" && {
+          label: "Undo check-in",
+          disabled: busy,
+          onClick: undoCheckIn,
         },
       ].filter(Boolean)
     : [];

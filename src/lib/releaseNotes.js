@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-10-30",
+    title: "Undo a check-in",
+    points: [
+      { page: "reservations", text: "Checked in the wrong guest? Open the booking, then More, then Undo check-in. The booking goes back to confirmed, and the room and bill stay as they were." },
+    ],
+  },
+  {
+    date: "2026-10-30",
     title: "Fewer double bookings, right GST, and quicker desk jobs",
     points: [
       { page: "today", text: "Today now lists guests in the hotel, not only arrivals and departures, with Collect and Add charge on each." },
