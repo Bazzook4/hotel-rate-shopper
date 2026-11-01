@@ -3,7 +3,7 @@ import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getSupabaseAdmin } from "@/lib/database";
 import { hotelProgress } from "@/lib/whatsappReminders";
-import { TEMPLATES, inWindow, sendTemplate, sendText, waPhone, whatsappReady } from "@/lib/whatsapp";
+import { TEMPLATES, templateBody, inWindow, sendTemplate, sendText, waPhone, whatsappReady } from "@/lib/whatsapp";
 import { aiReady } from "@/lib/aiAgent";
 import { MEDIA_TYPES } from "@/lib/whatsappMedia";
 
@@ -41,6 +41,7 @@ function thread(rows) {
       const media = MEDIA_TYPES.includes(m.type) ? payload?.[m.type] : null;
       return {
         ...m,
+        body: m.type === "template" ? templateBody(m.body) : m.body,
         reaction: (wa_message_id && reacted.get(wa_message_id)) || null,
         media: media
           ? { kind: m.type, name: media.filename || payload?.stored?.name || null, caption: media.caption || null }

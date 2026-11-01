@@ -108,11 +108,32 @@ export const sendButtons = (to, body, buttons, sentBy) =>
     sentBy
   );
 
+/** Meta's approved wording, so the inbox shows what the phone shows. Must match Meta's exactly. */
+const TEMPLATE_WORDS = {
+  daily_report_v2:
+    "Good morning {{1}}, here is today at your hotel.\nArrivals: {{2}}\nDepartures: {{3}}\nRooms occupied: {{4}}\nOccupancy: {{5}}\nYesterday's revenue: {{6}}\nHave a good day.",
+  lead_alert_v2: "New lead from {{1}}.\nInterested in: {{2}}\nRooms: {{3}}\nCity: {{4}}\nPlease follow up from the WhatsApp inbox.",
+  setup_reminder_v2: "Hi {{1}}, your hotel {{2}} is {{3}} set up on OnlineHotelier. Reply here if you need any help finishing it.",
+  day3_checkin_v2: "Hi {{1}}, we have not seen new bookings at {{2}} since {{3}}. Is everything working fine? Reply here and we will help.",
+};
+
+function templateWords(name, params) {
+  const words = TEMPLATE_WORDS[name];
+  if (!words) return `Template ${name}${params.length ? `: ${params.join(" | ")}` : ""}`;
+  return words.replace(/\{\{(\d+)\}\}/g, (_, n) => params[n - 1] ?? "");
+}
+
+/** A template message logged before its words were kept, as the phone showed it. */
+export function templateBody(body) {
+  const m = /^Template (\w+): (.*)$/s.exec(body || "");
+  return m && TEMPLATE_WORDS[m[1]] ? templateWords(m[1], m[2].split(" | ")) : body;
+}
+
 export const sendTemplate = (to, name, params = [], sentBy, lang = "en") =>
   sendLogged(
     to,
     "template",
-    `Template ${name}${params.length ? `: ${params.join(" | ")}` : ""}`,
+    templateWords(name, params),
     {
       template: {
         name,
