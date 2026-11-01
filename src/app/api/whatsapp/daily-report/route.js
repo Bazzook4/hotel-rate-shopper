@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getPropertyClock, getPropertyCurrency, getSupabaseAdmin } from "@/lib/database";
-import { getNightAudit, localDay, localToday, shiftDay } from "@/lib/financeReports";
+import { getNightAudit, localToday, shiftDay } from "@/lib/financeReports";
 import { formatAmount } from "@/lib/money";
 import { sendTemplate, waPhone, whatsappReady } from "@/lib/whatsapp";
+import { hotelProgress } from "@/lib/whatsappReminders";
 
 /**
  * The 8 AM WhatsApp run (vercel.json, 08:00 IST). Two lists:
@@ -61,30 +62,13 @@ async function sendReport(phone, name, propertyId) {
   );
 }
 
-const count = async (query) => (await query).count ?? 0;
-
 /** The reminder this hotel needs today, or null once it is using the app. */
 async function reminderFor(db, p) {
-  const [roomTypes, rooms, lastBooking, tz] = await Promise.all([
-    count(db.from("room_types").select("id", { count: "exact", head: true }).eq("property_id", p.id)),
-    count(db.from("rooms").select("id", { count: "exact", head: true }).eq("property_id", p.id).eq("is_active", true)),
-    db
-      .from("reservations")
-      .select("created_at")
-      .eq("property_id", p.id)
-      .not("status", "in", "(cancelled,no_show)")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .then(({ data }) => data?.[0]?.created_at ?? null),
-    getPropertyClock(p.id),
-  ]);
-  const done = !roomTypes ? 0 : !rooms ? 50 : p.total_rooms ? Math.min(100, Math.round((rooms / p.total_rooms) * 100)) : 100;
-  if (done < 100) return { template: "setup_reminder_v2", third: done ? `${done}%` : "not yet" };
-
-  const shown = (ts) =>
-    new Date(`${localDay(ts, tz)}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-  if (!lastBooking) return { template: "day3_checkin_v2", third: shown(p.created_at) };
-  if (Date.now() - Date.parse(lastBooking) > QUIET_DAYS * 86400000) return { template: "day3_checkin_v2", third: shown(lastBooking) };
+  const { done, setup, since, lastBooking } = await hotelProgress(db, p);
+  if (done < 100) return { template: "setup_reminder_v2", third: setup };
+  if (!lastBooking || Date.now() - Date.parse(lastBooking) > QUIET_DAYS * 86400000) {
+    return { template: "day3_checkin_v2", third: since };
+  }
   return null;
 }
 

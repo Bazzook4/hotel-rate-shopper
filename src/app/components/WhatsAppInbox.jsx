@@ -315,6 +315,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
   const picker = useRef(null);
   const reply = useRef(null);
   const firstBlank = useRef(null);
+  const chosen = useRef("");
   const lastAt = contact.last?.created_at;
   const lead = contact.lead && !contact.property_id ? contact.lead : null;
 
@@ -390,6 +391,17 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
     setTemplate(name);
     const blanks = templates[name]?.params || [];
     setParams(blanks.map((label) => (label === "Name" ? first : label === "Hotel" ? hotelName || contact.lead?.hotel_name || "" : "")));
+    chosen.current = name;
+    if (!name || !contact.property_id) return;
+    // A linked hotel's own figures fill what is still blank; anything typed stays.
+    call("GET", null, `?prefill=${contact.property_id}`)
+      .then((f) => {
+        if (chosen.current !== name) return;
+        const from = (label) =>
+          label === "Name" ? f.name : label === "Hotel" ? f.hotel : label.startsWith("How far") ? f.setup : label.startsWith("Since") ? f.since : "";
+        setParams((now) => blanks.map((label, i) => now[i] || from(label) || ""));
+      })
+      .catch(() => {});
   }
 
   const canText = !busy && !preparing && ready && (text.trim() || file);

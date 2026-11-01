@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getSupabaseAdmin } from "@/lib/database";
+import { hotelProgress } from "@/lib/whatsappReminders";
 import { TEMPLATES, inWindow, sendTemplate, sendText, waPhone, whatsappReady } from "@/lib/whatsapp";
 import { aiReady } from "@/lib/aiAgent";
 import { MEDIA_TYPES } from "@/lib/whatsappMedia";
@@ -69,6 +70,20 @@ export async function GET(req) {
   if (!(await guard(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const db = getSupabaseAdmin();
   const phone = req.nextUrl.searchParams.get("phone");
+  const prefill = req.nextUrl.searchParams.get("prefill");
+
+  // What the inbox's template boxes can fill in for a linked hotel.
+  if (prefill) {
+    const { data: p, error } = await db
+      .from("properties")
+      .select("id, name, contact_name, total_rooms, created_at")
+      .eq("id", prefill)
+      .maybeSingle();
+    if (error) return failure(error);
+    if (!p) return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
+    const { setup, since } = await hotelProgress(db, p);
+    return NextResponse.json({ name: p.contact_name ? p.contact_name.trim().split(/\s+/)[0] : "", hotel: p.name, setup, since });
+  }
 
   if (phone) {
     const { data, error } = await db
