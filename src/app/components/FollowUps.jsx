@@ -4,24 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { Facts, Fact } from "./Facts";
 import Icon from "./Icon";
 import { ContactLine } from "./PropertyAdmin";
-import { STATUS, statusOf, ago } from "./HotelUsage";
+import { STATUS, ago } from "./HotelUsage";
+import Select from "./Select";
 import { useEscape } from "./useEscape";
-import { useSort, SortTh } from "../dashboard/components/useSort";
 import { whatsappNumber } from "../dashboard/components/frontDesk";
 
 /**
- * Super admin only: draft a WhatsApp message to a hotel asking whether they
+ * Super admin only, opened from Admin > Usage: draft a WhatsApp message to a hotel asking whether they
  * have questions or where they are stuck, written around what that hotel has
  * actually done (set up, bookings, pages used, guides). Each message opened
  * in WhatsApp is saved with what the hotel had done by then and a note of
  * their reply (migration 062), so the next follow-up starts from the last.
  */
 
-const DAY = 24 * 60 * 60 * 1000;
-const RECENT_DAYS = 7;
 const TOP_PAGES = 4;
 
-const KINDS = {
+export const KINDS = {
   questions: "Any questions",
   setup: "Stuck in setup",
   first_booking: "First booking",
@@ -33,8 +31,6 @@ const KIND_FOR_STATUS = { setup: "setup", nobook: "first_booking", quiet: "quiet
 
 const shortDate = (iso) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-
-const daysSince = (iso) => (iso ? Math.floor((Date.now() - new Date(iso).getTime()) / DAY) : null);
 
 const list = (items) =>
   items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
@@ -115,6 +111,123 @@ function draft(kind, hotel, a) {
   ].join("\n");
 }
 
+/** What a WhatsApp plan (migration 070) sends each morning. */
+export const PLAN_KINDS = {
+  daily_report: "Daily report",
+  reminder: "Reminder",
+};
+
+const PLAN_DAYS = [3, 5, 7, 14, 30];
+
+/** A plan in a few words: "Reminder, day 2 of 7". */
+export function planLabel(plan) {
+  if (!plan) return null;
+  return `${PLAN_KINDS[plan.kind] || plan.kind}, day ${plan.sent} of ${plan.days}`;
+}
+
+/** Why the last morning message failed, in plain words. */
+export function planError(message) {
+  if (!message) return null;
+  if (/131026|not a valid whatsapp|undeliverable|recipient/i.test(message)) return "This number is not on WhatsApp";
+  if (/131049|ecosystem|healthy/i.test(message)) return "WhatsApp held it back, will try tomorrow";
+  if (/template|132\d{3}/i.test(message)) return "The message template was refused";
+  if (/not connected/i.test(message)) return "WhatsApp is not connected";
+  return "Could not send";
+}
+
+/** The message type that fits a hotel: the report once it is busy, else a reminder. */
+export const planKindFor = (status) => (status === "active" ? "daily_report" : "reminder");
+
+export async function savePlans(method, body) {
+  const r = await fetch("/api/admin/wa-schedules", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || "Could not save");
+  return j.rows;
+}
+
+/**
+ * Start or stop the morning WhatsApp for one hotel or many: what to send
+ * and for how many days. The reminder asks about setup or bookings,
+ * whichever the hotel needs, and stops once it needs neither.
+ */
+export function PlanControls({ ids, live, defaultKind = "reminder", onSaved, disabled }) {
+  const [kind, setKind] = useState(defaultKind);
+  const [days, setDays] = useState("7");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+
+  useEffect(() => setKind(defaultKind), [defaultKind]);
+
+  const hotels = `${ids.length} hotel${ids.length === 1 ? "" : "s"}`;
+
+  async function run(method, body, said) {
+    setBusy(true);
+    setError("");
+    setDone("");
+    try {
+      const rows = await savePlans(method, body);
+      setDone(said);
+      onSaved(rows, said);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <Select value={kind} onChange={(e) => setKind(e.target.value)} style={{ width: "auto" }} aria-label="What to send">
+        {Object.entries(PLAN_KINDS).map(([k, label]) => (
+          <option key={k} value={k}>
+            {label}
+          </option>
+        ))}
+      </Select>
+      <span>every morning for</span>
+      <Select value={days} onChange={(e) => setDays(e.target.value)} style={{ width: "auto" }} aria-label="How many days">
+        {PLAN_DAYS.map((d) => (
+          <option key={d} value={String(d)}>
+            {d} days
+          </option>
+        ))}
+      </Select>
+      <button
+        type="button"
+        className="btn btn-primary text-sm"
+        disabled={disabled || busy}
+        title={live ? "Ends the plan running now and starts again from day 1" : undefined}
+        onClick={() =>
+          run(
+            "POST",
+            { property_ids: ids, kind, days: Number(days) },
+            `${PLAN_KINDS[kind]} starts tomorrow 8 AM for ${hotels}, ${days} days.`
+          )
+        }
+      >
+        {live ? "Restart" : "Start"}
+      </button>
+      {live && (
+        <button
+          type="button"
+          className="btn btn-ghost text-sm"
+          disabled={disabled || busy}
+          onClick={() => run("DELETE", { property_ids: ids }, `Stopped for ${hotels}.`)}
+        >
+          Stop
+        </button>
+      )}
+      {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
+      {done && !error && <span className="text-xs muted">{done}</span>}
+    </div>
+  );
+}
+
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -135,174 +248,7 @@ async function send(method, body) {
   return j.row;
 }
 
-const SORT = {
-  name: "name",
-  status: (r) => STATUS[r.status].order,
-  open: (r) => r.last_open,
-  last: (r) => r.last_follow?.sent_at ?? "",
-};
-
-export default function FollowUps() {
-  const [hotels, setHotels] = useState(null);
-  const [follows, setFollows] = useState([]);
-  const [missing, setMissing] = useState(false);
-  const [error, setError] = useState("");
-  const [filter, setFilter] = useState(null);
-  const [openId, setOpenId] = useState(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetch("/api/admin/usage").then(async (r) => {
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(j.error || "Could not load hotels");
-        return j.rows;
-      }),
-      fetch("/api/admin/followups").then(async (r) => {
-        const j = await r.json().catch(() => ({}));
-        return r.ok ? { rows: j.rows } : { rows: [], missing: j.missing, error: j.error };
-      }),
-    ])
-      .then(([rows, f]) => {
-        if (cancelled) return;
-        setHotels(rows.map((r) => ({ ...r, status: statusOf(r) })));
-        setFollows(f.rows);
-        if (f.missing) setMissing(true);
-        else if (f.error) setError(f.error);
-      })
-      .catch((e) => !cancelled && setError(e.message));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const rows = useMemo(() => {
-    const last = new Map();
-    for (const f of follows) if (!last.has(f.property_id)) last.set(f.property_id, f);
-    return (hotels || []).map((h) => ({ ...h, last_follow: last.get(h.id) || null }));
-  }, [hotels, follows]);
-
-  const counts = useMemo(() => {
-    const c = { never: 0, recent: 0, setup: 0, nobook: 0, quiet: 0 };
-    for (const r of rows) {
-      if (!r.last_follow) c.never += 1;
-      else if (daysSince(r.last_follow.sent_at) < RECENT_DAYS) c.recent += 1;
-      if (c[r.status] != null) c[r.status] += 1;
-    }
-    return c;
-  }, [rows]);
-
-  const shown = useMemo(() => {
-    if (!filter) return rows;
-    if (filter === "never") return rows.filter((r) => !r.last_follow);
-    if (filter === "recent") return rows.filter((r) => r.last_follow && daysSince(r.last_follow.sent_at) < RECENT_DAYS);
-    return rows.filter((r) => r.status === filter);
-  }, [rows, filter]);
-
-  // Hotels that need a nudge first: not set up, no bookings, quiet, active.
-  const sorter = useSort(shown, SORT, { key: "status", dir: "asc" });
-
-  if (error && !hotels) {
-    return (
-      <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
-        {error}
-      </div>
-    );
-  }
-  if (!hotels) return <p className="sub">Loading...</p>;
-
-  const pick = (key) => () => setFilter((f) => (f === key || key === "all" ? null : key));
-  const on = (key) => (filter === key ? "ok" : undefined);
-  const open = rows.find((r) => r.id === openId);
-
-  return (
-    <div className="space-y-3">
-      {missing && (
-        <div className="rounded-xl border border-[var(--warn)] px-4 py-2 text-sm" style={{ color: "var(--warn)" }}>
-          Messages can be drafted, but are not saved yet: run migration 062.
-        </div>
-      )}
-      {error && hotels && (
-        <div className="rounded-xl border border-[var(--danger)] px-4 py-2 text-sm text-[var(--danger)]">{error}</div>
-      )}
-      <Facts>
-        <Fact label="Hotels" onClick={pick("all")}>{rows.length}</Fact>
-        <Fact label="Never followed up" tone={on("never")} onClick={pick("never")}>{counts.never}</Fact>
-        <Fact label={`Followed up, last ${RECENT_DAYS} days`} tone={on("recent")} onClick={pick("recent")}>{counts.recent}</Fact>
-        <Fact label="Not set up" tone={on("setup")} onClick={pick("setup")}>{counts.setup}</Fact>
-        <Fact label="No bookings" tone={on("nobook")} onClick={pick("nobook")}>{counts.nobook}</Fact>
-        <Fact label="Quiet" tone={on("quiet")} onClick={pick("quiet")}>{counts.quiet}</Fact>
-      </Facts>
-
-      <div className="card">
-        <table className="grid-table min-w-full text-sm">
-          <thead>
-            <tr>
-              <SortTh sorter={sorter} col="name">Hotel</SortTh>
-              <SortTh sorter={sorter} col="status">Status</SortTh>
-              <SortTh sorter={sorter} col="open">Last opened</SortTh>
-              <SortTh sorter={sorter} col="last">Last followed up</SortTh>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {sorter.rows.map((r) => (
-              <tr key={r.id}>
-                <td>
-                  <span className="block text-ink">{r.name}</span>
-                  {r.city && <span className="block text-xs muted">{r.city}</span>}
-                  {(r.contact_name || r.contact_phone) && (
-                    <ContactLine name={r.contact_name} phone={r.contact_phone} />
-                  )}
-                </td>
-                <td>
-                  <span className={`chip ${STATUS[r.status].chip}`}>{STATUS[r.status].label}</span>
-                </td>
-                <td className="muted">{ago(r.last_open)}</td>
-                <td className="muted">
-                  {r.last_follow ? (
-                    <>
-                      {ago(r.last_follow.sent_at)}
-                      <span className="block text-xs">{KINDS[r.last_follow.kind] || r.last_follow.kind}</span>
-                    </>
-                  ) : (
-                    "Never"
-                  )}
-                </td>
-                <td className="text-right">
-                  <button type="button" className="btn btn-secondary text-sm" onClick={() => setOpenId(r.id)}>
-                    Follow up
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {sorter.rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-8 text-center sub">
-                  No hotels here.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {open && (
-        <FollowUpPanel
-          hotel={open}
-          history={follows.filter((f) => f.property_id === open.id)}
-          canSave={!missing}
-          onSaved={(row) =>
-            setFollows((all) => [row, ...all.filter((f) => f.id !== row.id)].sort((a, b) => (a.sent_at < b.sent_at ? 1 : -1)))
-          }
-          onClose={() => setOpenId(null)}
-        />
-      )}
-    </div>
-  );
-}
-
-function FollowUpPanel({ hotel, history, canSave, onSaved, onClose }) {
+export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansReady, onPlans, onClose }) {
   useEscape(onClose);
   const [usage, setUsage] = useState(null);
   const [kind, setKind] = useState(KIND_FOR_STATUS[hotel.status]);
@@ -365,6 +311,32 @@ function FollowUpPanel({ hotel, history, canSave, onSaved, onClose }) {
             <Fact label="Contact">{hotel.contact_name || "-"}</Fact>
             <Fact label="Mobile" tone={digits ? undefined : "warn"}>{hotel.contact_phone || "None"}</Fact>
           </Facts>
+
+          <div>
+            <div className="label">Morning WhatsApp</div>
+            <p className="mt-1 text-sm">
+              {!plan ? "None sent yet." : plan.stopped_at ? `Ended: ${plan.stop_reason || "stopped"}. ${planLabel(plan)}.` : planLabel(plan)}
+              {plan?.last_error && (
+                <span className="block text-xs text-[var(--danger)]">Last one failed: {planError(plan.last_error)}</span>
+              )}
+            </p>
+            <div className="mt-2">
+              {plansReady ? (
+                digits ? (
+                  <PlanControls
+                    ids={[hotel.id]}
+                    live={Boolean(plan && !plan.stopped_at)}
+                    defaultKind={planKindFor(hotel.status)}
+                    onSaved={onPlans}
+                  />
+                ) : (
+                  <span className="text-sm" style={{ color: "var(--warn)" }}>Add a contact mobile to send these.</span>
+                )
+              ) : (
+                <span className="text-sm muted">Run migration 070 to switch these on.</span>
+              )}
+            </div>
+          </div>
 
           <div>
             <div className="label">What they have done</div>

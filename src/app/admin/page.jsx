@@ -7,7 +7,6 @@ import UserList from "../components/UserList";
 import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
 import HotelUsage from "../components/HotelUsage";
-import FollowUps from "../components/FollowUps";
 import WhatsAppInbox from "../components/WhatsAppInbox";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
@@ -46,7 +45,9 @@ export default function AdminPage() {
         setSession(data.user);
         // The last tab opened comes back next time, so a daily WhatsApp check is
         // one tap; a super admin's tab is not restored for a property admin.
-        const saved = localStorage.getItem("adminTab");
+        // Follow up became part of Usage.
+        const stored = localStorage.getItem("adminTab");
+        const saved = stored === "follow" ? "usage" : stored;
         if (saved === "users" || (saved && isSuperAdmin(data.user))) setTabState(saved);
       } catch {
         router.push("/login");
@@ -89,8 +90,7 @@ export default function AdminPage() {
               ["users", "Users"],
               ...(isSuperAdmin(session)
                 ? [
-                    ["usage", "Usage"],
-                    ["follow", "Follow up"],
+                    ["usage", "Usage & follow up"],
                     ["whatsapp", "WhatsApp"],
                     ["partners", "Partners"],
                   ]
@@ -123,7 +123,6 @@ export default function AdminPage() {
             </div>
           )}
           {tab === "usage" && isSuperAdmin(session) && <HotelUsage />}
-          {tab === "follow" && isSuperAdmin(session) && <FollowUps />}
           {tab === "whatsapp" && isSuperAdmin(session) && <WhatsAppInbox />}
           {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
         </div>
