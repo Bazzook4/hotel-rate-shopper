@@ -12,17 +12,28 @@
 
 import nodemailer from "nodemailer";
 
-const esc = (s) =>
+export const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-export async function sendWelcomeEmail({ to, propertyName, contactName, password, loginUrl }) {
+/** Sends through the ops mailbox. False, with a warning, when mail is not set up. */
+export async function sendAppMail({ to, subject, text, html }) {
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   if (!user || !pass) {
-    console.warn("Welcome email not sent: SMTP_USER or SMTP_PASS is not set.");
-    return;
+    console.warn(`Email not sent (${subject}): SMTP_USER or SMTP_PASS is not set.`);
+    return false;
   }
+  const transport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: { user, pass },
+  });
+  await transport.sendMail({ from: { name: "OnlineHotelier", address: user }, to, subject, text, html });
+  return true;
+}
 
+export async function sendWelcomeEmail({ to, propertyName, contactName, password, loginUrl }) {
   const greeting = contactName ? `Hello ${contactName},` : "Hello,";
   const text = [
     greeting,
@@ -50,17 +61,5 @@ export async function sendWelcomeEmail({ to, propertyName, contactName, password
 <p>OnlineHotelier</p>
 </div>`;
 
-  const transport = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: 465,
-    secure: true,
-    auth: { user, pass },
-  });
-  await transport.sendMail({
-    from: { name: "OnlineHotelier", address: user },
-    to,
-    subject: `Your OnlineHotelier login for ${propertyName}`,
-    text,
-    html,
-  });
+  await sendAppMail({ to, subject: `Your OnlineHotelier login for ${propertyName}`, text, html });
 }

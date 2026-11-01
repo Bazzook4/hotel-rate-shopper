@@ -82,8 +82,22 @@ export async function GET(req) {
       .maybeSingle();
     if (error) return failure(error);
     if (!p) return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
-    const { setup, since } = await hotelProgress(db, p);
-    return NextResponse.json({ name: p.contact_name ? p.contact_name.trim().split(/\s+/)[0] : "", hotel: p.name, setup, since });
+    const [{ setup, since }, { data: logins }] = await Promise.all([
+      hotelProgress(db, p),
+      db.from("user_properties").select("users(email, role, status, created_at)").eq("property_id", p.id),
+    ]);
+    // The hotel's admin login first, then its oldest; never a deactivated one.
+    const login = (logins || [])
+      .map((l) => l.users)
+      .filter((u) => u && (!u.status || u.status === "Active"))
+      .sort((a, b) => (b.role === "PropertyAdmin") - (a.role === "PropertyAdmin") || String(a.created_at).localeCompare(String(b.created_at)))[0];
+    return NextResponse.json({
+      name: p.contact_name ? p.contact_name.trim().split(/\s+/)[0] : "",
+      hotel: p.name,
+      setup,
+      since,
+      login: login?.email || "",
+    });
   }
 
   if (phone) {

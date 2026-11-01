@@ -5,6 +5,9 @@ const PUBLIC_PATHS = new Set([
   "/login",
   // A new hotel arrives here from an onboarding link, before it has an account.
   "/onboard",
+  // Someone who has lost their password has no session. The link is the key.
+  "/forgot-password",
+  "/reset-password",
   "/api/auth/login",
   "/api/auth/logout",
   // Vercel's daily cron has no session; the route checks CRON_SECRET itself.

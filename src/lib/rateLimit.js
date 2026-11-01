@@ -105,6 +105,38 @@ export async function clearLoginFailures(email) {
   }
 }
 
+/**
+ * Reset-password emails, per address asked for and per network address, so
+ * the form cannot be used to flood someone's inbox. Counted for every
+ * request, known address or not, so the limit does not show which emails
+ * have accounts.
+ *
+ * Fails closed: each pass can send an email, and someone turned away can
+ * try again or ask their hotel admin.
+ */
+const RESET_MAX_PER_EMAIL = 3;
+const RESET_MAX_PER_IP = 10;
+const resetKeys = (email, ip) => [`reset:email:${email}`, `reset:ip:${ip}`];
+
+export async function resetAllowed(email, ip) {
+  const [emailKey, ipKey] = resetKeys(email, ip);
+  try {
+    const [byEmail, byIp] = await Promise.all([countSince(emailKey, HOUR), countSince(ipKey, HOUR)]);
+    return byEmail < RESET_MAX_PER_EMAIL && byIp < RESET_MAX_PER_IP;
+  } catch (err) {
+    console.error("Reset rate limit unavailable:", err.message);
+    return false;
+  }
+}
+
+export async function recordResetRequest(email, ip) {
+  try {
+    await Promise.all(resetKeys(email, ip).map(record));
+  } catch (err) {
+    console.error("Recording a reset request failed:", err.message);
+  }
+}
+
 const scrapeKey = (propertyId) => `scrape:${propertyId}`;
 
 /**

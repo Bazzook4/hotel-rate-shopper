@@ -398,7 +398,7 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
       .then((f) => {
         if (chosen.current !== name) return;
         const from = (label) =>
-          label === "Name" ? f.name : label === "Hotel" ? f.hotel : label.startsWith("How far") ? f.setup : label.startsWith("Since") ? f.since : "";
+          label === "Name" ? f.name : label === "Hotel" ? f.hotel : label.startsWith("How far") ? f.setup : label.startsWith("Since") ? f.since : label === "Login email" ? f.login : "";
         setParams((now) => blanks.map((label, i) => now[i] || from(label) || ""));
       })
       .catch(() => {});

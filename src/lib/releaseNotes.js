@@ -13,6 +13,13 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-11-01",
+    title: "Forgot your password? Reset it yourself",
+    points: [
+      { page: "today", text: "The login page now has a Forgot password button. Type your login email and we send a link to set a new password. The link works once and lasts one hour. Anyone without that email can still ask their hotel admin to reset it." },
+    ],
+  },
+  {
     date: "2026-10-30",
     title: "Your registered company name on invoices",
     points: [

@@ -38,6 +38,7 @@ const CHECKS = [
   { migration: "065_whatsapp_ai", table: "wa_contacts", column: "handoff_at" },
   { migration: "065_whatsapp_ai", table: "wa_leads", column: "current_otas" },
   { migration: "070_wa_schedules", table: "wa_schedules", column: "last_sent_on" },
+  { migration: "071_password_resets", table: "password_resets", column: "token_hash" },
 ];
 
 export async function GET(req) {
