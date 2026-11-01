@@ -137,7 +137,7 @@ export async function markRead(messageId) {
 /**
  * A note to the owner's own phone (ADMIN_ALERT_PHONE). Free text reaches it
  * only if the owner has written to the business number in the last 24
- * hours, so a refusal falls back to the lead_alert template.
+ * hours, so a refusal falls back to the lead_alert_v2 template.
  */
 export async function alertAdmin(text, templateParams) {
   const to = waPhone(process.env.ADMIN_ALERT_PHONE);
@@ -147,7 +147,7 @@ export async function alertAdmin(text, templateParams) {
   } catch {
     if (!templateParams) return;
     try {
-      await sendTemplate(to, "lead_alert", templateParams, "alert");
+      await sendTemplate(to, "lead_alert_v2", templateParams, "alert");
     } catch (err) {
       console.error("WhatsApp lead alert not sent:", err.message);
     }
@@ -159,6 +159,6 @@ export async function alertAdmin(text, templateParams) {
  * with what each blank is. The names must match Meta's exactly.
  */
 export const TEMPLATES = {
-  setup_reminder: { label: "Setup reminder", params: ["Name", "Hotel", "How far set up, like 60%"] },
-  day3_checkin: { label: "No bookings lately", params: ["Name", "Hotel", "Since, like 20 Oct"] },
+  setup_reminder_v2: { label: "Setup reminder", params: ["Name", "Hotel", "How far set up, like 60%"] },
+  day3_checkin_v2: { label: "No bookings lately", params: ["Name", "Hotel", "Since, like 20 Oct"] },
 };

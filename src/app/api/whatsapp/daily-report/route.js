@@ -44,7 +44,7 @@ export async function GET(req) {
       const revenue = (yesterday.revenue.room || 0) + (yesterday.revenue.otherTotal || 0);
       await sendTemplate(
         c.phone,
-        "daily_report",
+        "daily_report_v2",
         [
           name,
           String(now.movement.arrivals.expected),
