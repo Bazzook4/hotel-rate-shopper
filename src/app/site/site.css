@@ -1,5 +1,5 @@
 /* The hotel's website. Always light, on its own colours, so it reads the same on every guest's phone. */
-.site { --s-ink: #1c1917; --s-muted: #57534e; --s-line: #e7e5e4; --s-bg: #faf8f4; --s-card: #ffffff; --s-accent: #9a7436; --s-dark: #211d1a; --s-serif: var(--font-site-serif), "Cormorant Garamond", Georgia, "Times New Roman", serif;
+.site { --s-ink: #1c1917; --s-muted: #57534e; --s-line: #e7e5e4; --s-bg: #faf8f4; --s-card: #ffffff; --s-accent: #9a7436; --s-dark: #211d1a; --s-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
   background: var(--s-bg); color: var(--s-ink); min-height: 100vh; font-family: var(--font-geist-sans), system-ui, sans-serif; line-height: 1.6; }
 .site a { color: inherit; }
 .site-wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
