@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { findUserByEmail, getSupabaseAdmin } from "@/lib/database";
 import { RESET_MINUTES, newToken, sendResetEmail } from "@/lib/passwordReset";
-import { clientIp, recordResetRequest, resetAllowed } from "@/lib/rateLimit";
+import { clientIp, resetAllowed } from "@/lib/rateLimit";
 
 /**
  * Emails a one-time link to set a new password. The answer is the same
@@ -17,10 +17,10 @@ export async function POST(request) {
   }
 
   const ip = clientIp(request);
+  // Counted before checking, so requests sent together cannot all pass.
   if (!(await resetAllowed(email, ip))) {
     return NextResponse.json({ error: "Too many requests. Wait an hour and try again, or ask your hotel admin." }, { status: 429 });
   }
-  await recordResetRequest(email, ip);
 
   after(async () => {
     try {

@@ -121,19 +121,12 @@ const resetKeys = (email, ip) => [`reset:email:${email}`, `reset:ip:${ip}`];
 export async function resetAllowed(email, ip) {
   const [emailKey, ipKey] = resetKeys(email, ip);
   try {
+    await Promise.all([record(emailKey), record(ipKey)]);
     const [byEmail, byIp] = await Promise.all([countSince(emailKey, HOUR), countSince(ipKey, HOUR)]);
-    return byEmail < RESET_MAX_PER_EMAIL && byIp < RESET_MAX_PER_IP;
+    return byEmail <= RESET_MAX_PER_EMAIL && byIp <= RESET_MAX_PER_IP;
   } catch (err) {
     console.error("Reset rate limit unavailable:", err.message);
     return false;
-  }
-}
-
-export async function recordResetRequest(email, ip) {
-  try {
-    await Promise.all(resetKeys(email, ip).map(record));
-  } catch (err) {
-    console.error("Recording a reset request failed:", err.message);
   }
 }
 

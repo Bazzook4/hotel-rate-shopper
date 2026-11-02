@@ -5,6 +5,9 @@ import { esc, sendAppMail } from "@/lib/welcomeEmail";
  * Forgot password (migration 071). The email carries a one-time link; only
  * its hash is stored, so the table gives nobody a working link.
  *
+ * The secret sits after the # in the link, which browsers never send to a
+ * server, so it stays out of request logs.
+ *
  * The link's address is fixed rather than read from the request: a forged
  * Host header must not be able to send a real person's secret to another site.
  */
@@ -20,7 +23,7 @@ export function newToken() {
 }
 
 export async function sendResetEmail(to, token) {
-  const link = `${BASE_URL}/reset-password?token=${encodeURIComponent(token)}`;
+  const link = `${BASE_URL}/reset-password#token=${encodeURIComponent(token)}`;
   const text = [
     "Hello,",
     "",

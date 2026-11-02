@@ -13,7 +13,7 @@ export default function ResetPasswordPage() {
   const [done, setDone] = useState(false);
 
   useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get("token") || "");
+    setToken(new URLSearchParams(window.location.hash.slice(1)).get("token") || "");
   }, []);
 
   async function onSubmit(e) {

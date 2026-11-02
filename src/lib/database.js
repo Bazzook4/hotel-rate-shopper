@@ -46,7 +46,7 @@ export async function findUserByEmail(email) {
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .ilike('email', email)
+    .ilike('email', String(email).replace(/[\\%_]/g, '\\$&'))
     .single();
 
   if (error && error.code !== 'PGRST116') {
@@ -1062,6 +1062,17 @@ export async function setUserPassword(userId, passwordHash) {
 
   if (error) {
     throw new Error(`Failed to change password: ${error.message}`);
+  }
+
+  // Any change of password ends links still open from Forgot password.
+  // Before migration 071 there is no such table, and nothing to end.
+  const { error: linkError } = await supabase
+    .from('password_resets')
+    .update({ used_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('used_at', null);
+  if (linkError && !/password_resets/.test(linkError.message || '')) {
+    throw new Error(`Failed to end reset links: ${linkError.message}`);
   }
 }
 

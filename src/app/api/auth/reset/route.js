@@ -6,8 +6,8 @@ import { clearLoginFailures } from "@/lib/rateLimit";
 
 /**
  * Sets a new password from an emailed link. The link is claimed in one
- * update, so it works once even if sent twice at the same moment; on success
- * every other link for that person stops working too.
+ * update, so it works once even if sent twice at the same moment.
+ * setUserPassword ends every other link that person has open.
  */
 const BAD_LINK = "This link has expired or was already used. Ask for a new one.";
 
@@ -38,7 +38,6 @@ export async function POST(request) {
   try {
     const user = await getUserById(userId);
     await setUserPassword(userId, hashPassword(body.password));
-    await db.from("password_resets").update({ used_at: now }).eq("user_id", userId).is("used_at", null);
     if (user?.email) await clearLoginFailures(user.email.trim().toLowerCase());
     return NextResponse.json({ ok: true });
   } catch (err) {
