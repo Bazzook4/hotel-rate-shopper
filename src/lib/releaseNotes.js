@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-02",
+    title: "A more elegant hotel website",
+    points: [
+      { page: "bookingengine", text: "Your hotel website now has a palace look: a big photo at the top with your hotel name, a calm welcome, tall room photos, gold touches and a dark footer. Nothing to set up, it changes by itself." },
+    ],
+  },
+  {
+    date: "2026-11-02",
     title: "Your own hotel website",
     points: [
       { page: "bookingengine", text: "The Booking Engine now has a Website tab. Turn it on and your hotel gets a simple website with Home, Rooms, Gallery and Contact us, hosted by us. It uses the words and room photos you already added, plus gallery photos you upload here. Type your own web address and the tab shows you each step, from our approval to the one record you add where you bought it, until it is live." },

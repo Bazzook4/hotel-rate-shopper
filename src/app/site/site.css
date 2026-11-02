@@ -1,5 +1,5 @@
 /* The hotel's website. Always light, on its own colours, so it reads the same on every guest's phone. */
-.site { --s-ink: #1c1917; --s-muted: #57534e; --s-line: #e7e5e4; --s-bg: #fafaf9; --s-card: #ffffff; --s-accent: #15803d;
+.site { --s-ink: #1c1917; --s-muted: #57534e; --s-line: #e7e5e4; --s-bg: #faf8f4; --s-card: #ffffff; --s-accent: #9a7436; --s-dark: #211d1a; --s-serif: var(--font-site-serif), "Cormorant Garamond", Georgia, "Times New Roman", serif;
   background: var(--s-bg); color: var(--s-ink); min-height: 100vh; font-family: var(--font-geist-sans), system-ui, sans-serif; line-height: 1.6; }
 .site a { color: inherit; }
 .site-wrap { max-width: 1080px; margin: 0 auto; padding: 0 1.25rem; }
@@ -65,4 +65,48 @@
   .site-hero .copy { background: linear-gradient(0deg, rgba(0,0,0,.65), rgba(0,0,0,.2)); justify-content: flex-end; padding-bottom: 1.5rem; }
   .site-dl { grid-template-columns: 1fr; gap: .1rem; }
   .site-dl dd { margin-bottom: .6rem; }
+}
+
+/* Palace look: serif headings, spaced capitals, gold on charcoal, square corners, big quiet photos. */
+.site h1, .site h2, .site h3, .site-brand { font-family: var(--s-serif); font-weight: 500; letter-spacing: .01em; }
+.site-head { border-bottom: 1px solid var(--s-line); }
+.site-head .site-wrap { min-height: 76px; }
+.site-brand { font-size: 1.5rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.site-nav a { text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; border-radius: 0; padding: .65rem .9rem; border-bottom: 2px solid transparent; }
+.site-nav a:hover { background: none; color: var(--s-accent); }
+.site-nav a[aria-current="page"] { font-weight: 500; border-bottom-color: var(--s-accent); }
+.site-btn { border-radius: 0; text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; font-weight: 500; padding: .8rem 1.6rem; }
+.site-btn-line { color: var(--s-accent) !important; }
+.site-btn-light { background: transparent; color: #fff !important; border-color: #fff; }
+.site-btn-light:hover { background: #fff; color: var(--s-dark) !important; filter: none; }
+.site-hero img.bg { height: min(82vh, 760px); min-height: 460px; }
+.site-hero .copy { align-items: center; text-align: center; gap: 1rem; background: linear-gradient(0deg, rgba(0,0,0,.55), rgba(0,0,0,.15) 60%); justify-content: flex-end; padding-bottom: 4.5rem; }
+.site-hero h1 { font-size: clamp(2.4rem, 6.5vw, 4.6rem); font-weight: 400; }
+.site-hero h1::after { content: ""; display: block; width: 64px; height: 1px; background: #d9b878; margin: 1rem auto 0; }
+.site-hero p { font-family: var(--s-serif); font-size: 1.35rem; font-style: italic; max-width: 38rem; }
+.site-hero .site-actions { justify-content: center; margin-top: 1rem; }
+.site-hero.plain { padding: 6rem 0; background: var(--s-dark); }
+.site-hero.plain .copy { padding: 0 1.25rem; align-items: center; }
+.site-eyebrow { text-transform: uppercase; letter-spacing: .3em; font-size: .72rem; color: var(--s-accent); margin: 0 0 .75rem; }
+.site-section { padding: 4.5rem 0; }
+.site-section h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 1.25rem; }
+.site-center { text-align: center; }
+.site-center .site-about { margin-left: auto; margin-right: auto; font-family: var(--s-serif); font-size: 1.3rem; line-height: 1.75; }
+.site-center .site-actions, .site-center .site-chips { justify-content: center; }
+.site-chips { gap: 0; }
+.site-chips li { background: none; border: 0; border-radius: 0; padding: .35rem 1.1rem; text-transform: uppercase; letter-spacing: .16em; font-size: .75rem; color: var(--s-muted); }
+.site-chips li + li { border-left: 1px solid var(--s-line); }
+.site-band { background: var(--s-card); border-top: 1px solid var(--s-line); border-bottom: 1px solid var(--s-line); }
+.site-card, .site-room { border-radius: 0; border: 0; background: transparent; }
+.site-card .pic { aspect-ratio: 3 / 4; }
+.site-card .body { padding: 1.1rem 0 0; align-items: center; text-align: center; }
+.site-card h3 { font-size: 1.6rem; }
+.site-room { background: var(--s-card); }
+.site-room h3 { font-size: 1.9rem; }
+.site-pics button { border-radius: 0; }
+.site-foot { background: var(--s-dark); color: #d6d3d1; border-top: 0; padding: 2.5rem 0; margin-top: 0; text-transform: uppercase; letter-spacing: .12em; font-size: .75rem; }
+.site-foot a { color: #d9b878; text-decoration: none; }
+@media (max-width: 640px) {
+  .site-hero .copy { padding-bottom: 2.5rem; }
+  .site-section { padding: 3rem 0; }
 }

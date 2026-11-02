@@ -33,9 +33,10 @@ export default async function SiteHome({ params }) {
       </section>
 
       {details.about && (
-        <section className="site-section">
+        <section className="site-section site-center">
           <div className="site-wrap">
-            <h2>Welcome</h2>
+            <p className="site-eyebrow">Welcome</p>
+            <h2>{view.name}</h2>
             <p className="site-about">{details.about}</p>
             {(details.checkIn || details.checkOut) && (
               <p className="site-muted">
@@ -49,9 +50,9 @@ export default async function SiteHome({ params }) {
       )}
 
       {details.amenities.length > 0 && (
-        <section className="site-section" style={{ paddingTop: 0 }}>
+        <section className="site-section site-band site-center" style={{ padding: "2.5rem 0" }}>
           <div className="site-wrap">
-            <h2>What we offer</h2>
+            <p className="site-eyebrow">What we offer</p>
             <ul className="site-chips">
               {details.amenities.map((a) => (
                 <li key={a}>{a}</li>
@@ -62,16 +63,17 @@ export default async function SiteHome({ params }) {
       )}
 
       {view.rooms.length > 0 && (
-        <section className="site-section" style={{ paddingTop: 0 }}>
+        <section className="site-section site-center">
           <div className="site-wrap">
-            <h2>Our rooms</h2>
+            <p className="site-eyebrow">Stay with us</p>
+            <h2>Rooms and suites</h2>
             <div className="site-grid">
               {view.rooms.slice(0, 3).map((r) => (
                 <RoomCard key={r.id} room={r} />
               ))}
             </div>
             {view.rooms.length > 3 && (
-              <p style={{ marginTop: "1.25rem" }}>
+              <p style={{ marginTop: "2rem" }}>
                 <a className="site-btn site-btn-line" href={`${base}/rooms`}>
                   All {view.rooms.length} rooms
                 </a>

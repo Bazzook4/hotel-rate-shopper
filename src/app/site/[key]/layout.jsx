@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import { loadSite, siteBase } from "@/lib/hotelSite";
 import SiteNav from "./SiteNav";
+import { Cormorant_Garamond } from "next/font/google";
 import "../site.css";
+
+const serif = Cormorant_Garamond({ variable: "--font-site-serif", subsets: ["latin"], weight: ["400", "500", "600"], style: ["normal", "italic"] });
 
 /**
  * The hotel's website frame: its name, the four pages, and the contact line
@@ -32,7 +35,7 @@ export default async function SiteLayout({ children, params }) {
     { href: `${base}/contact`, label: "Contact us", match: "contact" },
   ];
   return (
-    <div className="site">
+    <div className={`site ${serif.variable}`}>
       <header className="site-head">
         <div className="site-wrap">
           <a className="site-brand" href={base || "/"}>
