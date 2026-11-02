@@ -183,7 +183,8 @@ export const maxPhotosFor = (target) =>
 
 /**
  * The hotel's own website (/site/<key>, or its domain): a line under the
- * name, its web address if it has one, and whether the site is open.
+ * name, its web address if it has one (and whether we approved it), and
+ * whether the site is open.
  */
 function cleanSite(raw) {
   const s = raw && typeof raw === "object" ? raw : {};
@@ -195,6 +196,8 @@ function cleanSite(raw) {
     .replace(/[\/?#].*$/, "");
   return {
     on: s.on === true,
+    // Set only by our team, and only for the address it was given for (saveBookingContent keeps it honest).
+    approved: s.approved === true,
     tagline: String(s.tagline ?? "").trim().replace(/\s+/g, " ").slice(0, 120),
     domain: /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(domain) ? domain.slice(0, 120) : "",
   };

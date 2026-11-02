@@ -124,11 +124,116 @@ function LinkBar({ url, open, onTurnOn }) {
 }
 
 /**
+ * Where the hotel's own web address stands: waiting for our approval, then
+ * for the record the hotel adds where it bought the address, then live. Our
+ * team approves from here, which puts the address on our hosting.
+ */
+function DomainBox({ saved, typed, propertyId, superAdmin }) {
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!saved.domain) return undefined;
+    fetch(`/api/setup/bookingEngine/domain${propertyId ? `?propertyId=${encodeURIComponent(propertyId)}` : ""}`)
+      .then((r) => r.json())
+      .then((json) => !cancelled && setStatus(json))
+      .catch(() => !cancelled && setStatus({ error: "Could not check your address. Try again." }));
+    return () => {
+      cancelled = true;
+    };
+  }, [saved.domain, propertyId, tick]);
+
+  async function approve() {
+    setBusy(true);
+    setError("");
+    try {
+      await sendJSON("/api/setup/bookingEngine/domain", "POST", { propertyId: propertyId || undefined });
+      setTick((n) => n + 1);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!saved.domain) {
+    return <p className="sub">Type your own web address above, such as www.myhotel.com, and press Save website. We will switch it on.</p>;
+  }
+  if (typed !== saved.domain) return <p className="sub">Press Save website to use the new address.</p>;
+  if (!status) return <p className="sub">Checking your address...</p>;
+
+  let body;
+  if (status.error) {
+    body = <p style={{ color: "var(--danger)" }}>{status.error}</p>;
+  } else if (!status.approved) {
+    body = superAdmin ? (
+      <>
+        <p>This address is waiting for us. Check the hotel owns it, then approve. It is added to our hosting at once.</p>
+        <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={approve}>
+          {busy ? "Switching on..." : "Approve and switch on"}
+        </button>
+      </>
+    ) : (
+      <p>We have your address. We will check it and switch it on, then show you here what to do next.</p>
+    );
+  } else if (status.state === "live") {
+    body = <p style={{ color: "var(--accent-text)" }}>Live. Your website opens at {saved.domain}.</p>;
+  } else if (status.state === "missing") {
+    body = superAdmin ? (
+      <button type="button" className="btn btn-primary text-sm" disabled={busy} onClick={approve}>
+        {busy ? "Switching on..." : "Switch on again"}
+      </button>
+    ) : (
+      <p>Your address is not switched on. Please contact us.</p>
+    );
+  } else {
+    body = (
+      <>
+        <p>
+          One step left. Where you bought {saved.domain}, add {status.records.length === 1 ? "this record" : "these records"}. It can take a few
+          hours to start working.
+        </p>
+        <Grid>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Name</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {status.records.map((r) => (
+              <tr key={`${r.type}${r.name}${r.value}`}>
+                <td className="font-mono">{r.type}</td>
+                <td className="font-mono">{r.name}</td>
+                <td className="font-mono">{r.value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </Grid>
+        <button type="button" className="btn btn-secondary text-sm" onClick={() => setTick((n) => n + 1)}>
+          Check again
+        </button>
+      </>
+    );
+  }
+  return (
+    <div className="sub space-y-2">
+      {body}
+      {error && <p style={{ color: "var(--danger)" }}>{error}</p>}
+    </div>
+  );
+}
+
+/**
  * The hotel's own website (Home, Rooms, Gallery, Contact us): on or off, a
  * line under the name, its own web address, and the gallery photos. The
  * words and room photos come from the Hotel and Rooms tabs.
  */
-function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, superAdmin }) {
+function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, superAdmin, propertyId }) {
   const [form, setForm] = useState(saved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -179,19 +284,7 @@ function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, s
             onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
           />
         </label>
-        <div className="sub space-y-1">
-          <p className="font-medium">To use your own web address</p>
-          <ol className="list-decimal space-y-1 pl-5">
-            <li>Type your address above and press Save website.</li>
-            <li>Tell us. We add your address on our side and send you one record.</li>
-            <li>Add that record where you bought your address. It can take a few hours to start working.</li>
-          </ol>
-          {superAdmin && (
-            <p className="font-medium" style={{ color: "var(--warn)" }}>
-              For us: add this address in Vercel, Settings, Domains. Check the hotel owns it first. Then send the hotel the record Vercel shows.
-            </p>
-          )}
-        </div>
+        <DomainBox saved={saved} typed={form.domain} propertyId={propertyId} superAdmin={superAdmin} />
         {error && (
           <p className="text-sm" style={{ color: "var(--danger)" }}>
             {error}
@@ -725,6 +818,7 @@ export default function BookingEngine({ session }) {
           onPhotos={() => photosClicked(gallery)}
           bookingKey={data.key}
           superAdmin={isSuperAdmin(session)}
+          propertyId={propertyId}
           onSave={async (site) => {
             const json = await sendJSON("/api/setup/bookingEngine", "PUT", {
               propertyId: propertyId || undefined,

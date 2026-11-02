@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import QRCode from "qrcode";
+import { addDomain, removeDomain } from "@/lib/vercelDomains";
 import {
   getSupabaseAdmin,
   getAvailabilityGrid,
@@ -175,11 +176,32 @@ export async function saveBookingContent(propertyId, input) {
       .limit(1);
     if (taken?.length) throw new Error("That web address is already used by another hotel.");
   }
+  // Approval is ours to give: it carries over only while the address is the one we approved.
+  const was = current.content.site;
+  content.site.approved = was.approved && was.domain === content.site.domain && Boolean(content.site.domain);
   const updates = { booking_engine: { ...current.prefs, content }, updated_at: new Date().toISOString() };
   if (!current.key) updates.booking_key = randomBytes(9).toString("base64url");
   const { error } = await getSupabaseAdmin().from("properties").update(updates).eq("id", propertyId);
   if (error) throw new Error(/booking_/.test(error.message) ? BOOKING_NOT_READY : error.message);
+  // An approved address the hotel changed or cleared comes off our side too.
+  if (was.approved && !content.site.approved) await removeDomain(was.domain);
   return getBookingSettings(propertyId);
+}
+
+/** Our team's yes to a hotel's own address: put it on Vercel, then mark it approved. */
+export async function approveDomain(propertyId) {
+  const current = await getBookingSettings(propertyId);
+  const site = current.content.site;
+  if (!site.domain) return { error: "This hotel has not typed a web address." };
+  const added = await addDomain(site.domain);
+  if (added.error) return added;
+  const content = { ...current.content, site: { ...site, approved: true } };
+  const { error } = await getSupabaseAdmin()
+    .from("properties")
+    .update({ booking_engine: { ...current.prefs, content }, updated_at: new Date().toISOString() })
+    .eq("id", propertyId);
+  if (error) throw new Error(error.message);
+  return { ok: true };
 }
 
 // ------------------------------------------------------------------

@@ -30,6 +30,8 @@ export async function findSite(keyOrHost) {
   if (error || !data) return null;
   const content = cleanBookingContent(data.booking_engine?.content);
   if (!content.site.on) return null;
+  // A hotel's own address only answers once we approved it.
+  if (id.includes(".") && !content.site.approved) return null;
   return { property: data, content, prefs: cleanBookingPrefs(data.booking_engine) };
 }
 
