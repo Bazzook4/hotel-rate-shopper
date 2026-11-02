@@ -158,8 +158,41 @@ async function aiAnswer(phone, id) {
   }
 }
 
+/**
+ * CRM: a number that is not a hotel is a lead from its first message, even
+ * when the bot never gets details. A lead we could not reach that writes
+ * back is contacted again. Runs after the bot, so it never doubles a lead
+ * the bot made.
+ */
+async function recordLeads(all) {
+  const db = getSupabaseAdmin();
+  for (const phone of new Set(all.map((r) => r.contact?.phone).filter(Boolean))) {
+    const { data: contact } = await db.from("wa_contacts").select("property_id").eq("phone", phone).maybeSingle();
+    if (!contact || contact.property_id) continue;
+    const { data: lead } = await db
+      .from("wa_leads")
+      .select("id, status")
+      .eq("phone", phone)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!lead) await db.from("wa_leads").insert({ phone, step: "done", status: "new" });
+    else if (lead.status === "no_contact") {
+      await db.from("wa_leads").update({ status: "contacted", updated_at: new Date().toISOString() }).eq("id", lead.id);
+    }
+  }
+}
+
 /** One at a time, so two quick messages from one phone cannot answer the same question twice. */
 async function reply(all) {
+  try {
+    await answer(all);
+  } finally {
+    await recordLeads(all).catch((err) => console.error("WhatsApp lead not recorded:", err.message));
+  }
+}
+
+async function answer(all) {
   for (const { id } of all) await markRead(id);
   for (const { saved } of all) {
     await storeIncoming(saved).catch((err) => console.error("WhatsApp file not kept:", err.message));

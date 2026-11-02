@@ -24,7 +24,7 @@ import { MEDIA_TYPES } from "@/lib/whatsappMedia";
  *                   { lead_id, status | hotel_name | city | rooms | interest } a lead
  */
 
-const LEAD_STATUSES = ["new", "contacted", "won", "lost"];
+const LEAD_STATUSES = ["new", "contacted", "no_contact", "won", "lost"];
 
 /** A chat's messages as the inbox shows them: reactions folded onto their message, media named. */
 function thread(rows) {
@@ -205,6 +205,12 @@ export async function POST(req) {
       // Answered: no longer waiting on SJ. Ignored before migration 065.
       await getSupabaseAdmin().from("wa_contacts").update({ handoff_at: null }).eq("phone", phone);
     }
+    // A person has written to the lead: a new or unreachable lead is now contacted.
+    await getSupabaseAdmin()
+      .from("wa_leads")
+      .update({ status: "contacted", updated_at: new Date().toISOString() })
+      .eq("phone", phone)
+      .in("status", ["new", "no_contact"]);
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 502 });
   }

@@ -30,8 +30,8 @@ import { shrink } from "../dashboard/components/GuestIdPhotos";
 const POLL_MS = 15000;
 const THREAD_POLL_MS = 4000;
 const ATTACH_TYPES = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
-const LEAD_STATUS = { new: "New", contacted: "Contacted", won: "Won", lost: "Lost" };
-const INTEREST = {
+export const LEAD_STATUS = { new: "New enquiry", contacted: "Contacted", no_contact: "No contact", won: "Won", lost: "Lost" };
+export const INTEREST = {
   ota_listing: "OTA listing",
   pms: "Free PMS",
   ota_audit: "OTA audit",
@@ -52,9 +52,11 @@ const when = (iso) => {
 };
 
 const needsYou = (c) => Boolean(c.handoff_at);
-const openLead = (c) => c.lead && !c.property_id && ["new", "contacted"].includes(c.lead.status);
+export const LEAD_CHIP = { new: "chip-booked", contacted: "chip-booked", no_contact: "chip-warn", won: "chip-ok", lost: "chip-off" };
+export const OPEN_LEAD = ["new", "contacted", "no_contact"];
+const openLead = (c) => c.lead && !c.property_id && OPEN_LEAD.includes(c.lead.status);
 
-async function call(method, body, query = "") {
+export async function call(method, body, query = "") {
   const r = await fetch(`/api/admin/whatsapp${query}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -264,7 +266,7 @@ export default function WhatsAppInbox() {
                         c.bot_paused && <span className="chip chip-off">Bot off</span>
                       )}
                       {c.lead && !c.property_id && (
-                        <span className={`chip ${c.lead.status === "won" ? "chip-ok" : c.lead.status === "lost" ? "chip-off" : "chip-booked"}`}>
+                        <span className={`chip ${LEAD_CHIP[c.lead.status]}`}>
                           {LEAD_STATUS[c.lead.status]}
                         </span>
                       )}
@@ -298,7 +300,7 @@ export default function WhatsAppInbox() {
   );
 }
 
-function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onSent, onBack }) {
+export function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onSent, onBack, panel = false }) {
   const [messages, setMessages] = useState(null);
   const [text, setText] = useState("");
   const [template, setTemplate] = useState("");
@@ -484,10 +486,16 @@ function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onS
 
   return (
     // On a phone the open chat takes the whole screen, as WhatsApp does.
-    <div className="card flex min-w-0 flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-15rem)] md:min-h-96">
+    <div
+      className={
+        panel
+          ? "flex h-full min-w-0 flex-col"
+          : "card flex min-w-0 flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-15rem)] md:min-h-96"
+      }
+    >
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <button type="button" className="btn btn-ghost text-sm md:hidden" onClick={onBack} aria-label="Back to chats">
+          <button type="button" className={`btn btn-ghost text-sm${panel ? "" : " md:hidden"}`} onClick={onBack} aria-label="Back to chats">
             <Icon name="back" size={16} />
           </button>
           <div className="min-w-0">

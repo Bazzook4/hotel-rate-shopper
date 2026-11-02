@@ -6,8 +6,7 @@ import PropertyAdmin from "../components/PropertyAdmin";
 import UserList from "../components/UserList";
 import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
-import HotelUsage from "../components/HotelUsage";
-import WhatsAppInbox from "../components/WhatsAppInbox";
+import CRM from "../components/CRM";
 import SchemaStatus from "../components/SchemaStatus";
 import ThemeToggle from "../components/ThemeToggle";
 import { DialogProvider } from "../components/Dialog";
@@ -45,9 +44,9 @@ export default function AdminPage() {
         setSession(data.user);
         // The last tab opened comes back next time, so a daily WhatsApp check is
         // one tap; a super admin's tab is not restored for a property admin.
-        // Follow up became part of Usage.
+        // Usage, Follow up and WhatsApp became the CRM tab.
         const stored = localStorage.getItem("adminTab");
-        const saved = stored === "follow" ? "usage" : stored;
+        const saved = ["follow", "usage", "whatsapp"].includes(stored) ? "crm" : stored;
         if (saved === "users" || (saved && isSuperAdmin(data.user))) setTabState(saved);
       } catch {
         router.push("/login");
@@ -90,8 +89,7 @@ export default function AdminPage() {
               ["users", "Users"],
               ...(isSuperAdmin(session)
                 ? [
-                    ["usage", "Usage & follow up"],
-                    ["whatsapp", "WhatsApp"],
+                    ["crm", "CRM"],
                     ["partners", "Partners"],
                   ]
                 : []),
@@ -122,8 +120,7 @@ export default function AdminPage() {
               {isSuperAdmin(session) && <UserList session={session} />}
             </div>
           )}
-          {tab === "usage" && isSuperAdmin(session) && <HotelUsage />}
-          {tab === "whatsapp" && isSuperAdmin(session) && <WhatsAppInbox />}
+          {tab === "crm" && isSuperAdmin(session) && <CRM />}
           {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
         </div>
       </main>
