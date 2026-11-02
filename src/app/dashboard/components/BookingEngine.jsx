@@ -13,6 +13,7 @@ import {
   timeLabel,
   maxPhotosFor,
 } from "@/lib/bookingEngineShared";
+import { isSuperAdmin } from "@/lib/permissions";
 import BookingEngineSettings from "./BookingEngineSettings";
 import OffersTab from "./BookingOffers";
 import { shrink } from "./GuestIdPhotos";
@@ -127,7 +128,7 @@ function LinkBar({ url, open, onTurnOn }) {
  * line under the name, its own web address, and the gallery photos. The
  * words and room photos come from the Hotel and Rooms tabs.
  */
-function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey }) {
+function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, superAdmin }) {
   const [form, setForm] = useState(saved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -177,10 +178,20 @@ function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey })
             value={form.domain}
             onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
           />
-          <span className="sub text-xs">
-            Save it here, then contact us. We switch it on and give you one record to add where you bought the address.
-          </span>
         </label>
+        <div className="sub space-y-1">
+          <p className="font-medium">To use your own web address</p>
+          <ol className="list-decimal space-y-1 pl-5">
+            <li>Type your address above and press Save website.</li>
+            <li>Tell us. We add your address on our side and send you one record.</li>
+            <li>Add that record where you bought your address. It can take a few hours to start working.</li>
+          </ol>
+          {superAdmin && (
+            <p className="font-medium" style={{ color: "var(--warn)" }}>
+              For us: add this address in Vercel, Settings, Domains. Check the hotel owns it first. Then send the hotel the record Vercel shows.
+            </p>
+          )}
+        </div>
         {error && (
           <p className="text-sm" style={{ color: "var(--danger)" }}>
             {error}
@@ -713,6 +724,7 @@ export default function BookingEngine({ session }) {
           uploading={uploading}
           onPhotos={() => photosClicked(gallery)}
           bookingKey={data.key}
+          superAdmin={isSuperAdmin(session)}
           onSave={async (site) => {
             const json = await sendJSON("/api/setup/bookingEngine", "PUT", {
               propertyId: propertyId || undefined,
