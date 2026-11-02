@@ -2,25 +2,24 @@
 
 import { useState } from "react";
 import HotelUsage from "./HotelUsage";
-import Leads from "./Leads";
 import WhatsAppInbox from "./WhatsAppInbox";
 
 /**
- * Super admin only: the CRM. Leads are people who wrote in on the business
- * WhatsApp; Hotels is Usage & follow up for hotels already signed up; Chats
- * is the full WhatsApp inbox. The view last used comes back next time.
+ * Super admin only: the CRM. Leads & chats is the WhatsApp inbox, where
+ * every number that writes in is a lead worked through New enquiry,
+ * Contacted, No contact, Won or Lost; Hotels is Usage & follow up for hotels
+ * already signed up. The view last used comes back next time.
  */
 
 const VIEWS = [
-  ["leads", "Leads"],
+  ["chats", "Leads & chats"],
   ["hotels", "Hotels"],
-  ["chats", "Chats"],
 ];
 
 export default function CRM() {
   const [view, setViewState] = useState(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("crmView") : null;
-    return VIEWS.some(([id]) => id === saved) ? saved : "leads";
+    return VIEWS.some(([id]) => id === saved) ? saved : "chats";
   });
   const setView = (id) => {
     setViewState(id);
@@ -42,7 +41,6 @@ export default function CRM() {
           </button>
         ))}
       </div>
-      {view === "leads" && <Leads />}
       {view === "hotels" && <HotelUsage />}
       {view === "chats" && <WhatsAppInbox />}
     </div>

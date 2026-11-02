@@ -31,7 +31,7 @@ const POLL_MS = 15000;
 const THREAD_POLL_MS = 4000;
 const ATTACH_TYPES = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
 export const LEAD_STATUS = { new: "New enquiry", contacted: "Contacted", no_contact: "No contact", won: "Won", lost: "Lost" };
-export const INTEREST = {
+const INTEREST = {
   ota_listing: "OTA listing",
   pms: "Free PMS",
   ota_audit: "OTA audit",
@@ -53,8 +53,7 @@ const when = (iso) => {
 
 const needsYou = (c) => Boolean(c.handoff_at);
 export const LEAD_CHIP = { new: "chip-booked", contacted: "chip-booked", no_contact: "chip-warn", won: "chip-ok", lost: "chip-off" };
-export const OPEN_LEAD = ["new", "contacted", "no_contact"];
-const openLead = (c) => c.lead && !c.property_id && OPEN_LEAD.includes(c.lead.status);
+const isLead = (c) => c.lead && !c.property_id;
 
 export async function call(method, body, query = "") {
   const r = await fetch(`/api/admin/whatsapp${query}`, {
@@ -117,7 +116,7 @@ export default function WhatsAppInbox() {
     () => ({
       unread: contacts.filter((c) => c.unread > 0).length,
       needs: contacts.filter(needsYou).length,
-      leads: contacts.filter(openLead).length,
+      ...Object.fromEntries(Object.keys(LEAD_STATUS).map((k) => [k, contacts.filter((c) => isLead(c) && c.lead.status === k).length])),
       hotels: contacts.filter((c) => c.property_id).length,
       paused: contacts.filter((c) => c.bot_paused).length,
     }),
@@ -128,7 +127,7 @@ export default function WhatsAppInbox() {
     let rows = contacts;
     if (filter === "unread") rows = rows.filter((c) => c.unread > 0);
     if (filter === "needs") rows = rows.filter(needsYou);
-    if (filter === "leads") rows = rows.filter(openLead);
+    if (filter in LEAD_STATUS) rows = rows.filter((c) => isLead(c) && c.lead.status === filter);
     if (filter === "hotels") rows = rows.filter((c) => c.property_id);
     if (filter === "paused") rows = rows.filter((c) => c.bot_paused);
     const q = query.trim().toLowerCase();
@@ -195,7 +194,11 @@ export default function WhatsAppInbox() {
             <option value="">All chats ({contacts.length})</option>
             <option value="needs">Needs you ({counts.needs})</option>
             <option value="unread">Unread ({counts.unread})</option>
-            <option value="leads">Open leads ({counts.leads})</option>
+            {Object.entries(LEAD_STATUS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v} ({counts[k]})
+              </option>
+            ))}
             <option value="paused">Bot off ({counts.paused})</option>
             <option value="hotels">Hotels ({counts.hotels})</option>
           </Select>
@@ -204,7 +207,11 @@ export default function WhatsAppInbox() {
           <Fact label="Chats" onClick={pick("all")}>{contacts.length}</Fact>
           <Fact label="Needs you" tone={on("needs") || (counts.needs ? "warn" : undefined)} onClick={pick("needs")}>{counts.needs}</Fact>
           <Fact label="Unread" tone={on("unread") || (counts.unread ? "warn" : undefined)} onClick={pick("unread")}>{counts.unread}</Fact>
-          <Fact label="Open leads" tone={on("leads")} onClick={pick("leads")}>{counts.leads}</Fact>
+          {Object.entries(LEAD_STATUS).map(([k, v]) => (
+            <Fact key={k} label={v} tone={on(k) || (k === "new" && counts.new ? "warn" : undefined)} onClick={pick(k)}>
+              {counts[k]}
+            </Fact>
+          ))}
           <Fact label="Bot off" tone={on("paused")} onClick={pick("paused")}>{counts.paused}</Fact>
           <Fact label="Hotels" tone={on("hotels")} onClick={pick("hotels")}>{counts.hotels}</Fact>
         </Facts>
