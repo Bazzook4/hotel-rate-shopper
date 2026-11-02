@@ -313,7 +313,7 @@ function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, s
           {uploading?.id === GALLERY
             ? `Uploading ${uploading.done} of ${uploading.of}...`
             : gallery.photos.length
-              ? `${gallery.photos.length} photos`
+              ? `${gallery.photos.length} photo${gallery.photos.length === 1 ? "" : "s"}`
               : "Add gallery photos"}
         </button>
       </section>
