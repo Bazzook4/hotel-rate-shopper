@@ -40,7 +40,7 @@ const INTEREST = {
   other: "Other",
 };
 const TICK = { sent: "Sent", delivered: "Delivered", read: "Read", failed: "Failed" };
-const PANE_HEIGHT = "calc(100dvh - 15rem)";
+const PANE_HEIGHT = "calc(100dvh - 18rem)";
 
 const when = (iso) => {
   if (!iso) return "";
@@ -228,7 +228,7 @@ export default function WhatsAppInbox() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[18rem_minmax(0,1fr)]">
+      <div className="grid gap-3 md:grid-cols-[22rem_minmax(0,1fr)]">
         <div className={`card flex flex-col overflow-hidden ${open ? "hidden md:flex" : ""}`} style={{ height: PANE_HEIGHT, minHeight: "24rem" }}>
           <div className="border-b border-[var(--border)] p-2">
             <input
@@ -497,7 +497,7 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
       className={
         panel
           ? "flex h-full min-w-0 flex-col"
-          : "card flex min-w-0 flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-15rem)] md:min-h-96"
+          : "card flex min-w-0 flex-col max-md:fixed max-md:inset-0 max-md:z-50 max-md:h-dvh max-md:rounded-none md:h-[calc(100dvh-18rem)] md:min-h-96"
       }
     >
       <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">

@@ -77,7 +77,7 @@ export default function AdminPage() {
   return (
     <DialogProvider>
       <main className="relative min-h-screen ">
-        <div className="mx-auto max-w-6xl space-y-4 p-4">
+        <div className={`mx-auto space-y-4 p-4 ${tab === "crm" ? "max-w-none" : "max-w-6xl"}`}>
           <div className="flex items-center justify-between">
             <h1 className="h1">Admin</h1>
             <ThemeToggle />
