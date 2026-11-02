@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Facts, Fact } from "./Facts";
 import Icon from "./Icon";
 import Select from "./Select";
+import { useEscape } from "./useEscape";
 import { shrink } from "../dashboard/components/GuestIdPhotos";
 
 /**
@@ -77,6 +78,11 @@ export default function WhatsAppInbox() {
   const [filter, setFilter] = useState(null);
   const [query, setQuery] = useState("");
   const [openPhone, setOpenPhone] = useState(null);
+  const [board, setBoardState] = useState(() => typeof window !== "undefined" && localStorage.getItem("crmBoard") === "1");
+  const setBoard = (on) => {
+    setBoardState(on);
+    localStorage.setItem("crmBoard", on ? "1" : "0");
+  };
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
 
@@ -216,6 +222,25 @@ export default function WhatsAppInbox() {
           <Fact label="Hotels" tone={on("hotels")} onClick={pick("hotels")}>{counts.hotels}</Fact>
         </Facts>
         <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
+          <Select
+            value={filter in LEAD_STATUS ? filter : ""}
+            onChange={(e) => setFilter(e.target.value || null)}
+            aria-label="Lead status"
+            className="input text-sm max-md:hidden"
+          >
+            <option value="">All statuses</option>
+            {Object.entries(LEAD_STATUS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v} ({counts[k]})
+              </option>
+            ))}
+          </Select>
+          <button type="button" aria-pressed={!board} className={!board ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"} onClick={() => setBoard(false)}>
+            List
+          </button>
+          <button type="button" aria-pressed={board} className={board ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"} onClick={() => setBoard(true)}>
+            Board
+          </button>
           {addError && <span className="text-xs text-[var(--danger)]">{addError}</span>}
           <Select value="" onChange={(e) => add(e.target.value)} disabled={adding} aria-label="Add a hotel's contact" className="input w-full text-sm">
             <option value="">{adding ? "Adding..." : "Add a hotel's contact..."}</option>
@@ -228,6 +253,30 @@ export default function WhatsAppInbox() {
         </div>
       </div>
 
+      {board && (
+        <>
+          <Board
+            rows={shown.filter(isLead)}
+            only={filter in LEAD_STATUS ? filter : null}
+            query={query}
+            setQuery={setQuery}
+            onOpen={setOpenPhone}
+            onContact={patchContact}
+          />
+          {open && (
+            <ChatPanel
+              contact={open}
+              data={data}
+              hotelName={hotelName.get(open.property_id)}
+              onContact={patchContact}
+              onSent={load}
+              onClose={() => setOpenPhone(null)}
+            />
+          )}
+        </>
+      )}
+
+      {!board && (
       <div className="grid gap-3 md:grid-cols-[22rem_minmax(0,1fr)]">
         <div className={`card flex flex-col overflow-hidden ${open ? "hidden md:flex" : ""}`} style={{ height: PANE_HEIGHT, minHeight: "24rem" }}>
           <div className="border-b border-[var(--border)] p-2">
@@ -302,6 +351,153 @@ export default function WhatsAppInbox() {
         ) : (
           <div className="card card-pad hidden text-sm sub md:block">Pick a chat to read and reply.</div>
         )}
+      </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The leads as a board, one column per status; drag a card to another column
+ * to change its status, or use the picker on the card (touch has no drag).
+ * A card opens its chat in a side panel.
+ */
+function Board({ rows, only, query, setQuery, onOpen, onContact }) {
+  const [over, setOver] = useState(null);
+  const [error, setError] = useState("");
+  const columns = Object.entries(LEAD_STATUS).filter(([k]) => !only || k === only);
+
+  async function move(c, status) {
+    if (!c || c.lead.status === status) return;
+    const before = c.lead;
+    onContact({ phone: c.phone, lead: { ...before, status } });
+    setError("");
+    try {
+      const r = await call("PATCH", { lead_id: before.id, status });
+      onContact({ phone: c.phone, lead: r.lead });
+    } catch (e) {
+      onContact({ phone: c.phone, lead: before });
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <input
+          className="input w-full text-sm md:w-64"
+          type="search"
+          placeholder="Search name, number, hotel, city"
+          aria-label="Search leads"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2" style={{ height: PANE_HEIGHT, minHeight: "24rem" }}>
+        {columns.map(([status, label]) => {
+          const cards = rows.filter((c) => c.lead.status === status);
+          return (
+            <div
+              key={status}
+              className={`card flex min-w-64 flex-1 flex-col ${over === status ? "outline outline-2 outline-[var(--accent)]" : ""}`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setOver(status);
+              }}
+              onDragLeave={() => setOver((o) => (o === status ? null : o))}
+              onDrop={(e) => {
+                e.preventDefault();
+                setOver(null);
+                const phone = e.dataTransfer.getData("text/plain");
+                move(rows.find((c) => c.phone === phone), status);
+              }}
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2 text-sm">
+                <span className="text-ink">{label}</span>
+                <span className={`chip ${LEAD_CHIP[status]}`}>{cards.length}</span>
+              </div>
+              <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+                {cards.length === 0 && <li className="px-1 text-xs muted">None</li>}
+                {cards.map((c) => {
+                  const l = c.lead;
+                  const place = [l.hotel_name, l.city, l.rooms != null ? `${l.rooms} rooms` : null].filter(Boolean).join(", ");
+                  return (
+                    <li
+                      key={c.phone}
+                      draggable
+                      onDragStart={(e) => e.dataTransfer.setData("text/plain", c.phone)}
+                      className="cursor-grab rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 text-sm hover:bg-[var(--surface-2)]"
+                    >
+                      <button type="button" className="block w-full text-left" onClick={() => onOpen(c.phone)}>
+                        <span className="flex items-center justify-between gap-2">
+                          <span className={`truncate text-ink ${c.unread ? "font-semibold" : ""}`}>{c.name || `+${c.phone}`}</span>
+                          <span className="shrink-0 text-xs muted">{when(c.last?.created_at)}</span>
+                        </span>
+                        {place && <span className="block truncate text-xs muted">{place}</span>}
+                        <span className="block truncate text-xs muted">
+                          {INTEREST[l.interest] ? `${INTEREST[l.interest]}. ` : ""}
+                          {c.last?.body || ""}
+                        </span>
+                      </button>
+                      <span className="mt-1 flex items-center justify-between gap-2">
+                        <Select
+                          value={l.status}
+                          onChange={(e) => move(c, e.target.value)}
+                          className="input text-xs"
+                          aria-label={`Status of ${c.name || c.phone}`}
+                        >
+                          {Object.entries(LEAD_STATUS).map(([k, v]) => (
+                            <option key={k} value={k}>
+                              {v}
+                            </option>
+                          ))}
+                        </Select>
+                        <span className="flex gap-1">
+                          {c.handoff_at && <span className="chip chip-warn">Needs you</span>}
+                          {c.unread > 0 && <span className="chip chip-warn">{c.unread}</span>}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ChatPanel({ contact, data, hotelName, onContact, onSent, onClose }) {
+  useEscape(onClose);
+  return (
+    <div onClick={onClose} className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={`Chat with ${contact.name || contact.phone}`}>
+      <div className="side-panel flex flex-col" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
+        <div
+          className="side-panel-head flex items-center justify-between gap-3"
+          style={{ padding: "0.85rem 1.1rem", background: "var(--accent-strong)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
+        >
+          <h3>{contact.name || `+${contact.phone}`}</h3>
+          <button type="button" className="head-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1">
+          <Chat
+            panel
+            contact={contact}
+            hotels={data.hotels}
+            templates={data.templates}
+            ready={data.ready}
+            ai={data.ai}
+            hotelName={hotelName}
+            onContact={onContact}
+            onSent={onSent}
+            onBack={onClose}
+          />
+        </div>
       </div>
     </div>
   );
