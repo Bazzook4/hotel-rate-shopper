@@ -10,6 +10,9 @@ import {
   BANNER,
   GALLERY,
   HOTEL_AMENITIES,
+  MAX_FAQS,
+  MAX_INFO_ROWS,
+  SITE_SECTIONS,
   timeLabel,
   maxPhotosFor,
 } from "@/lib/bookingEngineShared";
@@ -229,6 +232,83 @@ function DomainBox({ saved, typed, propertyId, superAdmin }) {
 }
 
 /**
+ * The home page's sections: tick which show, write the questions guests ask,
+ * add your own hotel facts and a line on how to reach you. About, amenities,
+ * address and map come from the Hotel tab.
+ */
+function WebsiteSections({ form, setForm }) {
+  const setShow = (id, on) => setForm((f) => ({ ...f, show: { ...f.show, [id]: on } }));
+  const setRow = (key, i, patch) => setForm((f) => ({ ...f, [key]: f[key].map((r, n) => (n === i ? { ...r, ...patch } : r)) }));
+  const drop = (key, i) => setForm((f) => ({ ...f, [key]: f[key].filter((_, n) => n !== i) }));
+  return (
+    <div className="space-y-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      <div>
+        <div className="font-medium">Sections on your home page</div>
+        <p className="sub text-xs">Untick a section to hide it. About, Amenities, the address and the map come from the Hotel tab.</p>
+        <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1.5">
+          {SITE_SECTIONS.map(([id, name]) => (
+            <label key={id} className="flex items-center gap-1.5 text-sm">
+              <input type="checkbox" checked={form.show[id]} onChange={(e) => setShow(id, e.target.checked)} />
+              {name}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="font-medium">Hotel information</div>
+        <p className="sub text-xs">Facts guests look for, such as Parking or Pets. Leave empty to show check-in, check-out, phone and email from the Hotel tab.</p>
+        {form.info.map((r, i) => (
+          <div key={i} className="flex flex-wrap gap-2">
+            <input className="input" style={{ width: "10rem" }} maxLength={40} placeholder="Parking" value={r.label} onChange={(e) => setRow("info", i, { label: e.target.value })} />
+            <input className="input min-w-0 flex-1" maxLength={200} placeholder="Free for 10 cars" value={r.value} onChange={(e) => setRow("info", i, { value: e.target.value })} />
+            <button type="button" className="btn btn-secondary text-sm" onClick={() => drop("info", i)}>
+              Remove
+            </button>
+          </div>
+        ))}
+        {form.info.length < MAX_INFO_ROWS && (
+          <button type="button" className="btn btn-secondary text-sm" onClick={() => setForm((f) => ({ ...f, info: [...f.info, { label: "", value: "" }] }))}>
+            Add a fact
+          </button>
+        )}
+      </div>
+
+      <label className="block space-y-1">
+        <span className="label">How to reach you (shown under the map)</span>
+        <textarea
+          className="input w-full"
+          rows={2}
+          maxLength={600}
+          placeholder="10 minutes from the airport, 2 km from the railway station. Taxis wait outside."
+          value={form.reach}
+          onChange={(e) => setForm((f) => ({ ...f, reach: e.target.value }))}
+        />
+      </label>
+
+      <div className="space-y-2">
+        <div className="font-medium">FAQ</div>
+        <p className="sub text-xs">Questions guests ask. Leave empty to show check-in, check-out, location and how to book from your details.</p>
+        {form.faqs.map((f, i) => (
+          <div key={i} className="space-y-1.5 rounded-md border p-2" style={{ borderColor: "var(--border)" }}>
+            <input className="input w-full" maxLength={150} placeholder="Is breakfast included?" value={f.q} onChange={(e) => setRow("faqs", i, { q: e.target.value })} />
+            <textarea className="input w-full" rows={2} maxLength={600} placeholder="Yes, a buffet breakfast from 7 to 10 am." value={f.a} onChange={(e) => setRow("faqs", i, { a: e.target.value })} />
+            <button type="button" className="btn btn-secondary text-sm" onClick={() => drop("faqs", i)}>
+              Remove
+            </button>
+          </div>
+        ))}
+        {form.faqs.length < MAX_FAQS && (
+          <button type="button" className="btn btn-secondary text-sm" onClick={() => setForm((f) => ({ ...f, faqs: [...f.faqs, { q: "", a: "" }] }))}>
+            Add a question
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * The hotel's own website (Home, Rooms, Gallery, Contact us): on or off, a
  * line under the name, its own web address, and the gallery photos. The
  * words and room photos come from the Hotel and Rooms tabs.
@@ -261,7 +341,7 @@ function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, s
           <span className="font-medium">Website is open</span>
         </label>
         <p className="sub">
-          A simple website with Home, Rooms, Gallery and Contact us, hosted by us. It uses the words and room photos from the Hotel
+          A simple website with Home (About, Amenities, Rooms, Hotel information, Location and FAQ), Rooms, Gallery and Contact us, hosted by us. It uses the words and room photos from the Hotel
           and Rooms tabs.
         </p>
         <label className="block space-y-1">
@@ -285,6 +365,7 @@ function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey, s
           />
         </label>
         <DomainBox saved={saved} typed={form.domain} propertyId={propertyId} superAdmin={superAdmin} />
+        <WebsiteSections form={form} setForm={setForm} />
         {error && (
           <p className="text-sm" style={{ color: "var(--danger)" }}>
             {error}
@@ -811,7 +892,7 @@ export default function BookingEngine({ session }) {
 
       {tab === "website" && (
         <WebsiteTab
-          key={`${content.site.on}|${content.site.tagline}|${content.site.domain}`}
+          key={JSON.stringify(content.site)}
           saved={content.site}
           gallery={gallery}
           uploading={uploading}

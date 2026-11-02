@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { headers } from "next/headers";
 import { getSupabaseAdmin, listRoomTypes } from "@/lib/database";
-import { cleanBookingContent, cleanBookingPrefs } from "@/lib/bookingEngineShared";
+import { cleanBookingContent, cleanBookingPrefs, timeLabel } from "@/lib/bookingEngineShared";
 import { hotelDetails } from "@/lib/bookingEngine";
 import { APP_URL, isAppHost } from "@/lib/appHost";
 
@@ -55,6 +55,7 @@ export async function siteView(site) {
     });
   const details = hotelDetails(property, content);
   const key = property.booking_key;
+  const bookUrl = prefs.enabled && key ? `${APP_URL}/book/${key}` : null;
   const photos = [...content.banner, ...content.gallery];
   return {
     key,
@@ -65,9 +66,37 @@ export async function siteView(site) {
     gallery: content.gallery.length ? content.gallery : photos,
     details,
     rooms,
+    show: content.site.show,
+    reach: content.site.reach,
+    info: content.site.info.length ? content.site.info : autoInfo(details),
+    faqs: content.site.faqs.length ? content.site.faqs : autoFaqs(details, bookUrl),
+    mapEmbed: details.address
+      ? `https://www.google.com/maps?q=${encodeURIComponent(`${property.name || ""} ${details.address}`)}&output=embed`
+      : null,
     // The booking page only takes bookings once the hotel has set up payment.
-    bookUrl: prefs.enabled && key ? `${APP_URL}/book/${key}` : null,
+    bookUrl,
   };
+}
+
+/** Hotel information from the Hotel tab, until the hotel types its own rows. */
+function autoInfo(d) {
+  return [
+    d.checkIn && { label: "Check-in", value: `From ${timeLabel(d.checkIn)}` },
+    d.checkOut && { label: "Check-out", value: `By ${timeLabel(d.checkOut)}` },
+    d.phone && { label: "Phone", value: d.phone },
+    d.email && { label: "Email", value: d.email },
+    d.rules && { label: "House rules", value: d.rules },
+  ].filter(Boolean);
+}
+
+/** A few questions every guest asks, answered from the Hotel tab, until the hotel writes its own. */
+function autoFaqs(d, bookUrl) {
+  return [
+    d.checkIn && { q: "What time is check-in?", a: `Check-in is from ${timeLabel(d.checkIn)}.` },
+    d.checkOut && { q: "What time is check-out?", a: `Check-out is by ${timeLabel(d.checkOut)}.` },
+    d.address && { q: "Where are you?", a: d.address },
+    bookUrl && { q: "How do I book?", a: "Press Book now, pick your dates and room, and follow the steps." },
+  ].filter(Boolean);
 }
 
 /** The site's view for a page, loaded once per request however many parts of the page ask. Null when unknown or closed. */

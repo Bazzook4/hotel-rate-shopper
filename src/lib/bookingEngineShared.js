@@ -181,6 +181,17 @@ function cleanHotel(raw) {
 export const maxPhotosFor = (target) =>
   target === BANNER ? MAX_BANNER_PHOTOS : target === GALLERY ? MAX_GALLERY_PHOTOS : MAX_ROOM_PHOTOS;
 
+/** The home page's sections, in the order guests read them: [id, name]. */
+export const SITE_SECTIONS = [
+  ["about", "About"],
+  ["amenities", "Amenities"],
+  ["info", "Hotel information"],
+  ["location", "Location and map"],
+  ["faq", "FAQ"],
+];
+export const MAX_FAQS = 20;
+export const MAX_INFO_ROWS = 12;
+
 /**
  * The hotel's own website (/site/<key>, or its domain): a line under the
  * name, its web address if it has one (and whether we approved it), and
@@ -199,6 +210,17 @@ function cleanSite(raw) {
     // Set only by our team, and only for the address it was given for (saveBookingContent keeps it honest).
     approved: s.approved === true,
     tagline: String(s.tagline ?? "").trim().replace(/\s+/g, " ").slice(0, 120),
+    // Which sections the home page shows. All on until the hotel unticks one.
+    show: Object.fromEntries(SITE_SECTIONS.map(([id]) => [id, s.show?.[id] !== false])),
+    faqs: (Array.isArray(s.faqs) ? s.faqs : [])
+      .map((f) => ({ q: text(f?.q, 150), a: String(f?.a ?? "").trim().slice(0, 600) }))
+      .filter((f) => f.q && f.a)
+      .slice(0, MAX_FAQS),
+    info: (Array.isArray(s.info) ? s.info : [])
+      .map((r) => ({ label: text(r?.label, 40), value: text(r?.value, 200) }))
+      .filter((r) => r.label && r.value)
+      .slice(0, MAX_INFO_ROWS),
+    reach: String(s.reach ?? "").trim().slice(0, 600),
     domain: /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(domain) ? domain.slice(0, 120) : "",
   };
 }

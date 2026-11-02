@@ -16,6 +16,7 @@ export const RELEASE_NOTES = [
     date: "2026-11-02",
     title: "A more elegant hotel website",
     points: [
+      { page: "bookingengine", text: "Your website home page now has more sections: About, Amenities, Rooms, Hotel information, Location with a map, and FAQ. On the Website tab, tick which sections to show, add your own facts like Parking, write the questions guests ask, and add a line on how to reach you. Left empty, we fill them from your Hotel tab." },
       { page: "bookingengine", text: "Your hotel website now has a palace look: a big photo at the top with your hotel name, a calm welcome, tall room photos, gold touches and a dark footer. Nothing to set up, it changes by itself." },
     ],
   },

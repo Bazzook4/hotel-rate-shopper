@@ -110,3 +110,14 @@
   .site-hero .copy { padding-bottom: 2.5rem; }
   .site-section { padding: 3rem 0; }
 }
+
+.site-facts { max-width: 40rem; margin: 0 auto; text-align: left; }
+.site-facts dt { text-transform: uppercase; letter-spacing: .14em; font-size: .75rem; color: var(--s-accent); padding-top: .2rem; }
+.site-map { display: block; width: 100%; height: 380px; border: 0; margin-top: 1.5rem; }
+.site-faq { max-width: 44rem; margin: 0 auto; text-align: left; border-top: 1px solid var(--s-line); }
+.site-faq details { border-bottom: 1px solid var(--s-line); padding: 1rem .25rem; }
+.site-faq summary { cursor: pointer; font-family: var(--s-serif); font-size: 1.25rem; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+.site-faq summary::-webkit-details-marker { display: none; }
+.site-faq summary::after { content: "+"; color: var(--s-accent); font-size: 1.4rem; line-height: 1; }
+.site-faq details[open] summary::after { content: "-"; }
+.site-faq p { margin: .75rem 0 0; white-space: pre-line; color: var(--s-muted); }
