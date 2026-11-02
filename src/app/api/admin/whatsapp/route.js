@@ -22,6 +22,8 @@ import { MEDIA_TYPES } from "@/lib/whatsappMedia";
  * PATCH             { phone, bot_paused | opted_in | property_id } a contact;
  *                   turning the bot back on clears handoff_at too
  *                   { lead_id, status | hotel_name | city | rooms | interest } a lead
+ * DELETE ?lead_id=  a lead is removed; the chat stays, and a new message
+ *                   from the same number makes a fresh lead
  */
 
 const LEAD_STATUSES = ["new", "contacted", "no_contact", "won", "lost"];
@@ -259,4 +261,13 @@ export async function PATCH(req) {
     return NextResponse.json({ error: "Link this contact to a hotel first." }, { status: 400 });
   }
   return NextResponse.json({ contact: data });
+}
+
+export async function DELETE(req) {
+  if (!(await guard(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const id = Number(new URL(req.url).searchParams.get("lead_id"));
+  if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Which lead?" }, { status: 400 });
+  const { error } = await getSupabaseAdmin().from("wa_leads").delete().eq("id", id);
+  if (error) return failure(error);
+  return NextResponse.json({ ok: true });
 }

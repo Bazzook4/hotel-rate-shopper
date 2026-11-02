@@ -5,6 +5,7 @@ import { Facts, Fact } from "./Facts";
 import Icon from "./Icon";
 import Select from "./Select";
 import { useEscape } from "./useEscape";
+import { useDialog } from "./Dialog";
 import { shrink } from "../dashboard/components/GuestIdPhotos";
 
 /**
@@ -516,6 +517,7 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
   const [file, setFile] = useState(null);
   const [preparing, setPreparing] = useState(false);
   const [stale, setStale] = useState(false);
+  const dialog = useDialog();
   const box = useRef(null);
   const picker = useRef(null);
   const reply = useRef(null);
@@ -671,6 +673,24 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
       const { contact: c } = await call("PATCH", { phone: contact.phone, ...body });
       onContact(c);
       done(body.property_id === null && contact.opted_in ? "Unlinked, daily report turned off" : msg);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function deleteLead() {
+    const ok = await dialog.confirm({
+      title: "Delete this lead?",
+      message: "The lead is removed from the board and counts. The chat stays, and a new message from this number starts a new lead.",
+      confirmLabel: "Delete lead",
+      danger: true,
+    });
+    if (!ok) return;
+    setError("");
+    try {
+      await call("DELETE", null, `?lead_id=${contact.lead.id}`);
+      onContact({ phone: contact.phone, lead: null });
+      done("Lead deleted");
     } catch (e) {
       setError(e.message);
     }
@@ -922,6 +942,9 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
             <LeadField lead={lead} name="city" label="City" width="7rem" onSave={saveLead} />
             <LeadField lead={lead} name="rooms" label="Rooms" width="3.5rem" numeric onSave={saveLead} />
             <LeadField lead={lead} name="current_otas" label="OTAs now" width="10rem" onSave={saveLead} />
+            <button type="button" className="btn btn-ghost text-sm" onClick={deleteLead}>
+              Delete lead
+            </button>
           </>
         )}
         <label className="flex items-center gap-1">
