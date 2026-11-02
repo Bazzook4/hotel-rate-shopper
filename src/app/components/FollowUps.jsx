@@ -245,7 +245,7 @@ async function send(method, body) {
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || "Could not save");
-  return j.row;
+  return j;
 }
 
 export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansReady, onPlans, onClose }) {
@@ -255,6 +255,7 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
   const [message, setMessage] = useState("");
   const [edited, setEdited] = useState(false);
   const [status, setStatus] = useState("");
+  const [sending, setSending] = useState(false);
 
   // Pages and guides from the last 90 days; without them the draft still works.
   useEffect(() => {
@@ -280,10 +281,29 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
   async function save() {
     if (!canSave) return;
     try {
-      onSaved(await send("POST", { property_id: hotel.id, kind, message, activity }));
+      onSaved((await send("POST", { property_id: hotel.id, kind, message, activity })).row);
       setStatus("Saved to this hotel's follow-ups.");
     } catch (e) {
       setStatus(e.message);
+    }
+  }
+
+  // Sends on the business WhatsApp number; the hotel need not be opened in WhatsApp.
+  async function sendNow() {
+    setSending(true);
+    setStatus("");
+    try {
+      const j = await send("POST", { property_id: hotel.id, kind, message, activity, send: true });
+      onSaved(j.row);
+      setStatus(
+        j.how === "template"
+          ? "Sent. They have not written in the last 24 hours, so WhatsApp sent the standard reminder instead of this text."
+          : "Sent."
+      );
+    } catch (e) {
+      setStatus(e.message);
+    } finally {
+      setSending(false);
     }
   }
 
@@ -396,10 +416,15 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
 
         <div className="side-panel-foot card-pad flex flex-wrap items-center gap-2">
           {href ? (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-primary" onClick={save}>
-              <Icon name="chat" size={16} />
-              Open in WhatsApp
-            </a>
+            <>
+              <button type="button" className="btn btn-primary" disabled={sending || !canSave} onClick={sendNow}>
+                <Icon name="chat" size={16} />
+                {sending ? "Sending..." : "Send on WhatsApp"}
+              </button>
+              <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" onClick={save}>
+                Open in WhatsApp
+              </a>
+            </>
           ) : (
             <span className="text-sm" style={{ color: "var(--warn)" }}>
               No contact mobile on this hotel.
@@ -434,7 +459,7 @@ function HistoryItem({ item, onSaved }) {
     setBusy(true);
     setError("");
     try {
-      onSaved(await send("PATCH", { id: item.id, note }));
+      onSaved((await send("PATCH", { id: item.id, note })).row);
     } catch (e) {
       setError(e.message);
     } finally {
