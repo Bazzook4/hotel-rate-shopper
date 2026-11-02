@@ -30,6 +30,7 @@ import { syncInventory, staySpan } from "@/lib/inventorySync";
 import {
   GUEST_PAYMENT_TEXT,
   BANNER,
+  GALLERY,
   maxPhotosFor,
   photosOf,
   withPhotos,
@@ -165,6 +166,15 @@ export async function saveBookingContent(propertyId, input) {
   const current = await getBookingSettings(propertyId);
   if (!current.ready) throw new Error(BOOKING_NOT_READY);
   const content = cleanBookingContent(input);
+  if (content.site.domain) {
+    const { data: taken } = await getSupabaseAdmin()
+      .from("properties")
+      .select("id")
+      .eq("booking_engine->content->site->>domain", content.site.domain)
+      .neq("id", propertyId)
+      .limit(1);
+    if (taken?.length) throw new Error("That web address is already used by another hotel.");
+  }
   const updates = { booking_engine: { ...current.prefs, content }, updated_at: new Date().toISOString() };
   if (!current.key) updates.booking_key = randomBytes(9).toString("base64url");
   const { error } = await getSupabaseAdmin().from("properties").update(updates).eq("id", propertyId);
@@ -211,7 +221,7 @@ export async function addRoomPhoto(propertyId, target, file) {
   const photos = photosOf(current.content, target);
   const max = maxPhotosFor(target);
   if (photos.length >= max) {
-    throw new Error(target === BANNER ? `The banner can have up to ${max} photos.` : `A room can have up to ${max} photos.`);
+    throw new Error(target === BANNER ? `The banner can have up to ${max} photos.` : target === GALLERY ? `The gallery can have up to ${max} photos.` : `A room can have up to ${max} photos.`);
   }
 
   const supabase = getSupabaseAdmin();
@@ -293,7 +303,7 @@ export function hotelDefaults(property) {
 }
 
 /** The hotel's details as guests see them: its own words, else Property Setup's. */
-function hotelDetails(property, content) {
+export function hotelDetails(property, content) {
   const base = hotelDefaults(property);
   const own = content.hotel || {};
   const pick = (k) => (Array.isArray(own[k]) ? (own[k].length ? own[k] : base[k]) : own[k] || base[k]);

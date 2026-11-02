@@ -93,18 +93,24 @@ export const MAX_ROOM_PHOTOS = 8;
 export const MAX_BANNER_PHOTOS = 5;
 /** The photo target for the banner across the top of the page, in place of a room type id. */
 export const BANNER = "banner";
+/** The photo target for the website's gallery page. */
+export const GALLERY = "gallery";
+export const MAX_GALLERY_PHOTOS = 40;
 
 const photoList = (v, max) =>
   (Array.isArray(v) ? v : []).filter((u) => typeof u === "string" && /^https:\/\//.test(u)).slice(0, max);
 
 /** The photos of a room type, or of the banner. */
 export function photosOf(content, target) {
-  return target === BANNER ? content.banner || [] : content.rooms?.[target]?.photos || [];
+  if (target === BANNER) return content.banner || [];
+  if (target === GALLERY) return content.gallery || [];
+  return content.rooms?.[target]?.photos || [];
 }
 
 /** The content with a room type's photos, or the banner's, replaced. */
 export function withPhotos(content, target, photos) {
   if (target === BANNER) return { ...content, banner: photos };
+  if (target === GALLERY) return { ...content, gallery: photos };
   const room = content.rooms?.[target] || { hidden: false, description: "", amenities: [], photos: [] };
   return { ...content, rooms: { ...content.rooms, [target]: { ...room, photos } } };
 }
@@ -172,7 +178,27 @@ function cleanHotel(raw) {
   };
 }
 
-export const maxPhotosFor = (target) => (target === BANNER ? MAX_BANNER_PHOTOS : MAX_ROOM_PHOTOS);
+export const maxPhotosFor = (target) =>
+  target === BANNER ? MAX_BANNER_PHOTOS : target === GALLERY ? MAX_GALLERY_PHOTOS : MAX_ROOM_PHOTOS;
+
+/**
+ * The hotel's own website (/site/<key>, or its domain): a line under the
+ * name, its web address if it has one, and whether the site is open.
+ */
+function cleanSite(raw) {
+  const s = raw && typeof raw === "object" ? raw : {};
+  const domain = String(s.domain || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/[\/?#].*$/, "");
+  return {
+    on: s.on === true,
+    tagline: String(s.tagline ?? "").trim().replace(/\s+/g, " ").slice(0, 120),
+    domain: /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(domain) ? domain.slice(0, 120) : "",
+  };
+}
 
 const text = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, max);
 
@@ -181,6 +207,8 @@ const text = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, ma
  *   hotel       about the hotel, its amenities, check-in and out times,
  *               address and map, phone, email and house rules
  *   banner      photos across the top of the page, the hotel itself
+ *   gallery     more photos, for the website's Gallery page
+ *   site        the hotel's website: open or not, tagline, own domain
  *   rooms       per room type: hidden, description, amenities, photo links
  *   plans       per rate plan: hidden, the name guests see, what is
  *               included, the cancellation terms
@@ -222,6 +250,8 @@ export function cleanBookingContent(raw) {
   return {
     hotel: cleanHotel(c.hotel),
     banner: photoList(c.banner, MAX_BANNER_PHOTOS),
+    gallery: photoList(c.gallery, MAX_GALLERY_PHOTOS),
+    site: cleanSite(c.site),
     rooms,
     plans,
     promotions,

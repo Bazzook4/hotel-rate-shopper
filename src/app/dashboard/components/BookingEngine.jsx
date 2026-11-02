@@ -8,6 +8,7 @@ import { useDialog } from "@/app/components/Dialog";
 import { useBackdropClose, useEscape } from "@/app/components/useEscape";
 import {
   BANNER,
+  GALLERY,
   HOTEL_AMENITIES,
   timeLabel,
   maxPhotosFor,
@@ -38,6 +39,7 @@ const TABS = [
   { id: "rooms", label: "Rooms" },
   { id: "plans", label: "Plans" },
   { id: "offers", label: "Offers" },
+  { id: "website", label: "Website" },
 ];
 
 const DATE_LABEL = { stayFrom: "First night", stayTo: "Last night", bookFrom: "Book from", bookTo: "Book to" };
@@ -60,7 +62,13 @@ async function uploadPhotos(room, files, propertyId, onSaved, onProgress) {
     left -= 1;
   }
   if (files.length > list.length) {
-    throw new Error(room.id === BANNER ? `The banner can have up to ${max} photos.` : `A room can have up to ${max} photos.`);
+    throw new Error(
+      room.id === BANNER
+        ? `The banner can have up to ${max} photos.`
+        : room.id === GALLERY
+          ? `The gallery can have up to ${max} photos.`
+          : `A room can have up to ${max} photos.`
+    );
   }
 }
 
@@ -110,6 +118,101 @@ function LinkBar({ url, open, onTurnOn }) {
           </button>
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * The hotel's own website (Home, Rooms, Gallery, Contact us): on or off, a
+ * line under the name, its own web address, and the gallery photos. The
+ * words and room photos come from the Hotel and Rooms tabs.
+ */
+function WebsiteTab({ saved, gallery, uploading, onPhotos, onSave, bookingKey }) {
+  const [form, setForm] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const url = bookingKey ? `${origin}/site/${bookingKey}` : "";
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <section className="card card-pad space-y-3">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={form.on} onChange={(e) => setForm((f) => ({ ...f, on: e.target.checked }))} />
+          <span className="font-medium">Website is open</span>
+        </label>
+        <p className="sub">
+          A simple website with Home, Rooms, Gallery and Contact us, hosted by us. It uses the words and room photos from the Hotel
+          and Rooms tabs.
+        </p>
+        <label className="block space-y-1">
+          <span className="label">Line under your hotel name</span>
+          <input
+            className="input w-full"
+            maxLength={120}
+            placeholder="Beachfront rooms in the heart of Goa"
+            value={form.tagline}
+            onChange={(e) => setForm((f) => ({ ...f, tagline: e.target.value }))}
+          />
+        </label>
+        <label className="block space-y-1">
+          <span className="label">Your own web address (optional)</span>
+          <input
+            className="input w-full"
+            maxLength={120}
+            placeholder="www.myhotel.com"
+            value={form.domain}
+            onChange={(e) => setForm((f) => ({ ...f, domain: e.target.value }))}
+          />
+          <span className="sub text-xs">
+            Save it here, then contact us. We switch it on and give you one record to add where you bought the address.
+          </span>
+        </label>
+        {error && (
+          <p className="text-sm" style={{ color: "var(--danger)" }}>
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn btn-primary text-sm" disabled={busy || !dirty} onClick={save}>
+            {busy ? "Saving..." : "Save website"}
+          </button>
+          {url && saved.on && !dirty && (
+            <a className="btn btn-secondary text-sm" href={url} target="_blank" rel="noreferrer">
+              Open website
+            </a>
+          )}
+          {dirty && <span className="sub text-xs">Unsaved changes</span>}
+        </div>
+      </section>
+
+      <section className="card card-pad flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="font-medium">Gallery</div>
+          <p className="sub text-xs">Photos for the Gallery page, up to {maxPhotosFor(GALLERY)}. They save as soon as you add them.</p>
+        </div>
+        <Thumbs photos={gallery.photos} />
+        <button type="button" className="btn btn-secondary text-sm" disabled={Boolean(uploading)} onClick={onPhotos}>
+          {uploading?.id === GALLERY
+            ? `Uploading ${uploading.done} of ${uploading.of}...`
+            : gallery.photos.length
+              ? `${gallery.photos.length} photos`
+              : "Add gallery photos"}
+        </button>
+      </section>
     </div>
   );
 }
@@ -439,7 +542,8 @@ export default function BookingEngine({ session }) {
 
   const url = data.key && typeof window !== "undefined" ? `${window.location.origin}/book/${data.key}` : null;
   const banner = { id: BANNER, name: "the banner", photos: content?.banner || [] };
-  const photoRoom = photosFor === BANNER ? banner : photosFor && roomRows.find((r) => r.id === photosFor);
+  const gallery = { id: GALLERY, name: "the gallery", photos: content?.gallery || [] };
+  const photoRoom = photosFor === BANNER ? banner : photosFor === GALLERY ? gallery : photosFor && roomRows.find((r) => r.id === photosFor);
   return (
     <div className="space-y-3">
       <SetupHeader area="Rates" title="Booking Engine" sub="Your own booking page: your rooms, rates, photos and offers. Guests pay straight to you.">
@@ -601,6 +705,25 @@ export default function BookingEngine({ session }) {
         </>
       )}
 
+      {tab === "website" && (
+        <WebsiteTab
+          key={`${content.site.on}|${content.site.tagline}|${content.site.domain}`}
+          saved={content.site}
+          gallery={gallery}
+          uploading={uploading}
+          onPhotos={() => photosClicked(gallery)}
+          bookingKey={data.key}
+          onSave={async (site) => {
+            const json = await sendJSON("/api/setup/bookingEngine", "PUT", {
+              propertyId: propertyId || undefined,
+              content: { ...content, site },
+            });
+            setData((d) => ({ ...d, content: json.content }));
+            toast("Website saved");
+          }}
+        />
+      )}
+
       {tab === "offers" && (
         <OffersTab
           propertyId={propertyId}
@@ -693,7 +816,7 @@ function RoomPhotos({ room, propertyId, onSaved, onClose }) {
           className="side-panel-head flex items-center justify-between gap-3"
           style={{ padding: "0.85rem 1.1rem", background: "var(--accent-strong)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
         >
-          <h3>{room.id === BANNER ? "Banner photos" : `Photos of ${room.name}`}</h3>
+          <h3>{room.id === BANNER ? "Banner photos" : room.id === GALLERY ? "Gallery photos" : `Photos of ${room.name}`}</h3>
           <button type="button" className="head-close" onClick={onClose} disabled={busy} aria-label="Close">
             <Icon name="close" size={16} />
           </button>
@@ -726,7 +849,7 @@ function RoomPhotos({ room, propertyId, onSaved, onClose }) {
             </p>
           )}
           {room.photos.length === 0 && (
-            <p className="sub">{room.id === BANNER ? "No banner yet." : "No photos yet. Rooms with photos get booked more."}</p>
+            <p className="sub">{room.id === BANNER ? "No banner yet." : room.id === GALLERY ? "No gallery photos yet." : "No photos yet. Rooms with photos get booked more."}</p>
           )}
           <div className="grid grid-cols-2 gap-3">
             {room.photos.map((url, i) => (

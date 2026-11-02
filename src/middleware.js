@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authDisabled, decodeSession } from "@/lib/session";
+import { isAppHost } from "@/lib/appHost";
 
 const PUBLIC_PATHS = new Set([
   "/login",
@@ -22,6 +23,14 @@ const PUBLIC_PATHS = new Set([
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
+  // A hotel's own domain shows only its website. Every path is mounted under
+  // /site/<domain>, so nothing of the app itself can be reached from it.
+  const host = (request.headers.get("host") || "").toLowerCase().split(":")[0];
+  if (!isAppHost(host) && !pathname.startsWith("/_next")) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/site/${host.replace(/^www\./, "")}${pathname === "/" ? "" : pathname}`;
+    return NextResponse.rewrite(url);
+  }
   if (authDisabled()) {
     return NextResponse.next();
   }
@@ -42,6 +51,8 @@ export async function middleware(request) {
       // The hotel's booking page and its routes. The page key, or the
       // guest's private booking link, is checked by the routes themselves.
       pathname.startsWith("/book/") ||
+      // The hotel's website, which anyone may read.
+      pathname.startsWith("/site/") ||
       pathname.startsWith("/api/book/") ||
       pathname === "/api/book" ||
       pathname.startsWith("/api/auth/") ||

@@ -13,6 +13,13 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-11-02",
+    title: "Your own hotel website",
+    points: [
+      { page: "bookingengine", text: "The Booking Engine now has a Website tab. Turn it on and your hotel gets a simple website with Home, Rooms, Gallery and Contact us, hosted by us. It uses the words and room photos you already added, plus gallery photos you upload here. Type your own web address and contact us to switch it on." },
+    ],
+  },
+  {
     date: "2026-11-01",
     title: "Forgot your password? Reset it yourself",
     points: [
