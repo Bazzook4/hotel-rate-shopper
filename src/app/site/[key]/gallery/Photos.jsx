@@ -12,7 +12,7 @@ export default function Photos({ photos, name }) {
         {photos.map((u, i) => (
           <button key={u} type="button" onClick={() => setOpen(i)} aria-label={`Open photo ${i + 1} of ${photos.length}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={u} alt="" loading="lazy" />
+            <img src={u} alt={`${name}, photo ${i + 1}`} loading="lazy" />
           </button>
         ))}
       </div>

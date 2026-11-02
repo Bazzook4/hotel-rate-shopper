@@ -1,7 +1,19 @@
 import { notFound } from "next/navigation";
-import { loadSite, siteBase } from "@/lib/hotelSite";
+import { faqSchema, hotelSchema, loadSite, siteBase, siteMeta, siteOrigin } from "@/lib/hotelSite";
+import JsonLd from "./JsonLd";
 import { timeLabel } from "@/lib/bookingEngineShared";
 import { RoomCard } from "./Rooms";
+
+export async function generateMetadata({ params }) {
+  const key = decodeURIComponent((await params).key);
+  const view = await loadSite(key);
+  if (!view) return siteMeta(key, {});
+  const place = view.city ? `${view.name}, ${view.city}` : view.name;
+  return siteMeta(key, {
+    title: view.tagline ? `${view.name} | ${view.tagline}` : place,
+    description: view.details.about || view.tagline || `Rooms, photos and booking at ${place}.`,
+  });
+}
 
 /** Home: the hotel's photo and name, a few words about it, what it offers, and a taste of the rooms. */
 export default async function SiteHome({ params }) {
@@ -11,11 +23,14 @@ export default async function SiteHome({ params }) {
   const base = await siteBase(key);
   const { details, show } = view;
   const hero = view.banner[0] || view.gallery[0];
+  const url = await siteOrigin(key);
   return (
     <main>
+      <JsonLd data={hotelSchema(view, url)} />
+      {show.faq && view.faqs.length > 0 && <JsonLd data={faqSchema(view.faqs)} />}
       <section className={`site-hero${hero ? "" : " plain"}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {hero && <img className="bg" src={hero} alt="" />}
+        {hero && <img className="bg" src={hero} alt={view.name} fetchPriority="high" />}
         <div className="copy">
           <h1>{view.name}</h1>
           {view.tagline && <p>{view.tagline}</p>}

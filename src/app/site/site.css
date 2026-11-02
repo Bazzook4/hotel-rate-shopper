@@ -89,7 +89,7 @@
 .site-hero.plain .copy { padding: 0 1.25rem; align-items: center; }
 .site-eyebrow { text-transform: uppercase; letter-spacing: .3em; font-size: .72rem; color: var(--s-accent); margin: 0 0 .75rem; }
 .site-section { padding: 4.5rem 0; }
-.site-section h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin-bottom: 1.25rem; }
+.site-section h1, .site-section h2 { font-size: clamp(1.9rem, 4vw, 2.6rem); margin: 0 0 1.25rem; line-height: 1.2; }
 .site-center { text-align: center; }
 .site-center .site-about { margin-left: auto; margin-right: auto; font-family: var(--s-serif); font-size: 1.3rem; line-height: 1.75; }
 .site-center .site-actions, .site-center .site-chips { justify-content: center; }

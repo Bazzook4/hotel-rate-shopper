@@ -9,17 +9,6 @@ import "../site.css";
  * links are relative to wherever the middleware says the site is mounted.
  */
 
-export async function generateMetadata({ params }) {
-  const { key } = await params;
-  const view = await loadSite(decodeURIComponent(key));
-  if (!view) return { title: "Website not found" };
-  return {
-    title: view.tagline ? `${view.name} | ${view.tagline}` : view.name,
-    description: view.details.about?.slice(0, 160) || view.tagline || view.name,
-    openGraph: view.banner[0] ? { images: [view.banner[0]] } : undefined,
-  };
-}
-
 export default async function SiteLayout({ children, params }) {
   const { key } = await params;
   const view = await loadSite(decodeURIComponent(key));

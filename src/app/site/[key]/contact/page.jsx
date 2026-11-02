@@ -1,10 +1,16 @@
 import { notFound } from "next/navigation";
-import { loadSite } from "@/lib/hotelSite";
+import { loadSite, siteMeta } from "@/lib/hotelSite";
 import { timeLabel } from "@/lib/bookingEngineShared";
 
 export async function generateMetadata({ params }) {
-  const view = await loadSite(decodeURIComponent((await params).key));
-  return { title: view ? `Contact us | ${view.name}` : "Contact us" };
+  const key = decodeURIComponent((await params).key);
+  const view = await loadSite(key);
+  if (!view) return siteMeta(key, {});
+  return siteMeta(key, {
+    path: "/contact",
+    title: `Contact us | ${view.name}`,
+    description: `Address, phone and email of ${view.name}${view.city ? `, ${view.city}` : ""}, with check-in and check-out times and directions.`,
+  });
 }
 
 /** Contact us: where the hotel is, how to reach it, arrival times and house rules. */
@@ -23,7 +29,7 @@ export default async function SiteContact({ params }) {
   return (
     <main className="site-section">
       <div className="site-wrap">
-        <h2>Contact us</h2>
+        <h1>Contact us</h1>
         {rows.length === 0 ? (
           <p className="site-muted">Contact details will be added soon.</p>
         ) : (

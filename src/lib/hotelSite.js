@@ -60,6 +60,8 @@ export async function siteView(site) {
   return {
     key,
     name: property.name || "",
+    city: String(property.city || "").trim(),
+    country: String(property.country_code || property.country || "").trim(),
     logoUrl: property.display_prefs?.logoUrl || null,
     tagline: content.site.tagline,
     banner: content.banner,
@@ -109,4 +111,77 @@ export const loadSite = cache(async (key) => {
 export async function siteBase(key) {
   const host = (await headers()).get("host");
   return isAppHost(host) ? `/site/${key}` : "";
+}
+
+/** The site's full web address with no trailing slash, as the guest reached it: our /site/<key> address, or the hotel's own domain. */
+export async function siteOrigin(key) {
+  const host = (await headers()).get("host") || "";
+  const proto = /^localhost|\.localhost/.test(host) ? "http" : "https";
+  return `${proto}://${host}${isAppHost(host) ? `/site/${key}` : ""}`;
+}
+
+const clip = (v, n) => {
+  const t = String(v || "").replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n - 3).trimEnd()}...` : t;
+};
+
+/**
+ * What search engines and link previews read for one page: its title and
+ * description, its own address (so the same page is never counted twice), and
+ * the card shown when someone shares it. `path` is "", "/rooms" and so on.
+ */
+export async function siteMeta(key, { path = "", title, description, image }) {
+  const view = await loadSite(key);
+  if (!view) return { title: "Website not found", robots: { index: false } };
+  const url = `${await siteOrigin(key)}${path}`;
+  const text = clip(description, 160);
+  const img = image || view.banner[0] || view.gallery[0];
+  return {
+    title,
+    description: text,
+    alternates: { canonical: url },
+    openGraph: { type: "website", siteName: view.name, title, description: text, url, images: img ? [{ url: img }] : undefined },
+    twitter: { card: img ? "summary_large_image" : "summary", title, description: text, images: img ? [img] : undefined },
+  };
+}
+
+/** The hotel as search engines like to read it (schema.org Hotel), for Google's hotel details. */
+export function hotelSchema(view, url) {
+  const d = view.details;
+  const images = [...view.banner, ...view.gallery].filter((u, i, all) => all.indexOf(u) === i).slice(0, 8);
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "Hotel",
+    name: view.name,
+    url,
+    description: clip(d.about || view.tagline, 500) || undefined,
+    image: images.length ? images : undefined,
+    logo: view.logoUrl || undefined,
+    telephone: d.phone || undefined,
+    email: d.email || undefined,
+    checkinTime: d.checkIn || undefined,
+    checkoutTime: d.checkOut || undefined,
+    hasMap: d.mapUrl || undefined,
+    address: d.address
+      ? {
+          "@type": "PostalAddress",
+          streetAddress: d.address,
+          addressLocality: view.city || undefined,
+          addressCountry: view.country || undefined,
+        }
+      : undefined,
+    amenityFeature: d.amenities.length
+      ? d.amenities.map((name) => ({ "@type": "LocationFeatureSpecification", name, value: true }))
+      : undefined,
+  };
+  return schema;
+}
+
+/** The FAQ as search engines read it (schema.org FAQPage), so questions can show in results. */
+export function faqSchema(faqs) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  };
 }
