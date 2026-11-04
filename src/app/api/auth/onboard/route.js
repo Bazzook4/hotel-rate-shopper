@@ -21,6 +21,7 @@ import { savePropertyProfile, validateProfile } from "@/lib/events";
 import { clientIp, recordSignup, signupBlockedBy } from "@/lib/rateLimit";
 import { STARTER_PLANS, validateStarterSetup } from "@/lib/onboardSetup";
 import { sendWelcomeEmail } from "@/lib/welcomeEmail";
+import { sendTemplate, waPhone, whatsappReady } from "@/lib/whatsapp";
 import { planAutoNumbering } from "@/lib/roomNumbering";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -268,6 +269,17 @@ export async function POST(request) {
         console.error("Could not send the welcome email:", err.message)
       )
     );
+
+    // The same welcome on WhatsApp, from the approved welcome_v1 template.
+    // Nothing is sent until WhatsApp is connected; a failure is only logged.
+    const waTo = waPhone(contactPhone);
+    if (waTo && whatsappReady()) {
+      after(() =>
+        sendTemplate(waTo, "welcome_v1", [contactName || "there", property.name, loginUrl], "welcome").catch((err) =>
+          console.error("Could not send the welcome WhatsApp:", err.message)
+        )
+      );
+    }
 
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, propertyId: property.id, propertyName: property.name },

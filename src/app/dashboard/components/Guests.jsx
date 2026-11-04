@@ -19,7 +19,10 @@ import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, TiersGrid, WalletPlansGrid, useGuestTiers } from "./GuestSettings";
 import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
 import GuestIdPhotos from "./GuestIdPhotos";
-import { Drawer } from "./RatePlanSetup";
+import { Drawer, Field } from "./RatePlanSetup";
+import Select from "@/app/components/Select";
+import { confirmDiscardChanges } from "../../components/Dialog";
+import { useToast } from "../../components/Toast";
 import { formatAmount } from "@/lib/money";
 
 /**
@@ -170,6 +173,179 @@ function GuestPanel({ propertyId, guest: g, startTab, plans, onClose, onChanged,
   );
 }
 
+const NEW_STEPS = [
+  { id: "who", label: "Who" },
+  { id: "more", label: "More" },
+];
+
+/**
+ * Add a guest in two short steps, like a company. Only the name is needed,
+ * so "Save now" is there from the first step; the ID file, wallet and stays
+ * come from the guest's panel once saved.
+ */
+function AddGuest({ propertyId, country, tierOptions, countries, onClose, onSaved, onOpen }) {
+  const dialog = useDialog();
+  const toast = useToast();
+  const blank = {
+    full_name: "",
+    phone: "",
+    email: "",
+    country: country || "",
+    company: "",
+    tier_id: "",
+    id_type: "",
+    id_number: "",
+    notes: "",
+  };
+  const [form, setForm] = useState(blank);
+  const [at, setAt] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const touched = Object.keys(blank).some((k) => k !== "country" && form[k] !== blank[k]);
+
+  function problem(step) {
+    if ((!step || step === "who") && !form.full_name.trim()) return "Give the guest a name.";
+    if ((!step || step === "who") && form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+      return "That email address does not look right.";
+    }
+    return null;
+  }
+
+  async function close() {
+    if (touched && !(await confirmDiscardChanges(dialog, "this guest"))) return;
+    onClose();
+  }
+
+  async function save() {
+    const p = problem();
+    if (p) {
+      setAt(0);
+      setError(p);
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const row = { ...form, full_name: form.full_name.trim() };
+      // A blank tier is left off, so adding a guest works before tiers exist.
+      if (!row.tier_id) delete row.tier_id;
+      const { guest } = await sendJSON("/api/pms/guests", "POST", { property_id: propertyId, ...row });
+      onSaved();
+      toast(`Saved ${guest?.full_name || row.full_name}.`, {
+        action: guest?.id ? { label: "Add ID file", run: () => onOpen(guest.id, "photos") } : undefined,
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function next() {
+    if (at === 1) {
+      save();
+      return;
+    }
+    const p = problem("who");
+    if (p) {
+      setError(p);
+      return;
+    }
+    setError("");
+    setAt(1);
+  }
+
+  const text = (f, props = {}) => (
+    <input className="input" value={form[f]} onChange={(e) => set({ [f]: e.target.value })} {...props} />
+  );
+
+  return (
+    <Drawer
+      title={form.full_name.trim() || "Add guest"}
+      subtitle="Only the name is needed. The rest can be added later."
+      onCancel={at === 0 ? close : () => { setError(""); setAt(0); }}
+      onEscape={close}
+      cancelLabel={at === 0 ? "Cancel" : "Back"}
+      onSave={next}
+      saveLabel={at === 1 ? "Save guest" : "Next"}
+      extraActions={
+        at === 0 && form.full_name.trim() ? (
+          <button type="button" className="btn btn-secondary" onClick={save} disabled={busy}>
+            Save now
+          </button>
+        ) : null
+      }
+      busy={busy}
+      error={error}
+      tabs={
+        <div className="seg" role="tablist" aria-label="Steps">
+          {NEW_STEPS.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              role="tab"
+              aria-selected={i === at}
+              className={i === at ? "seg-on" : ""}
+              disabled={i > 0 && !form.full_name.trim()}
+              onClick={() => {
+                if (i === 1) next();
+                else { setError(""); setAt(0); }
+              }}
+            >
+              {i + 1}. {s.label}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {at === 0 ? (
+        <div className="space-y-3">
+          <Field label="Full name (needed)">{text("full_name", { autoFocus: true, placeholder: "Full name" })}</Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Phone">{text("phone", { type: "tel", inputMode: "tel" })}</Field>
+            <Field label="Email">{text("email", { type: "email", inputMode: "email" })}</Field>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Country">
+              <Select className="input" value={form.country} onChange={(e) => set({ country: e.target.value })}>
+                {countries.map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Company">{text("company", { autoFocus: true })}</Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="ID type">
+              <Select className="input" value={form.id_type} onChange={(e) => set({ id_type: e.target.value })}>
+                {ID_TYPES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="ID number">{text("id_number")}</Field>
+          </div>
+          {tierOptions.length > 1 && (
+            <Field label="Tier">
+              <Select className="input" value={form.tier_id} onChange={(e) => set({ tier_id: e.target.value })}>
+                {tierOptions.map((t) => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <Field label="Notes">{text("notes", { placeholder: "Preferences, VIP..." })}</Field>
+        </div>
+      )}
+    </Drawer>
+  );
+}
+
 export default function Guests({ session }) {
   const dialog = useDialog();
   const propertyId = session?.propertyId || null;
@@ -185,6 +361,7 @@ export default function Guests({ session }) {
   // One guest's row opened below it: their bookings, their wallet or their ID files.
   const [openId, setOpenId] = useState(null);
   const [openWhat, setOpenWhat] = useState("history");
+  const [adding, setAdding] = useState(false);
   // The tiers or wallet plans list, opened above the guests.
   const [settings, setSettings] = useState(null);
   const { tiers, reload: reloadTiers } = useGuestTiers(propertyId);
@@ -244,20 +421,6 @@ export default function Guests({ session }) {
     wallet: "wallet",
   });
   const rows = [...sorter.rows, ...grid.drafts];
-
-  function addRow() {
-    grid.add({
-      full_name: "",
-      phone: "",
-      email: "",
-      country: toCountryCode(session?.propertyCountry) || "",
-      company: "",
-      tier_id: "",
-      id_type: "",
-      id_number: "",
-      notes: "",
-    });
-  }
 
   async function saveAll() {
     setBusy(true);
@@ -333,7 +496,7 @@ export default function Guests({ session }) {
       />
 
       <Toolbar>
-        <button type="button" className="btn btn-secondary text-sm" onClick={addRow} disabled={notReady}>
+        <button type="button" className="btn btn-secondary text-sm" onClick={() => setAdding(true)} disabled={notReady}>
           <Icon name="plus" size={14} /> Add guest
         </button>
         <button
@@ -514,6 +677,21 @@ export default function Guests({ session }) {
           })}
         </tbody>
       </Grid>
+
+      {adding && (
+        <AddGuest
+          propertyId={propertyId}
+          country={toCountryCode(session?.propertyCountry) || ""}
+          tierOptions={tierOptions}
+          countries={countries}
+          onClose={() => setAdding(false)}
+          onSaved={load}
+          onOpen={(id, what) => {
+            setOpenId(id);
+            setOpenWhat(what);
+          }}
+        />
+      )}
 
       {opened && (
         <GuestPanel

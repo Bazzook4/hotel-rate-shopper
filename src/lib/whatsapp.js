@@ -113,6 +113,8 @@ const TEMPLATE_WORDS = {
   daily_report_v2:
     "Good morning {{1}}, here is today at your hotel.\nArrivals: {{2}}\nDepartures: {{3}}\nRooms occupied: {{4}}\nOccupancy: {{5}}\nYesterday's revenue: {{6}}\nHave a good day.",
   lead_alert_v2: "New lead from {{1}}.\nInterested in: {{2}}\nRooms: {{3}}\nCity: {{4}}\nPlease follow up from the WhatsApp inbox.",
+  welcome_v1:
+    "Hi {{1}}, welcome to OnlineHotelier. Your hotel {{2}} is created. Log in at {{3}} and add your rooms to start. Reply here if you need any help.",
   setup_reminder_v2: "Hi {{1}}, your hotel {{2}} is {{3}} set up on OnlineHotelier. Reply here if you need any help finishing it.",
   day3_checkin_v2: "Hi {{1}}, we have not seen new bookings at {{2}} since {{3}}. Is everything working fine? Reply here and we will help.",
 };
@@ -180,6 +182,7 @@ export async function alertAdmin(text, templateParams) {
  * with what each blank is. The names must match Meta's exactly.
  */
 export const TEMPLATES = {
+  welcome_v1: { label: "Welcome", params: ["Name", "Hotel", "Login link"] },
   setup_reminder_v2: { label: "Setup reminder", params: ["Name", "Hotel", "How far set up, like 60%"] },
   day3_checkin_v2: { label: "No bookings lately", params: ["Name", "Hotel", "Since, like 20 Oct"] },
 };
