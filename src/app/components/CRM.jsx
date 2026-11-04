@@ -21,6 +21,7 @@ const VIEWS = [
   ["contacts", "Contacts"],
   ["deals", "Deals"],
   ["hotels", "Hotels"],
+  ["pages", "Pages & help"],
 ];
 
 export default function CRM() {
@@ -52,7 +53,7 @@ export default function CRM() {
           </button>
         ))}
       </div>
-      {view === "hotels" && <HotelUsage />}
+      {(view === "hotels" || view === "pages") && <HotelUsage view={view} />}
       {view === "chats" && (
         <WhatsAppInbox
           key={openPhone || "inbox"}

@@ -70,7 +70,7 @@ async function load(url) {
   return r.ok ? { rows: j.rows || [] } : { rows: [], missing: Boolean(j.missing), error: j.error || "Could not load" };
 }
 
-export default function HotelUsage() {
+export default function HotelUsage({ view = "hotels" }) {
   const [hotels, setHotels] = useState(null);
   const [follows, setFollows] = useState([]);
   const [plans, setPlans] = useState([]);
@@ -81,8 +81,6 @@ export default function HotelUsage() {
   const [filter, setFilter] = useState(null);
   const [picked, setPicked] = useState(() => new Set());
   const [openId, setOpenId] = useState(null);
-  // Hotels, or how pages and help are used (PageUsage.jsx).
-  const [view, setView] = useState("hotels");
 
   useEffect(() => {
     let cancelled = false;
@@ -144,32 +142,7 @@ export default function HotelUsage() {
   }
   if (!hotels) return <p className="sub">Loading...</p>;
 
-  const switcher = (
-    <div className="flex gap-2">
-      {[
-        ["hotels", "Hotels"],
-        ["pages", "Pages & help"],
-      ].map(([id, label]) => (
-        <button
-          key={id}
-          type="button"
-          className={view === id ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"}
-          aria-pressed={view === id}
-          onClick={() => setView(id)}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
-  );
-  if (view === "pages") {
-    return (
-      <div className="space-y-3">
-        {switcher}
-        <PageUsage hotels={rows} />
-      </div>
-    );
-  }
+  if (view === "pages") return <PageUsage hotels={rows} />;
 
   // A new filter starts with nothing ticked, so a send only goes to hotels in view.
   const pick = (key) => () => {
@@ -203,7 +176,6 @@ export default function HotelUsage() {
 
   return (
     <div className="space-y-3">
-      {switcher}
       {!followsReady && (
         <div className="rounded-xl border border-[var(--warn)] px-4 py-2 text-sm" style={{ color: "var(--warn)" }}>
           Follow-up messages can be drafted, but are not saved yet: run migration 062.
