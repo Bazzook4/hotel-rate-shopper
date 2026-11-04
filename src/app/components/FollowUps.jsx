@@ -228,15 +228,6 @@ export function PlanControls({ ids, live, defaultKind = "reminder", onSaved, dis
   );
 }
 
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function send(method, body) {
   const r = await fetch("/api/admin/followups", {
     method,
@@ -276,17 +267,6 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
   }, [kind, hotel, activity, edited]);
 
   const digits = whatsappNumber(hotel.contact_phone, "IN");
-  const href = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(message)}` : null;
-
-  async function save() {
-    if (!canSave) return;
-    try {
-      onSaved((await send("POST", { property_id: hotel.id, kind, message, activity })).row);
-      setStatus("Saved to this hotel's follow-ups.");
-    } catch (e) {
-      setStatus(e.message);
-    }
-  }
 
   // Sends on the business WhatsApp number; the hotel need not be opened in WhatsApp.
   async function sendNow() {
@@ -415,33 +395,16 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
         </div>
 
         <div className="side-panel-foot card-pad flex flex-wrap items-center gap-2">
-          {href ? (
-            <>
-              <button type="button" className="btn btn-primary" disabled={sending || !canSave} onClick={sendNow}>
-                <Icon name="chat" size={16} />
-                {sending ? "Sending..." : "Send on WhatsApp"}
-              </button>
-              <a href={href} target="_blank" rel="noopener noreferrer" className="btn btn-ghost" onClick={save}>
-                Open in WhatsApp
-              </a>
-            </>
+          {digits ? (
+            <button type="button" className="btn btn-primary" disabled={sending || !canSave} onClick={sendNow}>
+              <Icon name="chat" size={16} />
+              {sending ? "Sending..." : "Send on WhatsApp"}
+            </button>
           ) : (
             <span className="text-sm" style={{ color: "var(--warn)" }}>
               No contact mobile on this hotel.
             </span>
           )}
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={async () => {
-              const ok = await copyText(message);
-              if (!ok) return setStatus("Could not copy. Select the message and copy it.");
-              await save();
-              setStatus((s) => (s.startsWith("Saved") ? "Copied and saved." : "Copied."));
-            }}
-          >
-            Copy
-          </button>
           {status && <span className="text-xs muted">{status}</span>}
         </div>
       </div>

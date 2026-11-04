@@ -55,7 +55,6 @@ const SORT = {
   name: "name",
   signed: (r) => r.created_at,
   rooms: "rooms",
-  b30: "bookings_30",
   all: "bookings",
   open: (r) => r.last_open,
   status: (r) => STATUS[r.status].order,
@@ -268,7 +267,6 @@ export default function HotelUsage() {
               <SortTh sorter={sorter} col="name">Hotel</SortTh>
               <SortTh sorter={sorter} col="signed">Signed up</SortTh>
               <SortTh sorter={sorter} col="rooms">Rooms</SortTh>
-              <SortTh sorter={sorter} col="b30">Last 30 days</SortTh>
               <SortTh sorter={sorter} col="all">All bookings</SortTh>
               <SortTh sorter={sorter} col="open">Last opened</SortTh>
               <SortTh sorter={sorter} col="status">Status</SortTh>
@@ -291,7 +289,7 @@ export default function HotelUsage() {
                   <span className="block text-ink">{r.name}</span>
                   {r.city && <span className="block text-xs muted">{r.city}</span>}
                   {(r.contact_name || r.contact_phone) && (
-                    <ContactLine name={r.contact_name} phone={r.contact_phone} />
+                    <ContactLine name={r.contact_name} phone={r.contact_phone} plain />
                   )}
                 </td>
                 <td className="muted">
@@ -303,10 +301,6 @@ export default function HotelUsage() {
                   <span className="block text-xs muted">
                     {r.room_types ?? 0} room type{r.room_types === 1 ? "" : "s"}
                   </span>
-                </td>
-                <td>
-                  {r.bookings_30}
-                  {r.bookings_30 > 0 && <span className="block text-xs muted">{inr(r.value_30)}</span>}
                 </td>
                 <td>
                   {r.bookings}
@@ -357,7 +351,7 @@ export default function HotelUsage() {
             ))}
             {sorter.rows.length === 0 && (
               <tr>
-                <td colSpan={11} className="py-8 text-center sub">
+                <td colSpan={10} className="py-8 text-center sub">
                   No hotels here.
                 </td>
               </tr>
