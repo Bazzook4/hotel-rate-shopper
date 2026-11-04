@@ -606,8 +606,8 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
         <DeskList
           title="In the hotel"
           rows={staying}
-          action="Add charge"
-          busyLabel="Add charge"
+          action="Add service"
+          busyLabel="Add service"
           busyId={null}
           onAction={(r) => openBooking(r.id, "inclusions")}
           onSeeAll={seeAll("in_house")}

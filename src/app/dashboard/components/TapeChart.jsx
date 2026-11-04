@@ -140,7 +140,7 @@ const SELECTION_ACTIONS = [
  */
 const BOOKING_ACTIONS = [
   { id: "details", label: "Edit booking" },
-  { id: "inclusions", label: "Add charge" },
+  { id: "inclusions", label: "Add service" },
   { id: "payments", label: "Collect payment" },
 ];
 
@@ -2040,7 +2040,6 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           onClick={() => onChoose("checkin")}
         />
       )}
-      {(leaving || r.status === "in_house") && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
       {BOOKING_ACTIONS.map((a) => (
         <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
       ))}
@@ -2052,6 +2051,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
         title={settled ? "This stay is over, so its room can no longer change" : undefined}
         onClick={() => onChoose("upgrade")}
       />
+      {(leaving || r.status === "in_house") && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
       {r.status === "confirmed" && <MenuItem label="Cancel booking" onClick={() => onChoose("cancel")} />}
     </MenuShell>
   );

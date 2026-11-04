@@ -567,7 +567,7 @@ function ServiceDrawer({ folio, extras, reservationId, currency, onClose, onSave
   }
 
   return (
-    <Drawer title="Add charge" onCancel={onClose} onSave={save} saveLabel="Add" busyLabel="Adding..." busy={busy} error={error}>
+    <Drawer title="Add service" onCancel={onClose} onSave={save} saveLabel="Add" busyLabel="Adding..." busy={busy} error={error}>
       {sellable.length === 0 ? (
         <div>
           <p className="sub">No services set up yet.</p>
@@ -1976,7 +1976,7 @@ export default function FolioTabs({
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn btn-secondary text-sm" onClick={() => setDrawer("service")}>
-              <Icon name="plus" size={14} /> Add charge
+              <Icon name="plus" size={14} /> Add service
             </button>
             <button
               type="button"
