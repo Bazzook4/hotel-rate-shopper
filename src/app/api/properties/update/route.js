@@ -23,6 +23,9 @@ const EDITABLE = [
   // The company the GSTIN is registered to, and whether invoices show both.
   "legal_name",
   "invoice_show_tax_id",
+  // The invoice series: text before the number, and a one-time start number.
+  "invoice_prefix",
+  "invoice_next_number",
 ];
 /**
  * Columns only a super admin may change. The total number of rooms caps how
@@ -93,6 +96,26 @@ export async function PATCH(req) {
 
   if ("legal_name" in updates) {
     updates.legal_name = String(updates.legal_name || "").trim().slice(0, 150) || null;
+  }
+  if ("invoice_prefix" in updates) {
+    const prefix = String(updates.invoice_prefix || "").trim();
+    if (prefix.length > 20 || /[^A-Za-z0-9\-_/. ]/.test(prefix)) {
+      return NextResponse.json(
+        { error: "The invoice prefix can have letters, numbers and - / _ . only, up to 20 characters." },
+        { status: 400 }
+      );
+    }
+    updates.invoice_prefix = prefix || null;
+  }
+  if ("invoice_next_number" in updates) {
+    const n = updates.invoice_next_number;
+    if (n === "" || n == null) {
+      updates.invoice_next_number = null;
+    } else if (!Number.isInteger(Number(n)) || Number(n) < 1 || Number(n) > 99999999) {
+      return NextResponse.json({ error: "The next invoice number must be a whole number, 1 or more." }, { status: 400 });
+    } else {
+      updates.invoice_next_number = Number(n);
+    }
   }
   if ("invoice_show_tax_id" in updates) {
     updates.invoice_show_tax_id = updates.invoice_show_tax_id !== false;

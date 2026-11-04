@@ -414,8 +414,16 @@ export function folioTotals({ reservation, nights: stayNights = [], extras = [],
     rate: chargedRate(n.rate ?? roomBefore / Math.max(1, roomUnits.length), n.stay_date, keep, nightOff),
   }));
 
+  // A booking can say its rate includes tax or has tax added on top, over
+  // what the hotel's rules say. Percent rules follow it; fixed ones do not.
+  const mode = reservation.rate_tax_mode;
+  const rules =
+    mode === "inclusive" || mode === "exclusive"
+      ? taxRules.map((t) => (t.calc_type === "percent" ? { ...t, is_inclusive: mode === "inclusive" } : t))
+      : taxRules;
+
   const tax = computeTaxes(
-    taxRules,
+    rules,
     serviceTaxes,
     stayLines({
       nights: chargedNights,

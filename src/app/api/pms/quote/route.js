@@ -37,6 +37,7 @@ export async function GET(req) {
           room_type_id: searchParams.get("roomTypeId"),
           rate_plan_id: searchParams.get("ratePlanId") || null,
           check_in: searchParams.get("checkIn"),
+          hours: Number(searchParams.get("hours")) || null,
           adults: Number(searchParams.get("adults")) || 2,
           children: Number(searchParams.get("children")) || 0,
         })

@@ -54,6 +54,14 @@ function day(iso) {
 }
 
 /** A moment as the date it was at the hotel, not in UTC. */
+/** "4 Nov 2026, 2:10 PM" on the hotel's clock. */
+function stampTime(iso, zone) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: zone || "UTC" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: zone || "UTC" });
+  return `${date}, ${time}`;
+}
+
 function stamp(iso, zone) {
   if (!iso) return "-";
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -301,6 +309,8 @@ async function renderInvoice(invoice, fallbackProperty, logoUrl, zone = "UTC", {
     : [snap.guest_name, snap.guest_email, snap.guest_phone];
   const stayLines = [
     `${day(snap.check_in)} to ${day(snap.check_out)}`,
+    snap.checked_in_at ? `Check-in: ${stampTime(snap.checked_in_at, zone)}` : null,
+    snap.checked_out_at ? `Check-out: ${stampTime(snap.checked_out_at, zone)}` : null,
     [snap.room_type, snap.room_number ? `Room ${snap.room_number}` : null]
       .filter(Boolean)
       .join(", "),

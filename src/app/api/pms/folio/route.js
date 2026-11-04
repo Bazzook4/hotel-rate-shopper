@@ -11,6 +11,7 @@ import {
   deleteReservationExtra,
   addReservationPayment,
   voidReservationPayment,
+  editReservationPayment,
   createReservationInvoice,
   voidReservationInvoice,
   setNightRate,
@@ -234,6 +235,14 @@ export async function POST(req) {
       }
 
       case "payment": {
+        // A correction to a payment already recorded.
+        if (body.payment?.id) {
+          if (!(await rowBelongs("payment", body.payment.id, reservationId))) {
+            return NextResponse.json({ error: "That payment is not on this reservation" }, { status: 404 });
+          }
+          await editReservationPayment(body.payment.id, body.payment, session.userId);
+          break;
+        }
         const amount = Number(body.payment?.amount);
         if (!Number.isFinite(amount) || amount === 0) {
           return NextResponse.json(

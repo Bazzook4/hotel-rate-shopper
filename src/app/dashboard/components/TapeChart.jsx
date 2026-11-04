@@ -2040,7 +2040,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           onClick={() => onChoose("checkin")}
         />
       )}
-      {leaving && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
+      {(leaving || r.status === "in_house") && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
       {BOOKING_ACTIONS.map((a) => (
         <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
       ))}

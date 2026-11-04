@@ -254,14 +254,26 @@ function Statement({ folio, currency, actions, busy }) {
               {actions && (
                 <td className="text-right">
                   {!p.voided_at && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost text-xs"
-                      disabled={busy}
-                      onClick={() => actions.voidPayment(p)}
-                    >
-                      Void
-                    </button>
+                    <span className="inline-flex gap-1">
+                      {p.method !== "wallet" && actions.editPayment && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost text-xs"
+                          disabled={busy}
+                          onClick={() => actions.editPayment(p)}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-ghost text-xs"
+                        disabled={busy}
+                        onClick={() => actions.voidPayment(p)}
+                      >
+                        Void
+                      </button>
+                    </span>
                   )}
                 </td>
               )}
@@ -855,6 +867,90 @@ function PaymentDrawer({ folio, reservationId, currency, onClose, onSaved, forGu
   );
 }
 
+/**
+ * Correct a payment already taken: its amount, method or reference. The
+ * server keeps what it said before, with who changed it and when.
+ */
+function EditPaymentDrawer({ payment, reservationId, currency, onClose, onSaved }) {
+  const refund = Number(payment.amount) < 0;
+  const [amount, setAmount] = useState(String(Math.abs(Number(payment.amount))));
+  const [method, setMethod] = useState(payment.method);
+  const [reference, setReference] = useState(payment.reference || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function save() {
+    if (!(Number(amount) > 0)) {
+      setError("Enter an amount more than zero.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await sendFolio(reservationId, "payment", {
+        payment: { id: payment.id, amount: Number(amount), method, reference },
+      });
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Drawer
+      title={refund ? "Change refund" : "Change payment"}
+      subtitle={`Now ${money(Math.abs(Number(payment.amount)), currency)}`}
+      onCancel={onClose}
+      onSave={save}
+      saveLabel="Save changes"
+      busy={busy}
+      error={error}
+    >
+      <div className="space-y-4">
+        <Field label="Amount">
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.01"
+            autoFocus
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </Field>
+        <div>
+          <span className="label">Method</span>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Method">
+            {METHODS.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                aria-pressed={method === m.id}
+                className={`btn text-sm ${method === m.id ? "btn-primary" : "btn-secondary"}`}
+                onClick={() => setMethod(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {method !== "cash" && (
+          <Field label="Reference" hint="Optional. A card slip or UPI number.">
+            <input className="input" value={reference} onChange={(e) => setReference(e.target.value)} />
+          </Field>
+        )}
+        {payment.edit_log?.length > 0 && (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Changed {payment.edit_log.length} time{payment.edit_log.length === 1 ? "" : "s"} before. The old values are kept.
+          </p>
+        )}
+      </div>
+    </Drawer>
+  );
+}
+
 /** A charge as it reads inside its category: just the night, or the service. */
 function chargeLabel(c) {
   if (c.key.startsWith("night:")) return nightLabel(c.key.slice(6));
@@ -1393,6 +1489,8 @@ export default function FolioTabs({
   // One named guest per adult and child on the booking.
   const guestCap = Math.max(1, (Number(folio?.reservation?.adults) || 0) + (Number(folio?.reservation?.children) || 0));
   const [drawer, setDrawer] = useState(null);
+  // The payment being corrected, while its drawer is open.
+  const [editingPayment, setEditingPayment] = useState(null);
   // The guest a drawer was opened for, from their row of separate bills.
   const [forGuest, setForGuest] = useState(null);
   // The invoice shown in the preview on the Invoices tab.
@@ -1950,6 +2048,10 @@ export default function FolioTabs({
               editDiscount: canDiscount ? () => (standingInvoice ? onTab?.("invoices") : setDrawer("discount")) : null,
               discountLocked: standingInvoice,
               removeExtra,
+              editPayment: (p) => {
+                setEditingPayment(p);
+                setDrawer("editpayment");
+              },
               voidPayment: async (p) => {
                 const reason = await dialog.prompt({
                   title: `Void this ${money(Math.abs(p.amount), currency)} ${Number(p.amount) < 0 ? "refund" : "payment"}?`,
@@ -2115,6 +2217,9 @@ export default function FolioTabs({
           <>
             {drawer === "service" && <ServiceDrawer {...drawerProps} extras={extras} />}
             {drawer === "payment" && <PaymentDrawer {...drawerProps} />}
+            {drawer === "editpayment" && editingPayment && (
+              <EditPaymentDrawer {...drawerProps} payment={editingPayment} />
+            )}
             {drawer === "invoice" && (
               <InvoiceDrawer
                 {...drawerProps}

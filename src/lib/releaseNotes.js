@@ -13,6 +13,17 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-11-04",
+    title: "Easier check-out, flexible day use, invoice and payment fixes",
+    points: [
+      { page: "tapechart", text: "Click a guest who is in the house and you can now Check out right from the menu, even before the last night. Leaving early still asks what the bill should show." },
+      { page: "reservations", text: "Day use is now flexible. Pick the hours (1 to 12, or more) and any start time in 15 minute steps. The price follows the hours: a 2 hour stay on a 1 hour plan costs twice the plan rate. You can still type your own total." },
+      { page: "reservations", text: "New bookings have a Tax on the rate choice: tick Rate includes tax, or Tax added on top. Leave both empty to use your hotel's tax setup." },
+      { page: "reservations", text: "On a booking's Bill, each payment has an Edit button. Change the amount, the way it was paid or the reference. The old values are kept on record." },
+      { page: "hotel", text: "You can now set your own invoice numbers. On the Hotel page, type a prefix such as GH/25-26/ and, if you want, the number to start from. Invoices also show the guest's check-in and check-out time." },
+    ],
+  },
+  {
     date: "2026-11-02",
     title: "A more elegant hotel website",
     points: [

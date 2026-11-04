@@ -68,6 +68,13 @@ function bookingFields(body) {
     guest_email: body.guest_email?.trim() || null,
     guest_phone: body.guest_phone?.trim() || null,
     guest_residency: body.guest_residency === "international" ? "international" : "domestic",
+    // Only sent when the desk chose, so a database without migration 073
+    // keeps taking bookings. Blank on an edit goes back to the hotel's setup.
+    ...(body.rate_tax_mode === "inclusive" || body.rate_tax_mode === "exclusive"
+      ? { rate_tax_mode: body.rate_tax_mode }
+      : body.rate_tax_mode === ""
+        ? { rate_tax_mode: null }
+        : {}),
     room_type_id: body.room_type_id,
     room_id: body.room_id || null,
     rate_plan_id: body.rate_plan_id || null,
@@ -128,7 +135,8 @@ async function applyStayKind(fields, body, propertyId, before = null) {
     const plan = plans.find((p) => p.id === fields.rate_plan_id);
     if (plan) {
       dayUse = isDayUsePlan(plan);
-      if (dayUse) hours = Number(plan.day_use_hours);
+      // The plan is the default length; the desk may book fewer or more hours.
+      if (dayUse) hours = validDayUseHours(body.day_use_hours) || Number(plan.day_use_hours);
     }
   }
   if (dayUse && !hours) {

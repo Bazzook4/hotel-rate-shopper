@@ -54,6 +54,8 @@ function emptyBooking(country = "") {
     guest_phone: "",
     guest_country: country,
     guest_residency: "domestic",
+    // "" follows the hotel's tax setup; "inclusive" or "exclusive" decides for this booking.
+    rate_tax_mode: "",
     // Someone booking for another person: kept as a contact on the booking,
     // never put on the guest list.
     booked_by_other: false,
@@ -96,6 +98,7 @@ function toForm(reservation) {
     guest_phone: reservation.guest_phone || "",
     guest_country: reservation.guest_country || "",
     guest_residency: reservation.guest_residency || "domestic",
+    rate_tax_mode: reservation.rate_tax_mode || "",
     booked_by_other: Boolean(reservation.booker_name),
     booker_name: reservation.booker_name || "",
     booker_phone: reservation.booker_phone || "",
@@ -977,7 +980,10 @@ export default function BookingForm({
       if (session?.propertyId) qs.set("propertyId", session.propertyId);
       if (rate_plan_id) qs.set("ratePlanId", rate_plan_id);
       if (form.company_id) qs.set("companyId", form.company_id);
-      if (dayUse) qs.set("stayKind", "day_use");
+      if (dayUse) {
+        qs.set("stayKind", "day_use");
+        if (form.day_use_hours) qs.set("hours", String(form.day_use_hours));
+      }
 
       const res = await fetch(`/api/pms/quote?${qs}`);
       const data = await res.json();
@@ -998,6 +1004,7 @@ export default function BookingForm({
     form.adults,
     form.children,
     form.company_id,
+    form.day_use_hours,
     nights,
     dayUse,
     session?.propertyId,
@@ -1407,6 +1414,21 @@ export default function BookingForm({
               ))}
             </Select>
           </Field>
+          <Field label="Hours" hint="Change it for a shorter or longer stay. The price follows.">
+            <Select
+              className="input"
+              value={String(form.day_use_hours || "")}
+              onChange={(e) => set("day_use_hours", Number(e.target.value))}
+            >
+              {[...new Set([...Array.from({ length: 12 }, (_, i) => i + 1), Number(form.day_use_hours) || 1])]
+                .sort((x, y) => x - y)
+                .map((h) => (
+                  <option key={h} value={String(h)}>
+                    {dayUseLabel(h)}
+                  </option>
+                ))}
+            </Select>
+          </Field>
           <Field
             label="Start time"
             hint={
@@ -1615,6 +1637,25 @@ export default function BookingForm({
         )}
           {/* Complimentary stays occupy a room like any other but are owed
               nothing; revenue reports leave them out of ADR. */}
+{!short && (
+          <Field label="Tax on the rate" hint={form.rate_tax_mode ? undefined : "Neither ticked: your hotel's tax setup applies."}>
+            <div className="flex flex-wrap items-center gap-4" style={{ minHeight: "2.25rem" }}>
+              {[
+                ["inclusive", "Rate includes tax"],
+                ["exclusive", "Tax added on top"],
+              ].map(([mode, label]) => (
+                <label key={mode} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.rate_tax_mode === mode}
+                    onChange={(e) => set("rate_tax_mode", e.target.checked ? mode : "")}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </Field>
+)}
 {!short && (
           <Field label="Booking type">
             <Select

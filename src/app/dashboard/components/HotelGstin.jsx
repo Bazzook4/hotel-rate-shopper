@@ -13,16 +13,20 @@ export default function HotelGstin({ propertyId }) {
   const [legalName, setLegalName] = useState("");
   const [gstin, setGstin] = useState("");
   const [show, setShow] = useState(true);
+  const [prefix, setPrefix] = useState("");
+  const [nextNo, setNextNo] = useState("");
   const [id, setId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
 
   function apply(p) {
-    const next = { legalName: p?.legal_name || "", gstin: p?.gstin || "", show: p?.invoice_show_tax_id !== false };
+    const next = { legalName: p?.legal_name || "", gstin: p?.gstin || "", show: p?.invoice_show_tax_id !== false, prefix: p?.invoice_prefix || "", nextNo: p?.invoice_next_number ? String(p.invoice_next_number) : "" };
     setStored(next);
     setLegalName(next.legalName);
     setGstin(next.gstin);
     setShow(next.show);
+    setPrefix(next.prefix);
+    setNextNo(next.nextNo);
   }
 
   useEffect(() => {
@@ -48,7 +52,7 @@ export default function HotelGstin({ propertyId }) {
       const res = await fetch("/api/properties/update", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, legal_name: legalName, gstin, invoice_show_tax_id: show }),
+        body: JSON.stringify({ id, legal_name: legalName, gstin, invoice_show_tax_id: show, invoice_prefix: prefix, invoice_next_number: nextNo }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Could not save");
@@ -65,7 +69,9 @@ export default function HotelGstin({ propertyId }) {
   const changed =
     legalName.trim() !== stored.legalName ||
     gstin.trim().toUpperCase() !== stored.gstin ||
-    show !== stored.show;
+    show !== stored.show ||
+    prefix.trim() !== stored.prefix ||
+    nextNo.trim() !== stored.nextNo;
 
   return (
     <div className="card p-3 flex flex-wrap items-center gap-2">
@@ -95,11 +101,34 @@ export default function HotelGstin({ propertyId }) {
         <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
         Show both on invoices
       </label>
+      <label className="label" htmlFor="hotel-inv-prefix" style={{ margin: 0 }}>
+        Invoice prefix
+      </label>
+      <input
+        id="hotel-inv-prefix"
+        className="input w-36"
+        value={prefix}
+        onChange={(e) => setPrefix(e.target.value)}
+        placeholder="e.g. GH/25-26/"
+        maxLength={20}
+      />
+      <label className="label" htmlFor="hotel-inv-next" style={{ margin: 0 }}>
+        Next number
+      </label>
+      <input
+        id="hotel-inv-next"
+        className="input w-24"
+        inputMode="numeric"
+        value={nextNo}
+        onChange={(e) => setNextNo(e.target.value.replace(/\D/g, ""))}
+        placeholder="Auto"
+        maxLength={8}
+      />
       <button type="button" className="btn btn-primary text-sm" disabled={busy || !changed} onClick={save}>
         {busy ? "Saving..." : "Save"}
       </button>
       <span className="text-xs" style={{ color: message && !message.ok ? "var(--danger)" : "var(--text-muted)" }}>
-        {message?.text || "A company needs both to claim GST input credit."}
+        {message?.text || "A company needs both to claim GST input credit. Blank prefix keeps INV-year-. Next number is used once."}
       </span>
     </div>
   );

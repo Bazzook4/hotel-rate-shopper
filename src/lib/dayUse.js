@@ -91,10 +91,10 @@ export function shortMinutes(minutes) {
 
 /** The earliest start offered, and the step between offered starts. */
 export const DAY_USE_FIRST_START = 6 * 60;
-export const DAY_USE_STEP = 30;
+export const DAY_USE_STEP = 15;
 
 /**
- * The start times a slot of this many hours can be booked at: every half
+ * The start times a slot of this many hours can be booked at: every quarter
  * hour from 6 AM to the last start that still ends by midnight.
  */
 export function dayUseStartOptions(hours) {

@@ -5242,6 +5242,59 @@ export async function addReservationPayment(reservationId, payment, userId = nul
   return data;
 }
 
+/**
+ * Correct a payment already recorded: its amount, method or reference.
+ *
+ * The row is changed in place, so the date and the cash book keep their place,
+ * but every correction is logged on the row with what it said before, who
+ * changed it and when. A voided payment, or one paid from a wallet (which moved
+ * wallet money), cannot be corrected: void it and record it again.
+ */
+export async function editReservationPayment(id, changes, userId = null) {
+  const { data: row, error: readError } = await supabase
+    .from('reservation_payments')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (readError || !row) throw new Error('That payment was not found.');
+  if (row.voided_at) throw new Error('A voided payment cannot be changed.');
+  if (row.method === 'wallet') {
+    throw new Error('A payment from a wallet cannot be changed. Void it and pay again.');
+  }
+
+  const amount = Math.abs(Number(changes.amount));
+  if (!Number.isFinite(amount) || amount === 0) throw new Error('Enter an amount more than zero.');
+  const method = changes.method || row.method;
+  if (method === 'wallet') throw new Error('Pay from a wallet with the wallet button.');
+  const nextAmount = Number(row.amount) < 0 ? -amount : amount;
+  const reference = changes.reference?.trim() || null;
+
+  if (nextAmount === Number(row.amount) && method === row.method && reference === (row.reference || null)) {
+    return row;
+  }
+
+  const now = new Date().toISOString();
+  const log = [
+    ...(Array.isArray(row.edit_log) ? row.edit_log : []),
+    { at: now, by: userId, amount: Number(row.amount), method: row.method, reference: row.reference || null },
+  ];
+  const { data, error } = await supabase
+    .from('reservation_payments')
+    .update({ amount: nextAmount, method, reference, edit_log: log, edited_at: now })
+    .eq('id', id)
+    .is('voided_at', null)
+    .select('*')
+    .single();
+  if (error) {
+    throw new Error(
+      ['PGRST204', '42703'].includes(error.code)
+        ? 'Payments cannot be changed until the database is updated (migration 073). Ask your administrator to apply it.'
+        : `Failed to change the payment: ${error.message}`
+    );
+  }
+  return data;
+}
+
 /** The plain message for a write that needs migration 056 before it can save. */
 function migration056(error) {
   return ['PGRST204', '42703'].includes(error?.code)
@@ -5780,6 +5833,9 @@ export async function createReservationInvoice(reservationId, userId = null, { c
     reference: reservation.reference,
     check_in: reservation.check_in,
     check_out: reservation.check_out,
+    // When the guest actually came and went, for the invoice to print.
+    checked_in_at: reservation.checked_in_at || null,
+    checked_out_at: reservation.checked_out_at || null,
     room_type: reservation.room_types?.room_type_name || null,
     room_number: reservation.rooms?.room_number || null,
     adults: reservation.adults,
@@ -5834,8 +5890,12 @@ export async function createReservationInvoice(reservationId, userId = null, { c
     })),
   };
 
+  // The hotel's own series: its prefix, and a start number it set once.
+  const prefix = property?.invoice_prefix || `INV-${year}-`;
+  const startAt = Number(property?.invoice_next_number) || (count || 0) + 1;
+
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const invoice_number = `INV-${year}-${String((count || 0) + 1 + attempt).padStart(4, '0')}`;
+    const invoice_number = `${prefix}${String(startAt + attempt).padStart(4, '0')}`;
 
     const { data, error } = await supabase
       .from('reservation_invoices')
@@ -5851,7 +5911,13 @@ export async function createReservationInvoice(reservationId, userId = null, { c
       .select('*')
       .single();
 
-    if (!error) return data;
+    if (!error) {
+      // The start number is used once; after it, numbering follows the highest.
+      if (property?.invoice_next_number) {
+        await supabase.from('properties').update({ invoice_next_number: null }).eq('id', reservation.property_id);
+      }
+      return data;
+    }
     if (error.code !== '23505') {
       throw new Error(`Failed to issue the invoice: ${error.message}`);
     }
@@ -6041,7 +6107,7 @@ export async function loadQuoteData(propertyId, firstNight, lastNight) {
  * day use quoted at it would be wrong by a night. No contract rates either --
  * contract lines are priced per night.
  */
-export async function quoteDayUse({ property_id, room_type_id, rate_plan_id, check_in, adults = 2, children = 0 }) {
+export async function quoteDayUse({ property_id, room_type_id, rate_plan_id, check_in, hours = null, adults = 2, children = 0 }) {
   if (!property_id || !room_type_id || !check_in) {
     return { total: null, nights: [], source: null, reason: 'Nothing to price yet.' };
   }
@@ -6070,6 +6136,19 @@ export async function quoteDayUse({ property_id, room_type_id, rate_plan_id, che
       nights: [],
       source: null,
       reason: 'This day-use plan has no rate for this room on this date. Set it in Rates & Inventory, or type the price.',
+    };
+  }
+  // The plan's rate is for the plan's hours. A longer or shorter stay is
+  // charged at the same rate per hour.
+  const plan = (await listRatePlans(property_id).catch(() => [])).find((p) => p.id === rate_plan_id);
+  const planHours = validDayUseHours(plan?.day_use_hours);
+  const wanted = validDayUseHours(hours);
+  if (planHours && wanted && wanted !== planHours) {
+    return {
+      ...quote,
+      total: Math.round((Number(quote.total) * wanted) / planHours),
+      nights: [],
+      diagnosis: null,
     };
   }
   return { ...quote, nights: [], diagnosis: null };
