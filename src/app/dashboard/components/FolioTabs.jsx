@@ -107,6 +107,12 @@ function Statement({ folio, currency, actions, busy }) {
     .filter(Boolean)
     .join(", ");
   const faint = { color: "var(--text-muted)", fontSize: "0.75rem" };
+  // A booking whose rate includes tax reads like any other bill: the room
+  // before tax, each tax as its own row, and a total that equals the rate.
+  const taxInside = folio.reservation?.rate_tax_mode === "inclusive";
+  const insideTotal = taxInside
+    ? (folio.taxes || []).filter((t) => t.inclusive).reduce((sum, t) => sum + Number(t.amount), 0)
+    : 0;
   const cell = actions ? <td /> : null;
   // The discount, under the room when it came off before tax, or above the
   // total when it came off after.
@@ -151,7 +157,7 @@ function Statement({ folio, currency, actions, busy }) {
               </div>
             )}
           </td>
-          <td className="text-right">{money(totals.roomBefore ?? totals.room, currency)}</td>
+          <td className="text-right">{money((totals.roomBefore ?? totals.room) - insideTotal, currency)}</td>
           {actions && (
             <td className="text-right">
               {nights.length > 0 && (
@@ -201,7 +207,7 @@ function Statement({ folio, currency, actions, busy }) {
         })}
 
         {(folio.taxes || [])
-          .filter((t) => !t.inclusive)
+          .filter((t) => taxInside || !t.inclusive)
           .map((t, i) => (
             <tr key={`${t.tax_id}-${i}`}>
               <td style={{ color: "var(--text-muted)" }}>
@@ -219,7 +225,7 @@ function Statement({ folio, currency, actions, busy }) {
           <td>
             Total
             {(folio.taxes || [])
-              .filter((t) => t.inclusive)
+              .filter((t) => t.inclusive && !taxInside)
               .map((t, i) => (
                 <span key={`inc-${t.tax_id}-${i}`} style={{ ...faint, fontWeight: 400 }}>
                   , includes {t.name} {money(t.amount, currency)}
