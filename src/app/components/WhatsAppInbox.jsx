@@ -32,7 +32,8 @@ import { shrink } from "../dashboard/components/GuestIdPhotos";
 const POLL_MS = 15000;
 const THREAD_POLL_MS = 4000;
 const ATTACH_TYPES = "image/jpeg,image/png,image/heic,image/webp,application/pdf";
-export const LEAD_STATUS = { new: "New enquiry", contacted: "Contacted", no_contact: "No contact", won: "Won", lost: "Lost" };
+// Won and Lost are deal stages (Deals tab); Convert turns a developed lead into a contact and a deal.
+export const LEAD_STATUS = { new: "New enquiry", contacted: "Contacted", no_contact: "No contact" };
 const INTEREST = {
   ota_listing: "OTA listing",
   pms: "Free PMS",
@@ -54,8 +55,8 @@ const when = (iso) => {
 };
 
 const needsYou = (c) => Boolean(c.handoff_at);
-export const LEAD_CHIP = { new: "chip-booked", contacted: "chip-booked", no_contact: "chip-warn", won: "chip-ok", lost: "chip-off" };
-const isLead = (c) => c.lead && !c.property_id;
+export const LEAD_CHIP = { new: "chip-booked", contacted: "chip-booked", no_contact: "chip-warn" };
+const isLead = (c) => c.lead && !c.property_id && c.lead.status in LEAD_STATUS;
 
 export async function call(method, body, query = "") {
   const r = await fetch(`/api/admin/whatsapp${query}`, {
@@ -72,13 +73,13 @@ export async function call(method, body, query = "") {
   return j;
 }
 
-export default function WhatsAppInbox() {
+export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [missing, setMissing] = useState(false);
   const [filter, setFilter] = useState(null);
   const [query, setQuery] = useState("");
-  const [openPhone, setOpenPhone] = useState(null);
+  const [openPhone, setOpenPhone] = useState(initialPhone);
   const [board, setBoardState] = useState(() => typeof window !== "undefined" && localStorage.getItem("crmBoard") === "1");
   const setBoard = (on) => {
     setBoardState(on);
@@ -271,6 +272,7 @@ export default function WhatsAppInbox() {
               hotelName={hotelName.get(open.property_id)}
               onContact={patchContact}
               onSent={load}
+              onConvert={onConvert}
               onClose={() => setOpenPhone(null)}
             />
           )}
@@ -322,7 +324,7 @@ export default function WhatsAppInbox() {
                       ) : (
                         c.bot_paused && <span className="chip chip-off">Bot off</span>
                       )}
-                      {c.lead && !c.property_id && (
+                      {isLead(c) && (
                         <span className={`chip ${LEAD_CHIP[c.lead.status]}`}>
                           {LEAD_STATUS[c.lead.status]}
                         </span>
@@ -347,6 +349,7 @@ export default function WhatsAppInbox() {
             hotelName={hotelName.get(open.property_id)}
             onContact={patchContact}
             onSent={load}
+            onConvert={onConvert}
             onBack={() => setOpenPhone(null)}
           />
         ) : (
@@ -471,7 +474,7 @@ function Board({ rows, only, query, setQuery, onOpen, onContact }) {
   );
 }
 
-function ChatPanel({ contact, data, hotelName, onContact, onSent, onClose }) {
+function ChatPanel({ contact, data, hotelName, onContact, onSent, onConvert, onClose }) {
   useEscape(onClose);
   return (
     <div onClick={onClose} className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={`Chat with ${contact.name || contact.phone}`}>
@@ -496,6 +499,7 @@ function ChatPanel({ contact, data, hotelName, onContact, onSent, onClose }) {
             hotelName={hotelName}
             onContact={onContact}
             onSent={onSent}
+            onConvert={onConvert}
             onBack={onClose}
           />
         </div>
@@ -504,7 +508,7 @@ function ChatPanel({ contact, data, hotelName, onContact, onSent, onClose }) {
   );
 }
 
-export function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onSent, onBack, panel = false }) {
+export function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onSent, onConvert, onBack, panel = false }) {
   const [messages, setMessages] = useState(null);
   const [text, setText] = useState("");
   const [template, setTemplate] = useState("");
@@ -524,7 +528,7 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
   const firstBlank = useRef(null);
   const chosen = useRef("");
   const lastAt = contact.last?.created_at;
-  const lead = contact.lead && !contact.property_id ? contact.lead : null;
+  const lead = isLead(contact) ? contact.lead : null;
 
   const loadThread = useCallback(async () => {
     try {
@@ -691,6 +695,23 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
       await call("DELETE", null, `?lead_id=${contact.lead.id}`);
       onContact({ phone: contact.phone, lead: null });
       done("Lead deleted");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function convertLead() {
+    setError("");
+    try {
+      const r = await fetch("/api/admin/crm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lead_id: contact.lead.id }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Could not convert");
+      onContact({ phone: contact.phone, lead: { ...contact.lead, status: "converted" } });
+      onConvert?.(j.deal.id);
     } catch (e) {
       setError(e.message);
     }
@@ -942,6 +963,9 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
             <LeadField lead={lead} name="city" label="City" width="7rem" onSave={saveLead} />
             <LeadField lead={lead} name="rooms" label="Rooms" width="3.5rem" numeric onSave={saveLead} />
             <LeadField lead={lead} name="current_otas" label="OTAs now" width="10rem" onSave={saveLead} />
+            <button type="button" className="btn btn-primary text-sm" onClick={convertLead}>
+              Convert to contact and deal
+            </button>
             <button type="button" className="btn btn-ghost text-sm" onClick={deleteLead}>
               Delete lead
             </button>

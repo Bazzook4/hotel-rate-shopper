@@ -3,16 +3,23 @@
 import { useState } from "react";
 import HotelUsage from "./HotelUsage";
 import WhatsAppInbox from "./WhatsAppInbox";
+import CrmDeals from "./CrmDeals";
 
 /**
- * Super admin only: the CRM. Leads & chats is the WhatsApp inbox, where
- * every number that writes in is a lead worked through New enquiry,
- * Contacted, No contact, Won or Lost; Hotels is Usage & follow up for hotels
- * already signed up. The view last used comes back next time.
+ * Super admin only: the CRM, as leads, contacts and deals.
+ *
+ * Leads is the WhatsApp inbox: every number that writes in is a lead worked
+ * through New enquiry, Contacted or No contact. Once a lead has developed,
+ * Convert makes a Contact (the person and their hotel) and a Deal, which
+ * moves through Demo, Onboarding link sent, Won or Lost. Hotels is Usage &
+ * follow up for hotels already signed up. The view last used comes back
+ * next time.
  */
 
 const VIEWS = [
-  ["chats", "Leads & chats"],
+  ["chats", "Leads"],
+  ["contacts", "Contacts"],
+  ["deals", "Deals"],
   ["hotels", "Hotels"],
 ];
 
@@ -21,9 +28,13 @@ export default function CRM() {
     const saved = typeof window !== "undefined" ? localStorage.getItem("crmView") : null;
     return VIEWS.some(([id]) => id === saved) ? saved : "chats";
   });
+  const [openDeal, setOpenDeal] = useState(null);
+  const [openPhone, setOpenPhone] = useState(null);
   const setView = (id) => {
     setViewState(id);
     localStorage.setItem("crmView", id);
+    if (id !== "deals") setOpenDeal(null);
+    if (id !== "chats") setOpenPhone(null);
   };
 
   return (
@@ -42,7 +53,28 @@ export default function CRM() {
         ))}
       </div>
       {view === "hotels" && <HotelUsage />}
-      {view === "chats" && <WhatsAppInbox />}
+      {view === "chats" && (
+        <WhatsAppInbox
+          key={openPhone || "inbox"}
+          initialPhone={openPhone}
+          onConvert={(dealId) => {
+            setOpenDeal(dealId);
+            setViewState("deals");
+            localStorage.setItem("crmView", "deals");
+          }}
+        />
+      )}
+      {(view === "contacts" || view === "deals") && (
+        <CrmDeals
+          key={view}
+          view={view}
+          openDealId={openDeal}
+          onOpenChat={(phone) => {
+            setOpenPhone(phone);
+            setViewState("chats");
+          }}
+        />
+      )}
     </div>
   );
 }

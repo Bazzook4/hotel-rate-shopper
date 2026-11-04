@@ -26,7 +26,8 @@ import { MEDIA_TYPES } from "@/lib/whatsappMedia";
  *                   from the same number makes a fresh lead
  */
 
-const LEAD_STATUSES = ["new", "contacted", "no_contact", "won", "lost"];
+// Won and Lost are deal stages now (migration 074); Convert makes the deal.
+const LEAD_STATUSES = ["new", "contacted", "no_contact"];
 
 /** A chat's messages as the inbox shows them: reactions folded onto their message, media named. */
 function thread(rows) {
@@ -256,6 +257,18 @@ export async function PATCH(req) {
   if (changes.property_id === null) changes.opted_in = false;
   const { data, error } = await db.from("wa_contacts").update(changes).eq("phone", phone).select("*").single();
   if (error) return failure(error);
+  // A hotel that signs up wins the deals made from this number (migration 074).
+  if (data.property_id) {
+    const { data: crm } = await db.from("crm_contacts").select("id").eq("phone", phone).maybeSingle();
+    if (crm) {
+      const now = new Date().toISOString();
+      await db
+        .from("crm_deals")
+        .update({ stage: "won", property_id: data.property_id, closed_at: now, updated_at: now })
+        .eq("contact_id", crm.id)
+        .in("stage", ["demo", "link_sent"]);
+    }
+  }
   if (data.opted_in && !data.property_id) {
     await db.from("wa_contacts").update({ opted_in: false }).eq("phone", phone);
     return NextResponse.json({ error: "Link this contact to a hotel first." }, { status: 400 });
