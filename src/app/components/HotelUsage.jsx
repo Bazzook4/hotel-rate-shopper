@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Facts, Fact } from "./Facts";
 import { ContactLine } from "./PropertyAdmin";
 import { useSort, SortTh } from "../dashboard/components/useSort";
-import { inr } from "../dashboard/components/WalletPanel";
 import PageUsage from "./PageUsage";
 import { FollowUpPanel, KINDS, PlanControls, planError, planKindFor, planLabel } from "./FollowUps";
 import Hint from "./Hint";
@@ -305,9 +304,7 @@ export default function HotelUsage() {
                 <td>
                   {r.bookings}
                   {r.bookings > 0 && (
-                    <span className="block text-xs muted">
-                      {inr(r.bookings_value)}, {r.desk_bookings} desk, last {ago(r.last_booking).toLowerCase()}
-                    </span>
+                    <span className="block text-xs muted">last booked {ago(r.last_booking).toLowerCase()}</span>
                   )}
                 </td>
                 <td className="muted">

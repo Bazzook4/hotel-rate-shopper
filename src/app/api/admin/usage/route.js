@@ -78,7 +78,7 @@ export async function GET(req) {
       b.count30 += 1;
       b.value30 += amount;
     }
-    b.last = r.created_at;
+    if (!b.last || r.created_at > b.last) b.last = r.created_at;
     bookings.set(r.property_id, b);
   }
 
