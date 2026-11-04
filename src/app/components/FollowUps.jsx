@@ -19,15 +19,24 @@ import { whatsappNumber } from "../dashboard/components/frontDesk";
 
 const TOP_PAGES = 4;
 
+// What can be sent now: two approved templates and a typed message.
+export const SEND_KINDS = {
+  setup_reminder: "Setup reminder",
+  no_bookings: "No bookings lately",
+  custom: "Custom message",
+};
+
+// Every kind ever kept, for the history; the last four were typed drafts.
 export const KINDS = {
+  ...SEND_KINDS,
   questions: "Any questions",
   setup: "Stuck in setup",
   first_booking: "First booking",
   quiet: "Gone quiet",
 };
 
-// The message that fits a hotel's status best, picked first.
-const KIND_FOR_STATUS = { setup: "setup", nobook: "first_booking", quiet: "quiet", active: "questions" };
+// The template that fits a hotel's status best, picked first.
+const KIND_FOR_STATUS = { setup: "setup_reminder" };
 
 const shortDate = (iso) =>
   new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -83,32 +92,6 @@ function activityLines(a) {
   if (a.guides_done.length) lines.push(`Finished the guide${a.guides_done.length === 1 ? "" : "s"} ${list(a.guides_done)}.`);
   if (a.guides_quit.length) lines.push(`Left part way through ${list(a.guides_quit)}.`);
   return lines;
-}
-
-function draft(kind, hotel, a) {
-  const name = hotel.contact_name ? hotel.contact_name.split(" ")[0] : "there";
-  const toAdd = a.total_rooms && a.rooms < a.total_rooms ? a.total_rooms - a.rooms : 0;
-  const ask = {
-    questions:
-      "Do you have any questions or queries about the app? If anything is stuck or not clear, just reply here and I will help.",
-    setup: !a.room_types
-      ? "It looks like the room setup has not been started yet. Where are you stuck? I can help you finish it on a short call."
-      : `It looks like the room setup is not finished yet${toAdd ? `, with ${toAdd} rooms still to add` : ""}. Where are you stuck? I can help you finish it on a short call.`,
-    first_booking:
-      "Your rooms are ready, but no booking has been made yet. Is anything stopping you from making the first one? I can walk you through it.",
-    quiet:
-      "We have not seen you in the app for a while. Is something not working for you, or is anything missing that you need?",
-  }[kind];
-  return [
-    `Hello ${name}, this is Online Hotelier support about ${hotel.name}.`,
-    "",
-    "Here is where your account is today:",
-    ...activityLines(a).map((l) => `- ${l}`),
-    "",
-    ask,
-    "",
-    "Thank you",
-  ].join("\n");
 }
 
 /** What a WhatsApp plan (migration 070) sends each morning. */
@@ -242,9 +225,9 @@ async function send(method, body) {
 export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansReady, onPlans, onClose }) {
   useEscape(onClose);
   const [usage, setUsage] = useState(null);
-  const [kind, setKind] = useState(KIND_FOR_STATUS[hotel.status]);
-  const [message, setMessage] = useState("");
-  const [edited, setEdited] = useState(false);
+  const [kind, setKind] = useState(KIND_FOR_STATUS[hotel.status] || "no_bookings");
+  const [words, setWords] = useState(null);
+  const [custom, setCustom] = useState("");
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -262,35 +245,37 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
 
   const activity = useMemo(() => activityOf(hotel, usage && usage.pages ? usage : null), [hotel, usage]);
 
+  // What each template would say to this hotel.
   useEffect(() => {
-    if (!edited) setMessage(draft(kind, hotel, activity));
-  }, [kind, hotel, activity, edited]);
+    let cancelled = false;
+    fetch(`/api/admin/followups?preview=${hotel.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .then((j) => !cancelled && setWords(j?.templates || {}));
+    return () => {
+      cancelled = true;
+    };
+  }, [hotel.id]);
+
+  const isCustom = kind === "custom";
+  const message = isCustom ? custom : words?.[kind] || "";
 
   const digits = whatsappNumber(hotel.contact_phone, "IN");
 
-  // Sends on the business WhatsApp number; the hotel need not be opened in WhatsApp.
+  // Sends on the business WhatsApp number.
   async function sendNow() {
     setSending(true);
     setStatus("");
     try {
       const j = await send("POST", { property_id: hotel.id, kind, message, activity, send: true });
       onSaved(j.row);
-      setStatus(
-        j.how === "template"
-          ? "Sent. They have not written in the last 24 hours, so WhatsApp sent the standard reminder instead of this text."
-          : "Sent."
-      );
+      setStatus("Sent.");
     } catch (e) {
       setStatus(e.message);
     } finally {
       setSending(false);
     }
   }
-
-  const chooseKind = (k) => {
-    setKind(k);
-    setEdited(false);
-  };
 
   return (
     <div onClick={onClose} className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={`Follow up ${hotel.name}`}>
@@ -351,32 +336,39 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
           <div>
             <div className="label">Message</div>
             <div className="mt-1 flex flex-wrap gap-2">
-              {Object.entries(KINDS).map(([k, label]) => (
+              {Object.entries(SEND_KINDS).map(([k, label]) => (
                 <button
                   key={k}
                   type="button"
                   className={kind === k ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"}
                   aria-pressed={kind === k}
-                  onClick={() => chooseKind(k)}
+                  onClick={() => setKind(k)}
                 >
                   {label}
                 </button>
               ))}
             </div>
-            <textarea
-              className="input mt-2 w-full"
-              rows={12}
-              style={{ resize: "vertical" }}
-              value={message}
-              onChange={(e) => {
-                setMessage(e.target.value);
-                setEdited(true);
-              }}
-            />
-            {edited && (
-              <button type="button" className="btn btn-ghost mt-1 text-sm" onClick={() => setEdited(false)}>
-                Start again from the draft
-              </button>
+            {isCustom ? (
+              <>
+                <textarea
+                  className="input mt-2 w-full"
+                  rows={8}
+                  style={{ resize: "vertical" }}
+                  placeholder="Type your message"
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                />
+                <p className="mt-1 text-xs muted">
+                  WhatsApp delivers a typed message only if they wrote to you in the last 24 hours. Otherwise use a template.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 whitespace-pre-wrap rounded-xl border border-[var(--border)] p-3 text-sm">
+                  {words ? message : "Loading..."}
+                </p>
+                <p className="mt-1 text-xs muted">An approved WhatsApp template. It always reaches them.</p>
+              </>
             )}
           </div>
 
@@ -396,7 +388,7 @@ export function FollowUpPanel({ hotel, history, canSave, onSaved, plan, plansRea
 
         <div className="side-panel-foot card-pad flex flex-wrap items-center gap-2">
           {digits ? (
-            <button type="button" className="btn btn-primary" disabled={sending || !canSave} onClick={sendNow}>
+            <button type="button" className="btn btn-primary" disabled={sending || !canSave || !message.trim()} onClick={sendNow}>
               <Icon name="chat" size={16} />
               {sending ? "Sending..." : "Send on WhatsApp"}
             </button>

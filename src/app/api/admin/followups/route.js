@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/lib/serverSession";
 import { isSuperAdmin } from "@/lib/permissions";
 import { getSupabaseAdmin } from "@/lib/database";
-import { inWindow, sendTemplate, sendText, waPhone, whatsappReady } from "@/lib/whatsapp";
+import { inWindow, sendTemplate, sendText, templateWords, waPhone, whatsappReady } from "@/lib/whatsapp";
 import { hotelProgress } from "@/lib/whatsappReminders";
 
 /**
@@ -16,7 +16,9 @@ import { hotelProgress } from "@/lib/whatsappReminders";
  * PATCH            { id, note } what the hotel said back
  */
 
-const KINDS = ["questions", "setup", "first_booking", "quiet"];
+// Two approved templates and a typed message; the older kinds stay for history.
+const TEMPLATE_KINDS = { setup_reminder: "setup_reminder_v2", no_bookings: "day3_checkin_v2" };
+const KINDS = ["custom", ...Object.keys(TEMPLATE_KINDS), "questions", "setup", "first_booking", "quiet"];
 
 async function guard(req) {
   const session = await getSessionFromRequest(req);
@@ -25,36 +27,49 @@ async function guard(req) {
 
 const firstName = (name) => (name ? String(name).trim().split(/\s+/)[0] : null);
 
-/**
- * Sends a follow-up to the hotel's contact mobile. The written message goes
- * as it is when they wrote to us in the last 24 hours; otherwise WhatsApp
- * only allows an approved template, so the one that fits the hotel goes
- * instead (setup_reminder_v2 while rooms are not set up, else day3_checkin_v2).
- * Returns "text" or "template".
- */
-async function sendToHotel(propertyId, kind, message, sentBy) {
-  const fail = (text, status = 400) => Object.assign(new Error(text), { status });
-  if (!whatsappReady()) throw fail("WhatsApp is not connected yet.", 503);
-  const db = getSupabaseAdmin();
+async function loadHotel(db, propertyId) {
   const { data: p } = await db
     .from("properties")
     .select("id, name, contact_name, contact_phone, total_rooms, created_at")
     .eq("id", propertyId)
     .maybeSingle();
+  return p;
+}
+
+/** The words of each approved template, filled in with this hotel's own numbers. */
+async function templateFor(db, p, kind) {
+  const { setup, since } = await hotelProgress(db, p);
+  const name = firstName(p.contact_name) || p.name;
+  const params = kind === "setup_reminder" ? [name, p.name, setup] : [name, p.name, since];
+  const template = TEMPLATE_KINDS[kind];
+  return { template, params, words: templateWords(template, params) };
+}
+
+/**
+ * Sends a follow-up to the hotel's contact mobile on the business number.
+ * A template always goes. A typed message goes only when they wrote to us in
+ * the last 24 hours; otherwise WhatsApp would drop it, so it is refused with
+ * a plain reason and nothing is swapped in. Returns the words that went out.
+ */
+async function sendToHotel(propertyId, kind, message, sentBy) {
+  const fail = (text, status = 400) => Object.assign(new Error(text), { status });
+  if (!whatsappReady()) throw fail("WhatsApp is not connected yet.", 503);
+  const db = getSupabaseAdmin();
+  const p = await loadHotel(db, propertyId);
   const phone = waPhone(p?.contact_phone);
   if (!phone) throw fail("This hotel has no contact mobile.");
 
-  const { data: contact } = await db.from("wa_contacts").select("*").eq("phone", phone).maybeSingle();
-  if (inWindow(contact)) {
+  if (kind === "custom") {
+    const { data: contact } = await db.from("wa_contacts").select("*").eq("phone", phone).maybeSingle();
+    if (!inWindow(contact)) {
+      throw fail("They have not written to you in the last 24 hours, so WhatsApp will not deliver a typed message. Send a template instead.");
+    }
     await sendText(phone, message.slice(0, 4096), sentBy);
-    return "text";
+    return message;
   }
-
-  const { done, setup, since } = await hotelProgress(db, p);
-  const name = firstName(p.contact_name) || p.name;
-  if (kind === "setup" || done < 100) await sendTemplate(phone, "setup_reminder_v2", [name, p.name, setup], sentBy);
-  else await sendTemplate(phone, "day3_checkin_v2", [name, p.name, since], sentBy);
-  return "template";
+  const t = await templateFor(db, p, kind);
+  await sendTemplate(phone, t.template, t.params, sentBy);
+  return t.words;
 }
 
 function failure(error) {
@@ -67,6 +82,16 @@ function failure(error) {
 
 export async function GET(req) {
   if (!(await guard(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  // ?preview=<hotel id>: the words each template would send to this hotel.
+  const preview = new URL(req.url).searchParams.get("preview");
+  if (preview) {
+    const db = getSupabaseAdmin();
+    const p = await loadHotel(db, preview);
+    if (!p) return NextResponse.json({ error: "Hotel not found" }, { status: 404 });
+    const out = {};
+    for (const kind of Object.keys(TEMPLATE_KINDS)) out[kind] = (await templateFor(db, p, kind)).words;
+    return NextResponse.json({ templates: out });
+  }
   const { data, error } = await getSupabaseAdmin()
     .from("follow_ups")
     .select("id, property_id, kind, message, activity, note, sent_by, sent_at")
@@ -80,8 +105,8 @@ export async function POST(req) {
   const session = await guard(req);
   if (!session) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const body = await req.json().catch(() => ({}));
-  const message = String(body.message || "").trim();
-  if (!body.property_id || !KINDS.includes(body.kind) || !message) {
+  let message = String(body.message || "").trim();
+  if (!body.property_id || !KINDS.includes(body.kind) || (!message && !TEMPLATE_KINDS[body.kind])) {
     return NextResponse.json({ error: "Hotel, message type and message are needed" }, { status: 400 });
   }
 
@@ -90,10 +115,11 @@ export async function POST(req) {
   let how = null;
   if (body.send) {
     try {
-      how = await sendToHotel(body.property_id, body.kind, message, session.email || "admin");
+      message = await sendToHotel(body.property_id, body.kind, message, session.email || "admin");
     } catch (err) {
       return NextResponse.json({ error: err.message }, { status: err.status || 502 });
     }
+    how = body.kind === "custom" ? "text" : "template";
   }
 
   const { data, error } = await getSupabaseAdmin()

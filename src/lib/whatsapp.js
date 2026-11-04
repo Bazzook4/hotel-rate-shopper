@@ -119,7 +119,7 @@ const TEMPLATE_WORDS = {
   day3_checkin_v2: "Hi {{1}}, we have not seen new bookings at {{2}} since {{3}}. Is everything working fine? Reply here and we will help.",
 };
 
-function templateWords(name, params) {
+export function templateWords(name, params) {
   const words = TEMPLATE_WORDS[name];
   if (!words) return `Template ${name}${params.length ? `: ${params.join(" | ")}` : ""}`;
   return words.replace(/\{\{(\d+)\}\}/g, (_, n) => params[n - 1] ?? "");
