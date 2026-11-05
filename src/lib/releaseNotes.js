@@ -16,7 +16,7 @@ export const RELEASE_NOTES = [
     date: "2026-11-05",
     title: "A shorter new booking form",
     points: [
-      { page: "tapechart", text: "The new booking form now shows only what most bookings need: name, phone, dates, room, rate and total. It is laid out as a table in the order you work: dates, guest, room and rate, then price. Email, booking method, company, tax, booking type and children are under More details." },
+      { page: "tapechart", text: "The new booking form is now laid out as tables in the order you work: stay, guest, room and rate, then price. Every field is shown at once, with nothing hidden." },
     ],
   },
   {

@@ -273,12 +273,22 @@ body {
    * the label sits in a header line, the input in the cell under it, the
    * same look as .grid-table and Facts. Rules are cell borders so a short
    * last row leaves blank space, not odd boxes. */
+  .form-section + .form-section { margin-top: 1.25rem; }
+  .form-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+  }
+  .form-section-title { font-size: 0.9rem; font-weight: 600; color: var(--text); }
   .form-table {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     border-top: 1px solid var(--border);
     border-left: 1px solid var(--border);
     border-radius: 6px;
+    overflow: hidden;
   }
   @media (min-width: 768px) {
     .form-table { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -293,25 +303,43 @@ body {
     display: block;
     background: var(--surface-2);
     border-bottom: 1px solid var(--border);
-    padding: 0.35rem 0.6rem;
+    padding: 0.4rem 0.85rem;
     font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--text-muted);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+  .form-cell:has(:disabled) { background: var(--surface-2); cursor: not-allowed; }
+  .form-table textarea.input { border-color: var(--border); }
+  .form-cell:focus-within .form-cell-label { color: var(--accent-text); }
   .form-cell-body { padding: 0.2rem; }
-  /* Inputs read as table cells until touched; hover and focus show the edge. */
+  /* Inputs read as table cells: only a faint underline until hover or focus. */
   .form-table .input,
   .form-table .sel.input {
     border-color: transparent;
+    border-bottom-color: var(--border);
+    border-radius: 4px;
     background: transparent;
     box-shadow: none;
+    padding-left: 0.65rem;
+    font-variant-numeric: tabular-nums;
   }
   .form-table .input:hover:not(:disabled) { border-color: var(--border-strong); }
   .form-table .input:focus,
-  .form-table .sel[aria-expanded="true"] { border-color: var(--accent); background: var(--surface); }
+  .form-table .sel:focus-visible,
+  .form-table .sel[aria-expanded="true"] {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+    background: var(--surface);
+  }
+  /* A touch screen has no hover to discover the cells by: give them their edge. */
+  @media (max-width: 767px) {
+    .form-table .input, .form-table .sel.input { border-color: var(--border); }
+  }
   .booking-form .input:disabled { opacity: 0.6; }
 
   /* Ruled data table.

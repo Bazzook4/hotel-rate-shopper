@@ -243,35 +243,32 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted, backHere }) {
 // Every source but Group: a group is booked from its own form.
 const FORM_SOURCES = BOOKING_SOURCES.filter((o) => o.value !== "group");
 
-/** A titled block of the form, four fields to a row on a wide screen. */
-function Section({ title, children }) {
+/** A titled block of the form: a ruled table, four columns on a wide screen. `action` sits on the title line. */
+function Section({ title, action, children }) {
   return (
-    <section className="space-y-2">
-      <h4
-        style={{
-          fontSize: "0.7rem",
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-          color: "var(--text-muted)",
-        }}
-      >
-        {title}
-      </h4>
+    <section className="form-section">
+      <div className="form-section-head">
+        <h4 className="form-section-title">{title}</h4>
+        {action}
+      </div>
       <div className="form-table">{children}</div>
     </section>
   );
 }
 
+// How many of the four columns a cell takes. Written out in full so Tailwind
+// keeps the classes; on a phone (two columns) 3 and 4 both mean the full row.
+const SPANS = { 1: "", 2: "col-span-2", 3: "col-span-2 md:col-span-3", 4: "col-span-2 md:col-span-4" };
+
 // `tour` names the field for the booking tour, which points at it.
-function Field({ label, hint, wide = false, tour, children }) {
+function Field({ label, hint, span = 1, wide = false, tour, children }) {
   return (
-    <div className={`form-cell${wide ? " col-span-2" : ""}`} data-tour={tour}>
+    <div className={`form-cell ${SPANS[wide ? 2 : span]}`} data-tour={tour}>
       <label className="form-cell-label">{label}</label>
       <div className="form-cell-body">
         {children}
         {hint && (
-          <p className="sub" style={{ fontSize: "0.7rem", margin: "0.15rem 0.5rem 0.25rem" }}>
+          <p className="sub" style={{ fontSize: "0.7rem", margin: "0 0.85rem 0.3rem" }}>
             {hint}
           </p>
         )}
@@ -665,18 +662,6 @@ export default function BookingForm({
     };
   }
 
-  // More details starts open only when something in it is already filled
-  // in beyond the usual -- children or an international guest -- so nothing set is ever hidden.
-  const [more, setMore] = useState(
-    () =>
-      Number(form.children) > 0 ||
-      form.guest_residency !== "domestic" ||
-      form.stay_kind !== "overnight" ||
-      form.booking_type !== "standard" ||
-      form.status !== "confirmed" ||
-      Boolean(form.company_id || form.booked_by_other || form.rate_tax_mode || form.guest_email) ||
-      !["direct", "walkin"].includes(form.source)
-  );
 
   /**
    * The quoted price, and whether the desk has taken it over.
@@ -941,10 +926,6 @@ export default function BookingForm({
    * still change either; once they pick a room themselves, it is left alone.
    */
   const walkIn = !reservation && prefill?.source === "walkin";
-  // A new booking needs a name, a phone, the nights, the room and the money. The
-  // rest (email, how it was booked, company, tax, a complimentary stay, an inquiry,
-  // someone else booking) folds under More details, already set to the usual.
-  const short = !reservation && !more;
   const deskPickedRoom = useRef(false);
   useEffect(() => {
     if (!walkIn || !dated || deskPickedRoom.current) return;
@@ -1275,19 +1256,18 @@ export default function BookingForm({
       {/* What every booking needs, up front. The rest -- country,
           tax residency, children, how it was booked -- waits under More
           details, already filled with the usual answers. */}
-      <Section title="Stay">
-{!short && (
-        <Field label="Stay" tour="dates">
-          <Select
-            className="input"
-            value={form.stay_kind}
-            onChange={(e) => set("stay_kind", e.target.value)}
-          >
-            <option value="overnight">Overnight</option>
-            <option value="day_use">Day use (hours)</option>
-          </Select>
-        </Field>
-)}
+      <Section title="Stay" action={
+          <div data-tour="dates" style={{ width: "9.5rem" }}>
+            <Select
+                className="input" aria-label="Stay kind"
+                value={form.stay_kind}
+                onChange={(e) => set("stay_kind", e.target.value)}
+              >
+                <option value="overnight">Overnight</option>
+                <option value="day_use">Day use (hours)</option>
+              </Select>
+          </div>
+        }>
         <Field label={dayUse ? "Date" : "Check in"}>
           <DateField
             className="input"
@@ -1400,7 +1380,7 @@ export default function BookingForm({
             />
           </Field>
         )}
-        <Field label="Adults" hint={form.room_type_id ? `Up to ${maxAdults}` : undefined}>
+        <Field label={form.room_type_id ? `Adults (max ${maxAdults})` : "Adults"} span={dayUse ? 2 : 1}>
           <Select
             className="input"
             value={String(form.adults)}
@@ -1414,10 +1394,19 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
+        <Field label="Children" span={dayUse ? 2 : 1}>
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={form.children}
+            onChange={(e) => set("children", e.target.value)}
+          />
+        </Field>
       </Section>
 
       <Section title="Guest">
-        <Field label="Guest name" wide>
+        <Field label="Guest name" span={2}>
           <div style={{ position: "relative" }}>
             <div className="flex gap-2">
               <input
@@ -1443,6 +1432,7 @@ export default function BookingForm({
                     searchGuestsNow();
                   }}
                   disabled={!form.guest_name.trim() && !form.guest_phone.trim() && !form.guest_email.trim()}
+                  tabIndex={-1}
                   title="Find this guest among past bookings, by name, phone or email"
                 >
                   Search
@@ -1460,7 +1450,6 @@ export default function BookingForm({
             )}
           </div>
           {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
-{!short && (
           <label
             className="mt-1 flex items-center gap-2 text-sm"
             style={{ minHeight: 32 }}
@@ -1474,7 +1463,6 @@ export default function BookingForm({
             />
             Booked by someone else
           </label>
-)}
         </Field>
         <Field label="Phone" tour="phone">
           <div style={{ position: "relative" }}>
@@ -1484,7 +1472,6 @@ export default function BookingForm({
             )}
           </div>
         </Field>
-{!short && (
         <Field label="Email">
           <div style={{ position: "relative" }}>
             <input className="input" type="email" {...guestBox("guest_email")} />
@@ -1493,10 +1480,9 @@ export default function BookingForm({
             )}
           </div>
         </Field>
-)}
         {form.booked_by_other && (
           <>
-            <Field label="Booked by *" wide>
+            <Field label="Booked by *" span={2}>
               <input
                 className="input"
                 value={form.booker_name}
@@ -1513,10 +1499,36 @@ export default function BookingForm({
             </Field>
           </>
         )}
+        <Field label="Country" span={2}>
+          <Select
+            className="input"
+            value={form.guest_country}
+            onChange={(e) => set("guest_country", e.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {countries.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {/* Decides which taxes apply -- some levies are for foreign
+            guests only, and some exemptions are too. */}
+        <Field label="Guest is" span={2}>
+          <Select
+            className="input"
+            value={form.guest_residency}
+            onChange={(e) => set("guest_residency", e.target.value)}
+          >
+            <option value="domestic">Domestic</option>
+            <option value="international">International</option>
+          </Select>
+        </Field>
       </Section>
 
       <Section title="Room and rate">
-        <Field label="Room type" tour="room">
+        <Field label="Room type" tour="room" span={2}>
           <Select
             className="input"
             value={form.room_type_id}
@@ -1530,7 +1542,7 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
-        <Field label="Room">
+        <Field label="Room" span={dayUse ? 2 : 1}>
           <Select
             className="input"
             value={form.room_id}
@@ -1569,8 +1581,7 @@ export default function BookingForm({
             </Select>
           </Field>
         )}
-{!short && (
-        <Field label="Booking method" tour="method">
+        <Field label="Booking method" tour="method" span={companyShown ? 2 : 4}>
           <Select
             className="input"
             value={form.source}
@@ -1583,11 +1594,10 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
-)}
-        {companyShown && !short && (
+        {companyShown && (
           <Field
             label={needsRecord ? (wantKind === "company" ? "Company" : "Travel agent") : "Company / agent"}
-            wide={!company}
+            span={company ? 1 : 2}
             tour="company"
             hint={
               needsRecord && !company ? (
@@ -1660,16 +1670,16 @@ export default function BookingForm({
       <Section title="Price and status">
           {/* Complimentary stays occupy a room like any other but are owed
               nothing; revenue reports leave them out of ADR. */}
-{!short && (
-          <Field label="Tax on the rate" hint={form.rate_tax_mode ? undefined : "Neither ticked: your hotel's tax setup applies."}>
+          <Field label="Tax on the rate" span={2} hint={form.rate_tax_mode ? undefined : "Neither ticked: your hotel's tax setup applies."}>
             <div className="flex flex-wrap items-center gap-4" style={{ minHeight: "2.25rem" }}>
               {[
                 ["inclusive", "Rate includes tax"],
                 ["exclusive", "Tax added on top"],
               ].map(([mode, label]) => (
-                <label key={mode} className="flex items-center gap-2 text-sm">
+                <label key={mode} className="flex items-center gap-2 text-sm" style={{ minHeight: 32 }}>
                   <input
                     type="checkbox"
+                    style={{ width: 18, height: 18 }}
                     checked={form.rate_tax_mode === mode}
                     onChange={(e) => set("rate_tax_mode", e.target.checked ? mode : "")}
                   />
@@ -1678,9 +1688,7 @@ export default function BookingForm({
               ))}
             </div>
           </Field>
-)}
-{!short && (
-          <Field label="Booking type">
+          <Field label="Booking type" span={reservation ? 2 : 1}>
             <Select
               className="input"
               value={form.booking_type}
@@ -1690,10 +1698,9 @@ export default function BookingForm({
               <option value="complimentary">Complimentary</option>
             </Select>
           </Field>
-)}
           {/* An inquiry holds the room like a confirmed booking, but is left
               out of revenue until it is confirmed. */}
-          {!reservation && !short && (
+          {!reservation && (
             <Field label="Status">
               <Select
                 className="input"
@@ -1705,7 +1712,7 @@ export default function BookingForm({
               </Select>
             </Field>
           )}
-        <Field label={dayUse ? "Total amount (day use)" : "Total amount (whole stay)"} wide>
+        <Field label={dayUse ? "Total (day use)" : "Total (whole stay)"} span={!reservation && !complimentary ? 2 : 4}>
           <input
             className="input"
             type="number"
@@ -1741,7 +1748,7 @@ export default function BookingForm({
         </Field>
         {!reservation && !complimentary && (
           <>
-            <Field label="Advance received">
+            <Field label="Advance received" span={Number(advance.amount) > 0 ? 1 : 2}>
               <input
                 className="input"
                 type="number"
@@ -1771,7 +1778,7 @@ export default function BookingForm({
             )}
           </>
         )}
-          <Field label="Notes" wide>
+          <Field label="Notes" span={4}>
           <textarea
             className="input"
             rows={2}
@@ -1782,61 +1789,6 @@ export default function BookingForm({
           />
         </Field>
       </Section>
-
-      <button
-        type="button"
-        className="btn btn-ghost text-sm"
-        onClick={() => setMore((v) => !v)}
-        aria-expanded={more}
-        data-tour="more"
-      >
-        <Icon name={more ? "down" : "right"} size={14} /> More details
-        {!more && (
-          <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            email, booking method, company, tax, type, country, children
-          </span>
-        )}
-      </button>
-
-      {more && (
-        <Section title="More details">
-          <Field label="Country">
-            <Select
-              className="input"
-              value={form.guest_country}
-              onChange={(e) => set("guest_country", e.target.value)}
-            >
-              <option value="">Not recorded</option>
-              {countries.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {/* Decides which taxes apply -- some levies are for foreign
-              guests only, and some exemptions are too. */}
-          <Field label="Guest is">
-            <Select
-              className="input"
-              value={form.guest_residency}
-              onChange={(e) => set("guest_residency", e.target.value)}
-            >
-              <option value="domestic">Domestic</option>
-              <option value="international">International</option>
-            </Select>
-          </Field>
-          <Field label="Children">
-            <input
-              className="input"
-              type="number"
-              min="0"
-              value={form.children}
-              onChange={(e) => set("children", e.target.value)}
-            />
-          </Field>
-        </Section>
-      )}
 
       {error && (
         <p className="text-sm" style={{ color: "var(--danger)" }}>
