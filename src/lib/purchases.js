@@ -37,27 +37,52 @@ function addMonths(day, months) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Guests in the house each night, from the earliest day wanted up to today. */
-async function guestsByNight(supabase, propertyId, from, today) {
-  const rows = await readAll(
-    () =>
-      supabase
-        .from('reservation_nights')
-        .select('stay_date, reservations!inner(property_id, status, adults, children)')
-        .eq('reservations.property_id', propertyId)
-        .in('reservations.status', ['in_house', 'checked_out'])
-        .gte('stay_date', from)
-        .lte('stay_date', today)
-        .order('reservation_id')
-        .order('stay_date'),
-    'guest nights'
-  );
-  const map = {};
-  for (const r of rows) {
-    const guests = (Number(r.reservations.adults) || 0) + (Number(r.reservations.children) || 0);
-    map[r.stay_date] = (map[r.stay_date] || 0) + guests;
-  }
-  return map;
+/**
+ * Guests in the house each night, and guests arriving each day, from one day
+ * to another. Only guests in house or checked out are counted.
+ */
+async function guestUse(supabase, propertyId, from, to) {
+  const guestsOf = (r) => (Number(r.adults) || 0) + (Number(r.children) || 0);
+  const [nightRows, arrivalRows] = await Promise.all([
+    readAll(
+      () =>
+        supabase
+          .from('reservation_nights')
+          .select('stay_date, reservations!inner(property_id, status, adults, children)')
+          .eq('reservations.property_id', propertyId)
+          .in('reservations.status', ['in_house', 'checked_out'])
+          .gte('stay_date', from)
+          .lte('stay_date', to)
+          .order('reservation_id')
+          .order('stay_date'),
+      'guest nights'
+    ),
+    readAll(
+      () =>
+        supabase
+          .from('reservations')
+          .select('id, check_in, adults, children')
+          .eq('property_id', propertyId)
+          .in('status', ['in_house', 'checked_out'])
+          .gte('check_in', from)
+          .lte('check_in', to)
+          .order('id'),
+      'arrivals'
+    ),
+  ]);
+  const nights = {};
+  for (const r of nightRows) nights[r.stay_date] = (nights[r.stay_date] || 0) + guestsOf(r.reservations);
+  const arrivals = {};
+  for (const r of arrivalRows) arrivals[r.check_in] = (arrivals[r.check_in] || 0) + guestsOf(r);
+  return { nights, arrivals };
+}
+
+/** How much of an item guests used between two days (inclusive). */
+function usedByGuests(item, use, from, to) {
+  if (item.kind === 'asset') return 0;
+  const map = item.use_basis === 'stay' ? use.arrivals : use.nights;
+  const count = Object.entries(map).reduce((s, [d, g]) => (d >= from && d <= to ? s + g : s), 0);
+  return (Number(item.per_guest_night) || 0) * count;
 }
 
 /** Every item with what is left, what it is used per night and whether it needs buying. */
@@ -83,7 +108,7 @@ export async function getPurchases(propertyId, { tz = DEFAULT_ZONE } = {}) {
     const counts = (byItem[i.id] || []).filter((m) => m.kind === 'count');
     return localDay((counts[counts.length - 1] || i).created_at, tz);
   });
-  const nights = starts.length ? await guestsByNight(supabase, propertyId, starts.sort()[0], today) : {};
+  const use = starts.length ? await guestUse(supabase, propertyId, starts.sort()[0], today) : { nights: {}, arrivals: {} };
 
   const rows = items.map((item) => {
     const list = byItem[item.id] || [];
@@ -92,9 +117,8 @@ export async function getPurchases(propertyId, { tz = DEFAULT_ZONE } = {}) {
     const startDay = localDay((lastCount || item).created_at, tz);
     const bought = since.filter((m) => m.kind === 'purchase').reduce((s, m) => s + Number(m.qty), 0);
     const taken = since.filter((m) => m.kind === 'used').reduce((s, m) => s + Number(m.qty), 0);
-    const guestNights = Object.entries(nights).reduce((s, [d, g]) => (d >= startDay ? s + g : s), 0);
     const rate = Number(item.per_guest_night) || 0;
-    const auto = item.kind === 'asset' ? 0 : rate * guestNights;
+    const auto = usedByGuests(item, use, startDay, today);
     const onHand = item.kind === 'asset' ? null : round(Number(lastCount?.qty || 0) + bought - taken - auto);
 
     const lastBought = [...list].reverse().find((m) => m.kind === 'purchase' || m.kind === 'count');
@@ -102,9 +126,8 @@ export async function getPurchases(propertyId, { tz = DEFAULT_ZONE } = {}) {
     const replaceOn = item.replace_after_months ? addMonths(boughtOn, item.replace_after_months) : null;
     const low = item.kind !== 'asset' && onHand <= Number(item.reorder_level);
     const old = replaceOn != null && replaceOn <= today;
-    // Days of stock left at today's rate of use: guest nights of the last 14 days.
-    const recent = Object.entries(nights).filter(([d]) => d > shiftDay(today, -14)).reduce((s, [, g]) => s + g, 0);
-    const perDay = (rate * recent) / 14;
+    // Days of stock left at the rate of use over the last 14 days.
+    const perDay = usedByGuests(item, use, shiftDay(today, -13), today) / 14;
     const daysLeft = item.kind !== 'asset' && perDay > 0 && onHand > 0 ? Math.floor(onHand / perDay) : null;
     return {
       id: item.id,
@@ -113,6 +136,7 @@ export async function getPurchases(propertyId, { tz = DEFAULT_ZONE } = {}) {
       kindLabel: KINDS[item.kind],
       unit: item.unit,
       perGuestNight: rate,
+      useBasis: item.use_basis || 'night',
       reorderLevel: Number(item.reorder_level) || 0,
       replaceAfterMonths: item.replace_after_months,
       onHand,
@@ -149,11 +173,12 @@ export async function addItem(propertyId, raw, userId, tz = DEFAULT_ZONE) {
     name,
     kind,
     unit: text(raw?.unit, 20) || 'pcs',
+    use_basis: raw?.useBasis === 'stay' ? 'stay' : 'night',
     per_guest_night: kind === 'consumable' || kind === 'longlife' ? Math.round(Number(raw?.perGuestNight || 0) * 1000) / 1000 : 0,
     reorder_level: kind === 'asset' ? 0 : num(raw?.reorderLevel || 0, 'the reorder level'),
     replace_after_months: months,
   };
-  if (!(row.per_guest_night >= 0)) throw new Error('Enter the use per guest night as 0 or more.');
+  if (!(row.per_guest_night >= 0)) throw new Error('Enter the use per guest as 0 or more.');
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from('stock_items').insert(row).select('id').single();
   if (error) throw wrap(Object.assign(new Error(`Failed to save: ${error.message}`), { code: error.code }));
@@ -294,16 +319,15 @@ export async function getUsage(propertyId, { start, end, tz = DEFAULT_ZONE }) {
   }
   const today = localToday(tz);
   const last = end < today ? end : today;
-  const nights = start <= last ? await guestsByNight(supabase, propertyId, start, last) : {};
-  const guestNights = Object.entries(nights).reduce((s, [d, g]) => (d <= end ? s + g : s), 0);
+  const use = start <= last ? await guestUse(supabase, propertyId, start, last) : { nights: {}, arrivals: {} };
+  const guestNights = Object.values(use.nights).reduce((s, g) => s + g, 0);
 
   const rows = items.map((item) => {
     const mine = moves.filter((m) => m.item_id === item.id);
     const sum = (kind) => mine.filter((m) => m.kind === kind).reduce((s, m) => s + Number(m.qty), 0);
     // An item has no use before the day it was added.
     const from = localDay(item.created_at, tz);
-    const itemNights = Object.entries(nights).reduce((s, [d, g]) => (d >= from && d <= end ? s + g : s), 0);
-    const byGuests = item.kind === 'asset' ? 0 : Number(item.per_guest_night) * itemNights;
+    const byGuests = usedByGuests(item, use, from > start ? from : start, end);
     const spent = mine.filter((m) => m.kind === 'purchase').reduce((s, m) => s + (Number(m.cost) || 0), 0);
     return {
       id: item.id,

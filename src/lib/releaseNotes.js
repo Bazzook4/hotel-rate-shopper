@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Purchases: given once per guest or every night",
+    points: [
+      { page: "cashbook", text: "For each item you can now choose when it is given: once per guest at check-in, like soap, or every night, like a towel change. Two guests with one soap each uses 2 soaps, however many nights they stay." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Usage report for purchases",
     points: [
       { page: "cashbook", text: "The Purchases tab now has a usage report. Pick dates to see what guests used, what you took out, what you bought and what it cost, per item and per guest night." },

@@ -30,7 +30,7 @@ function StatusText({ item }) {
 
 function ItemForm({ propertyId, onClose, onSaved }) {
   const toast = useToast();
-  const [f, setF] = useState({ name: "", kind: "consumable", unit: "pcs", onHand: "", perGuestNight: "", reorderLevel: "", replaceAfterMonths: "" });
+  const [f, setF] = useState({ name: "", kind: "consumable", unit: "pcs", onHand: "", perGuestNight: "", useBasis: "stay", reorderLevel: "", replaceAfterMonths: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (patch) => setF((p) => ({ ...p, ...patch }));
@@ -71,7 +71,13 @@ function ItemForm({ propertyId, onClose, onSaved }) {
             <Field label="Counted in">
               <input className="input" value={f.unit} onChange={(e) => set({ unit: e.target.value })} placeholder="pcs, bottles, sets" />
             </Field>
-            <Field label="Used per guest night" hint="Leave 0 if it is not used by guests.">
+            <Field label="Given out" hint={f.useBasis === "stay" ? "Once at check-in, however many nights they stay." : "Again every night they stay."}>
+              <Select className="input" value={f.useBasis} onChange={(e) => set({ useBasis: e.target.value })}>
+                <option value="stay">Once per guest, at check-in</option>
+                <option value="night">Every night, per guest</option>
+              </Select>
+            </Field>
+            <Field label="How many per guest" hint="2 guests and 1 each means 2 used. Leave 0 if guests do not use it.">
               <input className="input" inputMode="decimal" value={f.perGuestNight} onChange={(e) => set({ perGuestNight: e.target.value })} placeholder="0" />
             </Field>
             <Field label="Remind me to buy at" hint="When stock falls to this number.">
@@ -162,7 +168,7 @@ function UsageReport({ propertyId, money }) {
   const { report, loading, error } = useReport("/api/purchases/usage", period.valid ? period.range : null, propertyId);
   if (report && !report.ready) return null;
   return (
-    <Section title="Usage report" sub="What was used, bought and spent in the period. Guest use is worked out from guest nights.">
+    <Section title="Usage report" sub="What was used, bought and spent in the period. Guest use is worked out from the guests and nights stayed.">
       <div className="card card-pad mb-3">
         <PeriodPicker id="purchases" label="Between" {...period} />
       </div>
@@ -260,7 +266,7 @@ export default function Purchases({ propertyId, currency, methods, onChanged }) 
       {report?.ready && (
         <Section
           title="Purchases and stock"
-          sub="Items to buy again are marked. Guest use comes off by itself, per guest night."
+          sub="Items to buy again are marked. Guest use comes off by itself, by the number of guests."
           actions={
             <button type="button" className="btn btn-primary text-sm" onClick={() => setPanel({ add: true })}>
               Add item
