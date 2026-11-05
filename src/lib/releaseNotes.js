@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Add an expense from the Calendar",
+    points: [
+      { page: "cashbook", text: "The Calendar now has an Add expense button next to Walk-in. It opens Cash & Expenses with a new expense line ready to fill in." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Say why a booking is cancelled",
     points: [
       { page: "reservations", text: "When you cancel a booking, you now pick a reason, such as guest changed plans or payment not received. The date and reason are saved with the booking." },

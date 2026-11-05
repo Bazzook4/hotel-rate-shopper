@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../../components/Icon";
 import Select from "@/app/components/Select";
 import DateField from "@/app/components/DateField";
@@ -419,7 +419,7 @@ function exportCsv(report) {
   downloadCsv(`cash-and-expenses-${report.start}-to-${report.end}.csv`, r);
 }
 
-export default function CashBook({ session }) {
+export default function CashBook({ session, initialView = null }) {
   const propertyId = session?.propertyId || null;
   const dialog = useDialog();
   const toast = useToast();
@@ -433,6 +433,7 @@ export default function CashBook({ session }) {
 
   const ready = report?.ready;
   const s = report?.summary;
+  const startedWithLine = useRef(false);
 
   function addLine(kind) {
     grid.add({
@@ -446,6 +447,15 @@ export default function CashBook({ session }) {
       notes: "",
     });
   }
+
+  // Opened from the Calendar's Add expense button: a blank expense line is waiting.
+  useEffect(() => {
+    if (initialView === "addExpense" && ready && !startedWithLine.current) {
+      startedWithLine.current = true;
+      addLine("expense");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialView, ready]);
 
   // Lines the server would refuse, counted before anything is sent.
   const unfinished = grid.drafts.filter((d) => !(Number(d.amount) > 0) || !d.date || (d.kind === "expense" && !d.tag)).length;

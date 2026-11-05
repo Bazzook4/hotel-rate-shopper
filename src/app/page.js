@@ -978,7 +978,7 @@ export default function V2Dashboard() {
 
                   {active === "nightaudit" && <NightAudit session={scopedSession} />}
 
-                  {active === "cashbook" && <CashBook session={scopedSession} />}
+                  {active === "cashbook" && <CashBook session={scopedSession} initialView={pageView} />}
 
                   {active === "policereport" && <PoliceReport session={scopedSession} initialView={pageView} />}
 
@@ -1055,7 +1055,7 @@ export default function V2Dashboard() {
                   {active === "calendar" && (
                     <>
                       {!back && <SetupBanner session={scopedSession} skip={["roomTypes", "rooms"]} />}
-                      <TapeChart session={scopedSession} />
+                      <TapeChart session={scopedSession} onAddExpense={canOpen("cashbook") ? () => openPage("cashbook", "addExpense") : null} />
                     </>
                   )}
 
