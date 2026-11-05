@@ -12,6 +12,7 @@ import {
 } from "@/lib/onlineCheckinShared";
 import { shrink } from "../../dashboard/components/GuestIdPhotos";
 import Select from "@/app/components/Select";
+import ScanIdButton from "../../dashboard/components/ScanIdButton";
 
 /** Arrival times on the half hour, kept as "14:30" as the time box sent. */
 const ARRIVAL_TIMES = Array.from({ length: 48 }, (_, i) => {
@@ -256,7 +257,23 @@ function GuestCard({ index, person, onChange, needsId, hotelCountry, prefs, coun
               ))}
             </ul>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ScanIdButton
+              className="btn btn-primary text-sm"
+              label="Scan ID to fill in"
+              disabled={busy || full}
+              title="Take a photo of your ID. It fills in the form and is sent to the hotel."
+              onRead={async (found, file) => {
+                onChange({
+                  ...person,
+                  full_name: person.full_name.trim() ? person.full_name : found.name || person.full_name,
+                  id_type: found.id_type || person.id_type,
+                  id_number: found.id_number || person.id_number,
+                  date_of_birth: found.date_of_birth || person.date_of_birth,
+                });
+                await upload(index, [file]);
+              }}
+            />
             <button type="button" className="btn btn-secondary text-sm" disabled={busy || full} onClick={() => cameraRef.current?.click()}>
               Take photo
             </button>

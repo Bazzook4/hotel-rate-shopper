@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useDialog } from "../../components/Dialog";
 import Icon from "../../components/Icon";
+import ScanIdButton from "./ScanIdButton";
 
 /**
  * A guest's photo ID: the pictures or PDF of the ID they showed at the desk.
@@ -41,7 +42,7 @@ export async function shrink(file) {
   }
 }
 
-export default function GuestIdPhotos({ propertyId, guest, onChanged }) {
+export default function GuestIdPhotos({ propertyId, guest, onChanged, onScanned }) {
   const dialog = useDialog();
   const [photos, setPhotos] = useState(null);
   const [error, setError] = useState(null);
@@ -95,6 +96,30 @@ export default function GuestIdPhotos({ propertyId, guest, onChanged }) {
     }
   }
 
+  // Scan: keep the photo, then put what was read on the guest's record.
+  async function scanned(found, file) {
+    await upload([file]);
+    // The guest record keeps the ID type and number; the booking's guest line keeps the rest.
+    const changes = {};
+    if (found.id_type) changes.id_type = found.id_type;
+    if (found.id_number) changes.id_number = found.id_number;
+    if (!Object.keys(changes).length) return;
+    try {
+      if (onScanned) await onScanned(found);
+      else {
+        const res = await fetch("/api/pms/guests", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ property_id: propertyId, id: guest.id, ...changes }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "The details did not save");
+      }
+      onChanged?.();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function remove(p) {
     const ok = await dialog.confirm({
       title: "Delete this ID file?",
@@ -127,6 +152,7 @@ export default function GuestIdPhotos({ propertyId, guest, onChanged }) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">Photo ID</span>
+        <ScanIdButton disabled={busy} onRead={scanned} title="Take a photo of the ID. It is saved here and the details are filled in." />
         <button type="button" className="btn btn-secondary text-xs" disabled={busy} onClick={() => fileRef.current?.click()}>
           Upload
         </button>

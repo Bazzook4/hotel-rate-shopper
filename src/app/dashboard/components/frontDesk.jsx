@@ -9,7 +9,7 @@ import Select from "@/app/components/Select";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { shrink } from "./GuestIdPhotos";
-import { readIdText } from "@/lib/idScan";
+import ScanIdButton from "./ScanIdButton";
 import Icon from "../../components/Icon";
 import { useToast } from "../../components/Toast";
 import { useDialog } from "../../components/Dialog";
@@ -236,48 +236,25 @@ function CheckInDialog({ request, onDone }) {
       })
     );
   const missing = lines.filter((l) => !l.id_number.trim()).length;
-  // Scan ID: read on this device, fill what was found, the clerk checks it.
-  const scanRef = useRef(null);
-  const [scanFor, setScanFor] = useState(null);
-  const [scanning, setScanning] = useState(null);
+  // Scan ID: the details fill in, the photo is kept for the guest's record.
   const [scanNote, setScanNote] = useState("");
-  const scanId = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    const i = scanFor;
-    if (!file || i == null) return;
-    setScanning(i);
-    setScanNote("");
-    try {
-      const { readPhotoText } = await import("@/lib/idScanReader");
-      const found = readIdText(await readPhotoText(file));
-      // The photo itself is kept: it goes onto the guest's record when the check-in is saved.
-      const kept = canSeeIds ? await shrink(file) : null;
-      if (!found.id_number && !found.name) {
-        setScanNote("Could not read this ID. Try again with the ID flat, in good light, or type it.");
-        if (kept) setLines((ls) => ls.map((l, j) => (j === i ? { ...l, files: [...(l.files || []), kept].slice(0, 6) } : l)));
-      } else {
-        setLines((ls) =>
-          ls.map((l, j) =>
-            j !== i
-              ? l
-              : {
-                  ...l,
-                  name: found.name || l.name,
-                  id_type: found.id_type || l.id_type,
-                  id_number: found.id_number || l.id_number,
-                  nationality: found.nationality || l.nationality,
-                  date_of_birth: found.date_of_birth || l.date_of_birth,
-                  files: kept ? [...(l.files || []), kept].slice(0, 6) : l.files,
-                }
-          )
-        );
-        setScanNote((found.id_number ? "Read from the ID. Please check the details." : "Only the name could be read. Type the ID number.") + (kept ? " The photo is saved with the guest." : ""));
-      }
-    } catch {
-      setScanNote("The reader did not start. Check the internet and try again, or type the ID.");
-    }
-    setScanning(null);
+  const scanLine = async (i, found, file) => {
+    const kept = canSeeIds ? await shrink(file) : null;
+    setLines((ls) =>
+      ls.map((l, j) =>
+        j !== i
+          ? l
+          : {
+              ...l,
+              name: found.name || l.name,
+              id_type: found.id_type || l.id_type,
+              id_number: found.id_number || l.id_number,
+              nationality: found.nationality || l.nationality,
+              date_of_birth: found.date_of_birth || l.date_of_birth,
+              files: kept ? [...(l.files || []), kept].slice(0, 6) : l.files,
+            }
+      )
+    );
   };
   // One file box for every line: it remembers which line asked.
   const fileRef = useRef(null);
@@ -364,18 +341,11 @@ function CheckInDialog({ request, onDone }) {
                   {lines.map((l, i) => (
                     <tr key={i}>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-secondary text-xs"
-                          disabled={scanning != null}
+                        <ScanIdButton
+                          onNote={setScanNote}
+                          onRead={(found, file) => scanLine(i, found, file)}
                           title="Take a photo of the ID. It fills the details and is saved with the guest. Scan the back too if it has details."
-                          onClick={() => {
-                            setScanFor(i);
-                            scanRef.current?.click();
-                          }}
-                        >
-                          {scanning === i ? "Reading..." : "Scan ID"}
-                        </button>
+                        />
                       </td>
                       <td>
                         <input
@@ -450,7 +420,6 @@ function CheckInDialog({ request, onDone }) {
                 </tbody>
               </table>
             </div>
-            <input ref={scanRef} type="file" accept="image/*" capture="environment" hidden onChange={scanId} />
             {scanNote && (
               <p className="text-xs" style={{ color: "var(--text-muted)" }} role="status">
                 {scanNote}

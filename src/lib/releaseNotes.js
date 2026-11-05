@@ -14,6 +14,14 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Scan ID in more places",
+    points: [
+      { page: "guests", text: "Scan ID now also works when adding a guest and in a guest's ID file tab. The details fill in and the photo is saved with the guest." },
+      { page: "policereport", text: "On a booking's Guests tab, Scan ID fills in the guest's form from a photo of their ID, and the photo is saved when you save the guest. Guests can also scan their own ID on the online check-in link." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Scan a guest's ID at check-in",
     points: [
       { page: "policereport", text: "At check-in, press Scan ID and take a photo of the guest's ID. The name, ID number, nationality and date of birth fill in by themselves, and the photo is saved with the guest. Check the details, then save. Works best with a passport; check Aadhaar and licence reads." },

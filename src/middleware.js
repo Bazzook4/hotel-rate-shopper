@@ -35,8 +35,9 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  // Allow Next.js internals
-  if (pathname.startsWith("/_next") || pathname.startsWith("/static")) {
+  // Allow Next.js internals, and the ID reader's files (code only, no guest data):
+  // the guest's own check-in page loads them too.
+  if (pathname.startsWith("/_next") || pathname.startsWith("/static") || pathname.startsWith("/ocr/")) {
     return NextResponse.next();
   }
 

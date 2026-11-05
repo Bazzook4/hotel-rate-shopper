@@ -18,7 +18,8 @@ import { useDialog } from "../../components/Dialog";
 import { countryOptions, toCountryCode } from "@/lib/countries";
 import { TierBadge, TiersGrid, WalletPlansGrid, useGuestTiers } from "./GuestSettings";
 import WalletPanel, { inr, useWalletPlans } from "./WalletPanel";
-import GuestIdPhotos from "./GuestIdPhotos";
+import GuestIdPhotos, { shrink } from "./GuestIdPhotos";
+import ScanIdButton from "./ScanIdButton";
 import { Drawer, Field } from "./RatePlanSetup";
 import Select from "@/app/components/Select";
 import { confirmDiscardChanges } from "../../components/Dialog";
@@ -202,6 +203,8 @@ function AddGuest({ propertyId, country, tierOptions, countries, onClose, onSave
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  // An ID scanned before the guest is saved: its photo goes on the record once there is one.
+  const scanPhoto = useRef(null);
   const touched = Object.keys(blank).some((k) => k !== "country" && form[k] !== blank[k]);
 
   function problem(step) {
@@ -231,6 +234,13 @@ function AddGuest({ propertyId, country, tierOptions, countries, onClose, onSave
       // A blank tier is left off, so adding a guest works before tiers exist.
       if (!row.tier_id) delete row.tier_id;
       const { guest } = await sendJSON("/api/pms/guests", "POST", { property_id: propertyId, ...row });
+      if (scanPhoto.current && guest?.id) {
+        const photo = new FormData();
+        photo.set("guest_id", guest.id);
+        photo.set("property_id", propertyId);
+        photo.set("file", scanPhoto.current);
+        await fetch("/api/pms/guests/photos", { method: "POST", body: photo }).catch(() => null);
+      }
       onSaved();
       toast(`Saved ${guest?.full_name || row.full_name}.`, {
         action: guest?.id ? { label: "Add ID file", run: () => onOpen(guest.id, "photos") } : undefined,
@@ -319,6 +329,20 @@ function AddGuest({ propertyId, country, tierOptions, countries, onClose, onSave
               </Select>
             </Field>
             <Field label="Company">{text("company", { autoFocus: true })}</Field>
+          </div>
+          <div>
+            <ScanIdButton
+              onRead={async (found, file) => {
+                setForm((f) => ({
+                  ...f,
+                  full_name: f.full_name.trim() ? f.full_name : found.name || f.full_name,
+                  id_type: found.id_type || f.id_type,
+                  id_number: found.id_number || f.id_number,
+                }));
+                scanPhoto.current = await shrink(file);
+              }}
+              title="Take a photo of the ID. It fills the ID details and is saved with the guest."
+            />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="ID type">

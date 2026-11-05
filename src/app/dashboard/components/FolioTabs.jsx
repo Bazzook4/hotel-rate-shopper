@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
@@ -11,7 +11,8 @@ import DateField from "@/app/components/DateField";
 import { countryName, countryOptions, toCountryCode } from "@/lib/countries";
 import { CHECKIN_ID_TYPES } from "@/lib/onlineCheckinShared";
 import { Drawer, Field } from "./RatePlanSetup";
-import GuestIdPhotos from "./GuestIdPhotos";
+import GuestIdPhotos, { shrink } from "./GuestIdPhotos";
+import ScanIdButton from "./ScanIdButton";
 import { printInvoicePdf } from "./frontDesk";
 import { hotelToday, hotelZone } from "@/lib/hotelTime";
 import { formatMoney, hotelCurrency } from "@/lib/money";
@@ -1514,11 +1515,14 @@ export default function FolioTabs({
     onIntentDone?.();
   }
 
+  // The answer to the last save, and an ID photo scanned for a guest not saved yet.
+  const lastFolio = useRef(null);
+  const scanPhoto = useRef(null);
   async function post(kind, payload) {
     setBusy(true);
     setError(null);
     try {
-      await sendFolio(reservationId, kind, payload);
+      lastFolio.current = await sendFolio(reservationId, kind, payload);
       await onChanged();
       return true;
     } catch (err) {
@@ -1819,6 +1823,25 @@ export default function FolioTabs({
 
           {guest && (
             <div className="card card-pad space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <ScanIdButton
+                  onRead={async (found, file) => {
+                    const [first, ...rest] = String(found.name || "").split(" ");
+                    setGuest((g) => ({
+                      ...g,
+                      first_name: first || g.first_name,
+                      last_name: found.name ? rest.join(" ") || g.last_name : g.last_name,
+                      id_type: found.id_type || g.id_type,
+                      id_number: found.id_number || g.id_number,
+                      nationality: found.nationality || g.nationality,
+                      date_of_birth: found.date_of_birth || g.date_of_birth,
+                    }));
+                    // The photo is saved with the guest when the guest is saved.
+                    scanPhoto.current = await shrink(file);
+                  }}
+                  title="Take a photo of the ID to fill in the details below"
+                />
+              </div>
               <div
                 className="grid gap-2"
                 style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
@@ -1957,7 +1980,21 @@ export default function FolioTabs({
                   className="btn btn-primary text-sm"
                   disabled={busy}
                   onClick={async () => {
-                    if (await post("guest", { guest })) setGuest(null);
+                    const before = new Set((folio.guests || []).map((x) => x.id));
+                    if (await post("guest", { guest })) {
+                      const photo = scanPhoto.current;
+                      scanPhoto.current = null;
+                      const rows = lastFolio.current?.guests || [];
+                      const row = guest.id ? rows.find((x) => x.id === guest.id) : rows.find((x) => !before.has(x.id));
+                      if (photo && row?.guest_id) {
+                        const form = new FormData();
+                        form.set("guest_id", row.guest_id);
+                        if (propertyId) form.set("property_id", propertyId);
+                        form.set("file", photo);
+                        await fetch("/api/pms/guests/photos", { method: "POST", body: form }).catch(() => null);
+                      }
+                      setGuest(null);
+                    }
                   }}
                 >
                   Save guest
