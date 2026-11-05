@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "A clearer menu on the Calendar",
+    points: [
+      { page: "tapechart", text: "Click a booking and the top of the menu is now a short preview: guest name, room and booking number, then the dates. If the guest owes money, the amount due is shown in red. Day use shows its time slot and, once checked in, when the guest is due out." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Villas and the rooms inside them",
     points: [
       { page: "rooms", text: "A villa can now be sold whole or room by room. On Room numbers, set the Part of column for each room inside a villa. When one room is booked or blocked, the villa closes. When the villa is booked or blocked, all its rooms close. The other rooms stay for sale. Give the villa and its rooms different room types, so each has its own rate." },

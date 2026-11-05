@@ -19,7 +19,7 @@ import { visibleModules } from "../modules";
 import { usePageState } from "./usePageState";
 import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
-import { dayUseSummary, dayUseWindow, holdsInventory, isDayUse, shortMinutes } from "@/lib/dayUse";
+import { clockTime, dayUseDueOut, dayUseLabel, dayUseSummary, dayUseWindowLabel, dayUseWindow, holdsInventory, isDayUse, shortMinutes } from "@/lib/dayUse";
 import { useEscape } from "../../components/useEscape";
 import { formatMoney, hotelCurrency } from "@/lib/money";
 
@@ -2012,24 +2012,31 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
 
   return (
     <MenuShell x={x} y={y} onClose={onClose}>
-      <div className="pop-head">
+      <div className="pop-head" style={{ minWidth: "15rem" }}>
         <div className="pop-title" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
           {r.guest_name}
         </div>
         <div className="pop-sub">
-          {r.reference}
-          {room ? `, Room ${room.room_number}` : ", no room yet"}
+          {room ? `Room ${room.room_number}` : "No room yet"}, {r.reference}
         </div>
-        <div className="pop-sub">
+        <div style={{ marginTop: "0.35rem", fontSize: "0.875rem", color: "var(--text)" }}>
           {isDayUse(r) ? (
             <>
-              {nightLabel(r.check_in)}, {dayUseSummary(r)}
+              <div>{nightLabel(r.check_in)}, {dayUseWindowLabel(r) || dayUseLabel(r.day_use_hours)}</div>
+              {r.checked_in_at && (
+                <div className="pop-sub">
+                  In {clockTime(new Date(r.checked_in_at))}, due out {clockTime(dayUseDueOut(r))}
+                </div>
+              )}
             </>
           ) : (
-            <>
-              {nightLabel(r.check_in)} to {nightLabel(r.check_out)}, {nights} night
-              {nights === 1 ? "" : "s"}
-            </>
+            <div>
+              {nightLabel(r.check_in)} to {nightLabel(r.check_out)}
+              <span className="pop-sub"> ({nights} night{nights === 1 ? "" : "s"})</span>
+            </div>
+          )}
+          {Number(r.balance) > 0 && (
+            <div style={{ color: "var(--danger)", fontWeight: 600 }}>Due {money(r.balance, hotelCurrency())}</div>
           )}
         </div>
       </div>
