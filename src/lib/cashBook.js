@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from '@/lib/database';
-import { dayStart, getPaymentsReport, shiftDay, userEmails } from '@/lib/financeReports';
+import { PAYMENT_METHODS, dayStart, getPaymentsReport, shiftDay, userEmails } from '@/lib/financeReports';
 import { DEFAULT_ZONE } from '@/lib/hotelTime';
 import { notMigrated, readAll, round } from '@/lib/reports';
 
@@ -202,11 +202,14 @@ export async function getCashBook(propertyId, { start, end, tz = DEFAULT_ZONE })
   const rows = entries.map((e) => entryRow(e, emails));
   const live = rows.filter((e) => !e.voidedAt);
 
-  // The cash lines, in the order they happened.
-  const lines = [
+  // Every money movement in the order it happened, in whatever it was paid
+  // with. Money owed by an OTA and wallet spends are credit, not money.
+  const moneyModes = (m) => m !== 'ota' && m !== 'wallet';
+  const allLines = [
     ...payments.payments
-      .filter((p) => p.method === 'cash' && !p.voidedAt)
+      .filter((p) => moneyModes(p.method) && !p.voidedAt)
       .map((p) => ({
+        method: p.method,
         id: `p-${p.id}`,
         date: p.day,
         at: p.paidAt,
@@ -216,9 +219,8 @@ export async function getCashBook(propertyId, { start, end, tz = DEFAULT_ZONE })
         amount: p.amount,
         by: p.recordedBy,
       })),
-    ...live
-      .filter((e) => e.method === 'cash')
-      .map((e) => ({
+    ...live.map((e) => ({
+        method: e.method,
         id: `e-${e.id}`,
         date: e.date,
         at: e.at,
@@ -227,7 +229,19 @@ export async function getCashBook(propertyId, { start, end, tz = DEFAULT_ZONE })
         amount: e.signed,
         by: e.recordedBy,
       })),
-  ].sort((a, b) => a.date.localeCompare(b.date) || String(a.at).localeCompare(String(b.at)));
+  ]
+    .map((l) => ({ ...l, methodLabel: ENTRY_METHODS[l.method] || PAYMENT_METHODS[l.method] || l.method }))
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.at).localeCompare(String(b.at)));
+  // The drawer holds cash only: its figures are read from the cash lines.
+  const lines = allLines.filter((l) => l.method === 'cash');
+
+  const byMode = new Map();
+  for (const l of allLines) {
+    if (!byMode.has(l.method)) byMode.set(l.method, { method: l.method, label: l.methodLabel, credit: 0, debit: 0 });
+    const m = byMode.get(l.method);
+    if (l.amount > 0) m.credit += l.amount;
+    else m.debit -= l.amount;
+  }
 
   const sum = (list) => round(list.reduce((s, x) => s + x, 0));
   const cashLines = (pred) => lines.filter(pred).map((l) => l.amount);
@@ -269,7 +283,8 @@ export async function getCashBook(propertyId, { start, end, tz = DEFAULT_ZONE })
       net: sum(lines.map((l) => l.amount)),
       expensesAll: sum(live.filter((e) => e.kind === 'expense').map((e) => e.amount)),
     },
-    lines,
+    lines: allLines,
+    byMode: [...byMode.values()].map((m) => ({ ...m, credit: round(m.credit), debit: round(m.debit) })),
     entries: rows,
     counts: counts.map((c) => ({
       id: c.id,

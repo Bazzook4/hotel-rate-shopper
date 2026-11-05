@@ -6,6 +6,7 @@ import { BOOKING_VIEW_PAGES } from "@/lib/pmsGuard";
 import { getNightAudit, getStillOwing, localToday } from "@/lib/financeReports";
 import { getBookingPerformance } from "@/lib/reports";
 import { getFormC } from "@/lib/guestRegister";
+import { purchasesDue } from "@/lib/purchases";
 import {
   getPropertyIntegration,
   getPropertyClock,
@@ -260,7 +261,7 @@ export async function GET(req) {
   const tz = await getPropertyClock(propertyId);
   const today = localToday(tz);
 
-  const [todayData, month, distribution, setup, formC] = await Promise.all([
+  const [todayData, month, distribution, setup, formC, purchases] = await Promise.all([
     holds(MOVEMENT_PAGES)
       ? part(() =>
           todayPart(propertyId, today, tz, {
@@ -273,7 +274,8 @@ export async function GET(req) {
     holds(DISTRIBUTION_PAGES) ? part(() => distributionPart(propertyId)) : null,
     user && canManageSetup(user) ? part(() => setupPart(propertyId)) : null,
     holds(["policereport"]) ? part(() => formCPart(propertyId, today, tz)) : null,
+    holds(["cashbook"]) ? part(() => purchasesDue(propertyId, tz)) : null,
   ]);
 
-  return NextResponse.json({ today: todayData, month, distribution, setup, formC });
+  return NextResponse.json({ today: todayData, month, distribution, setup, formC, purchases });
 }

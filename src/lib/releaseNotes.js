@@ -14,6 +14,16 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Purchases: soap, towels and more",
+    points: [
+      { page: "cashbook", text: "Cash & Expenses has a new Purchases tab. Add the things you buy, like soap, towels or a TV, and say how many you have." },
+      { page: "cashbook", text: "Soap and other things guests use go down by themselves for every guest night. Count the stock any time to fix the number." },
+      { page: "cashbook", text: "When stock is low, or a towel or TV is due for replacement, the Today page tells you what to buy." },
+      { page: "cashbook", text: "When you enter a purchase with its cost, it is also saved as an expense, so you only type it once." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Add an expense from the Calendar",
     points: [
       { page: "cashbook", text: "The Calendar now has an Add expense button next to Walk-in. It opens Cash & Expenses with a new expense line ready to fill in." },

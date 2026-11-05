@@ -280,7 +280,7 @@ function Problem({ tone, count, title, hint, action, children }) {
   );
 }
 
-function NeedsAttention({ today, distribution, formC, onOpenPage, canOpen, openBooking }) {
+function NeedsAttention({ today, distribution, formC, purchases, onOpenPage, canOpen, openBooking }) {
   const items = [];
 
   if (formC?.due > 0) {
@@ -299,6 +299,27 @@ function NeedsAttention({ today, distribution, formC, onOpenPage, canOpen, openB
           canOpen("policereport") && (
             <button type="button" className="btn btn-secondary text-xs" onClick={() => onOpenPage("policereport", "formc")}>
               Form C
+            </button>
+          )
+        }
+      />
+    );
+  }
+
+  if (purchases?.count > 0) {
+    items.push(
+      <Problem
+        key="purchases"
+        tone="warn"
+        count={purchases.count}
+        title={`${purchases.count} item${purchases.count === 1 ? "" : "s"} to buy again or replace`}
+        hint={purchases.items
+          .map((i) => (i.status === "low" ? `${i.name} (${i.onHand} ${i.unit} left)` : `${i.name} (due for replacement)`))
+          .join(", ")}
+        action={
+          canOpen("cashbook") && (
+            <button type="button" className="btn btn-secondary text-xs" onClick={() => onOpenPage("cashbook", "purchases")}>
+              Purchases
             </button>
           )
         }
@@ -734,7 +755,8 @@ export default function TodayPage({ session, onOpenPage, canOpen, tourOffer }) {
   const setup = report?.setup?.error ? null : report?.setup;
   const month = report?.month?.error ? null : report?.month;
   const formC = report?.formC?.error ? null : report?.formC;
-  const hasAttention = report && (report.today || report.distribution || formC?.due > 0);
+  const purchases = report?.purchases?.error ? null : report?.purchases;
+  const hasAttention = report && (report.today || report.distribution || formC?.due > 0 || purchases?.count > 0);
   const canBook = today && (canOpen("reservations") || canOpen("calendar"));
   const walkIn = () => newBooking(walkInPrefill(today.date));
 
@@ -787,6 +809,7 @@ export default function TodayPage({ session, onOpenPage, canOpen, tourOffer }) {
           today={today}
           distribution={distribution}
           formC={formC}
+          purchases={purchases}
           onOpenPage={onOpenPage}
           canOpen={canOpen}
           openBooking={openBooking}

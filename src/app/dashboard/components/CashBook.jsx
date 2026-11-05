@@ -26,6 +26,7 @@ import {
   useReport,
   whole,
 } from "./reportKit";
+import Purchases from "./Purchases";
 import { hotelToday } from "@/lib/hotelTime";
 
 /**
@@ -267,10 +268,57 @@ function ByTag({ report, money }) {
 }
 
 function CashLines({ report, money, onOpen }) {
+  // One mode at a time, or all of them; each mode shows what came in and went out by it.
+  const [mode, setMode] = useState("all");
+  const modes = report.byMode || [];
+  const shown = mode === "all" ? report.lines : report.lines.filter((l) => l.method === mode);
+  const credit = shown.reduce((n, l) => n + (l.amount > 0 ? l.amount : 0), 0);
+  const debit = shown.reduce((n, l) => n + (l.amount < 0 ? -l.amount : 0), 0);
   return (
-    <Section title="Every cash movement" sub="Money out is negative">
-      {report.lines.length === 0 ? (
-        <Empty>No cash moved in this period.</Empty>
+    <Section
+      title="Money movement"
+      sub="Credit is money in, debit is money out"
+      actions={
+        modes.length > 1 && (
+          <div className="seg" role="radiogroup" aria-label="Payment mode">
+            <button type="button" role="radio" aria-checked={mode === "all"} className={mode === "all" ? "seg-on" : ""} onClick={() => setMode("all")}>
+              All
+            </button>
+            {modes.map((m) => (
+              <button key={m.method} type="button" role="radio" aria-checked={mode === m.method} className={mode === m.method ? "seg-on" : ""} onClick={() => setMode(m.method)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )
+      }
+    >
+      {modes.length > 0 && (
+        <TableFrame>
+          <table className="grid-table">
+            <thead>
+              <tr>
+                <th>Paid by</th>
+                <th className="text-right">Credit</th>
+                <th className="text-right">Debit</th>
+                <th className="text-right">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {modes.map((m) => (
+                <tr key={m.method}>
+                  <td className="font-medium">{m.label}</td>
+                  <td className="text-right tabular-nums">{money(m.credit)}</td>
+                  <td className="text-right tabular-nums" style={{ color: "var(--danger)" }}>{money(m.debit)}</td>
+                  <td className="text-right tabular-nums">{money(m.credit - m.debit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableFrame>
+      )}
+      {shown.length === 0 ? (
+        <Empty>No money moved in this period.</Empty>
       ) : (
         <TableFrame tall>
           <table className="grid-table">
@@ -278,17 +326,20 @@ function CashLines({ report, money, onOpen }) {
               <tr>
                 <th>Date</th>
                 <th>Time</th>
+                <th>Paid by</th>
                 <th>What</th>
                 <th>Details</th>
                 <th>Recorded by</th>
-                <th className="text-right">Amount</th>
+                <th className="text-right">Credit</th>
+                <th className="text-right">Debit</th>
               </tr>
             </thead>
             <tbody>
-              {report.lines.map((l) => (
+              {shown.map((l) => (
                 <tr key={l.id}>
                   <td className="whitespace-nowrap">{longDate(l.date)}</td>
                   <td className="tabular-nums">{timeOf(l.at)}</td>
+                  <td>{l.methodLabel}</td>
                   <td>{l.what}</td>
                   <td>
                     {l.reservationId ? (
@@ -298,11 +349,18 @@ function CashLines({ report, money, onOpen }) {
                     )}
                   </td>
                   <td>{l.by || "-"}</td>
-                  <td className="text-right tabular-nums" style={{ color: l.amount < 0 ? "var(--danger)" : undefined }}>
-                    {money(l.amount)}
+                  <td className="text-right tabular-nums">{l.amount > 0 ? money(l.amount) : ""}</td>
+                  <td className="text-right tabular-nums" style={{ color: "var(--danger)" }}>
+                    {l.amount < 0 ? money(-l.amount) : ""}
                   </td>
                 </tr>
               ))}
+              <tr className="grid-total">
+                <td className="font-semibold">Total</td>
+                <td colSpan={5} />
+                <td className="text-right font-semibold tabular-nums">{money(credit)}</td>
+                <td className="text-right font-semibold tabular-nums">{money(debit)}</td>
+              </tr>
             </tbody>
           </table>
         </TableFrame>
@@ -414,8 +472,8 @@ function exportCsv(report) {
     r.push([e.date, e.kindLabel, e.tag, e.amount, e.methodLabel, e.paidTo, e.billNumber, e.notes, e.recordedBy, e.voidedAt || "", e.voidedBy || "", e.voidReason || ""]);
   }
   r.push([]);
-  r.push(["Date", "Time", "What", "Details", "Recorded by", "Amount"]);
-  for (const l of report.lines) r.push([l.date, timeOf(l.at), l.what, l.detail, l.by, l.amount]);
+  r.push(["Date", "Time", "Paid by", "What", "Details", "Recorded by", "Credit", "Debit"]);
+  for (const l of report.lines) r.push([l.date, timeOf(l.at), l.methodLabel, l.what, l.detail, l.by, l.amount > 0 ? l.amount : "", l.amount < 0 ? -l.amount : ""]);
   downloadCsv(`cash-and-expenses-${report.start}-to-${report.end}.csv`, r);
 }
 
@@ -434,6 +492,7 @@ export default function CashBook({ session, initialView = null }) {
   const ready = report?.ready;
   const s = report?.summary;
   const startedWithLine = useRef(false);
+  const [view, setView] = useState(initialView === "purchases" ? "purchases" : "cash");
 
   function addLine(kind) {
     grid.add({
@@ -556,29 +615,43 @@ export default function CashBook({ session, initialView = null }) {
         }
       />
 
-      {saveError && (
+      <div className="seg" role="tablist" aria-label="Cash and expenses or purchases" style={{ width: "fit-content" }}>
+        <button type="button" role="tab" aria-selected={view === "cash"} className={view === "cash" ? "seg-on" : ""} onClick={() => setView("cash")}>
+          Cash and expenses
+        </button>
+        <button type="button" role="tab" aria-selected={view === "purchases"} className={view === "purchases" ? "seg-on" : ""} onClick={() => setView("purchases")}>
+          Purchases
+        </button>
+      </div>
+
+      {view === "purchases" && (
+        <Purchases propertyId={propertyId} currency={report?.currency} methods={report?.methods || { cash: "Cash" }} onChanged={reload} />
+      )}
+
+      {view === "cash" && saveError && (
         <div className="card card-pad text-sm" style={{ color: "var(--danger)" }}>
           {saveError}
         </div>
       )}
 
-      <Status loading={loading} error={error} report={report} />
+      {view === "cash" && <Status loading={loading} error={error} report={report} />}
 
-      {report && !ready && <div className="card card-pad text-sm">{report.message}</div>}
+      {view === "cash" && report && !ready && <div className="card card-pad text-sm">{report.message}</div>}
 
-      {ready && <DrawerCard report={report} money={money} onCount={countCash} busy={busy} />}
+      {view === "cash" && ready && <DrawerCard report={report} money={money} onCount={countCash} busy={busy} />}
 
-      <div className="card card-pad">
+      {view === "cash" && <div className="card card-pad">
         <PeriodPicker id="cashbook" label="Between" {...period} />
         {!period.valid && (
           <p className="mt-3 text-sm" style={{ color: "var(--danger)" }}>
             The end date is before the start date.
           </p>
         )}
-      </div>
+      </div>}
 
-      {ready && (
+      {view === "cash" && ready && (
         <div className="space-y-5" style={{ opacity: loading ? 0.55 : 1, transition: "opacity 0.15s" }}>
+          <CashLines report={report} money={money} onOpen={openBooking} />
           <EntriesGrid
             report={report}
             grid={grid}
@@ -604,7 +677,6 @@ export default function CashBook({ session, initialView = null }) {
           </div>
           <ByTag report={report} money={money} />
           <Counts report={report} money={money} />
-          <CashLines report={report} money={money} onOpen={openBooking} />
           <Voided report={report} money={money} />
         </div>
       )}
