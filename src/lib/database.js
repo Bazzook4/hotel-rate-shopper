@@ -2806,6 +2806,7 @@ const ROOM_SETUP_FIELDS = [
   'sort_order',
   'is_active',
   'notes',
+  'parent_room_id',
 ];
 
 /**
@@ -3262,7 +3263,36 @@ export async function checkAvailability(
 
   if (typeError) throw new Error(`Failed to load room type: ${typeError.message}`);
 
-  const capacity = capacityByType([roomType], await listRooms(propertyId))[roomTypeId] || 0;
+  const allRooms = await listRooms(propertyId);
+  const capacity = capacityByType([roomType], allRooms)[roomTypeId] || 0;
+
+  // A villa or one of its rooms: free only when a room is free on every
+  // night, counting what the linked rooms hold.
+  const linkedTypes = linkedRoomTypeIds(allRooms);
+  if (linkedTypes.has(roomTypeId)) {
+    const holds = await loadLinkedHolds(propertyId, nights[0], nights[nights.length - 1], allRooms, linkedTypes, {
+      ignoreReservationId,
+    });
+    for (const night of nights) {
+      if (linkedFreeCount(allRooms, holds, roomTypeId, night) <= 0) {
+        return {
+          available: false,
+          reason: `${roomType?.room_type_name || 'That room type'} is fully booked on ${night}.`,
+          date: night,
+          capacity,
+        };
+      }
+    }
+    if (!pickLinkedRoom(allRooms, holds, roomTypeId, nights)) {
+      return {
+        available: false,
+        reason: `${roomType?.room_type_name || 'That room type'} has no room free for the whole stay.`,
+        date: nights[0],
+        capacity,
+      };
+    }
+    return { available: true, capacity };
+  }
 
   // Read in pages, as getSoldCounts does: a long stay in a big room type
   // passes PostgREST's 1000-row cap, and a short count sells a room twice.
@@ -3316,6 +3346,200 @@ export async function checkAvailability(
   }
 
   return { available: true, capacity };
+}
+
+// ============================================
+// PMS — VILLAS AND THEIR ROOMS
+// ============================================
+
+/**
+ * The rooms that cannot be sold while this one is: a room's villa, or a
+ * villa's rooms. One level only, and rooms of the same villa do not hold
+ * each other.
+ */
+export function relatedRoomIds(roomId, rooms) {
+  const room = (rooms || []).find((r) => r.id === roomId);
+  if (!room) return [];
+  if (room.parent_room_id) return [room.parent_room_id];
+  return rooms.filter((r) => r.parent_room_id === roomId).map((r) => r.id);
+}
+
+/** Room types that hold a villa or a room inside one. */
+export function linkedRoomTypeIds(rooms) {
+  const parents = new Set((rooms || []).map((r) => r.parent_room_id).filter(Boolean));
+  const types = new Set();
+  for (const r of rooms || []) {
+    if (r.parent_room_id || parents.has(r.id)) types.add(r.room_type_id);
+  }
+  return types;
+}
+
+/** Why a room cannot be made part of a villa, or null if it can. */
+export function parentRoomProblem(roomId, parentId, rooms) {
+  const self = rooms.find((r) => r.id === roomId);
+  if (self && rooms.some((r) => r.parent_room_id === roomId && r.room_type_id === self.room_type_id)) {
+    return 'A villa and its rooms need different room types, so each has its own rate.';
+  }
+  if (!parentId) return null;
+  const room = rooms.find((r) => r.id === roomId);
+  const parent = rooms.find((r) => r.id === parentId);
+  if (!room || !parent) return 'That villa could not be found.';
+  if (parent.id === room.id) return 'A room cannot be part of itself.';
+  if (parent.parent_room_id) return `Room ${parent.room_number} is itself part of a villa. Pick the villa.`;
+  if (rooms.some((r) => r.parent_room_id === room.id)) {
+    return `Room ${room.room_number} is a villa with rooms of its own, so it cannot be part of another.`;
+  }
+  if (parent.room_type_id === room.room_type_id) {
+    return 'A villa and its rooms need different room types, so each has its own rate. Change the room type first.';
+  }
+  return null;
+}
+
+/**
+ * A booking that already sits in both a villa and one of its rooms on the
+ * same nights, or null. Linking them then would sell the villa twice.
+ */
+export async function findLinkClash(propertyId, roomId, parentId) {
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('room_id, guest_name, reference, check_in, check_out')
+    .eq('property_id', propertyId)
+    .in('room_id', [roomId, parentId])
+    .not('status', 'in', '(cancelled,no_show,checked_out)')
+    .gte('check_out', new Date().toISOString().slice(0, 10));
+  if (error) throw new Error(`Failed to check the rooms: ${error.message}`);
+  const mine = (data || []).filter((r) => r.room_id === roomId);
+  const villa = (data || []).filter((r) => r.room_id === parentId);
+  for (const a of mine) {
+    for (const b of villa) {
+      if (a.check_in < b.check_out && b.check_in < a.check_out) {
+        return `${a.guest_name} (${a.reference}) and ${b.guest_name} (${b.reference}) overlap in these two rooms. Move one of them first.`;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * What the rooms of villa-linked types hold across a window: the dates each
+ * room is taken by a stay or an out-of-order block, and the stays of those
+ * types that have no room yet (they take a room of their type, any one).
+ */
+async function loadLinkedHolds(
+  propertyId,
+  startDate,
+  endDate,
+  rooms,
+  linkedTypes,
+  { ignoreReservationId = null } = {}
+) {
+  const held = new Map(); // roomId -> Set of dates
+  const unassigned = {}; // `${typeId}|${date}` -> count
+  const clock = await getPropertyClock(propertyId);
+  const typeIds = [...linkedTypes];
+  const roomIds = rooms.filter((r) => linkedTypes.has(r.room_type_id)).map((r) => r.id);
+  if (roomIds.length === 0) roomIds.push('00000000-0000-0000-0000-000000000000');
+  const hold = (roomId, date) => {
+    if (date < startDate || date > endDate) return;
+    if (!held.has(roomId)) held.set(roomId, new Set());
+    held.get(roomId).add(date);
+  };
+
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('id, room_id, room_type_id, status, stay_kind, check_in, check_out, checked_out_at')
+      .eq('property_id', propertyId)
+      .or(`room_type_id.in.(${typeIds.join(',')}),room_id.in.(${roomIds.join(',')})`)
+      .in('status', OCCUPYING_STATUSES)
+      .lte('check_in', endDate)
+      .gte('check_out', startDate)
+      .order('id')
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`Failed to load occupancy: ${error.message}`);
+    for (const r of data || []) {
+      if (ignoreReservationId && r.id === ignoreReservationId) continue;
+      if (leftOnArrivalDay(r, clock)) continue;
+      let dates;
+      if (r.stay_kind === 'day_use') {
+        if (!DAY_USE_HOLDING_STATUSES.includes(r.status)) continue;
+        dates = [r.check_in];
+      } else {
+        dates = nightsBetween(r.check_in, r.check_out);
+      }
+      for (const date of dates) {
+        if (r.room_id) hold(r.room_id, date);
+        else if (date >= startDate && date <= endDate) {
+          const key = `${r.room_type_id}|${date}`;
+          unassigned[key] = (unassigned[key] || 0) + 1;
+        }
+      }
+    }
+    if (!data || data.length < PAGE) break;
+  }
+
+  for (const block of await listRoomBlocks(propertyId, startDate, endDate)) {
+    for (const night of nightsBetween(block.start_date, block.end_date)) hold(block.room_id, night);
+  }
+
+  return { held, unassigned };
+}
+
+function roomIsClosed(room) {
+  return !room || room.is_active === false || room.housekeeping === 'out_of_order';
+}
+
+/** Whether a room can be sold on a date once the rooms linked to it are counted. */
+function linkedRoomFree(rooms, holds, room, date) {
+  if (roomIsClosed(room)) return false;
+  if (holds.held.get(room.id)?.has(date)) return false;
+  for (const id of relatedRoomIds(room.id, rooms)) {
+    const other = rooms.find((r) => r.id === id);
+    if (roomIsClosed(other) || holds.held.get(id)?.has(date)) return false;
+  }
+  return true;
+}
+
+/** Rooms of a type for sale on a date, less the stays that have no room yet. */
+function linkedFreeCount(rooms, holds, roomTypeId, date) {
+  const free = rooms.filter((r) => r.room_type_id === roomTypeId && linkedRoomFree(rooms, holds, r, date)).length;
+  // A booking with no room yet could be in any room of its type, so it counts
+  // against its own type and, worst case, against every linked type.
+  let waiting = 0;
+  for (const [key, n] of Object.entries(holds.unassigned)) if (key.endsWith(`|${date}`)) waiting += n;
+  return Math.max(0, free - waiting);
+}
+
+/** The first room of a type free on every one of the nights, or null. */
+function pickLinkedRoom(rooms, holds, roomTypeId, nights) {
+  return (
+    rooms.find(
+      (r) => r.room_type_id === roomTypeId && nights.every((night) => linkedRoomFree(rooms, holds, r, night))
+    ) || null
+  );
+}
+
+/**
+ * A room for a new booking of a villa or a room inside one, or null if the
+ * type is not linked or none is free. The desk can change it afterwards.
+ */
+export async function pickRoomForBooking(
+  propertyId,
+  roomTypeId,
+  checkIn,
+  checkOut,
+  { ignoreReservationId = null } = {}
+) {
+  const rooms = await listRooms(propertyId);
+  const linkedTypes = linkedRoomTypeIds(rooms);
+  if (!linkedTypes.has(roomTypeId)) return null;
+  const nights = checkOut === checkIn ? [checkIn] : nightsBetween(checkIn, checkOut);
+  if (nights.length === 0) return null;
+  const holds = await loadLinkedHolds(propertyId, nights[0], nights[nights.length - 1], rooms, linkedTypes, {
+    ignoreReservationId,
+  });
+  return pickLinkedRoom(rooms, holds, roomTypeId, nights)?.id || null;
 }
 
 // ============================================
@@ -3423,7 +3647,32 @@ function blockSpanEnd(checkIn, checkOut) {
  *
  * Answers with a sentence the desk can act on, naming who is in the way.
  */
-export async function findRoomClash(
+export async function findRoomClash(roomId, checkIn, checkOut, options = {}) {
+  const own = await findOwnRoomClash(roomId, checkIn, checkOut, options);
+  if (own) return own;
+
+  // A room that is part of a villa is also held when the villa is, and the
+  // villa when any of its rooms is.
+  const { data: room } = await supabase
+    .from('rooms')
+    .select('property_id')
+    .eq('id', roomId)
+    .maybeSingle();
+  if (!room) return null;
+  const rooms = await listRooms(room.property_id);
+  for (const otherId of relatedRoomIds(roomId, rooms)) {
+    const clash = await findOwnRoomClash(otherId, checkIn, checkOut, options);
+    if (!clash) continue;
+    const other = rooms.find((r) => r.id === otherId);
+    return {
+      ...clash,
+      message: `${clash.message.replace(/^That room/, `Room ${other?.room_number}`)} It is linked to this room.`,
+    };
+  }
+  return null;
+}
+
+async function findOwnRoomClash(
   roomId,
   checkIn,
   checkOut,
@@ -3583,6 +3832,17 @@ export async function listTakenRoomIds(
     throw new Error(`Failed to check the rooms: ${blockError.message}`);
   }
   for (const b of blocks || []) taken.add(b.room_id);
+
+  // The villa goes with its rooms and the rooms with their villa.
+  const rooms = await listRooms(propertyId);
+  const closed = (r) => r.is_active === false || r.housekeeping === 'out_of_order';
+  const held = new Set(taken);
+  for (const room of rooms) {
+    const related = relatedRoomIds(room.id, rooms);
+    if (related.some((id) => held.has(id) || closed(rooms.find((r) => r.id === id)))) {
+      taken.add(room.id);
+    }
+  }
 
   return [...taken];
 }
@@ -3887,6 +4147,12 @@ export function acceptNightRates(nightRates, checkIn, checkOut, total) {
  */
 export async function createReservation(row, { rate = null, rates = null } = {}) {
   let lastError = null;
+  // A villa, or a room inside one, always gets a real room: which one is
+  // taken decides what its villa or rooms can still sell.
+  if (!row.room_id && row.room_type_id && row.check_in && row.check_out) {
+    const picked = await pickRoomForBooking(row.property_id, row.room_type_id, row.check_in, row.check_out);
+    if (picked) row = { ...row, room_id: picked };
+  }
   // A booking is taken in the hotel's currency unless it says otherwise (an
   // OTA booking keeps the one the channel sent).
   const currency = row.currency || (await getPropertyCurrency(row.property_id));
@@ -3953,6 +4219,21 @@ export async function updateReservation(id, updates, { rates = null } = {}) {
   const checkOut = updates.check_out ?? before.check_out;
   if (before.discount_by_night && Object.keys(before.discount_by_night).some((d) => d < checkIn || d >= checkOut)) {
     updates = { ...updates, discount_by_night: null };
+  }
+
+  // A booking of a villa, or a room inside one, that lost its room (a new
+  // type, or dates that ran into someone) is given another that is free.
+  const after = { ...before, ...updates };
+  if (
+    !after.room_id &&
+    after.room_type_id &&
+    !['cancelled', 'no_show'].includes(after.status) &&
+    ['room_type_id', 'room_id', 'check_in', 'check_out'].some((k) => k in updates)
+  ) {
+    const picked = await pickRoomForBooking(before.property_id, after.room_type_id, after.check_in, after.check_out, {
+      ignoreReservationId: id,
+    });
+    if (picked) updates = { ...updates, room_id: picked };
   }
 
   const { data, error } = await supabase
@@ -4752,6 +5033,13 @@ export async function getAvailabilityGrid(propertyId, startDate, endDate, { room
   // of the last day the hotelier asked to see.
   if (!dates.includes(endDate)) dates.push(endDate);
 
+  // Villas and their rooms hold each other, which a count per type cannot
+  // see, so those types are worked out room by room.
+  const linkedTypes = linkedRoomTypeIds(rooms);
+  const linked = roomTypes.some((rt) => linkedTypes.has(rt.id))
+    ? await loadLinkedHolds(propertyId, startDate, endDate, rooms, linkedTypes)
+    : null;
+
   return {
     dates,
     roomTypes: roomTypes.map((rt) => {
@@ -4764,8 +5052,15 @@ export async function getAvailabilityGrid(propertyId, startDate, endDate, { room
           const count = sold[`${rt.id}|${date}`] || 0;
           // Out-of-order rooms are neither sold nor free: the channels are
           // offered what is left once they are taken away.
-          const out = blocked[`${rt.id}|${date}`] || 0;
-          return { date, sold: count, blocked: out, free: Math.max(0, capacity - count - out) };
+          let out = blocked[`${rt.id}|${date}`] || 0;
+          let free = Math.max(0, capacity - count - out);
+          if (linked && linkedTypes.has(rt.id)) {
+            // Never more than the plain count allows, so two bookings that
+            // picked one room cannot show a room free that is not.
+            free = Math.min(linkedFreeCount(rooms, linked, rt.id, date), free);
+            out = Math.max(0, capacity - count - free);
+          }
+          return { date, sold: count, blocked: out, free };
         }),
       };
     }),

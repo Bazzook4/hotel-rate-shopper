@@ -21,6 +21,8 @@ import {
   getAvailabilityGrid,
   getPropertyIntegration,
   getPropertyZone,
+  linkedRoomTypeIds,
+  listRooms,
   nightsBetween,
 } from "@/lib/database";
 import { todayInZone } from "@/lib/hotelTime";
@@ -94,6 +96,35 @@ function toRanges(days) {
   return ranges;
 }
 
+/** Whether a room type is a villa or sits inside one, so any change to its rooms moves other counts. */
+export async function isLinkedType(propertyId, roomTypeId) {
+  try {
+    return linkedRoomTypeIds(await listRooms(propertyId)).has(roomTypeId);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A villa and its rooms hold each other, so a change to the nights of one
+ * moves the count of the others. Their types are sent for the same nights.
+ */
+async function withLinkedSpans(propertyId, spans) {
+  try {
+    const linked = [...linkedRoomTypeIds(await listRooms(propertyId))];
+    const touched = (spans || []).filter((s) => s && linked.includes(s.roomTypeId));
+    if (touched.length === 0) return spans;
+    return [
+      ...spans,
+      ...touched.flatMap((s) =>
+        linked.filter((id) => id !== s.roomTypeId).map((roomTypeId) => ({ ...s, roomTypeId }))
+      ),
+    ];
+  } catch {
+    return spans;
+  }
+}
+
 /**
  * Push the current availability for the nights some changes touched, then
  * check the property's workflow rules over those nights -- a booking that
@@ -113,6 +144,7 @@ function toRanges(days) {
  * they changed something.
  */
 export async function syncInventory(propertyId, spans, options = {}) {
+  spans = await withLinkedSpans(propertyId, spans);
   const result = await sendInventory(propertyId, spans, options);
 
   // Every night touched, whatever the room type: a whole-hotel rule reads

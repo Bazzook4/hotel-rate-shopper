@@ -3,6 +3,7 @@ import { pmsGuard, resolvePropertyId, BOOKING_VIEW_PAGES, BOOKING_PAGES } from "
 import {
   listRooms,
   findRoomClash,
+  relatedRoomIds,
   getAvailabilityGrid,
   quoteReservation,
   loadQuoteData,
@@ -153,6 +154,14 @@ export async function POST(req) {
     for (const room of chosen) {
       const clash = await findRoomClash(room.id, check_in, check_out);
       if (clash) clashes.push(`Room ${room.room_number}: ${clash.message}`);
+    }
+    // A villa and one of its rooms cannot both be in the group.
+    const allRooms = await listRooms(propertyId);
+    for (const room of chosen) {
+      const twin = chosen.find((o) => o.id !== room.id && relatedRoomIds(room.id, allRooms).includes(o.id));
+      if (twin && room.id < twin.id) {
+        clashes.push(`Rooms ${room.room_number} and ${twin.room_number} are linked, so only one can be in the group.`);
+      }
     }
     if (clashes.length > 0) {
       return NextResponse.json({ error: clashes.join(" ") }, { status: 409 });

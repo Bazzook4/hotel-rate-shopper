@@ -10,7 +10,7 @@ import {
   getRoom,
 } from "@/lib/database";
 import { holdsInventory } from "@/lib/dayUse";
-import { syncInventory, staySpan } from "@/lib/inventorySync";
+import { syncInventory, staySpan, isLinkedType } from "@/lib/inventorySync";
 
 /**
  * Moving or resizing a stay by dragging it on the tape chart.
@@ -165,7 +165,9 @@ export async function POST(req) {
     const sameSale =
       reservation.room_type_id === current.room_type_id &&
       reservation.check_in === current.check_in &&
-      reservation.check_out === current.check_out;
+      reservation.check_out === current.check_out &&
+      // Rooms of a villa hold each other, so which room it is matters.
+      !(reservation.room_id !== current.room_id && (await isLinkedType(propertyId, reservation.room_type_id)));
 
     // A drag can change the nights and the room type at once; the old span
     // is sent too, so whatever the stay let go of is reopened.

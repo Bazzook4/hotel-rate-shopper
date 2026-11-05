@@ -469,6 +469,12 @@ export default function RoomInventory({ session, section = false }) {
               Room no.
             </th>
             <th style={{ minWidth: 180 }}>Room type</th>
+            <th
+              style={{ minWidth: 150 }}
+              title="For a room inside a villa: pick the villa. Selling one takes the other off sale."
+            >
+              Part of
+            </th>
             <th style={{ width: 90 }} title="Unticked rooms stay on record but are never sold">
               Sellable
             </th>
@@ -479,7 +485,7 @@ export default function RoomInventory({ session, section = false }) {
         <tbody>
           {loading && rooms.length === 0 && (
             <tr>
-              <td colSpan={7} className="cm-empty">
+              <td colSpan={8} className="cm-empty">
                 Loading...
               </td>
             </tr>
@@ -487,7 +493,7 @@ export default function RoomInventory({ session, section = false }) {
 
           {!loading && rows.length === 0 && (
             <tr>
-              <td colSpan={7} className="cm-empty">
+              <td colSpan={8} className="cm-empty">
                 {rooms.length
                   ? "No rooms match the filters."
                   : "No rooms yet. Until they are added, availability falls back to the room count on each room type."}
@@ -571,6 +577,18 @@ export default function RoomInventory({ session, section = false }) {
                     room,
                     "room_type_id",
                     draft ? [{ id: "", label: "Choose..." }, ...typeOptions] : typeOptions
+                  )}
+                </td>
+                <td>
+                  {draft ? (
+                    <span className="sub">Save the room first</span>
+                  ) : (
+                    grid.select(room, "parent_room_id", [
+                      { id: "", label: "-" },
+                      ...rooms
+                        .filter((r) => r.id !== room.id && !r.parent_room_id)
+                        .map((r) => ({ id: r.id, label: `${r.room_number} (${r.room_types?.room_type_name || ""})` })),
+                    ])
                   )}
                 </td>
                 <td className="text-center">{grid.check(room, "is_active")}</td>

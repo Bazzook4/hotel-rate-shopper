@@ -5,6 +5,8 @@ import {
   listRooms,
   listRoomTypes,
   listTakenRoomIds,
+  parentRoomProblem,
+  findLinkClash,
   createRoom,
   createRoomRange,
   updateRoom,
@@ -253,16 +255,41 @@ export async function PATCH(req) {
     if (updates.floor !== undefined) {
       updates.floor = String(updates.floor ?? "").trim() || null;
     }
-    // Only a change of type or of in-order status alters what can be sold.
-    const capacityChanges = "room_type_id" in updates || "is_active" in updates;
-    const before = capacityChanges
-      ? (await listRooms(propertyId)).find((r) => r.id === id)
-      : null;
+    if ("parent_room_id" in updates) updates.parent_room_id = updates.parent_room_id || null;
+    // Only a change of type, of in-order status or of villa alters what can be sold.
+    const capacityChanges =
+      "room_type_id" in updates || "is_active" in updates || "parent_room_id" in updates;
+    const allRooms = capacityChanges ? await listRooms(propertyId) : null;
+    const before = allRooms?.find((r) => r.id === id) || null;
+
+    if ("parent_room_id" in updates || "room_type_id" in updates) {
+      const nextType = updates.room_type_id ?? before?.room_type_id;
+      const nextParent = "parent_room_id" in updates ? updates.parent_room_id : before?.parent_room_id;
+      const problem = parentRoomProblem(
+        id,
+        nextParent,
+        allRooms.map((r) => (r.id === id ? { ...r, room_type_id: nextType } : r))
+      );
+      if (problem) return NextResponse.json({ error: problem }, { status: 400 });
+      if (nextParent && nextParent !== before?.parent_room_id) {
+        const clash = await findLinkClash(propertyId, id, nextParent);
+        if (clash) return NextResponse.json({ error: clash }, { status: 409 });
+      }
+    }
 
     const room = await updateRoom(propertyId, id, updates);
 
     const inventory = capacityChanges
-      ? await pushCapacity(propertyId, [before?.room_type_id, room?.room_type_id], session)
+      ? await pushCapacity(
+          propertyId,
+          [
+            before?.room_type_id,
+            room?.room_type_id,
+            // A villa and its rooms move together.
+            ...allRooms.filter((r) => r.id === before?.parent_room_id || r.id === room?.parent_room_id || r.parent_room_id === id).map((r) => r.room_type_id),
+          ],
+          session
+        )
       : null;
     return NextResponse.json({ room, inventory });
   } catch (err) {
@@ -301,7 +328,11 @@ export async function DELETE(req) {
       );
     }
     await deleteRoom(propertyId, id);
-    const inventory = await pushCapacity(propertyId, [before?.room_type_id], session);
+    const inventory = await pushCapacity(
+      propertyId,
+      [before?.room_type_id, ...all.filter((r) => r.parent_room_id === id).map((r) => r.room_type_id)],
+      session
+    );
     return NextResponse.json({ success: true, inventory });
   } catch (err) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -23,7 +23,7 @@ import {
 import { toCountryCode } from "@/lib/countries";
 import { checkinStatuses } from "@/lib/onlineCheckin";
 import { loadFolios } from "@/lib/financeReports";
-import { syncInventory, staySpan } from "@/lib/inventorySync";
+import { syncInventory, staySpan, isLinkedType } from "@/lib/inventorySync";
 import { dayUseWindow, isDayUsePlan, validDayUseHours, validDayUseStart } from "@/lib/dayUse";
 
 /** A date the database will accept, and that a person actually typed. */
@@ -562,7 +562,8 @@ export async function PATCH(req) {
     const sameSale =
       reservation.room_type_id === before.room_type_id &&
       reservation.check_in === before.check_in &&
-      reservation.check_out === before.check_out;
+      reservation.check_out === before.check_out &&
+      !(reservation.room_id !== before.room_id && (await isLinkedType(propertyId, reservation.room_type_id)));
 
     // Both the nights given up and the nights now held, so a stay moved to
     // next week reopens this week on the channels as well as closing next.

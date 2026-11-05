@@ -16,7 +16,7 @@ import {
   applyStayChange,
   leftOnArrivalDay,
 } from "@/lib/database";
-import { syncInventory, staySpan } from "@/lib/inventorySync";
+import { syncInventory, staySpan, isLinkedType } from "@/lib/inventorySync";
 import { localToday } from "@/lib/financeReports";
 import { holdsInventory } from "@/lib/dayUse";
 
@@ -303,6 +303,12 @@ export async function POST(req) {
       // Undoing a same-day check-out takes the nights back.
       inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
     } else if (holdsInventory(current, current.status) !== holdsInventory(current, status)) {
+      inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
+    } else if (
+      reservation.room_id !== current.room_id &&
+      (await isLinkedType(propertyId, reservation.room_type_id))
+    ) {
+      // Which room a villa booking is in decides what its rooms can sell.
       inventory = await syncInventory(propertyId, [staySpan(reservation)], { session });
     }
 
