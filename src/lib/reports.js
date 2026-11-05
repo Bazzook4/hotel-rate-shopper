@@ -580,7 +580,7 @@ export async function getBookingPerformance(
  * total and by kind of business, for the Revenue Planner. `months` is a list
  * of { month: 'YYYY-MM', start, end }.
  */
-export async function getMonthlyActuals(propertyId, start, end, months) {
+export async function getMonthlyActuals(propertyId, start, end, months, today = null) {
   const clock = await getPropertyClock(propertyId).catch(() => null);
   const [{ capacity }, facts] = await Promise.all([
     capacityOf(propertyId),
@@ -602,14 +602,59 @@ export async function getMonthlyActuals(propertyId, start, end, months) {
       const x = measure(rows);
       bySegment[key] = { roomNights: x.roomNights, revenue: x.roomRevenue, adr: x.adr };
     }
+    // Nights before today are sold; tonight and later are on the books.
+    let soldNights = 0;
+    let soldRevenue = 0;
+    for (const p of parts) {
+      if (p.stay.released) continue;
+      for (const n of p.nights) {
+        if (today && n.date < today) {
+          soldNights += 1;
+          soldRevenue += n.value;
+        }
+      }
+    }
     out[m.month] = {
       roomNights: total.roomNights,
       revenue: total.roomRevenue,
       adr: total.adr,
       occupancy: total.occupancy,
       revpar: total.revpar,
+      soldNights,
+      soldRevenue: round(soldRevenue),
       bySegment,
     };
   }
   return { capacity, actuals: out };
+}
+
+/**
+ * Night by night for one month (stay basis): room nights and room revenue on
+ * each date, and the rooms the hotel has to sell.
+ */
+export async function getDailyActuals(propertyId, month, start, end) {
+  const clock = await getPropertyClock(propertyId).catch(() => null);
+  const [{ capacity }, facts] = await Promise.all([
+    capacityOf(propertyId),
+    loadFacts(propertyId, start, end, 'stay', clock),
+  ]);
+  const stays = buildStays(facts, { roomTypes: {}, ratePlans: {} });
+  const days = {};
+  for (let d = start; d <= end; d = shift(d, 1)) days[d] = { date: d, roomNights: 0, revenue: 0 };
+  for (const p of slice(stays, start, end, 'stay')) {
+    if (p.stay.released) continue;
+    for (const n of p.nights) {
+      days[n.date].roomNights += 1;
+      days[n.date].revenue += n.value;
+    }
+  }
+  return {
+    capacity,
+    days: Object.values(days).map((x) => ({
+      ...x,
+      revenue: round(x.revenue),
+      occupancy: capacity > 0 ? round((x.roomNights / capacity) * 100, 1) : null,
+      adr: x.roomNights > 0 ? round(x.revenue / x.roomNights) : null,
+    })),
+  };
 }

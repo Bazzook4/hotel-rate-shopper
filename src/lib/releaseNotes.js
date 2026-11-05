@@ -14,6 +14,21 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Revenue Planner: month view and reports",
+    points: [
+      { page: "revplan", text: "Switch between Year and Month. The month view shows each day against your goal, with nights sold and nights already booked ahead." },
+      { page: "revplan", text: "New reports: Forecast (where the year or month will land if nothing more is booked), Business mix (OTA, Direct, Corporate and so on against your plan and last year), and Why the gap (too few nights, or too low a rate)." },
+    ],
+  },
+  {
+    date: "2026-11-05",
+    title: "Revenue Planner shows last year",
+    points: [
+      { page: "revplan", text: "Each month now shows last year's occupancy, ADR and revenue from your bookings. Not on the system last year? Press Add on a month and type in what the hotel did. Press Start from last year when setting a goal to begin from those figures." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Revenue Planner",
     points: [
       { page: "revplan", text: "New page for hotel admins. Set a goal for each month: how full you want to be, your average rate (ADR) and the revenue. Change one and the others follow, and RevPAR is worked out for you." },
