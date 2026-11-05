@@ -48,8 +48,8 @@ async function guestsByNight(supabase, propertyId, from, today) {
         .in('reservations.status', ['in_house', 'checked_out'])
         .gte('stay_date', from)
         .lte('stay_date', today)
-        .order('stay_date')
-        .order('id'),
+        .order('reservation_id')
+        .order('stay_date'),
     'guest nights'
   );
   const map = {};
