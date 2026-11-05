@@ -66,6 +66,8 @@ export const AREAS = [
     label: "Reports",
     pages: [
       { id: "performance", label: "Booking Performance", icon: "trend" },
+      // The owner's goals for each month, against what was achieved.
+      { id: "revplan", label: "Revenue Planner", icon: "chart" },
       { id: "invoicing", label: "Invoicing", icon: "file" },
       { id: "payments", label: "Payments", icon: "money" },
       // What companies and agents owe for stays billed to them.
@@ -140,9 +142,9 @@ export const SETUP_PAGES = new Set([
 
 /**
  * Pages that go with a role rather than a grant: every admin manages their
- * users, and nobody else does.
+ * users and sets the revenue goals, and nobody else does.
  */
-const ADMIN_PAGES = new Set(["users"]);
+const ADMIN_PAGES = new Set(["users", "revplan"]);
 
 /**
  * Pages everyone with any access has. The home page is a summary of the other

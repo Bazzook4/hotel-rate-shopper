@@ -14,6 +14,14 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Revenue Planner",
+    points: [
+      { page: "revplan", text: "New page for hotel admins. Set a goal for each month: how full you want to be, your average rate (ADR) and the revenue. Change one and the others follow, and RevPAR is worked out for you." },
+      { page: "revplan", text: "Say how much of your room nights should come from OTA, Direct, Corporate, travel agents and groups, each with its own rate if you like. See what you achieved next to each goal." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Purchases: given once per guest or every night",
     points: [
       { page: "cashbook", text: "For each item you can now choose when it is given: once per guest at check-in, like soap, or every night, like a towel change. Two guests with one soap each uses 2 soaps, however many nights they stay." },

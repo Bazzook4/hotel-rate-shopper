@@ -160,6 +160,10 @@ const BookingPerformance = dynamic(() => import("./dashboard/components/BookingP
   ssr: false,
   loading: PageLoading,
 });
+const RevenuePlanner = dynamic(() => import("./dashboard/components/RevenuePlanner"), {
+  ssr: false,
+  loading: PageLoading,
+});
 const NightAudit = dynamic(() => import("./dashboard/components/NightAudit"), {
   ssr: false,
   loading: PageLoading,
@@ -975,6 +979,8 @@ export default function V2Dashboard() {
                   {active === "events" && <Events session={scopedSession} />}
 
                   {active === "performance" && <BookingPerformance session={scopedSession} />}
+
+                  {active === "revplan" && session?.canManageUsers && <RevenuePlanner session={scopedSession} />}
 
                   {active === "nightaudit" && <NightAudit session={scopedSession} />}
 

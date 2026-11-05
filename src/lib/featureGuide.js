@@ -149,6 +149,14 @@ export const FEATURE_GUIDE = {
       "See cancellations, lead time and length of stay",
     ],
   },
+  revplan: {
+    what: "Your goals for each month: how full, at what rate, and where the bookings come from.",
+    use: [
+      "Set occupancy, average rate (ADR) and revenue for a month; change one and the others follow",
+      "Say how much should come from OTA, Direct, Corporate, agents and groups",
+      "See room nights, RevPAR and how far you have got against the goal",
+    ],
+  },
   invoicing: {
     what: "Every invoice issued, what is still owed, and stays never invoiced.",
     use: [

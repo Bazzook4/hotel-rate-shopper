@@ -102,6 +102,18 @@ export function channelOf(r) {
   return 'Direct';
 }
 
+/**
+ * The kind of business a booking is, for the Revenue Planner's goals:
+ * OTA, Corporate, Travel agent, Group, otherwise Direct.
+ */
+export function segmentOf(r) {
+  if (r.partner_booking_id || r.source === 'ota') return 'ota';
+  if (r.company_id || r.source === 'corporate') return 'corporate';
+  if (r.source === 'travel_agent') return 'agent';
+  if (r.source === 'group') return 'group';
+  return 'direct';
+}
+
 function methodOf(r) {
   return METHOD_LABELS[r.source] || r.source || 'Unknown';
 }
@@ -236,6 +248,7 @@ function buildStays(facts, names) {
       })),
       keys: {
         channel: channelOf(r),
+        segment: segmentOf(r),
         source: r.guest_country ? countryName(r.guest_country) : 'Not recorded',
         method: methodOf(r),
         roomType: names.roomTypes[r.room_type_id] || 'Unknown room type',
@@ -560,4 +573,43 @@ export async function getBookingPerformance(
     trend: trend(current, start, end, basis),
     seasonality: seasonality(current, start, end, basis, capacity),
   };
+}
+
+/**
+ * What the hotel achieved in each month of [start, end] (stay basis), in
+ * total and by kind of business, for the Revenue Planner. `months` is a list
+ * of { month: 'YYYY-MM', start, end }.
+ */
+export async function getMonthlyActuals(propertyId, start, end, months) {
+  const clock = await getPropertyClock(propertyId).catch(() => null);
+  const [{ capacity }, facts] = await Promise.all([
+    capacityOf(propertyId),
+    loadFacts(propertyId, start, end, 'stay', clock),
+  ]);
+  const stays = buildStays(facts, { roomTypes: {}, ratePlans: {} });
+  const out = {};
+  for (const m of months) {
+    const parts = slice(stays, m.start, m.end, 'stay');
+    const available = capacity * (daysBetween(m.start, m.end) + 1);
+    const total = measure(parts, { roomNightsAvailable: available });
+    const bySegment = {};
+    for (const [key, rows] of Object.entries(
+      parts.reduce((acc, p) => {
+        (acc[p.stay.keys.segment] ||= []).push(p);
+        return acc;
+      }, {})
+    )) {
+      const x = measure(rows);
+      bySegment[key] = { roomNights: x.roomNights, revenue: x.roomRevenue, adr: x.adr };
+    }
+    out[m.month] = {
+      roomNights: total.roomNights,
+      revenue: total.roomRevenue,
+      adr: total.adr,
+      occupancy: total.occupancy,
+      revpar: total.revpar,
+      bySegment,
+    };
+  }
+  return { capacity, actuals: out };
 }
