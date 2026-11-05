@@ -1629,6 +1629,7 @@ export default function TapeChart({ session }) {
           reservation={bookingMenu.reservation}
           room={allRooms.find((room) => room.id === bookingMenu.reservation.room_id)}
           today={today}
+          propertyId={propertyId}
           onChoose={chooseBookingAction}
           onClose={() => setBookingMenu(null)}
         />
@@ -2006,7 +2007,7 @@ const PREVIEW_CHIP = {
   no_show: "chip-off",
 };
 
-function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
+function BookingMenu({ x, y, reservation: r, room, today, propertyId, onChoose, onClose }) {
   const nights = daysBetween(r.check_in, r.check_out);
   const settled = SETTLED.includes(r.status);
   // Offered from the arrival day on -- a late arrival still checks in -- and
@@ -2023,17 +2024,21 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
   useEffect(() => {
     if (r.status === "cancelled" || r.status === "no_show") return undefined;
     let live = true;
-    fetch(`/api/pms/reservations?search=${encodeURIComponent(r.reference)}&withBalance=1`)
+    const qs = new URLSearchParams({ search: r.reference, withBalance: "1" });
+    if (propertyId) qs.set("propertyId", propertyId);
+    fetch(`/api/pms/reservations?${qs}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         const mine = data?.reservations?.find((x) => x.id === r.id);
-        if (live && mine?.balance != null) setBalance(Number(mine.balance));
+        if (!live) return;
+        // Not found: stop saying "Checking" rather than leave it up for ever.
+        setBalance(mine?.balance != null ? Number(mine.balance) : false);
       })
-      .catch(() => {});
+      .catch(() => live && setBalance(false));
     return () => {
       live = false;
     };
-  }, [r.id, r.reference, r.status]);
+  }, [r.id, r.reference, r.status, propertyId]);
 
   // The buttons that fit this booking, in the order a desk reaches for them.
   // The first one is the likely next step and wears the solid colour.
@@ -2078,7 +2083,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
   );
 
   return (
-    <MenuShell x={x} y={y} onClose={onClose} width={340} height={430}>
+    <MenuShell x={x} y={y} onClose={onClose} width={360} height={440}>
       <div style={{ padding: "0.5rem 0.6rem", display: "grid", gap: "0.6rem" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
@@ -2110,7 +2115,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             {dayUse ? (
               <>
-                <div style={{ fontWeight: 600 }}>{nightLabel(r.check_in)}, {dayUseWindowLabel(r) || dayUseLabel(r.day_use_hours)}</div>
+                <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{nightLabel(r.check_in)}, {dayUseWindowLabel(r) || dayUseLabel(r.day_use_hours)}</div>
                 {r.checked_in_at && (
                   <div className="pop-sub">
                     In {clockTime(new Date(r.checked_in_at))}, due out {clockTime(dayUseDueOut(r))}
@@ -2118,7 +2123,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
                 )}
               </>
             ) : (
-              <div style={{ fontWeight: 600 }}>{nightLabel(r.check_in)} to {nightLabel(r.check_out)}</div>
+              <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{nightLabel(r.check_in)} to {nightLabel(r.check_out)}</div>
             )}
           </div>
           <span className="chip chip-out" style={{ flexShrink: 0 }}>
@@ -2128,7 +2133,7 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
           {fact("Guests", people)}
-          {fact(
+          {balance !== false && fact(
             "Balance",
             balance == null ? "Checking" : balance > 0 ? `Due ${money(balance, hotelCurrency())}` : "Paid in full",
             balance == null ? "var(--text-muted)" : balance > 0 ? "var(--danger)" : "var(--status-in)"
@@ -2148,7 +2153,15 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
               key={a.id + i}
               type="button"
               className={`btn ${i === 0 ? "btn-primary" : a.danger ? "btn-danger" : "btn-secondary"}`}
-              style={{ justifyContent: "flex-start", minWidth: 0 }}
+              style={{
+                justifyContent: "flex-start",
+                minWidth: 0,
+                padding: "0.5rem 0.6rem",
+                whiteSpace: "nowrap",
+                textAlign: "left",
+                // An odd last button takes the whole row, so no gap is left.
+                gridColumn: i === actions.length - 1 && actions.length % 2 === 1 ? "1 / -1" : undefined,
+              }}
               disabled={a.disabled}
               title={a.title}
               onClick={() => onChoose(a.id)}
