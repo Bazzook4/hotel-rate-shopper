@@ -14,6 +14,14 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Warning when an ID is missing",
+    points: [
+      { page: "reservations", text: "A booking with fewer ID photos than adults now shows Scan ID with the number missing, on Today and in Reservations. Press it, scan each guest's ID, and the warning goes away." },
+      { page: "reservations", text: "The check-in box now fits the screen with every box in view, and Scan ID to fill in is a bigger green button. Gender is read from the ID too." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Scan ID in more places",
     points: [
       { page: "guests", text: "Scan ID now also works when adding a guest and in a guest's ID file tab. The details fill in and the photo is saved with the guest." },

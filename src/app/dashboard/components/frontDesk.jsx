@@ -158,7 +158,7 @@ async function saveIdLines(reservationId, before, after, propertyId) {
   const hasPrimary = before.some((l) => l.existing?.is_primary);
   for (const [i, l] of after.entries()) {
     const was = before[i];
-    const changed = ["name", "id_type", "id_number", "nationality", "date_of_birth"].some((k) => String(l[k] || "") !== String(was[k] || ""));
+    const changed = ["name", "id_type", "id_number", "nationality", "date_of_birth", "gender"].some((k) => String(l[k] || "") !== String(was[k] || ""));
     const photos = l.files?.length > 0;
     let guestId = l.existing?.guest_id || null;
     if (!l.name.trim()) continue;
@@ -177,6 +177,7 @@ async function saveIdLines(reservationId, before, after, propertyId) {
       id_number: l.id_number.trim() || null,
       nationality: l.nationality || null,
       ...(l.date_of_birth ? { date_of_birth: l.date_of_birth } : {}),
+      ...(l.gender ? { gender: l.gender } : {}),
     };
     if (!l.existing) guest.is_primary = Boolean(l.primary) && !hasPrimary;
     delete guest.guests;
@@ -219,7 +220,7 @@ async function uploadIdPhotos(guestId, line, propertyId) {
  * desk should not wait on a missing ID; the police report shows them.
  */
 function CheckInDialog({ request, onDone }) {
-  const { guest, rooms, roomNote, lines: start, canSeeIds } = request;
+  const { guest, rooms, roomNote, lines: start, canSeeIds, idsOnly } = request;
   const [roomId, setRoomId] = useState(rooms?.[0]?.value || "");
   const [lines, setLines] = useState(start || []);
   const countries = countryOptions();
@@ -251,6 +252,7 @@ function CheckInDialog({ request, onDone }) {
               id_number: found.id_number || l.id_number,
               nationality: found.nationality || l.nationality,
               date_of_birth: found.date_of_birth || l.date_of_birth,
+              gender: found.gender || l.gender,
               files: kept ? [...(l.files || []), kept].slice(0, 6) : l.files,
             }
       )
@@ -284,8 +286,8 @@ function CheckInDialog({ request, onDone }) {
         className="side-panel flex flex-col"
         role="dialog"
         aria-modal="true"
-        aria-label={`Check in ${guest}`}
-        style={{ maxWidth: lines.length ? 760 : 440 }}
+        aria-label={idsOnly ? `ID proofs for ${guest}` : `Check in ${guest}`}
+        style={{ maxWidth: lines.length ? 980 : 440 }}
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
@@ -297,7 +299,7 @@ function CheckInDialog({ request, onDone }) {
           className="side-panel-head flex items-center justify-between gap-3"
           style={{ padding: "0.85rem 1.1rem", background: "var(--accent-strong)", color: "#fff", fontWeight: 600, fontSize: "0.9rem" }}
         >
-          <h3>Check in {guest}</h3>
+          <h3>{idsOnly ? `ID proofs for ${guest}` : `Check in ${guest}`}</h3>
           <button type="button" className="head-close" onClick={() => onDone(null)} aria-label="Close">
             <Icon name="close" size={16} />
           </button>
@@ -325,100 +327,100 @@ function CheckInDialog({ request, onDone }) {
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               ID for the police report. Leave it blank to add later.
             </p>
-            <div className="table-frame overflow-x-auto rounded-lg" style={{ border: "1px solid var(--border)" }}>
-              <table className="grid-table">
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: 90 }}>Scan</th>
-                    <th style={{ minWidth: 170 }}>Name</th>
-                    <th style={{ minWidth: 140 }}>ID type</th>
-                    <th style={{ minWidth: 150 }}>ID number</th>
-                    <th style={{ minWidth: 150 }}>Nationality</th>
-                    {canSeeIds && <th style={{ minWidth: 110 }}>Photo of ID</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((l, i) => (
-                    <tr key={i}>
-                      <td>
-                        <ScanIdButton
-                          onNote={setScanNote}
-                          onRead={(found, file) => scanLine(i, found, file)}
-                          title="Take a photo of the ID. It fills the details and is saved with the guest. Scan the back too if it has details."
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="input w-full"
-                          value={l.name}
-                          placeholder={i === 0 ? "Guest name" : `Adult ${i + 1}`}
-                          onChange={(e) => set(i, "name", e.target.value)}
-                          aria-label={`Name of adult ${i + 1}`}
-                        />
-                      </td>
-                      <td>
-                        <Select className="input w-full" value={l.id_type} onChange={(e) => set(i, "id_type", e.target.value)} aria-label="ID type">
-                          <option value="">Select ID</option>
-                          {CHECKIN_ID_TYPES.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.label}
-                            </option>
-                          ))}
-                        </Select>
-                      </td>
-                      <td>
-                        <input
-                          className="input w-full"
-                          value={l.id_number}
-                          autoCapitalize="characters"
-                          autoFocus={!rooms && i === lines.findIndex((x) => !x.id_number.trim())}
-                          onChange={(e) => set(i, "id_number", e.target.value)}
-                          aria-label={`ID number of adult ${i + 1}`}
-                        />
-                      </td>
-                      <td>
-                        <Select className="input w-full" value={l.nationality} onChange={(e) => set(i, "nationality", e.target.value)} aria-label="Nationality">
-                          <option value="">Select country</option>
-                          {countries.map((c) => (
-                            <option key={c.code} value={c.code}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </Select>
-                      </td>
-                      {canSeeIds && (
-                        <td>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              className="btn btn-secondary text-xs"
-                              disabled={shrinking || !l.name.trim()}
-                              title={l.name.trim() ? "Take a photo or pick a file, front and back if the ID has both" : "Type the name first"}
-                              onClick={() => {
-                                setPhotoFor(i);
-                                fileRef.current?.click();
-                              }}
-                            >
-                              {l.files?.length ? `${l.files.length} added` : "Add"}
-                            </button>
-                            {l.files?.length > 0 && (
-                              <button
-                                type="button"
-                                className="btn btn-ghost text-xs"
-                                aria-label={`Remove the ID photos for adult ${i + 1}`}
-                                title="Remove these photos"
-                                onClick={() => set(i, "files", [])}
-                              >
-                                <Icon name="close" size={14} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Wraps to the screen: every box is in view, nothing hides behind a sideways scroll. */}
+            <div className="space-y-2">
+              {lines.map((l, i) => (
+                <div
+                  key={i}
+                  className="grid gap-2 rounded-lg p-2"
+                  style={{ border: "1px solid var(--border)", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", alignItems: "end" }}
+                >
+                  <div className="flex flex-wrap items-center gap-2" style={{ gridColumn: "1 / -1" }}>
+                    <ScanIdButton
+                      className="btn btn-primary text-sm whitespace-nowrap"
+                      label="Scan ID to fill in"
+                      onNote={setScanNote}
+                      onRead={(found, file) => scanLine(i, found, file)}
+                      title="Take a photo of the ID. It fills the details and is saved with the guest. Scan the back too if it has details."
+                    />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      {lines.length > 1 ? `Adult ${i + 1}: ` : ""}saves typing. The photo is saved with the guest.
+                    </span>
+                  </div>
+                  <div>
+                    <label className="label">Name</label>
+                    <input
+                      className="input w-full"
+                      value={l.name}
+                      placeholder={i === 0 ? "Guest name" : `Adult ${i + 1}`}
+                      onChange={(e) => set(i, "name", e.target.value)}
+                      aria-label={`Name of adult ${i + 1}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">ID type</label>
+                    <Select className="input w-full" value={l.id_type} onChange={(e) => set(i, "id_type", e.target.value)} aria-label="ID type">
+                      <option value="">Select ID</option>
+                      {CHECKIN_ID_TYPES.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="label">ID number</label>
+                    <input
+                      className="input w-full"
+                      value={l.id_number}
+                      autoCapitalize="characters"
+                      autoFocus={!rooms && i === lines.findIndex((x) => !x.id_number.trim())}
+                      onChange={(e) => set(i, "id_number", e.target.value)}
+                      aria-label={`ID number of adult ${i + 1}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Nationality</label>
+                    <Select className="input w-full" value={l.nationality} onChange={(e) => set(i, "nationality", e.target.value)} aria-label="Nationality">
+                      <option value="">Select country</option>
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {canSeeIds && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-secondary text-xs whitespace-nowrap"
+                          disabled={shrinking || !l.name.trim()}
+                          title={l.name.trim() ? "Take a photo or pick a file, front and back if the ID has both" : "Type the name first"}
+                          onClick={() => {
+                            setPhotoFor(i);
+                            fileRef.current?.click();
+                          }}
+                        >
+                          {l.files?.length ? `${l.files.length} photo${l.files.length > 1 ? "s" : ""}` : "Add photo"}
+                        </button>
+                        {l.files?.length > 0 && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost text-xs"
+                            aria-label={`Remove the ID photos for adult ${i + 1}`}
+                            title="Remove these photos"
+                            onClick={() => set(i, "files", [])}
+                          >
+                            <Icon name="close" size={14} />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
             {scanNote && (
               <p className="text-xs" style={{ color: "var(--text-muted)" }} role="status">
@@ -441,7 +443,7 @@ function CheckInDialog({ request, onDone }) {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary text-sm" disabled={rooms && !roomId}>
-            {missing && lines.length ? `Check in, ${missing} ID${missing === 1 ? "" : "s"} to add later` : "Check in"}
+            {idsOnly ? "Save" : missing && lines.length ? `Check in, ${missing} ID${missing === 1 ? "" : "s"} to add later` : "Check in"}
           </button>
         </div>
       </form>
@@ -824,6 +826,19 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
     [checkInStep, toast]
   );
 
+  /** Scan or add the IDs of a booking already on the books, without checking anyone in. True when saved. */
+  const collectIds = useCallback(
+    async (r) => {
+      const ids = await idLines(r).catch(() => null);
+      if (!ids) throw new Error("The guests on this booking could not be loaded. Try again.");
+      const answer = await askCheckIn({ guest: r.guest_name, rooms: null, roomNote: null, lines: ids.lines, canSeeIds, idsOnly: true });
+      if (!answer?.lines?.length) return false;
+      await saveIdLines(r.id, ids.lines, answer.lines, propertyId || r.property_id);
+      return true;
+    },
+    [propertyId, askCheckIn, canSeeIds]
+  );
+
   const checkOut = useCallback(async (r) => {
     // Leaving before the last booked night: the stay is cut to today first,
     // so the rest goes back on sale and the balance below is the real one.
@@ -944,7 +959,7 @@ export function useFrontDesk(propertyId, { canSeeIds = false } = {}) {
     [toast]
   );
 
-  return { checkIn, checkOut, printBill, settleDialog };
+  return { checkIn, checkOut, printBill, settleDialog, collectIds, canSeeIds };
 }
 
 /**
@@ -1021,4 +1036,27 @@ export function whatsappCheckinLink(r, { propertyName, countryCode, url }) {
     `Booking: ${r.reference}`,
   ];
   return `https://wa.me/${digits}?text=${encodeURIComponent(lines.join("\n"))}`;
+}
+
+/**
+ * The warning on a booking with fewer ID photos than adults, with Scan ID to
+ * fix it. Shown only for stays that are here or due, and only to someone who
+ * may keep ID photos. Renders nothing otherwise.
+ */
+export function IdMissingButton({ r, desk, today, busy, onScan }) {
+  const due = r.status === "in_house" || (r.status === "confirmed" && r.check_in <= today);
+  if (!r.id_missing || !due || !desk.canSeeIds) return null;
+  const n = r.id_missing;
+  return (
+    <button
+      type="button"
+      className="btn btn-secondary text-xs"
+      style={{ color: "var(--warn)" }}
+      disabled={busy}
+      onClick={() => onScan(r)}
+      title={`${n} of ${r.adults || 1} adult${(r.adults || 1) === 1 ? "" : "s"} ${n === 1 ? "has" : "have"} no ID photo. Press to scan.`}
+    >
+      <Icon name="warn" size={14} /> Scan ID, {n} missing
+    </button>
+  );
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Icon from "../../components/Icon";
-import { useFrontDesk, walkInPrefill } from "./frontDesk";
+import { useFrontDesk, walkInPrefill, IdMissingButton } from "./frontDesk";
 import { CHECKIN_SHORT_LABELS } from "@/lib/onlineCheckinShared";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import {
@@ -457,7 +457,7 @@ function collectLabel(r) {
 /** How many of each list are shown before "See all". */
 const DESK_ROWS = 8;
 
-function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, openBooking, empty }) {
+function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, openBooking, empty, desk, today, onScan }) {
   return (
     <div className="min-w-0">
       <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -503,6 +503,7 @@ function DeskList({ title, rows, action, busyLabel, busyId, onAction, onSeeAll, 
                   </span>
                 )}
               </button>
+              {desk && <IdMissingButton r={r} desk={desk} today={today} busy={busyId === r.id} onScan={onScan} />}
               {/* Says what is owed, or that nothing is; it always opens Payments,
                   for a deposit or a refund. */}
               <button
@@ -609,6 +610,9 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
           busyLabel="Checking in..."
           busyId={busyId}
           onAction={(r) => run(r, desk.checkIn)}
+          desk={desk}
+          today={date}
+          onScan={(r) => run(r, async (x) => ((await desk.collectIds(x)) ? {} : null))}
           onSeeAll={seeAll("arrivals")}
           openBooking={openBooking}
           empty="No one left to arrive."
@@ -620,6 +624,9 @@ function FrontDesk({ date, propertyId, stamp, onOpenPage, canOpen, openBooking, 
           busyLabel="Checking out..."
           busyId={busyId}
           onAction={(r) => run(r, desk.checkOut)}
+          desk={desk}
+          today={date}
+          onScan={(r) => run(r, async (x) => ((await desk.collectIds(x)) ? {} : null))}
           onSeeAll={seeAll("departures")}
           openBooking={openBooking}
           empty="No one left to check out."

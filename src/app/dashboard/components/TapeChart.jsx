@@ -1,7 +1,7 @@
 "use client";
 
 import { SetUpLink } from "@/app/components/PageNav";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { hotelToday } from "@/lib/hotelTime";
 import BookingModal from "./BookingModal";
@@ -1987,8 +1987,17 @@ function BarTag({ children, title, legend = false }) {
  * behind it. Kept on screen when that is near the right or bottom edge.
  */
 function MenuShell({ x, y, onClose, children, width = 220, height = 250 }) {
-  const left = Math.max(4, Math.min(x + 4, (typeof window !== "undefined" ? window.innerWidth : 1200) - width - 10));
-  const top = Math.max(4, Math.min(y + 4, (typeof window !== "undefined" ? window.innerHeight : 800) - height));
+  const boxRef = useRef(null);
+  const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const left = Math.max(4, Math.min(x + 4, vw - width - 10));
+  const [top, setTop] = useState(Math.max(4, Math.min(y + 4, vh - height)));
+
+  // Once drawn, use the menu's real height so it never runs off the bottom.
+  useLayoutEffect(() => {
+    const h = boxRef.current ? boxRef.current.offsetHeight : height;
+    setTop(Math.max(4, Math.min(y + 4, vh - h - 8)));
+  }, [y, vh, height]);
 
   return (
     <>
@@ -1996,7 +2005,12 @@ function MenuShell({ x, y, onClose, children, width = 220, height = 250 }) {
         onPointerDown={onClose}
         style={{ position: "fixed", inset: 0, zIndex: 40 }}
       />
-      <div role="menu" className="pop" style={{ position: "fixed", left, top, zIndex: 41, width }}>
+      <div
+        ref={boxRef}
+        role="menu"
+        className="pop"
+        style={{ position: "fixed", left, top, zIndex: 41, width, maxHeight: vh - 16, overflowY: "auto" }}
+      >
         {children}
       </div>
     </>

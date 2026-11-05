@@ -1835,6 +1835,7 @@ export default function FolioTabs({
                       id_number: found.id_number || g.id_number,
                       nationality: found.nationality || g.nationality,
                       date_of_birth: found.date_of_birth || g.date_of_birth,
+                      gender: found.gender || g.gender,
                     }));
                     // The photo is saved with the guest when the guest is saved.
                     scanPhoto.current = await shrink(file);

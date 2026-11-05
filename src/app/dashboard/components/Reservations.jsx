@@ -9,7 +9,7 @@ import BookingForm from "./BookingForm";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { SortTh, useSort } from "./useSort";
 import { useToast } from "../../components/Toast";
-import { useFrontDesk, walkInPrefill } from "./frontDesk";
+import { useFrontDesk, walkInPrefill, IdMissingButton } from "./frontDesk";
 import Icon from "../../components/Icon";
 import { useDialog } from "../../components/Dialog";
 import { usePageState } from "./usePageState";
@@ -374,6 +374,19 @@ export default function Reservations({ session, initialView = null }) {
   }
 
   /** Run a front-desk action on one row: busy while it runs, the row updated after. */
+  // Scan or add the IDs missing on a booking, then show the list as it now stands.
+  async function scanIds(reservation) {
+    setBusyId(reservation.id);
+    setError(null);
+    try {
+      if (await desk.collectIds(reservation)) await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function runDesk(reservation, action) {
     setBusyId(reservation.id);
     setError(null);
@@ -708,6 +721,7 @@ export default function Reservations({ session, initialView = null }) {
                             {CHECKIN_SHORT_LABELS[r.online_checkin]}
                           </div>
                         )}
+                        <IdMissingButton r={r} desk={desk} today={today} busy={busyId === r.id} onScan={scanIds} />
                       </td>
                       <td>
                         <div>{r.room_types?.room_type_name || "-"}</div>

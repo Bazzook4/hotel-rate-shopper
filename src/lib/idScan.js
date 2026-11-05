@@ -27,8 +27,21 @@ function isoFromYYMMDD(s, past) {
   return `${year}-${s.slice(2, 4)}-${s.slice(4, 6)}`;
 }
 
+/** male, female or other, from the words on a card ("FEMALE", "Sex: M") or a passport strip letter. */
+function genderFrom(text) {
+  const t = String(text || "");
+  if (/\bfemale\b/i.test(t)) return "female";
+  if (/\bmale\b/i.test(t)) return "male";
+  if (/\btransgender\b/i.test(t)) return "other";
+  const m = t.match(/\b(?:sex|gender)\s*[:\-]?\s*([MF])\b/i);
+  return m ? (m[1].toUpperCase() === "F" ? "female" : "male") : "";
+}
+
 function titleCase(s) {
   return s
+    // Specks on a card read as a lone letter at either end of a name.
+    .replace(/^(?:[A-Za-z]\s+)+/, "")
+    .replace(/(?:\s+[A-Za-z])+$/, "")
     .toLowerCase()
     .replace(/\b[a-z]/g, (c) => c.toUpperCase())
     .replace(/\s+/g, " ")
@@ -70,6 +83,7 @@ export function readPassportStrip(text) {
       id_number: number,
       name: titleCase(`${toLetters(given)} ${toLetters(surname)}`),
       date_of_birth: dob,
+      gender: { F: "female", M: "male" }[b[20]] || "",
       nationality: ALPHA3[nat] || ALPHA3[country] || "",
       sure: checkOk,
     };
@@ -116,7 +130,7 @@ export function readIdText(text) {
   const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const flat = lines.join(" ");
   const dobLine = lines.findIndex((l) => /DOB|D\.O\.B|Birth|\b\d{2}[\/\-.]\d{2}[\/\-.](?:19|20)\d{2}\b/i.test(l));
-  const base = { name: nameFrom(lines, dobLine), date_of_birth: dobFrom(flat), nationality: "", sure: false };
+  const base = { name: nameFrom(lines, dobLine), date_of_birth: dobFrom(flat), gender: genderFrom(flat), nationality: "", sure: false };
 
   // Driving licence: state code, 2 digit RTO, year, 7 digit serial.
   const dl = flat.toUpperCase().match(/\b([A-Z]{2})[\s-]?(\d{2})[\s-]?((?:19|20)\d{2})(\d{7})\b/);
