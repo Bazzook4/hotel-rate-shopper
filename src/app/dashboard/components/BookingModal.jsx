@@ -9,6 +9,7 @@ import { hotelToday } from "@/lib/hotelTime";
 import { inventoryWarning } from "@/lib/inventoryNotice";
 import { useToast } from "../../components/Toast";
 import { confirmDiscard, useDialog } from "../../components/Dialog";
+import { askCancelReason } from "@/lib/cancelReasons";
 import { useBackdropClose, useEscape } from "../../components/useEscape";
 import { useFrontDesk, whatsappLink } from "./frontDesk";
 import { toCountryCode } from "@/lib/countries";
@@ -278,14 +279,14 @@ export default function BookingModal({
     }
   }
 
-  async function changeStatus(status) {
+  async function changeStatus(status, cancelReason) {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/pms/reservations/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: reservationId, status }),
+        body: JSON.stringify({ id: reservationId, status, ...(cancelReason ? { cancel_reason: cancelReason } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update the booking");
@@ -301,24 +302,19 @@ export default function BookingModal({
   }
 
   /**
-   * A confirmed booking cancels at once, with an Undo that reinstates it.
-   * An inquiry asks first: a cancelled booking can only come back as
-   * confirmed, so an inquiry could not be put back as it was.
+   * Asks why, then cancels with an Undo that reinstates it. An inquiry has
+   * no Undo: a cancelled booking can only come back as confirmed, so an
+   * inquiry could not be put back as it was.
    */
   async function cancelBooking() {
     const { guest_name: guest, reference, status } = reservation;
+    const reason = await askCancelReason(dialog, reservation);
+    if (!reason) return;
     if (status === "inquiry") {
-      const yes = await dialog.confirm({
-        title: `Cancel ${guest}'s inquiry ${reference}?`,
-        message: "A cancelled inquiry cannot be put back as an inquiry.",
-        confirmLabel: "Cancel inquiry",
-        cancelLabel: "Keep it",
-        danger: true,
-      });
-      if (yes) await changeStatus("cancelled");
+      await changeStatus("cancelled", reason);
       return;
     }
-    if (!(await changeStatus("cancelled"))) return;
+    if (!(await changeStatus("cancelled", reason))) return;
     // The undo may run after this modal has closed, so it does its own
     // request rather than leaning on the modal's state.
     toast(`${guest}'s booking ${reference} cancelled`, {

@@ -11,6 +11,8 @@ import DateToolbar from "./DateToolbar";
 import { useFrontDesk, walkInPrefill } from "./frontDesk";
 import Icon from "../../components/Icon";
 import { useToast } from "../../components/Toast";
+import { useDialog } from "../../components/Dialog";
+import { askCancelReason } from "@/lib/cancelReasons";
 import Hint from "../../components/Hint";
 import EventMarker, { useEventsByDate } from "./EventMarker";
 import Dropdown from "../../components/Dropdown";
@@ -155,6 +157,7 @@ function shortDay(iso) {
 }
 
 export default function TapeChart({ session }) {
+  const dialog = useDialog();
   const propertyId = session?.propertyId || null;
   const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
   const toast = useToast();
@@ -709,13 +712,13 @@ export default function TapeChart({ session }) {
   }
 
   /** Confirm an inquiry from the chart. */
-  async function setStatus(r, status) {
+  async function setStatus(r, status, cancelReason) {
     setError(null);
     try {
       const res = await fetch("/api/pms/reservations/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, status }),
+        body: JSON.stringify({ id: r.id, status, ...(cancelReason ? { cancel_reason: cancelReason } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not update the booking");
@@ -755,8 +758,11 @@ export default function TapeChart({ session }) {
     } else if (action === "confirm") {
       setStatus(r, "confirmed");
     } else if (action === "cancel") {
-      // At once, with an Undo, as the booking panel does it.
-      setStatus(r, "cancelled").then((ok) => {
+      // Asks why, then cancels with an Undo, as the booking panel does it.
+      askCancelReason(dialog, r).then((reason) => {
+        if (!reason) return null;
+        return setStatus(r, "cancelled", reason);
+      }).then((ok) => {
         if (!ok) return;
         toast(`${r.guest_name}'s booking ${r.reference} cancelled`, {
           undo: async () => {

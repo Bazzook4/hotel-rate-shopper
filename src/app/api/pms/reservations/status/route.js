@@ -19,6 +19,7 @@ import {
 import { syncInventory, staySpan, isLinkedType } from "@/lib/inventorySync";
 import { localToday } from "@/lib/financeReports";
 import { holdsInventory } from "@/lib/dayUse";
+import { isCancelReason } from "@/lib/cancelReasons";
 
 /**
  * Moving a reservation through its lifecycle.
@@ -79,6 +80,13 @@ export async function POST(req) {
   }
   if (!STATUSES.includes(status)) {
     return NextResponse.json({ error: "Unknown reservation status" }, { status: 400 });
+  }
+
+  // A cancellation always says why. Delete booking is a cancel too: a booking
+  // entered by mistake.
+  const cancelReason = body.void_payments ? "mistake" : body.cancel_reason;
+  if (status === "cancelled" && !isCancelReason(cancelReason)) {
+    return NextResponse.json({ error: "Say why the booking is cancelled." }, { status: 400 });
   }
 
   try {
@@ -280,6 +288,7 @@ export async function POST(req) {
     }
 
     const reservation = await setReservationStatus(id, status, {
+      cancelReason,
       roomId: releaseRoom ? null : room_id !== undefined ? room_id : undefined,
     });
     // After the check-in is saved, so a failed one leaves the room as it was.

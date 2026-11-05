@@ -16,6 +16,7 @@ import { usePageState } from "./usePageState";
 import { dayUseSummary, isDayUse } from "@/lib/dayUse";
 import { CHECKIN_SHORT_LABELS } from "@/lib/onlineCheckinShared";
 import { formatMoney } from "@/lib/money";
+import { askCancelReason } from "@/lib/cancelReasons";
 
 /**
  * The reservations list: every booking at the property, and the desk actions
@@ -79,6 +80,7 @@ const VIEWS = [
   { id: "arrivals", label: "Arriving today" },
   { id: "departures", label: "Leaving today" },
   { id: "in_house", label: "Checked in" },
+  { id: "cancelled", label: "Cancelled" },
   { id: "all", label: "All" },
 ];
 
@@ -152,6 +154,7 @@ export default function Reservations({ session, initialView = null }) {
       //   arrivals,    stays touching today (yesterday to tomorrow covers
       //   departures   arriving today and leaving today)
       //   in_house     everyone checked in, however long ago
+      //   cancelled    every cancelled booking, newest first
       //   all          newest stays first
       if (view === "current") {
         qs.set("from", today);
@@ -161,6 +164,9 @@ export default function Reservations({ session, initialView = null }) {
         qs.set("to", formatDateISO(addDays(hotelToday(), 1)));
       } else if (view === "in_house") {
         qs.set("status", "in_house");
+      } else if (view === "cancelled") {
+        qs.set("status", "cancelled");
+        qs.set("newestFirst", "1");
       } else {
         qs.set("newestFirst", "1");
       }
@@ -250,6 +256,8 @@ export default function Reservations({ session, initialView = null }) {
         );
       case "in_house":
         return reservations.filter((r) => r.status === "in_house");
+      case "cancelled":
+        return reservations.filter((r) => r.status === "cancelled");
       case "current":
         // A cancelled stay is not current work, but stays findable under All.
         return reservations.filter((r) => r.status !== "cancelled");
@@ -274,7 +282,7 @@ export default function Reservations({ session, initialView = null }) {
     [deskRows, today]
   );
 
-  async function changeStatus(reservation, status, roomId) {
+  async function changeStatus(reservation, status, roomId, cancelReason) {
     setBusyId(reservation.id);
     setError(null);
     setNotice(null);
@@ -286,6 +294,7 @@ export default function Reservations({ session, initialView = null }) {
           id: reservation.id,
           status,
           ...(roomId !== undefined ? { room_id: roomId } : {}),
+          ...(cancelReason ? { cancel_reason: cancelReason } : {}),
         }),
       });
       const data = await res.json();
@@ -305,24 +314,19 @@ export default function Reservations({ session, initialView = null }) {
   }
 
   /**
-   * Cancelling a confirmed booking happens at once, with an Undo, since
-   * reinstating it gives the nights straight back. An inquiry asks first:
+   * Cancelling asks why, then happens at once with an Undo, since
+   * reinstating it gives the nights straight back. An inquiry has no Undo:
    * a cancelled booking can only come back as confirmed, so an inquiry
    * cancelled by mistake could not be put back as it was.
    */
   async function cancel(r) {
+    const reason = await askCancelReason(dialog, r);
+    if (!reason) return;
     if (r.status === "inquiry") {
-      const yes = await dialog.confirm({
-        title: `Cancel ${r.guest_name}'s inquiry ${r.reference}?`,
-        message: "A cancelled inquiry cannot be put back as an inquiry.",
-        confirmLabel: "Cancel inquiry",
-        cancelLabel: "Keep it",
-        danger: true,
-      });
-      if (yes) changeStatus(r, "cancelled");
+      changeStatus(r, "cancelled", undefined, reason);
       return;
     }
-    if (!(await changeStatus(r, "cancelled"))) return;
+    if (!(await changeStatus(r, "cancelled", undefined, reason))) return;
     toast(`${r.guest_name}'s booking ${r.reference} cancelled`, {
       undo: async () => {
         const res = await fetch("/api/pms/reservations/status", {

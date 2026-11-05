@@ -4525,11 +4525,19 @@ export async function setNightRate(reservationId, stayDate, rate) {
  * Check-in and check-out stamp the time they actually happened, which is what
  * separates a guest who has arrived from one who is merely expected today.
  */
-export async function setReservationStatus(id, status, { roomId = undefined } = {}) {
+export async function setReservationStatus(id, status, { roomId = undefined, cancelReason = null } = {}) {
   const updates = { status, updated_at: new Date().toISOString() };
 
   if (status === 'in_house') updates.checked_in_at = new Date().toISOString();
   if (status === 'checked_out') updates.checked_out_at = new Date().toISOString();
+  // Why and when a booking was cancelled; brought back, it has neither.
+  if (status === 'cancelled') {
+    updates.cancelled_at = new Date().toISOString();
+    updates.cancel_reason = cancelReason;
+  } else if (status === 'confirmed') {
+    updates.cancelled_at = null;
+    updates.cancel_reason = null;
+  }
   if (roomId !== undefined) updates.room_id = roomId;
 
   const { data, error } = await supabase
@@ -4755,7 +4763,7 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
 
   const cancel = async (reservation) => {
     if (reservation.status === 'cancelled') return false;
-    await setReservationStatus(reservation.id, 'cancelled');
+    await setReservationStatus(reservation.id, 'cancelled', { cancelReason: 'channel' });
     result.touched.push(span(reservation));
     return true;
   };
@@ -4881,7 +4889,11 @@ export async function adoptPartnerReservations(propertyId, { bookingIds = null, 
           updates.room_id = null;
         }
         // A modification of a booking cancelled here means it is live again.
-        if (existing.status === 'cancelled') updates.status = 'confirmed';
+        if (existing.status === 'cancelled') {
+          updates.status = 'confirmed';
+          updates.cancelled_at = null;
+          updates.cancel_reason = null;
+        }
 
         // New dates can run into another guest in the room the desk gave this
         // stay. The room is let go rather than put two guests in it, and the

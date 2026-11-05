@@ -14,6 +14,14 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Say why a booking is cancelled",
+    points: [
+      { page: "reservations", text: "When you cancel a booking, you now pick a reason, such as guest changed plans or payment not received. The date and reason are saved with the booking." },
+      { page: "reservations", text: "There is a new Cancelled tab, so you can see every cancelled booking in one place." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "A shorter new booking form",
     points: [
       { page: "tapechart", text: "The new booking form is now laid out as tables in the order you work: stay, guest, room and rate, then price. Every field is shown at once, with nothing hidden." },
