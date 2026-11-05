@@ -199,6 +199,10 @@ body {
     display: flex;
     justify-content: flex-end;
     background: rgba(15, 23, 42, 0.45);
+    /* Follows the visible area when a phone keyboard is open. */
+    top: var(--vvt, 0px);
+    bottom: auto;
+    height: var(--vvh, 100%);
   }
   .side-panel {
     height: 100%;

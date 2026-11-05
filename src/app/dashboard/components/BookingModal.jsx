@@ -606,6 +606,27 @@ export default function BookingModal({
       ].filter(Boolean)
     : [];
 
+  // On a phone the keyboard covers the bottom of the page without shrinking
+  // it, which hides the buttons. Size the panel to what is really visible.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    const root = document.documentElement;
+    const fit = () => {
+      root.style.setProperty("--vvh", `${vv.height}px`);
+      root.style.setProperty("--vvt", `${vv.offsetTop}px`);
+    };
+    fit();
+    vv.addEventListener("resize", fit);
+    vv.addEventListener("scroll", fit);
+    return () => {
+      vv.removeEventListener("resize", fit);
+      vv.removeEventListener("scroll", fit);
+      root.style.removeProperty("--vvh");
+      root.style.removeProperty("--vvt");
+    };
+  }, []);
+
   return (
     <div
       {...backdrop}
