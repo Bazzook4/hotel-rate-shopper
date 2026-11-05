@@ -4,6 +4,7 @@ import { useState } from "react";
 import HotelUsage from "./HotelUsage";
 import WhatsAppInbox from "./WhatsAppInbox";
 import CrmDeals from "./CrmDeals";
+import WhatsAppTemplates from "./WhatsAppTemplates";
 
 /**
  * Super admin only: the CRM, as leads, contacts and deals.
@@ -12,7 +13,8 @@ import CrmDeals from "./CrmDeals";
  * through New enquiry, Contacted or No contact. Once a lead has developed,
  * Convert makes a Contact (the person and their hotel) and a Deal, which
  * moves through Demo, Onboarding link sent, Won or Lost. Hotels is Usage &
- * follow up for hotels already signed up. The view last used comes back
+ * follow up for hotels already signed up. WhatsApp Templates lists
+ * the message templates and whether Meta has them live or in review. The view last used comes back
  * next time.
  */
 
@@ -22,6 +24,7 @@ const VIEWS = [
   ["deals", "Deals"],
   ["hotels", "Hotels"],
   ["pages", "Pages & help"],
+  ["templates", "WhatsApp Templates"],
 ];
 
 export default function CRM() {
@@ -54,6 +57,7 @@ export default function CRM() {
         ))}
       </div>
       {(view === "hotels" || view === "pages") && <HotelUsage view={view} />}
+      {view === "templates" && <WhatsAppTemplates />}
       {view === "chats" && (
         <WhatsAppInbox
           key={openPhone || "inbox"}
