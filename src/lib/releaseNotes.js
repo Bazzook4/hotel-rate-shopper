@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Easier bookings on a phone",
+    points: [
+      { page: "tapechart", text: "On a phone, the Calendar now opens on 7 days. You can still switch to 14 or 30 days. On the new booking form, the Create booking button stays at the bottom, so it is not hidden when the keyboard opens. When a room has no rate set, the form now has a Set the rate link." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "A clearer menu on the Calendar",
     points: [
       { page: "tapechart", text: "Click a booking and a small card opens. It shows the guest, status, room, dates, guests, balance (Due in red or Paid in full in green), phone and any note. Below are buttons for the next job: Check in, Collect payment, Add service, Change room, Check out and more. Day use shows its time slot and when the guest is due out." },

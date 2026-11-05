@@ -139,7 +139,7 @@ const SOURCE_LABEL = {
  * channels sell, a typed one is somebody's decision. Saying so in one line is
  * cheaper than making them open Rate Plan Setup to check.
  */
-function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
+function PriceNote({ quote, quoting, manual, nights, onUseQuoted, backHere }) {
   if (quoting) {
     return <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>Pricing...</p>;
   }
@@ -177,9 +177,19 @@ function PriceNote({ quote, quoting, manual, nights, onUseQuoted }) {
   // Nothing configured: say so plainly and leave the box to the desk.
   if (quote && quote.total == null) {
     return (
-      <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: "var(--warn)" }}>
-        {quote.reason || "No rate configured. Enter the total by hand."}
-      </p>
+      <div style={{ marginTop: "0.25rem" }}>
+        <p className="sub" style={{ fontSize: "0.7rem", color: "var(--warn)" }}>
+          No rate is set for this room type and plan. Set one, or type the total by hand.
+        </p>
+        <SetUpLink
+          page="rateplans"
+          back={backHere}
+          style={{ marginTop: "0.25rem" }}
+          fallback={<p className="sub">Ask your admin to set the rate.</p>}
+        >
+          Set the rate
+        </SetUpLink>
+      </div>
     );
   }
 
@@ -1706,6 +1716,7 @@ export default function BookingForm({
               manual={manualTotal}
               nights={nights}
               onUseQuoted={useQuotedPrice}
+              backHere={backHere}
             />
           )}
           {commissionPercent != null && Number(form.total_amount) > 0 && (
@@ -1839,7 +1850,17 @@ export default function BookingForm({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div
+        className="flex flex-wrap gap-2"
+        style={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 5,
+          background: "var(--surface, #fff)",
+          padding: "0.5rem 0",
+          borderTop: "1px solid var(--border, #e5e7eb)",
+        }}
+      >
         <button
           className={`btn text-sm ${arrivesToday && form.source === "walkin" ? "btn-secondary" : "btn-primary"}`}
           disabled={saving || roomTypes.length === 0}

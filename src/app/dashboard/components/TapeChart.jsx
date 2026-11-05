@@ -74,6 +74,7 @@ const DENSITY = {
 const DENSITY_KEY = "tapeChart.density";
 
 const WINDOWS = [
+  { days: 7, label: "7 days" },
   { days: 14, label: "14 days" },
   { days: 30, label: "30 days" },
 ];
@@ -164,7 +165,9 @@ export default function TapeChart({ session }) {
   // Remembered for the day, so coming back to the calendar finds it where
   // it was left (see usePageState).
   const [anchor, setAnchor] = usePageState("calendar.anchor", () => hotelToday());
-  const [windowDays, setWindowDays] = usePageState("calendar.days", 14);
+  const [windowDays, setWindowDays] = usePageState("calendar.days", () =>
+    typeof window !== "undefined" && window.innerWidth < 768 ? 7 : 14
+  );
   const [chart, setChart] = useState(null);
   const [extras, setExtras] = useState([]);
   const [loading, setLoading] = useState(false);
