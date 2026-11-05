@@ -21,6 +21,7 @@ import { DemandKey, useDemandPrefs } from "./DemandColours";
 import { demandFor } from "@/lib/demandColours";
 import { clockTime, dayUseDueOut, dayUseLabel, dayUseSummary, dayUseWindowLabel, dayUseWindow, holdsInventory, isDayUse, shortMinutes } from "@/lib/dayUse";
 import { useEscape } from "../../components/useEscape";
+import { sourceLabel } from "@/lib/bookingSources";
 import { formatMoney, hotelCurrency } from "@/lib/money";
 
 /**
@@ -1999,6 +2000,23 @@ function SelectionMenu({ x, y, room, range, conflict, onChoose, onClose }) {
  * then say what for. A stay that is over cannot change room, and the action
  * stays in the menu but disabled so its absence is not a puzzle.
  */
+const PREVIEW_STATUS = {
+  inquiry: "Inquiry",
+  confirmed: "Confirmed",
+  in_house: "In house",
+  checked_out: "Checked out",
+  cancelled: "Cancelled",
+  no_show: "No show",
+};
+const PREVIEW_CHIP = {
+  inquiry: "chip-warn",
+  confirmed: "chip-booked",
+  in_house: "chip-in",
+  checked_out: "chip-out",
+  cancelled: "chip-off",
+  no_show: "chip-off",
+};
+
 function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
   const nights = daysBetween(r.check_in, r.check_out);
   const settled = SETTLED.includes(r.status);
@@ -2010,11 +2028,32 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
 
   useEscape(onClose);
 
+  // What the guest still owes is not on the chart's data, so it is asked for
+  // when the card opens and appears a moment later.
+  const [balance, setBalance] = useState(r.balance ?? null);
+  useEffect(() => {
+    if (r.status === "cancelled" || r.status === "no_show") return undefined;
+    let live = true;
+    fetch(`/api/pms/reservations?search=${encodeURIComponent(r.reference)}&withBalance=1`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const mine = data?.reservations?.find((x) => x.id === r.id);
+        if (live && mine?.balance != null) setBalance(Number(mine.balance));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [r.id, r.reference, r.status]);
+
   return (
     <MenuShell x={x} y={y} onClose={onClose}>
-      <div className="pop-head" style={{ minWidth: "15rem" }}>
-        <div className="pop-title" style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-          {r.guest_name}
+      <div className="pop-head" style={{ minWidth: "16rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+          <div className="pop-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {r.guest_name}
+          </div>
+          <span className={`chip ${PREVIEW_CHIP[r.status] || "chip-out"}`}>{PREVIEW_STATUS[r.status] || r.status}</span>
         </div>
         <div className="pop-sub">
           {room ? `Room ${room.room_number}` : "No room yet"}, {r.reference}
@@ -2035,8 +2074,24 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
               <span className="pop-sub"> ({nights} night{nights === 1 ? "" : "s"})</span>
             </div>
           )}
-          {Number(r.balance) > 0 && (
-            <div style={{ color: "var(--danger)", fontWeight: 600 }}>Due {money(r.balance, hotelCurrency())}</div>
+          <div className="pop-sub">
+            {[
+              `${r.adults ?? 0} adult${r.adults === 1 ? "" : "s"}${r.children > 0 ? `, ${r.children} child${r.children === 1 ? "" : "ren"}` : ""}`,
+              r.source && sourceLabel(r.source),
+              r.guest_phone,
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          </div>
+          {balance != null && (
+            <div style={{ marginTop: "0.2rem", fontWeight: 600, color: balance > 0 ? "var(--danger)" : "var(--status-in)" }}>
+              {balance > 0 ? `Due ${money(balance, hotelCurrency())}` : "Paid in full"}
+            </div>
+          )}
+          {r.notes && (
+            <div className="pop-sub" style={{ marginTop: "0.2rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "16rem" }}>
+              Note: {r.notes}
+            </div>
           )}
         </div>
       </div>
