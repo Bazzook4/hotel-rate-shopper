@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "A shorter new booking form",
+    points: [
+      { page: "tapechart", text: "The new booking form now shows only what most bookings need: name, phone, dates, room, rate and total. Email, booking method, company, tax, booking type and children are under More details." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Pick several nights on a phone",
     points: [
       { page: "tapechart", text: "On a phone, press and hold an empty date on the Calendar, then drag across the nights of the same room. Lift your finger to book or block them all. A quick tap still picks one night, and a swipe still scrolls." },

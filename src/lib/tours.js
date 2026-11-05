@@ -29,7 +29,7 @@ export const TOURS = [
       {
         title: "Company or travel agent",
         text: "Pick the dates and a room; the price fills in. For a company or agent, set Booking method.",
-        point: ["tour:company", "tour:method"],
+        point: ["tour:company", "tour:method", "tour:more"],
       },
       {
         title: "Guest and ID",
@@ -124,12 +124,12 @@ export const TOURS = [
       {
         title: "Booked through a company",
         text: "Set Booking method to Corporate, then pick the company, or add a new one.",
-        point: ["tour:company", "tour:method"],
+        point: ["tour:company", "tour:method", "tour:more"],
       },
       {
         title: "Who pays",
         text: "Set Bill to Company. The invoice is made out to the company with its GSTIN.",
-        point: ["tour:billto", "tour:company", "tour:method"],
+        point: ["tour:billto", "tour:company", "tour:method", "tour:more"],
       },
     ],
   },

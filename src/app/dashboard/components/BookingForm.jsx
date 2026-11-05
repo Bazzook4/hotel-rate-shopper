@@ -668,7 +668,12 @@ export default function BookingForm({
   const [more, setMore] = useState(
     () =>
       Number(form.children) > 0 ||
-      form.guest_residency !== "domestic"
+      form.guest_residency !== "domestic" ||
+      form.stay_kind !== "overnight" ||
+      form.booking_type !== "standard" ||
+      form.status !== "confirmed" ||
+      Boolean(form.company_id || form.booked_by_other || form.rate_tax_mode || form.guest_email) ||
+      !["direct", "walkin"].includes(form.source)
   );
 
   /**
@@ -934,10 +939,10 @@ export default function BookingForm({
    * still change either; once they pick a room themselves, it is left alone.
    */
   const walkIn = !reservation && prefill?.source === "walkin";
-  // A walk-in needs a name, a phone, the nights, the room and the money. The
-  // rest (email, how it was booked, a complimentary stay, an inquiry, someone
-  // else booking) folds under More details, already set to what a walk-in is.
-  const short = walkIn && !more;
+  // A new booking needs a name, a phone, the nights, the room and the money. The
+  // rest (email, how it was booked, company, tax, a complimentary stay, an inquiry,
+  // someone else booking) folds under More details, already set to the usual.
+  const short = !reservation && !more;
   const deskPickedRoom = useRef(false);
   useEffect(() => {
     if (!walkIn || !dated || deskPickedRoom.current) return;
@@ -1552,7 +1557,7 @@ export default function BookingForm({
           </Select>
         </Field>
 )}
-        {companyShown && (
+        {companyShown && !short && (
           <Field
             label={needsRecord ? (wantKind === "company" ? "Company" : "Travel agent") : "Company / agent"}
             wide={!company}
@@ -1775,11 +1780,12 @@ export default function BookingForm({
         className="btn btn-ghost text-sm"
         onClick={() => setMore((v) => !v)}
         aria-expanded={more}
+        data-tour="more"
       >
         <Icon name={more ? "down" : "right"} size={14} /> More details
         {!more && (
           <span className="ml-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            {walkIn ? "email, booking method, type, country, children" : "country, guest is, children"}
+            email, booking method, company, tax, type, country, children
           </span>
         )}
       </button>
