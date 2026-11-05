@@ -522,19 +522,59 @@ export default function TapeChart({ session }) {
     return { check_in: first, check_out: shiftDate(last, 1) };
   }
 
-  function beginSelect(e, room, date) {
-    if (!room.is_active || e.button !== 0) return;
-    e.preventDefault();
+  function startSelection(room, date, clientX) {
     setMenu(null);
     const start = {
       room,
-      originX: e.clientX,
+      originX: clientX,
       anchor: date,
       from: date,
       to: date,
     };
     selectionRef.current = start;
     setSelection(start);
+  }
+
+  function beginSelect(e, room, date) {
+    if (!room.is_active || e.button !== 0) return;
+    if (e.pointerType !== "touch") {
+      e.preventDefault();
+      startSelection(room, date, e.clientX);
+      return;
+    }
+    // A finger also scrolls the chart, so a quick swipe scrolls, a tap picks
+    // one night, and pressing and holding starts a drag across several nights.
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let held = false;
+    const stopScroll = (ev) => ev.preventDefault();
+    const finish = () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointermove", moved);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", finish);
+      window.removeEventListener("touchmove", stopScroll);
+    };
+    const timer = setTimeout(() => {
+      held = true;
+      navigator.vibrate?.(15);
+      startSelection(room, date, x0);
+      window.addEventListener("touchmove", stopScroll, { passive: false });
+    }, 350);
+    const moved = (ev) => {
+      if (!held && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) finish();
+    };
+    const up = (ev) => {
+      const wasHeld = held;
+      finish();
+      if (!wasHeld) {
+        startSelection(room, date, x0);
+        setMenu({ x: ev.clientX, y: ev.clientY });
+      }
+    };
+    window.addEventListener("pointermove", moved);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", finish);
   }
 
   useEffect(() => {

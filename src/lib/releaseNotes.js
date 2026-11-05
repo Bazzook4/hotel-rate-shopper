@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Pick several nights on a phone",
+    points: [
+      { page: "tapechart", text: "On a phone, press and hold an empty date on the Calendar, then drag across the nights of the same room. Lift your finger to book or block them all. A quick tap still picks one night, and a swipe still scrolls." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Easier bookings on a phone",
     points: [
       { page: "tapechart", text: "On a phone, the Calendar now opens on 7 days. You can still switch to 14 or 30 days. On the new booking form, the Create booking button stays at the bottom, so it is not hidden when the keyboard opens. When a room has no rate set, the form now has a Set the rate link." },
