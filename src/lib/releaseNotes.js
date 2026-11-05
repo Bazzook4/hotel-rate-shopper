@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Scan a guest's ID at check-in",
+    points: [
+      { page: "policereport", text: "At check-in, press Scan ID and take a photo of the guest's ID. The name, ID number, nationality and date of birth fill in by themselves, and the photo is saved with the guest. Check the details, then save. Works best with a passport; check Aadhaar and licence reads." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Revenue Planner: month view and reports",
     points: [
       { page: "revplan", text: "Switch between Year and Month. The month view shows each day against your goal, with nights sold and nights already booked ahead." },
