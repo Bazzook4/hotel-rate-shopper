@@ -2103,7 +2103,7 @@ function BookingMenu({ x, y, reservation: r, room, today, propertyId, onChoose, 
             <div className="pop-sub">
               {r.reference}, {room ? `Room ${room.room_number}` : "no room yet"}
             </div>
-            <button type="button" className="btn btn-ghost" style={{ padding: "0.2rem 0.5rem", fontSize: "0.8125rem" }} onClick={() => onChoose("details")}>
+            <button type="button" className="btn btn-secondary" style={{ padding: "0.25rem 0.6rem", fontSize: "0.8125rem" }} onClick={() => onChoose("details")}>
               <Icon name="edit" size={14} />
               Edit booking
             </button>
