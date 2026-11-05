@@ -99,10 +99,12 @@ export async function POST(request) {
       { status: 400 }
     );
   }
-  const starter = validateStarterSetup(
-    { roomTypes: body?.roomTypes, planCodes: body?.planCodes },
-    totalRooms
-  );
+  // Room types and prices are optional at sign-up: the short form leaves
+  // them out and the hotel adds them under Rooms and Rate Plans.
+  const wantsSetup = Array.isArray(body?.roomTypes) && body.roomTypes.length > 0;
+  const starter = wantsSetup
+    ? validateStarterSetup({ roomTypes: body.roomTypes, planCodes: body.planCodes }, totalRooms)
+    : { roomTypes: [], planCodes: [] };
   if (starter.error) {
     return NextResponse.json({ error: starter.error }, { status: 400 });
   }
