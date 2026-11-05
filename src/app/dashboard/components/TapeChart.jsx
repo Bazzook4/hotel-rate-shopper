@@ -600,6 +600,7 @@ export default function TapeChart({ session }) {
     const block = (sel.room.blocks || []).find(
       (b) => b.start_date < check_out && b.end_date > check_in
     );
+    if (block?.linked) return `${block.reason}, and it is linked to this room`;
     if (block) return "Room is out of order on these dates";
     return null;
   }
@@ -1441,8 +1442,12 @@ export default function TapeChart({ session }) {
                             <div
                               key={b.id}
                               onPointerDown={(e) => e.stopPropagation()}
-                              onClick={() => setBlockEdit({ room, block: b })}
-                              title={`Out of order${b.reason ? `: ${b.reason}` : ""}\n${b.start_date}, back on ${b.end_date}`}
+                              onClick={b.linked ? undefined : () => setBlockEdit({ room, block: b })}
+                              title={
+                                b.linked
+                                  ? `Closed: ${b.reason}, and it is linked to this room\n${b.start_date}, open again on ${b.end_date}`
+                                  : `Out of order${b.reason ? `: ${b.reason}` : ""}\n${b.start_date}, back on ${b.end_date}`
+                              }
                               style={{
                                 position: "absolute",
                                 left: geo.left,
@@ -1458,13 +1463,13 @@ export default function TapeChart({ session }) {
                                 fontWeight: 600,
                                 whiteSpace: "nowrap",
                                 overflow: "hidden",
-                                cursor: "pointer",
+                                cursor: b.linked ? "default" : "pointer",
                                 userSelect: "none",
                                 zIndex: 1,
                               }}
                             >
                               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                                Out of order{b.reason ? `, ${b.reason}` : ""}
+                                {b.linked ? `Closed: ${b.reason}` : `Out of order${b.reason ? `, ${b.reason}` : ""}`}
                               </span>
                             </div>
                           );

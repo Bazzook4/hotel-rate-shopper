@@ -6300,6 +6300,32 @@ export async function getTapeChart(propertyId, startDate, endDate) {
   const typeName = {};
   for (const rt of roomTypes) typeName[rt.id] = rt.room_type_name;
 
+  // A villa and its rooms hold each other: what one holds shows on the other
+  // as a closed stretch, so the desk sees why those nights cannot be booked.
+  const clock = await getPropertyClock(propertyId);
+  const linkedBlocks = {};
+  for (const room of rooms) {
+    for (const otherId of relatedRoomIds(room.id, rooms)) {
+      const other = rooms.find((r) => r.id === otherId);
+      const spans = [
+        ...(byRoom[otherId] || [])
+          .filter((r) => !leftOnArrivalDay(r, clock))
+          .map((r) => ({ from: r.check_in, to: r.check_out > r.check_in ? r.check_out : dayAfter(r.check_in) })),
+        ...(blocksByRoom[otherId] || []).map((b) => ({ from: b.start_date, to: b.end_date })),
+      ];
+      spans.forEach((span, i) => {
+        (linkedBlocks[room.id] = linkedBlocks[room.id] || []).push({
+          id: `linked-${room.id}-${otherId}-${i}`,
+          room_id: room.id,
+          start_date: span.from,
+          end_date: span.to,
+          linked: true,
+          reason: `Room ${other?.room_number} is booked`,
+        });
+      });
+    }
+  }
+
   return {
     // Grouped by type so the chart can show "Deluxe" once above its rooms.
     roomTypes: roomTypes.map((rt) => ({
@@ -6313,7 +6339,7 @@ export async function getTapeChart(propertyId, startDate, endDate) {
           ...room,
           room_type_name: typeName[room.room_type_id],
           reservations: byRoom[room.id] || [],
-          blocks: blocksByRoom[room.id] || [],
+          blocks: [...(blocksByRoom[room.id] || []), ...(linkedBlocks[room.id] || [])],
         })),
     })),
     unassigned,
