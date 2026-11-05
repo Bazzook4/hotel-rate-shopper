@@ -1061,7 +1061,7 @@ export default function V2Dashboard() {
                   {active === "calendar" && (
                     <>
                       {!back && <SetupBanner session={scopedSession} skip={["roomTypes", "rooms"]} />}
-                      <TapeChart session={scopedSession} onAddExpense={canOpen("cashbook") ? () => openPage("cashbook", "addExpense") : null} />
+                      <TapeChart session={scopedSession} onAddExpense={canOpen("cashbook") ? () => openPage("cashbook", "addExpense") : null} onOpenPlanner={session?.canManageUsers ? () => openPage("revplan") : null} />
                     </>
                   )}
 

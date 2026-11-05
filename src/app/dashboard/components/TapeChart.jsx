@@ -156,7 +156,7 @@ function shortDay(iso) {
   return `${d} ${MONTHS[m - 1]}`;
 }
 
-export default function TapeChart({ session, onAddExpense = null }) {
+export default function TapeChart({ session, onAddExpense = null, onOpenPlanner = null }) {
   const dialog = useDialog();
   const propertyId = session?.propertyId || null;
   const desk = useFrontDesk(propertyId, { canSeeIds: visibleModules(session).some((p) => p.id === "guests") });
@@ -991,6 +991,11 @@ export default function TapeChart({ session, onAddExpense = null }) {
           <p className="sub">Every room, night by night.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {onOpenPlanner && (
+            <button type="button" className="btn btn-secondary text-sm" onClick={onOpenPlanner}>
+              <Icon name="chart" size={16} /> Revenue Planner
+            </button>
+          )}
           {onAddExpense && (
             <button type="button" className="btn btn-secondary text-sm" onClick={onAddExpense}>
               <Icon name="plus" size={16} /> Add expense
