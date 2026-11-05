@@ -261,3 +261,69 @@ export async function voidMove(propertyId, id, userId) {
       .is('voided_at', null);
   }
 }
+
+/**
+ * What was used, bought and spent over some days, item by item. Guest use is
+ * the per-guest-night use times the guest nights in the period; the rest is
+ * read from the lines entered.
+ */
+export async function getUsage(propertyId, { start, end, tz = DEFAULT_ZONE }) {
+  const supabase = getSupabaseAdmin();
+  let items;
+  let moves;
+  try {
+    [items, moves] = await Promise.all([
+      readAll(() => supabase.from('stock_items').select('*').eq('property_id', propertyId).order('name').order('id'), 'items'),
+      readAll(
+        () =>
+          supabase
+            .from('stock_moves')
+            .select('*')
+            .eq('property_id', propertyId)
+            .is('voided_at', null)
+            .gte('move_date', start)
+            .lte('move_date', end)
+            .order('move_date')
+            .order('id'),
+        'purchases'
+      ),
+    ]);
+  } catch (err) {
+    if (notMigrated(err)) return { ready: false, message: MESSAGE };
+    throw err;
+  }
+  const today = localToday(tz);
+  const last = end < today ? end : today;
+  const nights = start <= last ? await guestsByNight(supabase, propertyId, start, last) : {};
+  const guestNights = Object.entries(nights).reduce((s, [d, g]) => (d <= end ? s + g : s), 0);
+
+  const rows = items.map((item) => {
+    const mine = moves.filter((m) => m.item_id === item.id);
+    const sum = (kind) => mine.filter((m) => m.kind === kind).reduce((s, m) => s + Number(m.qty), 0);
+    // An item has no use before the day it was added.
+    const from = localDay(item.created_at, tz);
+    const itemNights = Object.entries(nights).reduce((s, [d, g]) => (d >= from && d <= end ? s + g : s), 0);
+    const byGuests = item.kind === 'asset' ? 0 : Number(item.per_guest_night) * itemNights;
+    const spent = mine.filter((m) => m.kind === 'purchase').reduce((s, m) => s + (Number(m.cost) || 0), 0);
+    return {
+      id: item.id,
+      name: item.name,
+      kindLabel: KINDS[item.kind],
+      unit: item.unit,
+      archived: Boolean(item.archived_at),
+      byGuests: round(byGuests),
+      takenOut: round(sum('used')),
+      bought: round(sum('purchase')),
+      spent: round(spent),
+    };
+  });
+  const shown = rows.filter((r) => !r.archived || r.byGuests || r.takenOut || r.bought);
+  return {
+    ready: true,
+    start,
+    end,
+    guestNights,
+    spent: round(shown.reduce((s, r) => s + r.spent, 0)),
+    items: shown,
+  };
+}

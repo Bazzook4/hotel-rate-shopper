@@ -14,6 +14,13 @@
 export const RELEASE_NOTES = [
   {
     date: "2026-11-05",
+    title: "Usage report for purchases",
+    points: [
+      { page: "cashbook", text: "The Purchases tab now has a usage report. Pick dates to see what guests used, what you took out, what you bought and what it cost, per item and per guest night." },
+    ],
+  },
+  {
+    date: "2026-11-05",
     title: "Purchases: soap, towels and more",
     points: [
       { page: "cashbook", text: "Cash & Expenses has a new Purchases tab. Add the things you buy, like soap, towels or a TV, and say how many you have." },

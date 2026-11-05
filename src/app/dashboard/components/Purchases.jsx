@@ -6,7 +6,7 @@ import DateField from "@/app/components/DateField";
 import { useDialog } from "../../components/Dialog";
 import { useToast } from "../../components/Toast";
 import { Drawer, Field } from "./RatePlanSetup";
-import { Empty, Section, Status, TableFrame, longDate, moneyFormatter, useReport } from "./reportKit";
+import { Empty, PeriodPicker, Section, Stats, Status, TableFrame, longDate, moneyFormatter, usePeriod, useReport, whole } from "./reportKit";
 import { sendJSON } from "./SetupGrid";
 import { hotelToday } from "@/lib/hotelTime";
 
@@ -157,6 +157,66 @@ function MoveForm({ propertyId, item, kind, methods, onClose, onSaved }) {
   );
 }
 
+function UsageReport({ propertyId, money }) {
+  const period = usePeriod("mtd");
+  const { report, loading, error } = useReport("/api/purchases/usage", period.valid ? period.range : null, propertyId);
+  if (report && !report.ready) return null;
+  return (
+    <Section title="Usage report" sub="What was used, bought and spent in the period. Guest use is worked out from guest nights.">
+      <div className="card card-pad mb-3">
+        <PeriodPicker id="purchases" label="Between" {...period} />
+      </div>
+      <Status loading={loading} error={error} report={report} />
+      {report?.ready && (
+        <div style={{ opacity: loading ? 0.55 : 1 }} className="space-y-4">
+          <Stats
+            items={[
+              { label: "Guest nights", value: whole.format(report.guestNights) },
+              { label: "Spent on purchases", value: money(report.spent) },
+              { label: "Spent per guest night", value: report.guestNights ? money(report.spent / report.guestNights) : "-" },
+            ]}
+          />
+          {report.items.length === 0 ? (
+            <Empty>No items yet.</Empty>
+          ) : (
+            <TableFrame>
+              <table className="grid-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Type</th>
+                    <th className="text-right">Used by guests</th>
+                    <th className="text-right">Took out</th>
+                    <th className="text-right">Bought</th>
+                    <th className="text-right">Spent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.items.map((i) => (
+                    <tr key={i.id}>
+                      <td className="font-medium">{i.name}</td>
+                      <td>{i.kindLabel}</td>
+                      <td className="text-right tabular-nums">{i.byGuests ? `${i.byGuests} ${i.unit}` : "-"}</td>
+                      <td className="text-right tabular-nums">{i.takenOut ? `${i.takenOut} ${i.unit}` : "-"}</td>
+                      <td className="text-right tabular-nums">{i.bought ? `${i.bought} ${i.unit}` : "-"}</td>
+                      <td className="text-right tabular-nums">{i.spent ? money(i.spent) : "-"}</td>
+                    </tr>
+                  ))}
+                  <tr className="grid-total">
+                    <td className="font-semibold">Total</td>
+                    <td colSpan={4} />
+                    <td className="text-right font-semibold tabular-nums">{money(report.spent)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </TableFrame>
+          )}
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export default function Purchases({ propertyId, currency, methods, onChanged }) {
   const dialog = useDialog();
   const toast = useToast();
@@ -265,6 +325,8 @@ export default function Purchases({ propertyId, currency, methods, onChanged }) 
           )}
         </Section>
       )}
+
+      {report?.ready && <UsageReport propertyId={propertyId} money={money} />}
 
       {panel?.add && <ItemForm propertyId={propertyId} onClose={() => setPanel(null)} onSaved={done} />}
       {panel?.item && <MoveForm propertyId={propertyId} item={panel.item} kind={panel.kind} methods={methods} onClose={() => setPanel(null)} onSaved={done} />}
