@@ -16,7 +16,7 @@ export const RELEASE_NOTES = [
     date: "2026-11-05",
     title: "A clearer menu on the Calendar",
     points: [
-      { page: "tapechart", text: "Click a booking and the top of the menu is now a small card: guest name with a status tag, room and booking number, dates, how many guests, where it came from and the phone number. It also shows Due in red or Paid in full in green, and any note. Day use shows its time slot and, once checked in, when the guest is due out." },
+      { page: "tapechart", text: "Click a booking and a small card opens. It shows the guest, status, room, dates, guests, balance (Due in red or Paid in full in green), phone and any note. Below are buttons for the next job: Check in, Collect payment, Add service, Change room, Check out and more. Day use shows its time slot and when the guest is due out." },
     ],
   },
   {

@@ -134,17 +134,6 @@ const SELECTION_ACTIONS = [
   { id: "block", label: "Out of order" },
 ];
 
-/**
- * What can be done with a booking already on the chart, offered when its bar
- * is clicked. Each opens the booking where that job is done rather than on
- * Details, so taking a payment is one click and not a hunt for the tab.
- */
-const BOOKING_ACTIONS = [
-  { id: "details", label: "Edit booking" },
-  { id: "inclusions", label: "Add service" },
-  { id: "payments", label: "Collect payment" },
-];
-
 /** Stays whose room can no longer change: they are over, or never happened. */
 const SETTLED = ["checked_out", "cancelled", "no_show"];
 
@@ -1935,9 +1924,9 @@ function BarTag({ children, title, legend = false }) {
  * A small menu opened where the pointer let go, with a click-away layer
  * behind it. Kept on screen when that is near the right or bottom edge.
  */
-function MenuShell({ x, y, onClose, children }) {
-  const left = Math.min(x + 4, (typeof window !== "undefined" ? window.innerWidth : 1200) - 230);
-  const top = Math.min(y + 4, (typeof window !== "undefined" ? window.innerHeight : 800) - 250);
+function MenuShell({ x, y, onClose, children, width = 220, height = 250 }) {
+  const left = Math.max(4, Math.min(x + 4, (typeof window !== "undefined" ? window.innerWidth : 1200) - width - 10));
+  const top = Math.max(4, Math.min(y + 4, (typeof window !== "undefined" ? window.innerHeight : 800) - height));
 
   return (
     <>
@@ -1945,7 +1934,7 @@ function MenuShell({ x, y, onClose, children }) {
         onPointerDown={onClose}
         style={{ position: "fixed", inset: 0, zIndex: 40 }}
       />
-      <div role="menu" className="pop" style={{ position: "fixed", left, top, zIndex: 41, width: 220 }}>
+      <div role="menu" className="pop" style={{ position: "fixed", left, top, zIndex: 41, width }}>
         {children}
       </div>
     </>
@@ -2046,80 +2035,130 @@ function BookingMenu({ x, y, reservation: r, room, today, onChoose, onClose }) {
     };
   }, [r.id, r.reference, r.status]);
 
+  // The buttons that fit this booking, in the order a desk reaches for them.
+  // The first one is the likely next step and wears the solid colour.
+  const actions = [];
+  if (r.status === "inquiry") actions.push({ id: "confirm", label: "Confirm booking", icon: "check" });
+  if (arriving) {
+    actions.push({
+      id: "checkin",
+      label: "Check in",
+      icon: "arrive",
+      // With no room yet, check-in offers the free clean rooms to pick from;
+      // a dirty room is offered to mark clean in the same step.
+      title: room?.housekeeping === "dirty" ? `Room ${room.room_number} is dirty. Checking in marks it clean.` : undefined,
+    });
+  }
+  if (leaving) actions.push({ id: "checkout", label: "Check out", icon: "depart" });
+  actions.push({ id: "payments", label: "Collect payment", icon: "money" });
+  actions.push({ id: "inclusions", label: "Add service", icon: "plus" });
+  if (r.status === "checked_out") actions.push({ id: "printinvoice", label: "Print invoice", icon: "file" });
+  if (r.status === "in_house") actions.push({ id: "undocheckin", label: "Undo check-in", icon: "back" });
+  actions.push({
+    id: "upgrade",
+    label: room ? "Change room" : "Assign a room",
+    icon: "refresh",
+    disabled: settled,
+    title: settled ? "This stay is over, so its room can no longer change" : undefined,
+  });
+  if (r.status === "in_house" && !leaving) actions.push({ id: "checkout", label: "Check out", icon: "depart" });
+  if (r.status === "confirmed") actions.push({ id: "cancel", label: "Cancel booking", icon: "close", danger: true });
+
+  const dayUse = isDayUse(r);
+  const people = `${r.adults ?? 0} adult${r.adults === 1 ? "" : "s"}${
+    r.children > 0 ? `, ${r.children} child${r.children === 1 ? "" : "ren"}` : ""
+  }`;
+  const fact = (label, value, color) => (
+    <div style={{ minWidth: 0 }}>
+      <div className="pop-sub">{label}</div>
+      <div style={{ fontWeight: 600, color: color || "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {value}
+      </div>
+    </div>
+  );
+
   return (
-    <MenuShell x={x} y={y} onClose={onClose}>
-      <div className="pop-head" style={{ minWidth: "16rem" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
-          <div className="pop-title" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {r.guest_name}
+    <MenuShell x={x} y={y} onClose={onClose} width={340} height={430}>
+      <div style={{ padding: "0.5rem 0.6rem", display: "grid", gap: "0.6rem" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <div className="pop-title" style={{ fontSize: "1rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {r.guest_name}
+            </div>
+            <span className={`chip ${PREVIEW_CHIP[r.status] || "chip-out"}`} style={{ flexShrink: 0 }}>
+              {PREVIEW_STATUS[r.status] || r.status}
+            </span>
+            {r.source && (
+              <span className="chip chip-booked" style={{ marginLeft: "auto", flexShrink: 0 }}>
+                {sourceLabel(r.source)}
+              </span>
+            )}
           </div>
-          <span className={`chip ${PREVIEW_CHIP[r.status] || "chip-out"}`}>{PREVIEW_STATUS[r.status] || r.status}</span>
-        </div>
-        <div className="pop-sub">
-          {room ? `Room ${room.room_number}` : "No room yet"}, {r.reference}
-        </div>
-        <div style={{ marginTop: "0.35rem", fontSize: "0.875rem", color: "var(--text)" }}>
-          {isDayUse(r) ? (
-            <>
-              <div>{nightLabel(r.check_in)}, {dayUseWindowLabel(r) || dayUseLabel(r.day_use_hours)}</div>
-              {r.checked_in_at && (
-                <div className="pop-sub">
-                  In {clockTime(new Date(r.checked_in_at))}, due out {clockTime(dayUseDueOut(r))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div>
-              {nightLabel(r.check_in)} to {nightLabel(r.check_out)}
-              <span className="pop-sub"> ({nights} night{nights === 1 ? "" : "s"})</span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", marginTop: "0.25rem" }}>
+            <div className="pop-sub">
+              {r.reference}, {room ? `Room ${room.room_number}` : "no room yet"}
             </div>
-          )}
-          <div className="pop-sub">
-            {[
-              `${r.adults ?? 0} adult${r.adults === 1 ? "" : "s"}${r.children > 0 ? `, ${r.children} child${r.children === 1 ? "" : "ren"}` : ""}`,
-              r.source && sourceLabel(r.source),
-              r.guest_phone,
-            ]
-              .filter(Boolean)
-              .join(", ")}
+            <button type="button" className="btn btn-ghost" style={{ padding: "0.2rem 0.5rem", fontSize: "0.8125rem" }} onClick={() => onChoose("details")}>
+              <Icon name="edit" size={14} />
+              Edit booking
+            </button>
           </div>
-          {balance != null && (
-            <div style={{ marginTop: "0.2rem", fontWeight: 600, color: balance > 0 ? "var(--danger)" : "var(--status-in)" }}>
-              {balance > 0 ? `Due ${money(balance, hotelCurrency())}` : "Paid in full"}
-            </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "0.6rem" }}>
+          <Icon name="calendar" size={18} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {dayUse ? (
+              <>
+                <div style={{ fontWeight: 600 }}>{nightLabel(r.check_in)}, {dayUseWindowLabel(r) || dayUseLabel(r.day_use_hours)}</div>
+                {r.checked_in_at && (
+                  <div className="pop-sub">
+                    In {clockTime(new Date(r.checked_in_at))}, due out {clockTime(dayUseDueOut(r))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontWeight: 600 }}>{nightLabel(r.check_in)} to {nightLabel(r.check_out)}</div>
+            )}
+          </div>
+          <span className="chip chip-out" style={{ flexShrink: 0 }}>
+            {dayUse ? dayUseLabel(r.day_use_hours) : `${nights} night${nights === 1 ? "" : "s"}`}
+          </span>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+          {fact("Guests", people)}
+          {fact(
+            "Balance",
+            balance == null ? "Checking" : balance > 0 ? `Due ${money(balance, hotelCurrency())}` : "Paid in full",
+            balance == null ? "var(--text-muted)" : balance > 0 ? "var(--danger)" : "var(--status-in)"
           )}
-          {r.notes && (
-            <div className="pop-sub" style={{ marginTop: "0.2rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "16rem" }}>
-              Note: {r.notes}
-            </div>
-          )}
+          {r.guest_phone && fact("Phone", r.guest_phone)}
+        </div>
+
+        {r.notes && (
+          <div style={{ padding: "0.4rem 0.6rem", borderRadius: 8, background: "var(--warn-soft, #fef3c7)", fontSize: "0.8125rem" }}>
+            <strong>Note:</strong> {r.notes}
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", borderTop: "1px solid var(--border)", paddingTop: "0.6rem" }}>
+          {actions.map((a, i) => (
+            <button
+              key={a.id + i}
+              type="button"
+              className={`btn ${i === 0 ? "btn-primary" : a.danger ? "btn-danger" : "btn-secondary"}`}
+              style={{ justifyContent: "flex-start", minWidth: 0 }}
+              disabled={a.disabled}
+              title={a.title}
+              onClick={() => onChoose(a.id)}
+            >
+              <Icon name={a.icon} size={16} />
+              {a.label}
+            </button>
+          ))}
         </div>
       </div>
-      {r.status === "inquiry" && (
-        <MenuItem label="Confirm booking" onClick={() => onChoose("confirm")} />
-      )}
-      {arriving && (
-        <MenuItem
-          label="Check in"
-          // With no room yet, check-in offers the free clean rooms to pick from;
-          // a dirty room is offered to mark clean in the same step.
-          title={room?.housekeeping === "dirty" ? `Room ${room.room_number} is dirty. Checking in marks it clean.` : undefined}
-          onClick={() => onChoose("checkin")}
-        />
-      )}
-      {BOOKING_ACTIONS.map((a) => (
-        <MenuItem key={a.id} label={a.label} onClick={() => onChoose(a.id)} />
-      ))}
-      {r.status === "checked_out" && <MenuItem label="Print invoice" onClick={() => onChoose("printinvoice")} />}
-      {r.status === "in_house" && <MenuItem label="Undo check-in" onClick={() => onChoose("undocheckin")} />}
-      <MenuItem
-        label={room ? "Change room" : "Assign a room"}
-        disabled={settled}
-        title={settled ? "This stay is over, so its room can no longer change" : undefined}
-        onClick={() => onChoose("upgrade")}
-      />
-      {(leaving || r.status === "in_house") && <MenuItem label="Check out" onClick={() => onChoose("checkout")} />}
-      {r.status === "confirmed" && <MenuItem label="Cancel booking" onClick={() => onChoose("cancel")} />}
     </MenuShell>
   );
 }
