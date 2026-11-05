@@ -258,7 +258,7 @@ function Section({ title, children }) {
       >
         {title}
       </h4>
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">{children}</div>
+      <div className="form-table">{children}</div>
     </section>
   );
 }
@@ -266,14 +266,16 @@ function Section({ title, children }) {
 // `tour` names the field for the booking tour, which points at it.
 function Field({ label, hint, wide = false, tour, children }) {
   return (
-    <div className={wide ? "col-span-2" : undefined} data-tour={tour}>
-      <label className="label">{label}</label>
-      {children}
-      {hint && (
-        <p className="sub" style={{ fontSize: "0.7rem", marginTop: "0.25rem" }}>
-          {hint}
-        </p>
-      )}
+    <div className={`form-cell${wide ? " col-span-2" : ""}`} data-tour={tour}>
+      <label className="form-cell-label">{label}</label>
+      <div className="form-cell-body">
+        {children}
+        {hint && (
+          <p className="sub" style={{ fontSize: "0.7rem", margin: "0.15rem 0.5rem 0.25rem" }}>
+            {hint}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -1273,103 +1275,7 @@ export default function BookingForm({
       {/* What every booking needs, up front. The rest -- country,
           tax residency, children, how it was booked -- waits under More
           details, already filled with the usual answers. */}
-      <Section title="Guest and stay">
-        <Field label="Guest name" wide>
-          <div style={{ position: "relative" }}>
-            <div className="flex gap-2">
-              <input
-                className="input"
-                style={{ flex: 1, minWidth: 0 }}
-                ref={nameBox}
-                {...guestBox("guest_name")}
-                // A walk-in starts on the guest's name: the rest is filled in.
-                autoFocus={!reservation && prefill?.source === "walkin"}
-                placeholder="Full name"
-              />
-              {!linked && (
-                <button
-                  type="button"
-                  className="btn btn-secondary text-sm"
-                  // mousedown, so the name box's blur does not close the
-                  // results this click is about to open.
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    // Focus stays in the name box, so arrows, Enter, Escape
-                    // and clicking away all work on the results.
-                    nameBox.current?.focus();
-                    searchGuestsNow();
-                  }}
-                  disabled={!form.guest_name.trim() && !form.guest_phone.trim() && !form.guest_email.trim()}
-                  title="Find this guest among past bookings, by name, phone or email"
-                >
-                  Search
-                </button>
-              )}
-            </div>
-            {suggest.field === "guest_name" && (
-              <GuestSuggestions
-                items={suggest.items}
-                active={suggest.active}
-                onPick={pickGuest}
-                status={searchStatus}
-                term={suggest.term}
-              />
-            )}
-          </div>
-          {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
-{!short && (
-          <label
-            className="mt-1 flex items-center gap-2 text-sm"
-            style={{ minHeight: 32 }}
-            title="The booker is kept on the booking only, not added to the guest list"
-          >
-            <input
-              type="checkbox"
-              style={{ width: 18, height: 18 }}
-              checked={form.booked_by_other}
-              onChange={(e) => set("booked_by_other", e.target.checked)}
-            />
-            Booked by someone else
-          </label>
-)}
-        </Field>
-        <Field label="Phone" tour="phone">
-          <div style={{ position: "relative" }}>
-            <input className="input" type="tel" {...guestBox("guest_phone")} />
-            {suggest.field === "guest_phone" && (
-              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
-            )}
-          </div>
-        </Field>
-{!short && (
-        <Field label="Email">
-          <div style={{ position: "relative" }}>
-            <input className="input" type="email" {...guestBox("guest_email")} />
-            {suggest.field === "guest_email" && (
-              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
-            )}
-          </div>
-        </Field>
-)}
-        {form.booked_by_other && (
-          <>
-            <Field label="Booked by *" wide>
-              <input
-                className="input"
-                value={form.booker_name}
-                onChange={(e) => set("booker_name", e.target.value)}
-                placeholder="Who booked, not staying"
-                autoFocus={!form.booker_name}
-              />
-            </Field>
-            <Field label="Booker phone">
-              <input className="input" type="tel" value={form.booker_phone} onChange={(e) => set("booker_phone", e.target.value)} />
-            </Field>
-            <Field label="Booker email">
-              <input className="input" type="email" value={form.booker_email} onChange={(e) => set("booker_email", e.target.value)} />
-            </Field>
-          </>
-        )}
+      <Section title="Stay">
 {!short && (
         <Field label="Stay" tour="dates">
           <Select
@@ -1508,6 +1414,108 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
+      </Section>
+
+      <Section title="Guest">
+        <Field label="Guest name" wide>
+          <div style={{ position: "relative" }}>
+            <div className="flex gap-2">
+              <input
+                className="input"
+                style={{ flex: 1, minWidth: 0 }}
+                ref={nameBox}
+                {...guestBox("guest_name")}
+                // A walk-in starts on the guest's name: the rest is filled in.
+                autoFocus={!reservation && prefill?.source === "walkin"}
+                placeholder="Full name"
+              />
+              {!linked && (
+                <button
+                  type="button"
+                  className="btn btn-secondary text-sm"
+                  // mousedown, so the name box's blur does not close the
+                  // results this click is about to open.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    // Focus stays in the name box, so arrows, Enter, Escape
+                    // and clicking away all work on the results.
+                    nameBox.current?.focus();
+                    searchGuestsNow();
+                  }}
+                  disabled={!form.guest_name.trim() && !form.guest_phone.trim() && !form.guest_email.trim()}
+                  title="Find this guest among past bookings, by name, phone or email"
+                >
+                  Search
+                </button>
+              )}
+            </div>
+            {suggest.field === "guest_name" && (
+              <GuestSuggestions
+                items={suggest.items}
+                active={suggest.active}
+                onPick={pickGuest}
+                status={searchStatus}
+                term={suggest.term}
+              />
+            )}
+          </div>
+          {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
+{!short && (
+          <label
+            className="mt-1 flex items-center gap-2 text-sm"
+            style={{ minHeight: 32 }}
+            title="The booker is kept on the booking only, not added to the guest list"
+          >
+            <input
+              type="checkbox"
+              style={{ width: 18, height: 18 }}
+              checked={form.booked_by_other}
+              onChange={(e) => set("booked_by_other", e.target.checked)}
+            />
+            Booked by someone else
+          </label>
+)}
+        </Field>
+        <Field label="Phone" tour="phone">
+          <div style={{ position: "relative" }}>
+            <input className="input" type="tel" {...guestBox("guest_phone")} />
+            {suggest.field === "guest_phone" && (
+              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
+            )}
+          </div>
+        </Field>
+{!short && (
+        <Field label="Email">
+          <div style={{ position: "relative" }}>
+            <input className="input" type="email" {...guestBox("guest_email")} />
+            {suggest.field === "guest_email" && (
+              <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
+            )}
+          </div>
+        </Field>
+)}
+        {form.booked_by_other && (
+          <>
+            <Field label="Booked by *" wide>
+              <input
+                className="input"
+                value={form.booker_name}
+                onChange={(e) => set("booker_name", e.target.value)}
+                placeholder="Who booked, not staying"
+                autoFocus={!form.booker_name}
+              />
+            </Field>
+            <Field label="Booker phone">
+              <input className="input" type="tel" value={form.booker_phone} onChange={(e) => set("booker_phone", e.target.value)} />
+            </Field>
+            <Field label="Booker email">
+              <input className="input" type="email" value={form.booker_email} onChange={(e) => set("booker_email", e.target.value)} />
+            </Field>
+          </>
+        )}
+      </Section>
+
+      <Section title="Room and rate">
         <Field label="Room type" tour="room">
           <Select
             className="input"
@@ -1542,8 +1550,27 @@ export default function BookingForm({
             })}
           </Select>
         </Field>
+        {!dayUse && (
+          <Field label="Rate plan">
+            <Select
+              className="input"
+              value={form.rate_plan_id}
+              onChange={(e) => {
+                planChosen.current = true;
+                set("rate_plan_id", e.target.value);
+              }}
+            >
+              <option value="">None</option>
+              {planOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.plan_name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
 {!short && (
-        <Field label="Booking method" wide={!needsRecord && !companyShown} tour="method">
+        <Field label="Booking method" tour="method">
           <Select
             className="input"
             value={form.source}
@@ -1631,25 +1658,6 @@ export default function BookingForm({
       </Section>
 
       <Section title="Price and status">
-        {!dayUse && (
-          <Field label="Rate plan" wide>
-            <Select
-              className="input"
-              value={form.rate_plan_id}
-              onChange={(e) => {
-                planChosen.current = true;
-                set("rate_plan_id", e.target.value);
-              }}
-            >
-              <option value="">None</option>
-              {planOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.plan_name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        )}
           {/* Complimentary stays occupy a room like any other but are owed
               nothing; revenue reports leave them out of ADR. */}
 {!short && (
