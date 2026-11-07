@@ -117,7 +117,7 @@ const TEMPLATE_WORDS = {
     "Good morning {{1}}, here is today at your hotel.\nArrivals: {{2}}\nDepartures: {{3}}\nRooms occupied: {{4}}\nOccupancy: {{5}}\nYesterday's revenue: {{6}}\nHave a good day.",
   lead_alert_v2: "New lead from {{1}}.\nInterested in: {{2}}\nRooms: {{3}}\nCity: {{4}}\nPlease follow up from the WhatsApp inbox.",
   needs_you_v1:
-    "{{1}} needs you on WhatsApp.\nWhy: {{2}}\nDetails: {{3}}\nPlease reply from the WhatsApp inbox.",
+    "Chat alert: {{1}} needs you on WhatsApp.\nWhy: {{2}}\nDetails: {{3}}\nPlease reply from the WhatsApp inbox.",
   welcome_v1:
     "Hi {{1}}, welcome to OnlineHotelier. Your hotel {{2}} is created. Log in at {{3}} and add your rooms to start. Reply here if you need any help.",
   setup_reminder_v2: "Hi {{1}}, your hotel {{2}} is {{3}} set up on OnlineHotelier. Reply here if you need any help finishing it.",
