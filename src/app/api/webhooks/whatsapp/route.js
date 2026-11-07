@@ -93,7 +93,7 @@ async function receive(value) {
     }
 
     const { data: existing } = await db.from("wa_contacts").select("*").eq("phone", phone).maybeSingle();
-    const changes = { phone, last_inbound_at: at, last_message_at: at };
+    const changes = { phone, last_inbound_at: at, last_message_at: at, archived_at: null };
     const name = names.get(phone);
     if (name) changes.name = name;
     if (!existing?.property_id) {

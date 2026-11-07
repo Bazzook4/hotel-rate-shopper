@@ -121,19 +121,23 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
   );
   const hotelName = useMemo(() => new Map((data?.hotels || []).map((h) => [h.id, h.name])), [data]);
 
+  // Archived chats leave the list and the counts; the Archived filter brings them back.
+  const live = useMemo(() => contacts.filter((c) => !c.archived_at), [contacts]);
   const counts = useMemo(
     () => ({
-      unread: contacts.filter((c) => c.unread > 0).length,
-      needs: contacts.filter(needsYou).length,
-      ...Object.fromEntries(Object.keys(LEAD_STATUS).map((k) => [k, contacts.filter((c) => isLead(c) && c.lead.status === k).length])),
-      hotels: contacts.filter((c) => c.property_id).length,
-      paused: contacts.filter((c) => c.bot_paused).length,
+      all: live.length,
+      unread: live.filter((c) => c.unread > 0).length,
+      needs: live.filter(needsYou).length,
+      ...Object.fromEntries(Object.keys(LEAD_STATUS).map((k) => [k, live.filter((c) => isLead(c) && c.lead.status === k).length])),
+      hotels: live.filter((c) => c.property_id).length,
+      paused: live.filter((c) => c.bot_paused).length,
+      archived: contacts.length - live.length,
     }),
-    [contacts]
+    [contacts, live]
   );
 
   const shown = useMemo(() => {
-    let rows = contacts;
+    let rows = filter === "archived" ? contacts.filter((c) => c.archived_at) : live;
     if (filter === "unread") rows = rows.filter((c) => c.unread > 0);
     if (filter === "needs") rows = rows.filter(needsYou);
     if (filter in LEAD_STATUS) rows = rows.filter((c) => isLead(c) && c.lead.status === filter);
@@ -146,7 +150,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
       const words = [c.name, hotelName.get(c.property_id), c.lead?.hotel_name, c.lead?.city].filter(Boolean).join(" ").toLowerCase();
       return words.includes(q) || (digits.length >= 3 && c.phone.includes(digits));
     });
-  }, [contacts, filter, query, hotelName]);
+  }, [contacts, live, filter, query, hotelName]);
 
   if (missing) {
     return (
@@ -171,6 +175,16 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
   const notice = !data.ready
     ? "WhatsApp is not connected, so nothing can be sent: set WA_TOKEN and WA_PHONE_NUMBER_ID in Vercel."
     : loadError;
+
+  async function archive(c, archived) {
+    try {
+      await call("PATCH", { phone: c.phone, archived });
+      patchContact({ phone: c.phone, archived_at: archived ? new Date().toISOString() : null });
+      if (archived && openPhone === c.phone) setOpenPhone(null);
+    } catch (e) {
+      setAddError(e.message);
+    }
+  }
 
   // Delete a lead from the list or board; the chat stays.
   async function removeLead(c) {
@@ -218,7 +232,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
         {/* On a phone the counts fold into one picker, so the chats get the screen. */}
         <div className="min-w-0 flex-1 md:hidden">
           <Select value={filter || ""} onChange={(e) => setFilter(e.target.value || null)} aria-label="Show" className="input w-full text-sm">
-            <option value="">All chats ({contacts.length})</option>
+            <option value="">All chats ({counts.all})</option>
             <option value="needs">Needs you ({counts.needs})</option>
             <option value="unread">Unread ({counts.unread})</option>
             {Object.entries(LEAD_STATUS).map(([k, v]) => (
@@ -228,10 +242,11 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
             ))}
             <option value="paused">Bot off ({counts.paused})</option>
             <option value="hotels">Hotels ({counts.hotels})</option>
+            <option value="archived">Archived ({counts.archived})</option>
           </Select>
         </div>
         <Facts className="max-md:hidden">
-          <Fact label="Chats" onClick={pick("all")}>{contacts.length}</Fact>
+          <Fact label="Chats" onClick={pick("all")}>{counts.all}</Fact>
           <Fact label="Needs you" tone={on("needs") || (counts.needs ? "warn" : undefined)} onClick={pick("needs")}>{counts.needs}</Fact>
           <Fact label="Unread" tone={on("unread") || (counts.unread ? "warn" : undefined)} onClick={pick("unread")}>{counts.unread}</Fact>
           {Object.entries(LEAD_STATUS).map(([k, v]) => (
@@ -241,6 +256,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
           ))}
           <Fact label="Bot off" tone={on("paused")} onClick={pick("paused")}>{counts.paused}</Fact>
           <Fact label="Hotels" tone={on("hotels")} onClick={pick("hotels")}>{counts.hotels}</Fact>
+          <Fact label="Archived" tone={on("archived")} onClick={pick("archived")}>{counts.archived}</Fact>
         </Facts>
         <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-none">
           <Select
@@ -293,6 +309,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
               onContact={patchContact}
               onSent={load}
               onConvert={onConvert}
+              onArchive={archive}
               onClose={() => setOpenPhone(null)}
             />
           )}
@@ -351,6 +368,9 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
                     </span>
                   </span>
                 </button>
+                <button type="button" className="btn btn-ghost mr-2 shrink-0 text-xs" onClick={() => archive(c, !c.archived_at)} aria-label={`${c.archived_at ? "Unarchive" : "Archive"} chat ${c.name || c.phone}`}>
+                  {c.archived_at ? "Unarchive" : "Archive"}
+                </button>
                 {isLead(c) && (
                   <button type="button" className="btn btn-ghost mr-2 shrink-0 text-xs" onClick={() => removeLead(c)} aria-label={`Delete lead ${c.name || c.phone}`}>
                     Delete
@@ -373,6 +393,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
             onContact={patchContact}
             onSent={load}
             onConvert={onConvert}
+            onArchive={archive}
             onBack={() => setOpenPhone(null)}
           />
         ) : (
@@ -500,7 +521,7 @@ function Board({ rows, only, query, setQuery, onOpen, onContact, onDelete }) {
   );
 }
 
-function ChatPanel({ contact, data, hotelName, onContact, onSent, onConvert, onClose }) {
+function ChatPanel({ contact, data, hotelName, onContact, onSent, onConvert, onArchive, onClose }) {
   useEscape(onClose);
   return (
     <div onClick={onClose} className="side-panel-backdrop" role="dialog" aria-modal="true" aria-label={`Chat with ${contact.name || contact.phone}`}>
@@ -526,6 +547,7 @@ function ChatPanel({ contact, data, hotelName, onContact, onSent, onConvert, onC
             onContact={onContact}
             onSent={onSent}
             onConvert={onConvert}
+            onArchive={onArchive}
             onBack={onClose}
           />
         </div>
@@ -534,7 +556,7 @@ function ChatPanel({ contact, data, hotelName, onContact, onSent, onConvert, onC
   );
 }
 
-export function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onSent, onConvert, onBack, panel = false }) {
+export function Chat({ contact, hotels, templates, ready, ai, hotelName, onContact, onSent, onConvert, onArchive, onBack, panel = false }) {
   const [messages, setMessages] = useState(null);
   const [text, setText] = useState("");
   const [template, setTemplate] = useState("");
@@ -785,6 +807,11 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
             <span className="hidden md:block">
               <LeadStatus lead={lead} onSave={saveLead} />
             </span>
+          )}
+          {onArchive && (
+            <button type="button" className="btn btn-ghost text-sm" onClick={() => onArchive(contact, !contact.archived_at)}>
+              {contact.archived_at ? "Unarchive" : "Archive"}
+            </button>
           )}
           <label className="flex items-center gap-2 text-sm" title="When off, you answer this chat yourself">
             <input

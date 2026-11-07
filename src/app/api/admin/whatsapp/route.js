@@ -251,6 +251,7 @@ export async function PATCH(req) {
     if (!body.bot_paused) changes.handoff_at = null;
   }
   if (typeof body.opted_in === "boolean") changes.opted_in = body.opted_in;
+  if (typeof body.archived === "boolean") changes.archived_at = body.archived ? new Date().toISOString() : null;
   if (body.property_id !== undefined) changes.property_id = body.property_id || null;
   if (!Object.keys(changes).length) return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
   // The daily report goes to a hotel's contact, so it needs a hotel.

@@ -41,6 +41,7 @@ const CHECKS = [
   { migration: "071_password_resets", table: "password_resets", column: "token_hash" },
   { migration: "074_crm_contacts_deals", table: "crm_deals", column: "stage" },
   { migration: "081_enquiry_contacts", table: "crm_contacts", column: "email" },
+  { migration: "082_archive_chats", table: "wa_contacts", column: "archived_at" },
   { migration: "081_enquiry_contacts", table: "wa_leads", column: "email" },
 ];
 
