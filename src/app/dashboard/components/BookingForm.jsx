@@ -1451,19 +1451,6 @@ export default function BookingForm({
             )}
           </div>
           {linked && <LinkedGuest guest={linked} onUnlink={unlinkGuest} propertyId={session?.propertyId} />}
-          <label
-            className="mt-1 flex items-center gap-2 text-sm"
-            style={{ minHeight: 32 }}
-            title="The booker is kept on the booking only, not added to the guest list"
-          >
-            <input
-              type="checkbox"
-              style={{ width: 18, height: 18 }}
-              checked={form.booked_by_other}
-              onChange={(e) => set("booked_by_other", e.target.checked)}
-            />
-            Booked by someone else
-          </label>
         </Field>
         <Field label="Phone" tour="phone">
           <div style={{ position: "relative" }}>
@@ -1480,6 +1467,47 @@ export default function BookingForm({
               <GuestSuggestions items={suggest.items} active={suggest.active} onPick={pickGuest} />
             )}
           </div>
+        </Field>
+        <Field label="Country">
+          <Select
+            className="input"
+            value={form.guest_country}
+            onChange={(e) => set("guest_country", e.target.value)}
+          >
+            <option value="">Not recorded</option>
+            {countries.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        {/* Decides which taxes apply -- some levies are for foreign
+            guests only, and some exemptions are too. */}
+        <Field label="Guest is">
+          <Select
+            className="input"
+            value={form.guest_residency}
+            onChange={(e) => set("guest_residency", e.target.value)}
+          >
+            <option value="domestic">Domestic</option>
+            <option value="international">International</option>
+          </Select>
+        </Field>
+        <Field label="Booker" span={2}>
+          <label
+            className="flex items-center gap-2 text-sm"
+            style={{ minHeight: 32 }}
+            title="The booker is kept on the booking only, not added to the guest list"
+          >
+            <input
+              type="checkbox"
+              style={{ width: 18, height: 18 }}
+              checked={form.booked_by_other}
+              onChange={(e) => set("booked_by_other", e.target.checked)}
+            />
+            Booked by someone else
+          </label>
         </Field>
         {form.booked_by_other && (
           <>
@@ -1500,32 +1528,6 @@ export default function BookingForm({
             </Field>
           </>
         )}
-        <Field label="Country" span={2}>
-          <Select
-            className="input"
-            value={form.guest_country}
-            onChange={(e) => set("guest_country", e.target.value)}
-          >
-            <option value="">Not recorded</option>
-            {countries.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
-        {/* Decides which taxes apply -- some levies are for foreign
-            guests only, and some exemptions are too. */}
-        <Field label="Guest is" span={2}>
-          <Select
-            className="input"
-            value={form.guest_residency}
-            onChange={(e) => set("guest_residency", e.target.value)}
-          >
-            <option value="domestic">Domestic</option>
-            <option value="international">International</option>
-          </Select>
-        </Field>
       </Section>
 
       <Section title="Room and rate">
