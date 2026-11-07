@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/database";
 import { minutesNowInZone } from "@/lib/hotelTime";
-import { alertAdmin, sendButtons, sendText } from "@/lib/whatsapp";
+import { alertAdmin, blank, sendButtons, sendText } from "@/lib/whatsapp";
 
 /**
  * The auto-reply on the business WhatsApp number: a new enquiry is asked
@@ -90,7 +90,8 @@ async function handOver(contact, lead, why) {
   await sendText(contact.phone, `Our team will contact you shortly.${offlineNote()}`);
   await alertAdmin(
     `${why} from ${contact.name || contact.phone} (+${contact.phone}).${lead ? ` ${leadLine(lead)}` : ""}`,
-    lead ? [lead.hotel_name || contact.name || contact.phone, INTERESTS[lead.interest] || "-", String(lead.rooms ?? "-"), lead.city || "-"] : null
+    [contact.name || `+${contact.phone}`, why, lead ? leadLine(lead) : `+${contact.phone}`].map(blank),
+    "needs_you_v1"
   );
 }
 

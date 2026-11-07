@@ -42,6 +42,9 @@ export function signatureValid(rawBody, header) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** Template blanks cannot hold line breaks or be empty. */
+export const blank = (v) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, 200) || "-";
+
 /** A Graph API address, like graph("123/messages"). */
 export function graph(path) {
   if (!whatsappReady()) throw new Error("WhatsApp is not connected: WA_TOKEN and WA_PHONE_NUMBER_ID are not set.");
@@ -113,6 +116,8 @@ const TEMPLATE_WORDS = {
   daily_report_v2:
     "Good morning {{1}}, here is today at your hotel.\nArrivals: {{2}}\nDepartures: {{3}}\nRooms occupied: {{4}}\nOccupancy: {{5}}\nYesterday's revenue: {{6}}\nHave a good day.",
   lead_alert_v2: "New lead from {{1}}.\nInterested in: {{2}}\nRooms: {{3}}\nCity: {{4}}\nPlease follow up from the WhatsApp inbox.",
+  needs_you_v1:
+    "{{1}} needs you on WhatsApp.\nWhy: {{2}}\nDetails: {{3}}\nPlease reply from the WhatsApp inbox.",
   welcome_v1:
     "Hi {{1}}, welcome to OnlineHotelier. Your hotel {{2}} is created. Log in at {{3}} and add your rooms to start. Reply here if you need any help.",
   setup_reminder_v2: "Hi {{1}}, your hotel {{2}} is {{3}} set up on OnlineHotelier. Reply here if you need any help finishing it.",
@@ -160,17 +165,21 @@ export async function markRead(messageId) {
 /**
  * A note to the owner's own phone (ADMIN_ALERT_PHONE). Free text reaches it
  * only if the owner has written to the business number in the last 24
- * hours, so a refusal falls back to the lead_alert_v2 template.
+ * hours. Meta can accept free text outside that window and drop it later,
+ * so the window is checked first: closed means the template (lead_alert_v2,
+ * or needs_you_v1 when the bot cannot reply) goes at once. A refused free text still falls back to the template.
  */
-export async function alertAdmin(text, templateParams) {
+export async function alertAdmin(text, templateParams, templateName = "lead_alert_v2") {
   const to = waPhone(process.env.ADMIN_ALERT_PHONE);
   if (!to || !whatsappReady()) return;
+  const { data: contact } = await getSupabaseAdmin().from("wa_contacts").select("last_inbound_at").eq("phone", to).maybeSingle();
   try {
+    if (!inWindow(contact)) throw new Error("24-hour window closed");
     await sendText(to, text, "alert");
   } catch {
     if (!templateParams) return;
     try {
-      await sendTemplate(to, "lead_alert_v2", templateParams, "alert");
+      await sendTemplate(to, templateName, templateParams, "alert");
     } catch (err) {
       console.error("WhatsApp lead alert not sent:", err.message);
     }

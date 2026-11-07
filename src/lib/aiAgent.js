@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getSupabaseAdmin } from "@/lib/database";
 import { minutesNowInZone } from "@/lib/hotelTime";
-import { alertAdmin } from "@/lib/whatsapp";
+import { alertAdmin, blank } from "@/lib/whatsapp";
 
 /**
  * The WhatsApp assistant (migration 065): Claude Haiku chats with a new
@@ -198,7 +198,8 @@ export async function handOff(contact, reason) {
   const details = lead ? [lead.hotel_name, lead.city, lead.rooms != null ? `${lead.rooms} rooms` : null].filter(Boolean).join(", ") : "";
   await alertAdmin(
     `Needs you: ${contact.name || "+" + contact.phone} (+${contact.phone}). ${reason}${details ? `. ${details}` : ""}`,
-    [lead?.hotel_name || contact.name || contact.phone, lead?.interest || "-", String(lead?.rooms ?? "-"), lead?.city || "-"]
+    [contact.name || `+${contact.phone}`, reason, details || `+${contact.phone}`].map(blank),
+    "needs_you_v1"
   );
 }
 
