@@ -2,6 +2,7 @@ import { getPropertyClock, getSupabaseAdmin, listRoomTypes, listRooms, nightsBet
 import { dayInZone, zoneDayStart } from '@/lib/hotelTime';
 import { addDays, formatDateISO, parseDateISO } from '@/lib/date';
 import { countryName } from '@/lib/countries';
+import { isOtaSource } from '@/lib/bookingSources';
 import { chargedRate, discountByNight, roomKeep } from '@/lib/discounts';
 
 /**
@@ -39,7 +40,7 @@ const METHOD_LABELS = {
   website: 'Website',
   corporate: 'Corporate',
   travel_agent: 'Travel agent',
-  ota: 'OTA (entered by hand)',
+  ota: 'OTA',
   group: 'Group',
 };
 
@@ -98,7 +99,7 @@ export function chunks(ids) {
  */
 export function channelOf(r) {
   if (r.partner_booking_id) return r.source || 'OTA';
-  if (r.source === 'ota') return 'OTA (entered by hand)';
+  if (isOtaSource(r.source)) return r.source === 'ota' ? 'OTA' : r.source;
   return 'Direct';
 }
 
@@ -107,7 +108,7 @@ export function channelOf(r) {
  * OTA, Corporate, Travel agent, Group, otherwise Direct.
  */
 export function segmentOf(r) {
-  if (r.partner_booking_id || r.source === 'ota') return 'ota';
+  if (r.partner_booking_id || isOtaSource(r.source)) return 'ota';
   if (r.company_id || r.source === 'corporate') return 'corporate';
   if (r.source === 'travel_agent') return 'agent';
   if (r.source === 'group') return 'group';
@@ -115,6 +116,7 @@ export function segmentOf(r) {
 }
 
 function methodOf(r) {
+  if (isOtaSource(r.source)) return 'OTA';
   return METHOD_LABELS[r.source] || r.source || 'Unknown';
 }
 

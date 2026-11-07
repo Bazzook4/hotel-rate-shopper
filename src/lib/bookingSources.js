@@ -15,7 +15,7 @@ export const BOOKING_SOURCES = [
   { value: "website", label: "Website" },
   { value: "corporate", label: "Company" },
   { value: "travel_agent", label: "Travel agent" },
-  { value: "ota", label: "OTA (entered by hand)" },
+  { value: "ota", label: "OTA" },
   { value: "group", label: "Group" },
 ];
 
@@ -25,4 +25,26 @@ const LABELS = Object.fromEntries(BOOKING_SOURCES.map((s) => [s.value, s.label])
 export function sourceLabel(source) {
   if (!source) return "-";
   return LABELS[source] || LABELS[String(source).toLowerCase()] || source;
+}
+
+/** OTAs the desk can pick when it types an OTA booking in by hand. */
+export const OTA_NAMES = [
+  "MakeMyTrip",
+  "Goibibo",
+  "Booking.com",
+  "Expedia",
+  "Agoda",
+  "Airbnb",
+  "Cleartrip",
+  "EaseMyTrip",
+  "Yatra",
+  "TripAdvisor",
+];
+
+const OTA_LOWER = new Set(OTA_NAMES.map((n) => n.toLowerCase()));
+
+/** True for "ota" and for any OTA's own name. */
+export function isOtaSource(source) {
+  const s = String(source || "").toLowerCase();
+  return s === "ota" || OTA_LOWER.has(s);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { BOOKING_SOURCES, sourceLabel } from "@/lib/bookingSources";
+import { BOOKING_SOURCES, OTA_NAMES, isOtaSource, sourceLabel } from "@/lib/bookingSources";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, formatDateISO, parseDateISO } from "@/lib/date";
 import { hotelToday } from "@/lib/hotelTime";
@@ -682,7 +682,8 @@ export default function BookingForm({
   const dayUse = form.stay_kind === "day_use";
   const nights = dayUse ? 0 : nightsBetween(form.check_in, form.check_out);
 
-  const sourceOptions = FORM_SOURCES.some((o) => o.value === form.source)
+  const otaSource = isOtaSource(form.source);
+  const sourceOptions = otaSource || FORM_SOURCES.some((o) => o.value === form.source)
     ? FORM_SOURCES
     : [...FORM_SOURCES, { value: form.source, label: sourceLabel(form.source) }];
 
@@ -1581,10 +1582,10 @@ export default function BookingForm({
             </Select>
           </Field>
         )}
-        <Field label="Booking method" tour="method" span={companyShown ? 2 : 4}>
+        <Field label="Booking method" tour="method" span={otaSource || companyShown ? 2 : 4}>
           <Select
             className="input"
-            value={form.source}
+            value={otaSource ? "ota" : form.source}
             onChange={(e) => set("source", e.target.value)}
           >
             {sourceOptions.map((o) => (
@@ -1594,6 +1595,22 @@ export default function BookingForm({
             ))}
           </Select>
         </Field>
+        {otaSource && (
+          <Field label="Which OTA" span={2}>
+            <Select
+              className="input"
+              value={form.source}
+              onChange={(e) => set("source", e.target.value)}
+            >
+              <option value="ota">Other OTA</option>
+              {OTA_NAMES.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         {companyShown && (
           <Field
             label={needsRecord ? (wantKind === "company" ? "Company" : "Travel agent") : "Company / agent"}

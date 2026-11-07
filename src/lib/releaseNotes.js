@@ -13,6 +13,13 @@
 
 export const RELEASE_NOTES = [
   {
+    date: "2026-11-07",
+    title: "Pick the OTA on a new booking",
+    points: [
+      { page: "reservations", text: "When you type in a booking, choose OTA as the booking method, then pick which one: MakeMyTrip, Booking.com, Expedia, Agoda, Airbnb and more. Reports show each OTA by its own name." },
+    ],
+  },
+  {
     date: "2026-11-05",
     title: "Warning when an ID is missing",
     points: [
