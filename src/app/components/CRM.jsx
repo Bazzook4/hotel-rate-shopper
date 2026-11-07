@@ -9,8 +9,9 @@ import WhatsAppTemplates from "./WhatsAppTemplates";
 /**
  * Super admin only: the CRM, as leads, contacts and deals.
  *
- * Leads is the WhatsApp inbox: every number that writes in is a lead worked
- * through New enquiry, Contacted or No contact. Once a lead has developed,
+ * WhatsApp Chat is the inbox: every number that writes in is a lead worked
+ * through New enquiry, Contacted or No contact, and becomes a Contact at once.
+ * Deals lists every enquiry with its status and bookings. Once a lead has developed,
  * Convert makes a Contact (the person and their hotel) and a Deal, which
  * moves through Demo, Onboarding link sent, Won or Lost. Hotels is Usage &
  * follow up for hotels already signed up. WhatsApp Templates lists
@@ -19,7 +20,7 @@ import WhatsAppTemplates from "./WhatsAppTemplates";
  */
 
 const VIEWS = [
-  ["chats", "Leads"],
+  ["chats", "WhatsApp Chat"],
   ["contacts", "Contacts"],
   ["deals", "Deals"],
   ["hotels", "Hotels"],

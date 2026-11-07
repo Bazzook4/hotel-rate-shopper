@@ -7,14 +7,18 @@ import DateField from "./DateField";
 import { useEscape } from "./useEscape";
 import { useDialog } from "./Dialog";
 import { formatDateISO } from "@/lib/date";
+import { LEAD_STATUS, LEAD_CHIP } from "./WhatsAppInbox";
 
 /**
  * Super admin only: contacts and deals (migration 074).
  *
  * A contact is a person and their hotel, made when a developed lead is
  * converted. A deal is a try at winning that hotel, moved through Demo,
- * Link sent, Won and Lost. A contact can have many deals. Both tabs open the
- * same side panel: the contact's details on top, each of their deals below.
+ * Link sent, Won and Lost. A contact can have many deals. Every enquiry makes
+ * a contact the moment it arrives (migration 081). Deals is a table of all of
+ * them: when it was received, where it stands, and how many bookings the hotel
+ * has made since signing up, with the date of the last one; the stage board is
+ * one click away. Both tabs open the same side panel.
  */
 
 export const STAGES = { demo: "Demo", link_sent: "Onboarding link sent", won: "Won", lost: "Lost" };
@@ -38,6 +42,7 @@ async function api(method, body, query = "") {
 
 const day = (iso) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "");
 const place = (c) => [c.hotel_name, c.city, c.rooms != null ? `${c.rooms} rooms` : null].filter(Boolean).join(", ");
+const full = (iso) => (iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "");
 const label = (c) => c.name || c.hotel_name || (c.phone ? `+${c.phone}` : "No name");
 
 export default function CrmDeals({ view, openDealId, onOpenChat }) {
@@ -46,6 +51,11 @@ export default function CrmDeals({ view, openDealId, onOpenChat }) {
   const [missing, setMissing] = useState(false);
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [board, setBoardState] = useState(() => typeof window !== "undefined" && localStorage.getItem("crmDealBoard") === "1");
+  const setBoard = (on) => {
+    setBoardState(on);
+    localStorage.setItem("crmDealBoard", on ? "1" : "0");
+  };
 
   const load = useCallback(async () => {
     try {
@@ -73,7 +83,7 @@ export default function CrmDeals({ view, openDealId, onOpenChat }) {
     const digits = q.replace(/\D/g, "");
     return (data?.contacts || []).filter((c) => {
       if (!q) return true;
-      return [c.name, c.hotel_name, c.city].filter(Boolean).join(" ").toLowerCase().includes(q) || (digits.length >= 3 && (c.phone || "").includes(digits));
+      return [c.name, c.email, c.hotel_name, c.city].filter(Boolean).join(" ").toLowerCase().includes(q) || (digits.length >= 3 && (c.phone || "").includes(digits));
     });
   }, [data, query]);
 
@@ -103,15 +113,28 @@ export default function CrmDeals({ view, openDealId, onOpenChat }) {
         <input
           className="input w-full text-sm md:w-64"
           type="search"
-          placeholder="Search name, number, hotel, city"
+          placeholder="Search name, number, email, hotel, city"
           aria-label={view === "deals" ? "Search deals" : "Search contacts"}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
+        {view === "deals" && (
+          <>
+            <button type="button" aria-pressed={!board} className={!board ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"} onClick={() => setBoard(false)}>
+              Table
+            </button>
+            <button type="button" aria-pressed={board} className={board ? "btn btn-secondary text-sm" : "btn btn-ghost text-sm"} onClick={() => setBoard(true)}>
+              Board
+            </button>
+            {!board && <span className="text-xs muted">{rows.length} enquiries</span>}
+          </>
+        )}
         {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
       </div>
 
-      {view === "deals" ? (
+      {view === "deals" && !board ? (
+        <EnquiryTable rows={rows} onOpen={setOpenId} onDeal={patchDeal} setError={setError} />
+      ) : view === "deals" ? (
         <DealBoard rows={rows} onOpen={setOpenId} onDeal={patchDeal} setError={setError} />
       ) : (
         <ContactList rows={rows} onOpen={setOpenId} />
@@ -146,14 +169,15 @@ function ContactList({ rows, onOpen }) {
             <th>City</th>
             <th>Rooms</th>
             <th>Phone</th>
+            <th>Email</th>
             <th>Deals</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={6} className="muted">
-                No contacts yet. Convert a lead that has developed and it appears here.
+              <td colSpan={7} className="muted">
+                No contacts yet. Every new enquiry appears here.
               </td>
             </tr>
           )}
@@ -168,6 +192,7 @@ function ContactList({ rows, onOpen }) {
               <td>{c.city || ""}</td>
               <td>{c.rooms ?? ""}</td>
               <td>{c.phone ? `+${c.phone}` : ""}</td>
+              <td>{c.email || ""}</td>
               <td>
                 {c.deals.length === 0
                   ? ""
@@ -179,6 +204,80 @@ function ContactList({ rows, onOpen }) {
               </td>
             </tr>
           ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Every enquiry in one table. The status of a contact with a deal is its latest deal's stage, changed here; before that it is the lead's status. */
+function EnquiryTable({ rows, onOpen, onDeal, setError }) {
+  const list = useMemo(() => [...rows].sort((a, b) => String(b.received).localeCompare(String(a.received))), [rows]);
+
+  async function move(c, deal, stage) {
+    const before = deal;
+    onDeal(c.id, { ...deal, stage });
+    setError("");
+    try {
+      const r = await api("PATCH", { deal_id: deal.id, stage });
+      onDeal(c.id, r.deal);
+    } catch (e) {
+      onDeal(c.id, before);
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="card overflow-x-auto">
+      <table className="grid-table min-w-full text-sm">
+        <thead>
+          <tr>
+            <th>Enquiry</th>
+            <th>Received</th>
+            <th>Current status</th>
+            <th>Bookings created</th>
+            <th>Last booking</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.length === 0 && (
+            <tr>
+              <td colSpan={5} className="muted">
+                No enquiries yet.
+              </td>
+            </tr>
+          )}
+          {list.map((c) => {
+            const deal = c.deals[0];
+            return (
+              <tr key={c.id}>
+                <td>
+                  <button type="button" className="text-left text-ink underline" onClick={() => onOpen(c.id)}>
+                    {label(c)}
+                  </button>
+                  {place(c) && <span className="block text-xs muted">{place(c)}</span>}
+                </td>
+                <td>{full(c.received)}</td>
+                <td>
+                  {deal ? (
+                    <Select value={deal.stage} onChange={(e) => move(c, deal, e.target.value)} className="input text-xs" aria-label={`Stage of ${label(c)}`}>
+                      {Object.entries(STAGES).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v}
+                        </option>
+                      ))}
+                    </Select>
+                  ) : c.lead_status in LEAD_STATUS ? (
+                    <span className={`chip ${LEAD_CHIP[c.lead_status]}`}>{LEAD_STATUS[c.lead_status]}</span>
+                  ) : (
+                    ""
+                  )}
+                </td>
+                <td>{c.bookings ?? ""}</td>
+                <td>{full(c.last_booking)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -365,6 +464,7 @@ function ContactPanel({ contact, hotels, onContact, onDeal, onChat, onGone, onCl
           <section className="space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <Field label="Name" value={contact.name} onSave={(v) => saveContact({ name: v })} />
+              <Field label="Email" value={contact.email} onSave={(v) => saveContact({ email: v })} />
               <Field label="Hotel" value={contact.hotel_name} onSave={(v) => saveContact({ hotel_name: v })} />
               <Field label="City" value={contact.city} onSave={(v) => saveContact({ city: v })} />
               <Field label="Rooms" value={contact.rooms} numeric onSave={(v) => saveContact({ rooms: v })} />

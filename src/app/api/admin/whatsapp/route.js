@@ -231,7 +231,7 @@ export async function PATCH(req) {
       if (!LEAD_STATUSES.includes(body.status)) return NextResponse.json({ error: "Unknown status" }, { status: 400 });
       changes.status = body.status;
     }
-    for (const k of ["hotel_name", "city", "interest", "current_otas"]) {
+    for (const k of ["hotel_name", "city", "interest", "current_otas", "email"]) {
       if (body[k] !== undefined) changes[k] = String(body[k] || "").trim().slice(0, 200) || null;
     }
     if (body.rooms !== undefined) {
@@ -280,7 +280,20 @@ export async function DELETE(req) {
   if (!(await guard(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const id = Number(new URL(req.url).searchParams.get("lead_id"));
   if (!Number.isInteger(id) || id <= 0) return NextResponse.json({ error: "Which lead?" }, { status: 400 });
-  const { error } = await getSupabaseAdmin().from("wa_leads").delete().eq("id", id);
+  const db = getSupabaseAdmin();
+  const { data: lead } = await db.from("wa_leads").select("phone").eq("id", id).maybeSingle();
+  const { error } = await db.from("wa_leads").delete().eq("id", id);
   if (error) return failure(error);
+  // The contact made for this enquiry goes too, unless it has deals or another lead.
+  if (lead?.phone) {
+    const [{ data: more }, { data: crm }] = await Promise.all([
+      db.from("wa_leads").select("id").eq("phone", lead.phone).limit(1),
+      db.from("crm_contacts").select("id").eq("phone", lead.phone).maybeSingle(),
+    ]);
+    if (crm && !more?.length) {
+      const { data: deals } = await db.from("crm_deals").select("id").eq("contact_id", crm.id).limit(1);
+      if (!deals?.length) await db.from("crm_contacts").delete().eq("id", crm.id);
+    }
+  }
   return NextResponse.json({ ok: true });
 }

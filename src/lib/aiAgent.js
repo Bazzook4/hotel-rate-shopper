@@ -92,7 +92,7 @@ Style:
 - Plain text only: WhatsApp does not render markdown headings or tables.
 
 Goal:
-- Understand what they need, then naturally collect: hotel name, city, number of rooms, which OTAs they use today.
+- Understand what they need, then naturally collect: their name, hotel name, city, number of rooms, which OTAs they use today. Take an email address too if they offer one, never push for it.
 - Call save_lead as soon as you learn any of these details.
 - You may quote the prices above. For custom quotes, discounts beyond the above, complaints, or anything you are unsure about: say our team will contact them, then call handoff_to_sj.
 - Always say "our team will contact you", never that SJ or a named person will.
@@ -112,6 +112,8 @@ const TOOLS = [
       type: "object",
       properties: {
         interest: { type: "string", enum: ["ota_listing", "ota_audit", "pms", "revenue", "website", "other"] },
+        name: { type: "string", description: "The person's own name" },
+        email: { type: "string" },
         hotel_name: { type: "string" },
         city: { type: "string" },
         rooms: { type: "integer" },
@@ -151,7 +153,7 @@ export async function loadHistory(phone) {
   return merged;
 }
 
-const LEAD_FIELDS = ["interest", "hotel_name", "city", "rooms", "current_otas"];
+const LEAD_FIELDS = ["interest", "email", "hotel_name", "city", "rooms", "current_otas"];
 
 async function saveLead(phone, input) {
   const db = getSupabaseAdmin();
@@ -160,6 +162,9 @@ async function saveLead(phone, input) {
     if (input[k] == null || input[k] === "") continue;
     changes[k] = k === "rooms" ? parseInt(input[k], 10) || null : String(input[k]).slice(0, 200);
   }
+  // The name belongs to the chat; a name WhatsApp already gave us is kept.
+  const name = String(input.name || "").trim().slice(0, 100);
+  if (name) await db.from("wa_contacts").update({ name }).eq("phone", phone).is("name", null);
   if (!Object.keys(changes).length) return;
   const { data: lead } = await db
     .from("wa_leads")

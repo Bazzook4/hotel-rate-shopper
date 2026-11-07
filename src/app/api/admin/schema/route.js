@@ -40,6 +40,8 @@ const CHECKS = [
   { migration: "070_wa_schedules", table: "wa_schedules", column: "last_sent_on" },
   { migration: "071_password_resets", table: "password_resets", column: "token_hash" },
   { migration: "074_crm_contacts_deals", table: "crm_deals", column: "stage" },
+  { migration: "081_enquiry_contacts", table: "crm_contacts", column: "email" },
+  { migration: "081_enquiry_contacts", table: "wa_leads", column: "email" },
 ];
 
 export async function GET(req) {

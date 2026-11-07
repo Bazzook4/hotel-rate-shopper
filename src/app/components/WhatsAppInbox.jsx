@@ -87,6 +87,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
   };
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState("");
+  const dialog = useDialog();
 
   const load = useCallback(async () => {
     try {
@@ -170,6 +171,24 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
   const notice = !data.ready
     ? "WhatsApp is not connected, so nothing can be sent: set WA_TOKEN and WA_PHONE_NUMBER_ID in Vercel."
     : loadError;
+
+  // Delete a lead from the list or board; the chat stays.
+  async function removeLead(c) {
+    const ok = await dialog.confirm({
+      title: "Delete this lead?",
+      message: `${c.name || `+${c.phone}`} is removed from the leads and its contact is removed too, unless it has deals. The chat stays, and a new message from this number starts a new lead.`,
+      confirmLabel: "Delete lead",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await call("DELETE", null, `?lead_id=${c.lead.id}`);
+      patchContact({ phone: c.phone, lead: null });
+      if (openPhone === c.phone) setOpenPhone(null);
+    } catch (e) {
+      setAddError(e.message);
+    }
+  }
 
   // Picking a hotel adds its contact straight away and opens the chat.
   async function add(propertyId) {
@@ -264,6 +283,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
             setQuery={setQuery}
             onOpen={setOpenPhone}
             onContact={patchContact}
+            onDelete={removeLead}
           />
           {open && (
             <ChatPanel
@@ -301,14 +321,12 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
           )}
           <ul className="min-h-0 flex-1 overflow-y-auto">
             {shown.map((c) => (
-              <li key={c.phone}>
+              <li key={c.phone} className={`flex items-center border-b border-[var(--border)] ${c.phone === openPhone ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-2)]"}`}>
                 <button
                   type="button"
                   onClick={() => setOpenPhone(c.phone)}
                   aria-current={c.phone === openPhone}
-                  className={`block w-full border-b border-[var(--border)] px-3 py-2 text-left text-sm ${
-                    c.phone === openPhone ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-2)]"
-                  }`}
+                  className="block min-w-0 flex-1 px-3 py-2 text-left text-sm"
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className={`truncate text-ink ${c.unread ? "font-semibold" : ""}`}>{c.name || `+${c.phone}`}</span>
@@ -333,6 +351,11 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
                     </span>
                   </span>
                 </button>
+                {isLead(c) && (
+                  <button type="button" className="btn btn-ghost mr-2 shrink-0 text-xs" onClick={() => removeLead(c)} aria-label={`Delete lead ${c.name || c.phone}`}>
+                    Delete
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -366,7 +389,7 @@ export default function WhatsAppInbox({ initialPhone = null, onConvert }) {
  * to change its status, or use the picker on the card (touch has no drag).
  * A card opens its chat in a side panel.
  */
-function Board({ rows, only, query, setQuery, onOpen, onContact }) {
+function Board({ rows, only, query, setQuery, onOpen, onContact, onDelete }) {
   const [over, setOver] = useState(null);
   const [error, setError] = useState("");
   const columns = Object.entries(LEAD_STATUS).filter(([k]) => !only || k === only);
@@ -457,9 +480,12 @@ function Board({ rows, only, query, setQuery, onOpen, onContact }) {
                             </option>
                           ))}
                         </Select>
-                        <span className="flex gap-1">
+                        <span className="flex items-center gap-1">
                           {c.handoff_at && <span className="chip chip-warn">Needs you</span>}
                           {c.unread > 0 && <span className="chip chip-warn">{c.unread}</span>}
+                          <button type="button" className="btn btn-ghost text-xs" onClick={() => onDelete(c)}>
+                            Delete
+                          </button>
                         </span>
                       </span>
                     </li>
@@ -959,6 +985,7 @@ export function Chat({ contact, hotels, templates, ready, ai, hotelName, onConta
                 ))}
               </Select>
             </label>
+            <LeadField lead={lead} name="email" label="Email" width="12rem" onSave={saveLead} />
             <LeadField lead={lead} name="hotel_name" label="Property" width="10rem" onSave={saveLead} />
             <LeadField lead={lead} name="city" label="City" width="7rem" onSave={saveLead} />
             <LeadField lead={lead} name="rooms" label="Rooms" width="3.5rem" numeric onSave={saveLead} />

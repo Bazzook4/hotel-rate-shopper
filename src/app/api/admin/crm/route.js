@@ -12,7 +12,7 @@ import { getSupabaseAdmin } from "@/lib/database";
  *                   is marked converted and keeps its chat
  *                   { contact_id } a new deal for a contact
  * PATCH             { deal_id, stage | note | next_follow_up | property_id }
- *                   { contact_id, name | hotel_name | city | rooms | current_otas | notes }
+ *                   { contact_id, name | email | hotel_name | city | rooms | current_otas | notes }
  * DELETE            ?deal_id= or ?contact_id= (a contact takes its deals with it)
  */
 
@@ -36,12 +36,31 @@ const clean = (v) => String(v ?? "").trim().slice(0, 200) || null;
 export async function GET(req) {
   if (!(await guard(req))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const db = getSupabaseAdmin();
-  const [contacts, deals, hotels] = await Promise.all([
+  const [contacts, deals, hotels, leads] = await Promise.all([
     db.from("crm_contacts").select("*").order("created_at", { ascending: false }).limit(2000),
     db.from("crm_deals").select("*").order("created_at", { ascending: false }).limit(5000),
     db.from("properties").select("id, name").order("name"),
+    db.from("wa_leads").select("phone, status, created_at").order("created_at", { ascending: true }).limit(5000),
   ]);
-  for (const r of [contacts, deals]) if (r.error) return failure(r.error);
+  for (const r of [contacts, deals, leads]) if (r.error) return failure(r.error);
+  // First message in, and the lead's status now (the newest lead for the number).
+  const firstIn = new Map();
+  const leadStatus = new Map();
+  for (const l of leads.data || []) {
+    if (!firstIn.has(l.phone)) firstIn.set(l.phone, l.created_at);
+    leadStatus.set(l.phone, l.status);
+  }
+  // Bookings made by each hotel that signed up, counted as Admin > Hotels counts them.
+  const linked = [...new Set((deals.data || []).map((d) => d.property_id).filter(Boolean))];
+  const bookings = new Map(
+    await Promise.all(
+      linked.map(async (id) => {
+        const base = () => db.from("reservations").select("created_at", { count: "exact" }).eq("property_id", id).not("status", "in", "(cancelled,no_show)");
+        const [n, last] = await Promise.all([base().limit(1), base().order("created_at", { ascending: false }).limit(1)]);
+        return [id, { count: n.count || 0, last: last.data?.[0]?.created_at || null }];
+      })
+    )
+  );
   const byContact = new Map();
   for (const d of deals.data || []) {
     if (!byContact.has(d.contact_id)) byContact.set(d.contact_id, []);
@@ -49,7 +68,19 @@ export async function GET(req) {
   }
   return NextResponse.json({
     hotels: hotels.data || [],
-    contacts: (contacts.data || []).map((c) => ({ ...c, deals: byContact.get(c.id) || [] })),
+    contacts: (contacts.data || []).map((c) => {
+      const mine = byContact.get(c.id) || [];
+      const ids = [...new Set(mine.map((d) => d.property_id).filter(Boolean))];
+      const made = ids.map((id) => bookings.get(id)).filter(Boolean);
+      return {
+        ...c,
+        deals: mine,
+        received: [firstIn.get(c.phone), c.created_at].filter(Boolean).sort()[0],
+        lead_status: leadStatus.get(c.phone) || null,
+        bookings: ids.length ? made.reduce((n, b) => n + b.count, 0) : null,
+        last_booking: made.map((b) => b.last).filter(Boolean).sort().pop() || null,
+      };
+    }),
   });
 }
 
@@ -72,6 +103,7 @@ export async function POST(req) {
         .insert({
           phone: lead.phone,
           name: chat?.name || null,
+          email: lead.email,
           hotel_name: lead.hotel_name,
           city: lead.city,
           rooms: lead.rooms,
@@ -132,7 +164,7 @@ export async function PATCH(req) {
 
   if (body.contact_id) {
     const changes = { updated_at: now };
-    for (const k of ["name", "hotel_name", "city", "current_otas", "notes"]) {
+    for (const k of ["name", "email", "hotel_name", "city", "current_otas", "notes"]) {
       if (body[k] !== undefined) changes[k] = clean(body[k]);
     }
     if (body.rooms !== undefined) {
