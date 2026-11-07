@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDialog } from "./Dialog";
 import Icon from "./Icon";
+import UserRights from "../dashboard/components/UserRights";
 import { whatsappNumber } from "../dashboard/components/frontDesk";
 
 const inputClass =
@@ -573,9 +574,9 @@ export default function PropertyAdmin({ session }) {
             />
           </label>
           {form.id && (
-            <p className="mt-3 text-xs muted">
-              Users and their rights are managed in the Users tab.
-            </p>
+            <div className="mt-4 border-t border-[var(--border)] pt-3">
+              <UserRights session={session} propertyId={form.id} />
+            </div>
           )}
 
           <div className="mt-3 flex gap-2">

@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PropertyAdmin from "../components/PropertyAdmin";
-import UserList from "../components/UserList";
-import UserRights from "../dashboard/components/UserRights";
 import PartnerSettings from "../components/PartnerSettings";
 import CRM from "../components/CRM";
 import SchemaStatus from "../components/SchemaStatus";
@@ -47,7 +45,7 @@ export default function AdminPage() {
         // Usage, Follow up and WhatsApp became the CRM tab.
         const stored = localStorage.getItem("adminTab");
         const saved = ["follow", "usage", "whatsapp"].includes(stored) ? "crm" : stored;
-        if (saved === "users" || (saved && isSuperAdmin(data.user))) setTabState(saved);
+        if (saved && saved !== "users" && isSuperAdmin(data.user)) setTabState(saved);
       } catch {
         router.push("/login");
       } finally {
@@ -86,7 +84,6 @@ export default function AdminPage() {
           <div className="flex gap-2 overflow-x-auto">
             {[
               ["properties", "Properties"],
-              ["users", "Users"],
               ...(isSuperAdmin(session)
                 ? [
                     ["crm", "CRM"],
@@ -110,16 +107,6 @@ export default function AdminPage() {
           </div>
 
           {tab === "properties" && <PropertyAdmin session={session} />}
-          {tab === "users" && (
-            <div className="space-y-4">
-              <UserRights
-                session={session}
-                propertyId={isSuperAdmin(session) ? null : session.propertyId}
-                pickProperty={isSuperAdmin(session)}
-              />
-              {isSuperAdmin(session) && <UserList session={session} />}
-            </div>
-          )}
           {tab === "crm" && isSuperAdmin(session) && <CRM />}
           {tab === "partners" && isSuperAdmin(session) && <PartnerSettings />}
         </div>
